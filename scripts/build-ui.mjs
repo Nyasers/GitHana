@@ -6,7 +6,7 @@
  *
  * 为什么需要这一步：设置页用宿主组件（@hana/app-sdk/components），而它把 React / React DOM
  * 当外部 peer——浏览器里没有 bare specifier 解析，必须打包。产物直接进 App 包（宿主不会在
- * 安装时跑构建），所以每次改完 UI 源码都要重跑本脚本再 deploy。
+ * 安装时跑构建），所以每次改完 UI 源码都要重跑本脚本，让 bundle 进包。
  *
  *   ui/src/settings.jsx  ──rspack──▶  ui/settings.bundle.js
  *   （含 @hana/app-sdk/components.css 与 ./settings.css 的样式合并、按导入顺序抽取）
@@ -107,5 +107,5 @@ rspack(config, (err, stats) => {
     const p = path.join(outDir, name);
     console.log(`[build-ui] ui/${name}  ${fs.existsSync(p) ? kb(fs.statSync(p).size) : "<缺失>"}`);
   }
-  console.log("[build-ui] 完成。记得 deploy 后在 App 详情页「重新加载」。");
+  console.log("[build-ui] 完成。bundle 已更新，随包安装后在 App 详情页「重新加载」。");
 });
