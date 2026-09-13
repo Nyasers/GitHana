@@ -2,9 +2,9 @@
 
 把 git / gh / gpg 三条 CLI 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
 
-- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 9 个工具 + 2 条后端路由
-- 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）· `gpg_*`（隔离 GPG 身份/公钥）
-- 零 npm 依赖 · `vendor/` 内嵌 git/gh/gnupg 随包分发 · 版本见 `manifest.json`（单一事实源）
+- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 7 个工具 + 3 组后端路由（status / settings / actions）
+- 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
+- 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌 git/gh/gnupg 随包分发 · 版本见 `manifest.json`（单一事实源）
 
 > 与 dshana 同级：本项目是**源码**，落在 `E:\Hanako\workspace\Projects\apps\githana`；
 > 宿主实际加载的是部署副本 `E:\Hanako\.hanako\apps\githana`（见「部署」）。
@@ -13,45 +13,48 @@
 
 | 工具 | 文件 | 权限档 | 语义 |
 |------|------|--------|------|
-| `git_exec` | tools/git-exec.js | review | 任意 git 子命令透传；cwd 必填 + args 必填 + timeoutSec |
+| `git_exec` | tools/git-exec.js | external_side_effect | 任意 git 子命令透传；cwd 必填 + args 必填 + timeoutSec |
 | `git_status` | tools/git-status.js | readOnly | 分支 / upstream / ahead-behind / staged / unstaged / untracked |
 | `git_log` | tools/git-log.js | readOnly | 最近提交速览（默认 10，1~100） |
-| `git_commit` | tools/git-commit.js | review | 本地提交（message 走 stdin）；自动 Co-authored-by；自动 GPG 签名；收尾清 gpg-agent |
-| `git_push` | tools/git-push.js | review | force 映射 `--force-with-lease`（非裸 `--force`） |
-| `gh_exec` | tools/gh-exec.js | review | 任意 gh 命令透传（`GH_TOKEN` 由运行环境注入） |
-| `gh_pr` | tools/gh-pr.js | review | PR create / list / view / merge |
-| `gpg_keygen` | tools/gpg-keygen.js | review | 隔离 git/GPG 初始化：身份推导 → 隔离 gitconfig → GPG 生成/轮换 → 签名接线 → 公钥落盘 |
-| `gpg_pubkey` | tools/gpg-pubkey.js | readOnly | 返回公钥数据（完整指纹 / UID / 公钥全文 / 落盘路径）；查看与复制在设置页 |
+| `git_commit` | tools/git-commit.js | external_side_effect | 本地提交（message 走 stdin）；自动 Co-authored-by；自动 GPG 签名；收尾清 gpg-agent |
+| `git_push` | tools/git-push.js | external_side_effect | force 映射 `--force-with-lease`（非裸 `--force`） |
+| `gh_exec` | tools/gh-exec.js | external_side_effect | 任意 gh 命令透传（`GH_TOKEN` 由运行环境注入） |
+| `gh_pr` | tools/gh-pr.js | external_side_effect | PR create / list / view / merge |
+
+`gpg_keygen` / `gpg_pubkey` 已从工具面退役：GPG 的密钥生成与公钥查看都只在设置页（生成不可逆，
+要用户点按钮确认）。实现仍在 `tools/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
+`lib/routes/pubkey.js`，原来的 `tools/gpg-pubkey.js` 已删。
 
 ## 与 v1 插件的关键差异
 
 | 维度 | v1 插件（`plugins/github-hanako`，已装） | 本项目（App v2） |
 |------|------------------------------------------|------------------|
 | 工具注册 | 宿主扫描 `tools/*.js` 自动注册 | `apply(ctx)` 内逐个 `ctx.tools.register`（无前缀，名字全局唯一） |
-| 设置 | `contributes.configuration` | `contributes.settings` + `ctx.config` |
+| 设置 | `contributes.configuration`（明文进 preferences.json） | `contributes.settings.ui` 自定义页 + App 自持存储（DPAPI 加密，不进宿主设置表） |
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
 | 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
 | 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`），不进宿主设置表 |
 
-`tools/` 与 `tools/lib/` 的实现基本原样复用：`index.js` 把 App 运行上下文（`dataDir` / 安装目录 / `config.getAll`）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
+`tools/` 与 `tools/lib/` 的实现基本原样复用：`index.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
 
 ## 清单能力
 
-- `app/tools.expose-to-model` — 让模型能主动调用这 9 个工具
+- `app/tools.expose-to-model` — 让模型能主动调用这 7 个工具
 - `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gh / gpg（**需要用户在安装审阅里批准**）
 - `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
 
 ## 设置页
 
-只贡献**一个**设置页（`contributes.settings.ui.route = /settings.html`），不再单开 page 卡：
+只贡献**一个**设置页（`contributes.settings.ui.route = /settings.html`），不开 page 卡：
 同一页里既改 GitHub 认证、又看运行环境状态。页面用**宿主组件**搭（`@hana/app-sdk/components`：
 `AppUiProvider` / `SettingsPage` / `SettingsSection` / `SettingRow` / `SaveButton` / `TextInput`），
 而不是手抄样式。
 
-- 清单同时保留 `schema`：`ctx.config` 的字段校验 / 默认值 / `sensitive` 处理仍由它负责，页面不自建第二份配置。
+- 清单里 `settings` 只有 `title` + `ui`，**没有 `schema`**：令牌不是宿主设置项，App 自己持有配置
+  （APPS.md 的口径是 `schema` / `ui` 至少提供一个，只留 `ui` 合法）。
 - 动态读写走 App 自己的已认证路由（`/routes/settings/state` 读、`/routes/settings/token` 写），
   页面不回显已存 token，只显示「已配置 / 未配置」，重新填写才回写。
 - **surface 凭证**：宿迁把 App 页面挂在租约路径下（`/api/apps/<id>/ui/_surface/<token>/…`），
@@ -75,21 +78,21 @@ GitHub 令牌**不进** `contributes.settings`，因此不会以明文出现在 
 - **绝不回落明文**：没有可用后端时保存直接报错，不写明文。
 - **跨平台换机行为明确**：文件里的 `alg` 用来判定密文是不是本机后端写的；不匹配时设置页
   会显示「需重新保存」，而不是静默当未配置。
-- **迁移**：旧版存在 preferences.json 的明文令牌，在首次工具/路由调用时被读出并写入进程缓存；
-  用户下次保存（或清除）时自动迁移并抹掉旧明文。
+- **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退。这是 v2 首个构建起的
+  形态；宿主侧那格即使留有历史记录也只是空串，App 既不读也不写它。
 
 ### 手动档（用户自助）
 
-同一个设置页里另有一组手动入口：**一套实现，两个门**——后端直接调 Agent 用的
-那几个工具模块本体（`tools/gpg-keygen.js` 等），不另写一份并行逻辑。
+同一个设置页里另有一组手动入口：**实现只有一份**——端点直接调同一份模块本体
+（`tools/gpg-keygen.js` 的 `execute`、`lib/routes/pubkey.js` 的公钥读取），不另写并行逻辑。
 
-| 入口 | 端点 | 对应 Agent 工具 |
-|------|------|----------------|
-| 保存 / 清除令牌 | `POST /routes/settings/token` | （Agent 侧无对应；只写加密存储） |
-| GitHub 身份 | `GET /routes/actions/identity` | keygen 内部的 `gh api user` 同源推导 |
-| 检测 gh 认证 | `GET /routes/actions/gh-status` | `gh_exec`（同款 runCli + 隔离 env） |
-| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `gpg_keygen` |
-| 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `gpg_pubkey`（同源数据） |
+| 入口 | 端点 | 实现 |
+|------|------|------|
+| 保存 / 清除令牌 | `POST /routes/settings/token` | `lib/secret.js`（Agent 侧无对应） |
+| GitHub 身份 | `GET /routes/actions/identity` | `tools/lib/identity.js` 的纯函数（与密钥生成同源） |
+| 检测 gh 认证 | `GET /routes/actions/gh-status` | `tools/lib/exec.js` 的 runCli（与 `gh_exec` 同款隔离 env） |
+| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
+| 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
 
 轮换密钥不可逆（GitHub 上已上传的旧公钥立即失效），所以按钮先弹确认再执行。
 
@@ -98,7 +101,7 @@ GitHub 令牌**不进** `contributes.settings`，因此不会以明文出现在 
 React 设置页需要一步构建（宿主不会在安装时跑构建）：
 
 ```bash
-pnpm install          # react / react-dom / esbuild / @hana/app-sdk（本地 tgz）
+pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（本地 tgz）
 node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui/settings.bundle.css
 ```
 
@@ -125,7 +128,8 @@ node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui
   只看 `HANA_DESKTOP_RESOURCES_PATH` 的写法在 v2 里必然失效（AppHost 不传它）。
 - 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`；
   `optional: true` 的条目（如 Windows 的 git）默认不抓，显式点名才抓。
-- CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch + selfcheck + 出包；
+- CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch vendored runtime + `pnpm run check`
+  （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发），
   官方 creator 不在本仓，所以用一个零依赖的 `scripts/selfcheck.mjs` 兜住结构门槛
   （manifest 字段与 route 文件存在性、全部服务端 JS 语法、vendor 就绪性）。
 
@@ -172,11 +176,13 @@ node scripts/deploy.mjs          # robocopy 源码 → E:\Hanako\.hanako\apps\gi
 ## 目录
 
 ```
-manifest.json            # manifestVersion 2 + capabilities + settings + page 卡
-index.js                 # apply(ctx)：注册 9 工具 + 3 路由；disposer 收尾
-tools/                   # 9 个工具 + lib/（exec / bin / context / identity / github）
-lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作 / gpg_pubkey 共用
-lib/routes/status.js     # 环境状态端点（token / 二进制版本 / 公钥）与 ctx.routes.register 互斥
+manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）
+index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾
+tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / context / identity / github）
+lib/routes/status.js     # 环境状态端点（token / 二进制版本 / 公钥）
+lib/routes/settings.js   # 设置页数据端点（state / token）
+lib/routes/actions.js    # 设置页「手动档」端点（keygen / gh-status / identity / pubkey）
+lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
 ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌 git（MinGit）/ gh / gnupg（随包分发，不入 git 仓库）

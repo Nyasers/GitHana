@@ -10,7 +10,7 @@
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
  *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
- *   因此本文件把 tools/ 下 9 个模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
+ *   因此本文件把 tools/ 下 7 个模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
  *   并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给既有的 v1 工具实现，
  *   让 tools/ 与 lib/ 的代码基本零改动复用（见 tools/lib/context.js 的契约）。
  *
@@ -36,8 +36,6 @@ import * as gitCommit from "./tools/git-commit.js";
 import * as gitPush from "./tools/git-push.js";
 import * as ghExec from "./tools/gh-exec.js";
 import * as ghPr from "./tools/gh-pr.js";
-import * as gpgKeygen from "./tools/gpg-keygen.js";
-import * as gpgPubkey from "./tools/gpg-pubkey.js";
 
 // 路由模块放 lib/routes/：顶层 routes/ 是 v2 保留目录（形态互斥的另一种路由源），
 // 本项目统一用 ctx.routes.register 单 bundle 形态，故顶层不放 routes/。
@@ -50,8 +48,9 @@ import { loadSecretIntoContext } from "./lib/secret.js";
 /** 安装目录（本文件所在目录）：vendor 二进制、routes、ui 的根。 */
 const INSTALL_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-/** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。 */
-const TOOLS = [gitExec, gitStatus, gitLog, gitCommit, gitPush, ghExec, ghPr, gpgKeygen, gpgPubkey];
+/** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
+ *  只放 git / gh 两类：GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
+const TOOLS = [gitExec, gitStatus, gitLog, gitCommit, gitPush, ghExec, ghPr];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
@@ -140,7 +139,8 @@ export function apply(ctx) {
       // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰宿主状态，
       // 经 App 自己的已认证路由转发。令牌的写入口在这里（加密落盘，见 lib/secret.js）。
       registerSettingsRoutes(app, { appCtx, dataDir });
-      // 设置页「手动档」：复用 Agent 工具本体，一套实现两个入口。
+      // 设置页「手动档」：直接调对应实现的本体（生成走 tools/gpg-keygen.js 的 execute，
+      // 公钥查看走 lib/routes/pubkey.js），不另写一份并行逻辑。
       registerActionRoutes(app, { appCtx, dataDir });
     });
     log("info", "路由注册：/routes/status · /routes/settings/* · /routes/actions/*");
