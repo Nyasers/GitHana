@@ -30,6 +30,10 @@
  * GIT_TERMINAL_PROMPT=0；token 已配置时注入 GH_TOKEN（取 DPAPI 解密结果，见 lib/secret.js）。
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
  *
+ * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，让 git 经 gpg.program 解析到的
+ * 「PATH 里的 gpg」必然是插件环那把（认 GNUPGHOME env）。gpg_keygen 接线写的是 vendor 绝对路径，
+ * 而更早版本留下过裸名 "gpg.exe"——两种写法都命中隔离环，签名不会落系统 gpg。
+ *
  * 平台注记：vendor 里的 gpg 必须是"认 GNUPGHOME env"的原生模式（Windows 上表现为删除
  * gpgconf.ctl，否则便携模式恒指 scoop home、忽略 GNUPGHOME）；POSIX 的系统 gpg 本就认。
  */
@@ -51,7 +55,7 @@ const isWindows = PLATFORM === "win32";
 export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
 /** 每个组件在各平台 vendor 树里的相对路径与 PATH 附加目录（只写"树内形态"）。 */
-const VENDOR_LAYOUT = {
+export const VENDOR_LAYOUT = {
   win32: {
     git: { exe: "cmd/git.exe", extraPath: ["cmd", "mingw64", "bin", "usr", "bin"] },
     gh: { exe: "bin/gh.exe" },
@@ -72,6 +76,19 @@ const VENDOR_LAYOUT = {
   },
 };
 
+/**
+ * 工具名（resolveBin 的 bin）→ vendor 组件目录名（vendor/sources.json 的 components 键）。
+ * 同义不同名：gpg 与 gpgconf 两个可执行文件同出 GnuPG 一份组件目录，而该目录在 sources.json
+ * 与 fetch-vendor 落盘里叫 gnupg。查找必须按组件目录名走——按工具名拼路径会永远探空、静默
+ * 回退系统 gpg（Windows 上带 gpgconf.ctl 的便携版忽略 GNUPGHOME → 签名 No secret key）。
+ */
+export const VENDOR_COMPONENT = { gpg: "gnupg", gpgconf: "gnupg" };
+
+/** 工具名 → vendor 组件目录名（未登记的工具名与目录同名，如 git / gh）。 */
+function componentFor(bin) {
+  return VENDOR_COMPONENT[bin] || bin;
+}
+
 function layoutFor(bin) {
   const table = VENDOR_LAYOUT[PLATFORM];
   return table && table[bin] ? table[bin] : null;
@@ -79,9 +96,10 @@ function layoutFor(bin) {
 
 /** vendor 根下某组件的候选目录（新布局优先，旧布局兜底）。 */
 function vendorRoots(bin) {
+  const component = componentFor(bin);
   return [
-    path.join(PLUGIN_ROOT, "vendor", VENDOR_PLATFORM_KEY, bin),
-    path.join(PLUGIN_ROOT, "vendor", bin),
+    path.join(PLUGIN_ROOT, "vendor", VENDOR_PLATFORM_KEY, component),
+    path.join(PLUGIN_ROOT, "vendor", component),
   ];
 }
 
@@ -268,6 +286,13 @@ export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
   if (dataDir) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
     env.GNUPGHOME = path.join(dataDir, "gnupg");
+    // PATH 收口：把 vendor gnupg/bin 前置，使「PATH 里的 gpg」就是隔离环那把。
+    // 覆盖 gpg.program 写成裸名（"gpg.exe"）的历史配置：裸名走 PATH → 命中 vendor（认 GNUPGHOME），
+    // 不再落系统 scoop gpg（gpgconf.ctl 便携模式忽略 GNUPGHOME → 签名 No secret key）。
+    const vendorGpg = resolveBin("gpg");
+    if (vendorGpg.source === "bundled" && vendorGpg.cmd) {
+      env.PATH = path.dirname(vendorGpg.cmd) + path.delimiter + (env.PATH || "");
+    }
     if (!omitToken) {
       const token = getToolSecretToken();
       if (token) env.GH_TOKEN = token;
