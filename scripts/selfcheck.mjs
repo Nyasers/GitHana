@@ -43,8 +43,13 @@ try {
 
 if (manifest) {
   if (manifest.manifestVersion !== 2) fail(`manifestVersion 必须是 2（当前 ${JSON.stringify(manifest.manifestVersion)}）`);
-  const dirName = ROOT.split(/[\\/]/).pop();
-  if (manifest.id !== dirName) fail(`manifest.id (${manifest.id}) 必须等于目录名 (${dirName})`);
+  // id 就是宿主安装位 <HANA_HOME>/apps/<id>/ 的目录名，所以只校验它是一个安全的单段目录名。
+  // 不复核"本仓库所在目录名"：CI 的 checkout 目录是仓库名（GitHana），与 App id 本无关系，
+  // 旧写法让 macOS / Linux 分支恒红。安装位与 id 的对应由 deploy.mjs 从 manifest.id 取。
+  const id = manifest.id;
+  if (typeof id !== "string" || !id || id === "." || id === ".." || /[\\/:*?"<>|]/.test(id)) {
+    fail(`manifest.id 必须是非空、可作为单段目录名的字符串（当前 ${JSON.stringify(id)}）`);
+  }
   if (typeof manifest.entry !== "string" || !existsSync(join(ROOT, manifest.entry))) {
     fail(`entry 不存在：${manifest.entry}`);
   }
