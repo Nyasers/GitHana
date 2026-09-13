@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "layout": "vendor/<platform>-<arch>/<component>/…",
+  "notes": [
+    "vendor/ 不入 git（二进制太大）；CI 与打包前用 scripts/fetch-vendor.mjs 按本表重建。",
+    "sha256 为空 = 本平台暂未提供可校验产物：fetch 脚本会明确跳过并告警，该组件回退系统 PATH。",
+    "不要为了填满表格编造 sha256——校验失败必须拒绝落盘，这是这条链路唯一的价值。",
+    "不是每个平台都该内嵌每样东西：macOS / Linux 自带 git 与 gpg，硬塞反而重且违背轻量取向。"
+  ],
+  "platforms": {
+    "win32-x64": {
+      "notes": "Windows 上三样都内嵌：机器不一定有 git/gh/gpg，而签名链路要求 gpg 必须认 GNUPGHOME。",
+      "components": {
+        "git": {
+          "label": "MinGit",
+          "version": "2.55.0.windows.1",
+          "asset": "MinGit-2.55.0-64-bit.zip",
+          "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.1/MinGit-2.55.0-64-bit.zip",
+          "sha256": "31497e7968196332263459ee319d2524e3ebc5786ab895e2abad34ffdd4f4ebf",
+          "extract": "zip",
+          "exe": "cmd/git.exe",
+          "optional": true,
+          "note": "宿主已捆绑 git（<HANA_ROOT>/resources/git）：AppHost 虽然不能 fs 读它，但 process.spawn 开的子进程不受 Permission Model 限制，实测可用，所以默认不随包分发这 90MB。需要自包含包时：node scripts/fetch-vendor.mjs git"
+        },
+        "gh": {
+          "label": "gh CLI",
+          "version": "2.95.0",
+          "asset": "gh_2.95.0_windows_amd64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_windows_amd64.zip",
+          "sha256": "19a7154161ada9cfaa9e57edb752ecc679b75c391a62e4f7b586eea1df30b5bb",
+          "extract": "zip",
+          "exe": "bin/gh.exe"
+        },
+        "gnupg": {
+          "label": "GnuPG",
+          "version": "2.5.21",
+          "asset": "gnupg-w32-2.5.21_20260702.exe",
+          "url": "https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.21_20260702.exe",
+          "sha256": "6246c925a73167253444afc24a0deb83a3f43b7d636af84d6aaf48a98a62f024",
+          "extract": "7z-bin",
+          "exe": "bin/gpg.exe",
+          "note": "NSIS/7z 容器：只取 bin/（弃 locale/lib/include/卸载器）。置备后必须删除 gpgconf.ctl（否则便携模式恒指 scoop home、忽略 GNUPGHOME，隔离签名与 gpgconf --kill 都失效）。"
+        }
+      }
+    },
+    "darwin-arm64": {
+      "notes": "git 与 gpg 走系统（macOS 自带 git，gpg 通常来自 Homebrew）；仅 gh 有官方单文件产物。",
+      "components": {
+        "gh": {
+          "label": "gh CLI",
+          "version": "2.95.0",
+          "asset": "gh_2.95.0_macOS_arm64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_arm64.zip",
+          "sha256": "",
+          "extract": "zip",
+          "exe": "bin/gh"
+        }
+      }
+    },
+    "darwin-x64": {
+      "notes": "同上（Intel Mac）。",
+      "components": {
+        "gh": {
+          "label": "gh CLI",
+          "version": "2.95.0",
+          "asset": "gh_2.95.0_macOS_amd64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_amd64.zip",
+          "sha256": "",
+          "extract": "zip",
+          "exe": "bin/gh"
+        }
+      }
+    },
+    "linux-x64": {
+      "notes": "git 走系统；gpg 走系统（gnupg 包天然认 GNUPGHOME）；仅 gh 有官方单文件产物（tar.gz）。",
+      "components": {
+        "gh": {
+          "label": "gh CLI",
+          "version": "2.95.0",
+          "asset": "gh_2.95.0_linux_amd64.tar.gz",
+          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_linux_amd64.tar.gz",
+          "sha256": "",
+          "extract": "targz",
+          "exe": "bin/gh"
+        }
+      }
+    },
+    "linux-arm64": {
+      "notes": "同上（arm64）。",
+      "components": {
+        "gh": {
+          "label": "gh CLI",
+          "version": "2.95.0",
+          "asset": "gh_2.95.0_linux_arm64.tar.gz",
+          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_linux_arm64.tar.gz",
+          "sha256": "",
+          "extract": "targz",
+          "exe": "bin/gh"
+        }
+      }
+    }
+  }
+}

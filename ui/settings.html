@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MPL-2.0 -->
+<!-- Copyright (c) 2026 Nyasers -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHana 设置</title>
+<!--
+  设置页壳（contributes.settings.ui.route = /settings.html）。
+
+  页面本体由 React 渲染（ui/src/settings.jsx → 构建产物 settings.bundle.js），
+  用的是宿主组件 @hana/app-sdk/components（AppUiProvider / SettingsPage / …），
+  所以这里是空壳：一个 #root 容器 + 两个产物引用。
+
+  顺序有意如此：先加载组件自带的样式（含 Hana 默认 token），再由 hana-css 注入宿主主题，
+  让宿主变量覆盖默认值。宿主设置容器负责外边界留白，本页不叠同一层页边距。
+-->
+<link rel="stylesheet" href="./settings.bundle.css">
+<script>
+  (function () {
+    var css = new URLSearchParams(window.location.search).get("hana-css");
+    // 宿主在页面 URL 上带 hana-css 时用它（当前主题）；没带时回退到宿主的公开主题样式表，
+    // 否则组件（antd 变量）拿不到 token，按钮/输入框会渲染成透明。
+    if (!css) css = "/api/apps/theme.css";
+    var link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = css;
+    document.head.appendChild(link);
+  })();
+</script>
+<style>
+  /* 兜底纸面：脚本没起来时也不至于白屏浮空。 */
+  html, body { height: 100%; margin: 0; background: var(--bg, #f5efe4); }
+  #boot { display: none; padding: 16px; font: 13px system-ui, sans-serif; color: var(--text-muted, #6b6158); }
+  #root:empty + #boot { display: block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="boot">正在加载 GitHana 设置…（若长时间无内容，请在扩展里重新加载本 App）</div>
+<script type="module" src="./settings.bundle.js"></script>
+</body>
+</html>

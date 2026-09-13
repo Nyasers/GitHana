@@ -1,0 +1,42 @@
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Copyright (c) 2026 Nyasers
+
+Source code for this distribution is available at:
+https://github.com/Nyasers/GitHana
+
+This Source Code Form is "Incompatible With Secondary Licenses", as
+defined by the Mozilla Public License, v. 2.0.
+
+---
+
+## 随包分发的第三方组件
+
+本 App 的**安装包**会内嵌下列运行时。它们均未修改，按各自上游许可原样分发（二进制不入
+版本库，由 `vendor/sources.json` 声明来源与 sha256，`scripts/fetch-vendor.mjs` 按平台重建）。
+
+| 组件 | 版本 | 许可 | 上游 |
+|------|------|------|------|
+| gh CLI | 2.95.0 | MIT | https://github.com/cli/cli |
+| GnuPG | 2.5.21 | GPL-3.0-or-later | https://gnupg.org/download/ |
+| MinGit（Git for Windows） | 2.55.0.windows.1 | GPL-2.0 | https://github.com/git-for-windows/git |
+
+说明：Windows 包**默认不内嵌 MinGit**——宿主 Hana 自带 `<HANA_ROOT>/resources/git`，App 通过
+`app/process.spawn` 直接使用它（详见 `tools/lib/bin.js` 的平台通用解析）。`sources.json` 里保留
+该条目，是为了"需要自包含包时一条命令即可重新抓取"：`node scripts/fetch-vendor.mjs git`。
+
+## 构建期依赖（不进入运行时包）
+
+| 组件 | 版本 | 许可 | 说明 |
+|------|------|------|------|
+| @hana/app-sdk | 0.970.9 | Apache-2.0 | 宿主组件与契约类型；随包放在 `build-deps/` 供构建与 CI 使用 |
+| react / react-dom | 19.3.0 | MIT | 设置页的 peer 依赖，打进 `ui/settings.bundle.js` |
+| esbuild | 0.28.x | MIT | 构建设置页产物 |
+
+## 原样拷贝的官方作者工具
+
+`scripts/hana-app-tools/` 下是 Hana 自带作者工具的**原样拷贝**（用于让本仓库与 CI 不依赖本机
+Hana 安装即可跑官方静态校验）。来源、版本与哈希见同目录 `PROVENANCE.json`。该拷贝未附加本
+仓库的许可头，许可以 Hana 自身分发为准。

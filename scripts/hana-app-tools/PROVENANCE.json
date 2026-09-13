@@ -1,0 +1,14 @@
+{
+  "note": "本目录是 Hana 自带作者工具的原样拷贝（verbatim），用于让本仓库与 CI 不依赖本机 Hana 安装即可跑官方静态校验。刷新方式见 README.md。",
+  "tools": {
+    "validate-app.mjs": {
+      "source": "<HANA_HOME>/artifacts/server/<version>/scripts/validate-app.mjs",
+      "hanaVersion": "0.970.9",
+      "copiedAt": "2026-09-13",
+      "bytes": 594640,
+      "license": "unstated-in-artifact（Hana 安装目录未随附独立 LICENSE；许可以 Hana 自身分发为准）",
+      "runtimeDeps": ["yauzl@3.4.0", "@cordisjs/plugin-loader@1.0.0-rc.5"],
+      "notCopied": "同目录的 extension-pack.mjs / app-validation-smoke.mjs 未拷贝：前者需要 jsdom(6.9MB)+sharp(原生)，而包由本仓库 scripts/pack.mjs 自己出；后者需要完整 Hana 与 Electron。"
+    }
+  }
+}
