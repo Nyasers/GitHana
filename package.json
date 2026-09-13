@@ -9,20 +9,12 @@
     "check": "node scripts/build-ui.mjs && node scripts/selfcheck.mjs",
     "deploy": "node scripts/deploy.mjs",
     "pack": "node scripts/pack.mjs",
-    "vendor": "node scripts/fetch-vendor.mjs",
-    "sync-tools": "node scripts/sync-hana-tools.mjs"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
+    "vendor": "node scripts/fetch-vendor.mjs"
   },
   "devDependencies": {
-    "@cordisjs/plugin-loader": "1.0.0-rc.5",
     "esbuild": "^0.28.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "yauzl": "3.4.0"
+    "react-dom": "19.3.0"
   },
   "dependencies": {
     "@hana/app-sdk": "file:./build-deps/hana-app-sdk-0.970.9.tgz"

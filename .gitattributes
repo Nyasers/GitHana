@@ -1,0 +1,10 @@
+# 统一换行：CI 跑在 Linux 上，别让 Windows 的 CRLF 混进仓库
+* text=auto eol=lf
+
+# 二进制不参与行尾/文本处理
+*.tgz binary
+*.zip binary
+*.exe binary
+*.dll binary
+*.png binary
+*.webp binary

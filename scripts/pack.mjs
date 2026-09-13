@@ -2,22 +2,24 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * scripts/pack.mjs — 出包（本仓库自足；官方 creator 可用时作为额外校验）。
+ * scripts/pack.mjs — 出包（本仓库自足；官方静态校验器可用时作为额外关卡）。
  *
  * ## 为什么要自己出包
  *
  * dshana 能自动出包，是因为它的 pack 脚本在自己仓库里（scripts/pack.mts）。本项目的官方
  * 包工具（pack_app.mjs）随 Hana 安装包分发、不在仓库里——CI 上拿不到，所以"自动打包发 release"
- * 只能由本仓库自己完成。官方工具可用时仍会被调用（多一道校验），不可用时不再阻塞出包，
- * 但会把"未过官方校验"印在输出和产物名旁边的 JSON 里，不假装通过。
+ * 只能由本仓库自己完成。
+ *
+ * 官方**静态校验器**只在“宿主装在这里”时被调作额外关卡（它的依赖闭包含 Hana 内部包，
+ * 不可能拷进仓库独立运行）；不可用时输出里会写明 `officialValidation: unavailable`，不假装通过。
  *
  * ## 产物形状（对齐官方包的实测布局）
  *
  * ZIP 内文件在根：manifest.json / index.js / lib/ / tools/ / ui/ / vendor/ / skills/ / assets/…
- * 排除：node_modules（只有构建期需要，UI 产物已在 ui/ 里）、.git* / .github、_tmp、releases、
- * pnpm-lock.yaml、pnpm-workspace.yaml、scripts/（开发件）。
+ * 排除：node_modules（只有构建期需要，UI 产物已在 ui/ 里）、build-deps（SDK tarball）、.git* /
+ * .github、_tmp、releases、pnpm-lock.yaml、pnpm-workspace.yaml、scripts/、README.md（开发件）。
  * 说明：官方包工具不排除任何目录，会把 node_modules 与开发件一并打进去；本脚本按上面这张
- * 白/黑名单做净包，所以同类内容更小。
+ * 排他表做净包，因此同类内容更小。
  *
  * ## 逐目标出包
  *
@@ -33,13 +35,13 @@
 import { createHash } from "node:crypto";
 import { deflateRawSync } from "node:zlib";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
-  copyFileSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -52,19 +54,22 @@ const HANA_HOME = process.env.HANA_HOME || join(process.env.USERPROFILE || proce
 /** 包内排除项（相对 app 根的第一段）。 */
 const EXCLUDE_TOP = new Set([
   "node_modules",
+  "build-deps", // SDK tarball：构建期依赖（官方 SDK 不在 npm 上），不进运行时包
   "_tmp",
   "releases",
   "dist-extensions",
   ".git",
   ".github",
-  "scripts",           // 开发/构建脚本，不属于运行时交付物
+  ".nvmrc",
+  ".gitattributes",
+  "scripts", // 开发/构建脚本，不属于运行时交付物
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   ".gitignore",
   ".npmrc",
   "README.md",
   // 注意：**不能**排除 package.json——里面有 "type": "module"，app 入口是 ESM，
-  // 没有它就按 CJS 解析，index.js 的 import 直接语法报错。官方 validator 也会查入口可编译。
+  // 没有它就按 CJS 解析，index.js 的 import 会直接语法报错。也不能排除 LICENSE / NOTICE。
 ]);
 
 /** 官方限制（对齐 APPS.md：压缩 256MiB / 展开 512MiB / 30000 条）。 */
@@ -75,13 +80,8 @@ function arg(name) {
   return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : null;
 }
 
-function readJson(p) {
-  return JSON.parse(readFileSync(p, "utf8"));
-}
-
-function sha256File(file) {
-  return createHash("sha256").update(readFileSync(file)).digest("hex");
-}
+const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+const sha256File = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
 
 /** 递归收集待打包文件（跳过排除项与符号链接）。 */
 function collect(dir, base = dir, out = []) {
@@ -97,12 +97,11 @@ function collect(dir, base = dir, out = []) {
   return out;
 }
 
-/** 把 app 目录里“该进包”的东西复制到临时暂存目录（排除清单在此一次生效）。
- *  暂存目录的**末级名字必须等于 manifest.id**：官方包工具会校验“目录名 = id”。
- */
+/** 暂存净包。末级目录名必须等于 manifest.id（官方校验器会校验"目录名 = id"）。 */
 function stage(target, id) {
-  const stageDir = join(ROOT, "..", "..", "build", "_stage", target, id);
-  rmSync(join(ROOT, "..", "..", "build", "_stage", target), { recursive: true, force: true });
+  const parent = join(ROOT, "..", "..", "build", "_stage", target);
+  const stageDir = join(parent, id);
+  rmSync(parent, { recursive: true, force: true });
   mkdirSync(stageDir, { recursive: true });
   const files = collect(ROOT);
   for (const f of files) {
@@ -113,7 +112,7 @@ function stage(target, id) {
   return { stageDir, files };
 }
 
-// ── 最小 ZIP 写入器（store/deflate，UTF-8 名，保留可执行位） ─────────────────
+// ── 最小 ZIP 写入器（deflate/store，UTF-8 名，保留可执行位） ──────────────────
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -131,7 +130,6 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** 收集一个目录为 zip 条目（含可执行位）。 */
 function zipEntries(dir, base = dir, out = []) {
   for (const name of readdirSync(dir)) {
     const abs = join(dir, name);
@@ -140,8 +138,7 @@ function zipEntries(dir, base = dir, out = []) {
     if (st.isDirectory()) zipEntries(abs, base, out);
     else if (st.isFile()) {
       const data = readFileSync(abs);
-      // 可执行位：POSIX 上加 0755（官方打包器也会保留）
-      const mode = (st.mode & 0o111) !== 0 ? 0o755 : 0o644;
+      const mode = (st.mode & 0o111) !== 0 ? 0o755 : 0o644; // 保留可执行位（官方打包器同样保留）
       out.push({ entry: relative(base, abs).split(sep).join("/"), data, mode });
     }
   }
@@ -164,10 +161,10 @@ function writeZip(outFile, entries) {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0x0800, 6); // UTF-8 名称
+    local.writeUInt16LE(0x0800, 6); // UTF-8
     local.writeUInt16LE(method, 8);
-    local.writeUInt16LE(0, 10); // time
-    local.writeUInt16LE(0x21, 12); // date (1980-01-01)
+    local.writeUInt16LE(0, 10);
+    local.writeUInt16LE(0x21, 12);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(body.length, 18);
     local.writeUInt32LE(e.data.length, 22);
@@ -191,7 +188,7 @@ function writeZip(outFile, entries) {
     cen.writeUInt16LE(0, 32);
     cen.writeUInt16LE(0, 34);
     cen.writeUInt16LE(0, 36);
-    cen.writeUInt32LE(((e.mode | 0o100000) << 16) >>> 0, 38); // 外部属性：unix 模式
+    cen.writeUInt32LE(((e.mode | 0o100000) << 16) >>> 0, 38);
     cen.writeUInt32LE(offset, 42);
     central.push(cen, nameBuf);
 
@@ -212,15 +209,35 @@ function writeZip(outFile, entries) {
   writeFileSync(outFile, Buffer.concat([...chunks, cenBuf, eocd]));
 }
 
-/** 官方 creator 的 pack_app.mjs（可用则跑一次，作为额外校验）。 */
-function findOfficialPacker() {
+/**
+ * 官方**静态校验器**。
+ *
+ * 为什么不做“拷进仓库”：实测它 import 了 `@earendil-works/pi-coding-agent` 等 Hana **内部包**
+ * （不在 npm 上），所以脱离 Hana 安装的 node_modules 无法运行；把它连同闭包一起 vendor 进仓库
+ * 既不轻也会与 Hana 版本绑死。所以只在“宿主装在这里”时用它作为额外关卡，
+ * 不可用时照常出包并在输出里标 unverified。
+ *
+ * 也不调官方 pack_app：它需要 jsdom(6.9MB) + sharp(原生)，而包由本脚本自己出。
+ */
+function findOfficialValidator() {
   const cands = [];
-  if (process.env.HANA_APP_TOOLS_ROOT) cands.push(join(process.env.HANA_APP_TOOLS_ROOT, "scripts", "pack_app.mjs"));
+  if (process.env.HANA_APP_TOOLS_ROOT) cands.push(join(process.env.HANA_APP_TOOLS_ROOT, "scripts", "validate-app.mjs"));
   const serverRoot = join(HANA_HOME, "artifacts", "server");
   if (existsSync(serverRoot)) {
-    for (const v of readdirSync(serverRoot)) cands.push(join(serverRoot, v, "scripts", "pack_app.mjs"));
+    // 多个版本共存时用**最新**的：readdir 顺序不保证，旧版校验器可能少检或误拒。
+    const versions = readdirSync(serverRoot).filter((v) => existsSync(join(serverRoot, v, "scripts", "validate-app.mjs")));
+    versions.sort((a, b) => {
+      const pa = a.split("-")[0].split(".").map(Number);
+      const pb = b.split("-")[0].split(".").map(Number);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+        const d = (pb[i] || 0) - (pa[i] || 0);
+        if (d !== 0) return d;
+      }
+      return 0;
+    });
+    for (const v of versions) cands.push(join(serverRoot, v, "scripts", "validate-app.mjs"));
   }
-  cands.push(join(HANA_HOME, "skills", "hana-app-creator", "scripts", "pack_app.mjs"));
+  cands.push(join(HANA_HOME, "skills", "hana-app-creator", "scripts", "validate_app.mjs"));
   return cands.find((c) => existsSync(c)) || null;
 }
 
@@ -253,27 +270,24 @@ function main() {
   }
   console.log(`[pack] target=${target}  暂存文件 ${files.length} 个 → ${relative(ROOT, stageDir)}`);
 
-  // 2) 官方工具可用 → 先跑一遍官方校验/打包（结果作为额外证据，不改变我们的产物形状）
-  const official = findOfficialPacker();
+  // 2) 官方静态校验（额外关卡）
+  const validator = findOfficialValidator();
   let officialResult = "unavailable";
-  if (official) {
+  if (validator) {
     try {
-      execFileSync(process.execPath, [official, "--dir", stageDir, "--publisher", arg("--publisher") || pkg.name, "--out", join(outDir, "_official")], {
-        stdio: "pipe",
-      });
+      execFileSync(process.execPath, [validator, "--dir", stageDir, "--json"], { stdio: "pipe" });
       officialResult = "passed";
-      console.log("[pack] 官方校验：通过（额外关卡）");
+      console.log(`[pack] 官方静态校验：通过（${relative(ROOT, validator)}）`);
     } catch (e) {
-      const out = [e.stdout, e.stderr].map((b) => String(b || "")).join("").trim();
-      officialResult = "failed";
-      console.error("[pack] 官方校验未通过：\n" + out.split("\n").slice(-6).join("\n"));
+      const out = [e.stdout, e.stderr].map((b) => String(b || "")).join("\n").trim();
+      console.error("[pack] 官方静态校验未通过：\n" + out.split("\n").slice(-8).join("\n"));
       process.exit(1);
     }
   } else {
-    console.log("[pack] 官方 creator 不在本机/本 runner：跳过官方校验（产物将标注 unverified）");
+    console.log("[pack] 没有官方校验器（仓库内与本机都没有）：跳过，产物按 unverified 处理");
   }
 
-  // 3) 自己出包
+  // 3) 出包
   const filesInStage = zipEntries(stageDir);
   const rawBytes = filesInStage.reduce((n, e) => n + e.data.length, 0);
   if (filesInStage.length > LIMITS.entries) {
@@ -295,13 +309,12 @@ function main() {
   }
 
   const digest = sha256File(zipPath);
-  const shaPath = `${zipPath}.sha256`;
-  writeFileSync(shaPath, `${digest}  ${baseName}.zip\n`, "utf8");
+  writeFileSync(`${zipPath}.sha256`, `${digest}  ${baseName}.zip\n`, "utf8");
 
   console.log(
     `[pack] 完成 ${relative(ROOT, zipPath)}  ${(zipSize / 1048576).toFixed(1)} MiB  ${filesInStage.length} 条` +
       `\n        sha256 ${digest}` +
-      `\n        官方校验：${officialResult}`,
+      `\n        官方静态校验：${officialResult}`,
   );
 }
 
