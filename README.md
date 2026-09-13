@@ -1,6 +1,6 @@
 # GitHana（githana）
 
-把 git / gh / gpg 三条 CLI 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份与公钥卡。
+把 git / gh / gpg 三条 CLI 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
 
 - 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 9 个工具 + 2 条后端路由
 - 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）· `gpg_*`（隔离 GPG 身份/公钥）
@@ -21,7 +21,7 @@
 | `gh_exec` | tools/gh-exec.js | review | 任意 gh 命令透传（`GH_TOKEN` 由运行环境注入） |
 | `gh_pr` | tools/gh-pr.js | review | PR create / list / view / merge |
 | `gpg_keygen` | tools/gpg-keygen.js | review | 隔离 git/GPG 初始化：身份推导 → 隔离 gitconfig → GPG 生成/轮换 → 签名接线 → 公钥落盘 |
-| `gpg_pubkey` | tools/gpg-pubkey.js | readOnly | 返回 `details.card` → 会话流渲染公钥复制卡（`ui/pubkey.html`） |
+| `gpg_pubkey` | tools/gpg-pubkey.js | readOnly | 返回公钥数据（完整指纹 / UID / 公钥全文 / 落盘路径）；查看与复制在设置页 |
 
 ## 与 v1 插件的关键差异
 
@@ -30,7 +30,7 @@
 | 工具注册 | 宿主扫描 `tools/*.js` 自动注册 | `apply(ctx)` 内逐个 `ctx.tools.register`（无前缀，名字全局唯一） |
 | 设置 | `contributes.configuration` | `contributes.settings` + `ctx.config` |
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
-| 会话流卡 | 动态 route 返回整页 HTML | `details.card.route` 指向 `ui/` 静态页，卡页自己取数据端点 |
+| 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
 | 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`），不进宿主设置表 |
@@ -42,7 +42,7 @@
 
 - `app/tools.expose-to-model` — 让模型能主动调用这 9 个工具
 - `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gh / gpg（**需要用户在安装审阅里批准**）
-- `app/ui.clipboard-write` — 公钥卡页的「复制公钥」按钮
+- `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
 
 ## 设置页
 
@@ -173,12 +173,11 @@ node scripts/deploy.mjs          # robocopy 源码 → E:\Hanako\.hanako\apps\gi
 
 ```
 manifest.json            # manifestVersion 2 + capabilities + settings + page 卡
-index.js                 # apply(ctx)：注册 9 工具 + 2 路由；disposer 收尾
+index.js                 # apply(ctx)：注册 9 工具 + 3 路由；disposer 收尾
 tools/                   # 9 个工具 + lib/（exec / bin / context / identity / github）
-lib/routes/pubkey.js     # 公钥数据端点（JSON）——注意：顶层 routes/ 是 v2 保留目录，
+lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作 / gpg_pubkey 共用
 lib/routes/status.js     # 环境状态端点（token / 二进制版本 / 公钥）与 ctx.routes.register 互斥
 ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
-ui/pubkey.html           # 会话流公钥复制卡
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌 git（MinGit）/ gh / gnupg（随包分发，不入 git 仓库）
 skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
