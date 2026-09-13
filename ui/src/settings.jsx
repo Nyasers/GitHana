@@ -7,6 +7,7 @@
  * 用 @hana/app-sdk/components 里的宿主组件搭页面，而不是手抄样式：
  *   AppUiProvider（主题 / reduced-motion）+ SettingsPage / SettingsSection / SettingRow /
  *   SaveButton / Button / TextInput，与宿主设置页同一套原语。
+ *   注意：**报到（hana.ready()）不在这套组件里**，得本页自己发，见文件末尾。
  *
  * 数据仍然走 App 自己的已认证路由（页面拿不到 ctx.config）：
  *   GET  /api/apps/githana/routes/settings/state   → 认证状态 + 环境状态 + 令牌保护信息
@@ -28,6 +29,7 @@ import {
   TextInput,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
+import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
 
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
@@ -507,6 +509,17 @@ function Root() {
       <GitHanaSettings />
     </AppUiProvider>
   );
+}
+
+// 页面报到：宿主靠这条消息把 iframe 从「加载中」切到「就绪」。设置页这类表面用的是
+// readyOnTimeout=false —— 5 秒内没收到就判失败，界面上就是一句「应用加载失败」。
+// @hana/app-sdk/components 的 AppUiProvider 只管主题与 reduced-motion，不负责这次报到，
+// 所以必须本页自己喊（与官方脚手架 ui/assets/panel.js 里的 hana.ready() 同理）。
+// 不在 App iframe 里（比如直接开文件）时 SDK 会拒绝，忽略即可，不影响页面其余逻辑。
+try {
+  Promise.resolve(hana.ready()).catch(() => {});
+} catch {
+  /* 非 App 路由：跳过报到 */
 }
 
 createRoot(document.getElementById("root")).render(<Root />);
