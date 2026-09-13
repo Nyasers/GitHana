@@ -1,0 +1,35 @@
+{
+  "manifestVersion": 2,
+  "id": "githana",
+  "name": "GitHana",
+  "version": "2.6.0",
+  "description": "把 git / gh / gpg 三条 CLI 接进 Hana：仓库状态与提交、GitHub PR、隔离 GPG 签名身份",
+  "entry": "index.js",
+  "icon": "assets/icon.svg",
+  "minAppVersion": "0.970.9",
+  "capabilities": [
+    "app/tools.expose-to-model",
+    "app/process.spawn",
+    "app/ui.clipboard-write"
+  ],
+  "contributes": {
+    "settings": {
+      "title": "GitHana",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "GitHub 个人访问令牌（PAT）",
+            "description": "用于注入 GH_TOKEN（gh CLI 认证）与 gpg_keygen 的身份推导（gh api user → noreply 邮箱）。不填时 gpg_keygen 可显式传 email/name 参数。",
+            "default": "",
+            "sensitive": true
+          }
+        }
+      },
+      "ui": {
+        "route": "/settings.html"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="GitHana">
+  <defs>
+    <linearGradient id="gh-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a4a6b"/>
+      <stop offset="1" stop-color="#232c42"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#gh-bg)"/>
+  <!-- 主线 -->
+  <path d="M88 196 L88 84" stroke="#e8ecf3" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <!-- 分支弧 -->
+  <path d="M88 132 C 88 108, 128 116, 152 100" stroke="#8fb0d8" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- 节点 -->
+  <circle cx="88" cy="72" r="20" fill="#e8ecf3"/>
+  <circle cx="88" cy="204" r="20" fill="#e8ecf3"/>
+  <circle cx="160" cy="92" r="20" fill="#8fb0d8"/>
+</svg>

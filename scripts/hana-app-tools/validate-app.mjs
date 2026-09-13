@@ -1,0 +1,15826 @@
+#!/usr/bin/env node
+import ae, { join as zu } from "node:path";
+import { fileURLToPath as Gi } from "node:url";
+import { execFileSync as qu, spawn as Xu } from "node:child_process";
+import at from "node:fs/promises";
+import ec, { homedir as tc } from "node:os";
+import { finished as rc } from "node:stream/promises";
+import { Writable as nc, Transform as ic } from "node:stream";
+import Xe, { readFileSync as oc, existsSync as so } from "fs";
+import sc from "buffer";
+import ga from "stream";
+import Re, { dirname as hn, join as Ti, basename as ac } from "path";
+import uc from "util";
+import cc from "yauzl";
+import { EntryTree as ao } from "@cordisjs/plugin-loader";
+import uo from "os";
+import { AsyncLocalStorage as Ac } from "async_hooks";
+import lc from "crypto";
+import Yt from "node:fs";
+import { createHash as fc } from "node:crypto";
+import { fileURLToPath as Ea } from "url";
+import Ca from "child_process";
+import hc from "tty";
+import "fs/promises";
+import "dns";
+import "net";
+import "@earendil-works/pi-coding-agent";
+import "@earendil-works/pi-ai/compat";
+import "@earendil-works/pi-ai";
+import "node:readline";
+import "stream/promises";
+import "readline";
+import "string_decoder";
+import "@earendil-works/pi-agent-core";
+import "node:timers/promises";
+import { getGlobalDispatcher as dc } from "undici";
+import "proxy-agent";
+import { createRequire as pc } from "module";
+import "jsdom";
+import "node:zlib";
+import "node:util";
+class mc extends nc {
+  _write(t, r, n) {
+    n();
+  }
+}
+const gc = /* @__PURE__ */ new Set([
+  65534,
+  65535,
+  131070,
+  131071,
+  196606,
+  196607,
+  262142,
+  262143,
+  327678,
+  327679,
+  393214,
+  393215,
+  458750,
+  458751,
+  524286,
+  524287,
+  589822,
+  589823,
+  655358,
+  655359,
+  720894,
+  720895,
+  786430,
+  786431,
+  851966,
+  851967,
+  917502,
+  917503,
+  983038,
+  983039,
+  1048574,
+  1048575,
+  1114110,
+  1114111
+]), Je = "�";
+var m;
+(function(e) {
+  e[e.EOF = -1] = "EOF", e[e.NULL = 0] = "NULL", e[e.TABULATION = 9] = "TABULATION", e[e.CARRIAGE_RETURN = 13] = "CARRIAGE_RETURN", e[e.LINE_FEED = 10] = "LINE_FEED", e[e.FORM_FEED = 12] = "FORM_FEED", e[e.SPACE = 32] = "SPACE", e[e.EXCLAMATION_MARK = 33] = "EXCLAMATION_MARK", e[e.QUOTATION_MARK = 34] = "QUOTATION_MARK", e[e.AMPERSAND = 38] = "AMPERSAND", e[e.APOSTROPHE = 39] = "APOSTROPHE", e[e.HYPHEN_MINUS = 45] = "HYPHEN_MINUS", e[e.SOLIDUS = 47] = "SOLIDUS", e[e.DIGIT_0 = 48] = "DIGIT_0", e[e.DIGIT_9 = 57] = "DIGIT_9", e[e.SEMICOLON = 59] = "SEMICOLON", e[e.LESS_THAN_SIGN = 60] = "LESS_THAN_SIGN", e[e.EQUALS_SIGN = 61] = "EQUALS_SIGN", e[e.GREATER_THAN_SIGN = 62] = "GREATER_THAN_SIGN", e[e.QUESTION_MARK = 63] = "QUESTION_MARK", e[e.LATIN_CAPITAL_A = 65] = "LATIN_CAPITAL_A", e[e.LATIN_CAPITAL_Z = 90] = "LATIN_CAPITAL_Z", e[e.RIGHT_SQUARE_BRACKET = 93] = "RIGHT_SQUARE_BRACKET", e[e.GRAVE_ACCENT = 96] = "GRAVE_ACCENT", e[e.LATIN_SMALL_A = 97] = "LATIN_SMALL_A", e[e.LATIN_SMALL_Z = 122] = "LATIN_SMALL_Z";
+})(m || (m = {}));
+const Bt = {
+  DASH_DASH: "--",
+  CDATA_START: "[CDATA[",
+  DOCTYPE: "doctype",
+  SCRIPT: "script",
+  PUBLIC: "public",
+  SYSTEM: "system"
+};
+function ya(e) {
+  return e >= 55296 && e <= 57343;
+}
+function Ec(e) {
+  return e >= 56320 && e <= 57343;
+}
+function Cc(e, t) {
+  return (e - 55296) * 1024 + 9216 + t;
+}
+function ba(e) {
+  return e !== 32 && e !== 10 && e !== 13 && e !== 9 && e !== 12 && e >= 1 && e <= 31 || e >= 127 && e <= 159;
+}
+function wa(e) {
+  return e >= 64976 && e <= 65007 || gc.has(e);
+}
+var H;
+(function(e) {
+  e.controlCharacterInInputStream = "control-character-in-input-stream", e.noncharacterInInputStream = "noncharacter-in-input-stream", e.surrogateInInputStream = "surrogate-in-input-stream", e.nonVoidHtmlElementStartTagWithTrailingSolidus = "non-void-html-element-start-tag-with-trailing-solidus", e.endTagWithAttributes = "end-tag-with-attributes", e.endTagWithTrailingSolidus = "end-tag-with-trailing-solidus", e.unexpectedSolidusInTag = "unexpected-solidus-in-tag", e.unexpectedNullCharacter = "unexpected-null-character", e.unexpectedQuestionMarkInsteadOfTagName = "unexpected-question-mark-instead-of-tag-name", e.invalidFirstCharacterOfTagName = "invalid-first-character-of-tag-name", e.unexpectedEqualsSignBeforeAttributeName = "unexpected-equals-sign-before-attribute-name", e.missingEndTagName = "missing-end-tag-name", e.unexpectedCharacterInAttributeName = "unexpected-character-in-attribute-name", e.unknownNamedCharacterReference = "unknown-named-character-reference", e.missingSemicolonAfterCharacterReference = "missing-semicolon-after-character-reference", e.unexpectedCharacterAfterDoctypeSystemIdentifier = "unexpected-character-after-doctype-system-identifier", e.unexpectedCharacterInUnquotedAttributeValue = "unexpected-character-in-unquoted-attribute-value", e.eofBeforeTagName = "eof-before-tag-name", e.eofInTag = "eof-in-tag", e.missingAttributeValue = "missing-attribute-value", e.missingWhitespaceBetweenAttributes = "missing-whitespace-between-attributes", e.missingWhitespaceAfterDoctypePublicKeyword = "missing-whitespace-after-doctype-public-keyword", e.missingWhitespaceBetweenDoctypePublicAndSystemIdentifiers = "missing-whitespace-between-doctype-public-and-system-identifiers", e.missingWhitespaceAfterDoctypeSystemKeyword = "missing-whitespace-after-doctype-system-keyword", e.missingQuoteBeforeDoctypePublicIdentifier = "missing-quote-before-doctype-public-identifier", e.missingQuoteBeforeDoctypeSystemIdentifier = "missing-quote-before-doctype-system-identifier", e.missingDoctypePublicIdentifier = "missing-doctype-public-identifier", e.missingDoctypeSystemIdentifier = "missing-doctype-system-identifier", e.abruptDoctypePublicIdentifier = "abrupt-doctype-public-identifier", e.abruptDoctypeSystemIdentifier = "abrupt-doctype-system-identifier", e.cdataInHtmlContent = "cdata-in-html-content", e.incorrectlyOpenedComment = "incorrectly-opened-comment", e.eofInScriptHtmlCommentLikeText = "eof-in-script-html-comment-like-text", e.eofInDoctype = "eof-in-doctype", e.nestedComment = "nested-comment", e.abruptClosingOfEmptyComment = "abrupt-closing-of-empty-comment", e.eofInComment = "eof-in-comment", e.incorrectlyClosedComment = "incorrectly-closed-comment", e.eofInCdata = "eof-in-cdata", e.absenceOfDigitsInNumericCharacterReference = "absence-of-digits-in-numeric-character-reference", e.nullCharacterReference = "null-character-reference", e.surrogateCharacterReference = "surrogate-character-reference", e.characterReferenceOutsideUnicodeRange = "character-reference-outside-unicode-range", e.controlCharacterReference = "control-character-reference", e.noncharacterCharacterReference = "noncharacter-character-reference", e.missingWhitespaceBeforeDoctypeName = "missing-whitespace-before-doctype-name", e.missingDoctypeName = "missing-doctype-name", e.invalidCharacterSequenceAfterDoctypeName = "invalid-character-sequence-after-doctype-name", e.duplicateAttribute = "duplicate-attribute", e.nonConformingDoctype = "non-conforming-doctype", e.missingDoctype = "missing-doctype", e.misplacedDoctype = "misplaced-doctype", e.endTagWithoutMatchingOpenElement = "end-tag-without-matching-open-element", e.closingOfElementWithOpenChildElements = "closing-of-element-with-open-child-elements", e.disallowedContentInNoscriptInHead = "disallowed-content-in-noscript-in-head", e.openElementsLeftAfterEof = "open-elements-left-after-eof", e.abandonedHeadElementChild = "abandoned-head-element-child", e.misplacedStartTagForHeadElement = "misplaced-start-tag-for-head-element", e.nestedNoscriptInHead = "nested-noscript-in-head", e.eofInElementThatCanContainOnlyText = "eof-in-element-that-can-contain-only-text";
+})(H || (H = {}));
+const yc = 65536;
+class bc {
+  constructor(t) {
+    this.handler = t, this.html = "", this.pos = -1, this.lastGapPos = -2, this.gapStack = [], this.skipNextNewLine = !1, this.lastChunkWritten = !1, this.endOfChunkHit = !1, this.bufferWaterline = yc, this.isEol = !1, this.lineStartPos = 0, this.droppedBufferSize = 0, this.line = 1, this.lastErrOffset = -1;
+  }
+  /** The column on the current line. If we just saw a gap (eg. a surrogate pair), return the index before. */
+  get col() {
+    return this.pos - this.lineStartPos + +(this.lastGapPos !== this.pos);
+  }
+  get offset() {
+    return this.droppedBufferSize + this.pos;
+  }
+  getError(t, r) {
+    const { line: n, col: i, offset: s } = this, o = i + r, u = s + r;
+    return {
+      code: t,
+      startLine: n,
+      endLine: n,
+      startCol: o,
+      endCol: o,
+      startOffset: u,
+      endOffset: u
+    };
+  }
+  _err(t) {
+    this.handler.onParseError && this.lastErrOffset !== this.offset && (this.lastErrOffset = this.offset, this.handler.onParseError(this.getError(t, 0)));
+  }
+  _addGap() {
+    this.gapStack.push(this.lastGapPos), this.lastGapPos = this.pos;
+  }
+  _processSurrogate(t) {
+    if (this.pos !== this.html.length - 1) {
+      const r = this.html.charCodeAt(this.pos + 1);
+      if (Ec(r))
+        return this.pos++, this._addGap(), Cc(t, r);
+    } else if (!this.lastChunkWritten)
+      return this.endOfChunkHit = !0, m.EOF;
+    return this._err(H.surrogateInInputStream), t;
+  }
+  willDropParsedChunk() {
+    return this.pos > this.bufferWaterline;
+  }
+  dropParsedChunk() {
+    this.willDropParsedChunk() && (this.html = this.html.substring(this.pos), this.lineStartPos -= this.pos, this.droppedBufferSize += this.pos, this.pos = 0, this.lastGapPos = -2, this.gapStack.length = 0);
+  }
+  write(t, r) {
+    this.html.length > 0 ? this.html += t : this.html = t, this.endOfChunkHit = !1, this.lastChunkWritten = r;
+  }
+  insertHtmlAtCurrentPos(t) {
+    this.html = this.html.substring(0, this.pos + 1) + t + this.html.substring(this.pos + 1), this.endOfChunkHit = !1;
+  }
+  startsWith(t, r) {
+    if (this.pos + t.length > this.html.length)
+      return this.endOfChunkHit = !this.lastChunkWritten, !1;
+    if (r)
+      return this.html.startsWith(t, this.pos);
+    for (let n = 0; n < t.length; n++)
+      if ((this.html.charCodeAt(this.pos + n) | 32) !== t.charCodeAt(n))
+        return !1;
+    return !0;
+  }
+  peek(t) {
+    const r = this.pos + t;
+    if (r >= this.html.length)
+      return this.endOfChunkHit = !this.lastChunkWritten, m.EOF;
+    const n = this.html.charCodeAt(r);
+    return n === m.CARRIAGE_RETURN ? m.LINE_FEED : n;
+  }
+  advance() {
+    if (this.pos++, this.isEol && (this.isEol = !1, this.line++, this.lineStartPos = this.pos), this.pos >= this.html.length)
+      return this.endOfChunkHit = !this.lastChunkWritten, m.EOF;
+    let t = this.html.charCodeAt(this.pos);
+    return t === m.CARRIAGE_RETURN ? (this.isEol = !0, this.skipNextNewLine = !0, m.LINE_FEED) : t === m.LINE_FEED && (this.isEol = !0, this.skipNextNewLine) ? (this.line--, this.skipNextNewLine = !1, this._addGap(), this.advance()) : (this.skipNextNewLine = !1, ya(t) && (t = this._processSurrogate(t)), this.handler.onParseError === null || t > 31 && t < 127 || t === m.LINE_FEED || t === m.CARRIAGE_RETURN || t > 159 && t < 64976 || this._checkForProblematicCharacters(t), t);
+  }
+  _checkForProblematicCharacters(t) {
+    ba(t) ? this._err(H.controlCharacterInInputStream) : wa(t) && this._err(H.noncharacterInInputStream);
+  }
+  retreat(t) {
+    for (this.pos -= t; this.pos < this.lastGapPos; )
+      this.lastGapPos = this.gapStack.pop(), this.pos--;
+    this.isEol = !1;
+  }
+}
+var bt;
+(function(e) {
+  e[e.CHARACTER = 0] = "CHARACTER", e[e.NULL_CHARACTER = 1] = "NULL_CHARACTER", e[e.WHITESPACE_CHARACTER = 2] = "WHITESPACE_CHARACTER", e[e.START_TAG = 3] = "START_TAG", e[e.END_TAG = 4] = "END_TAG", e[e.COMMENT = 5] = "COMMENT", e[e.DOCTYPE = 6] = "DOCTYPE", e[e.EOF = 7] = "EOF", e[e.HIBERNATION = 8] = "HIBERNATION";
+})(bt || (bt = {}));
+function wc(e, t) {
+  for (let r = e.attrs.length - 1; r >= 0; r--)
+    if (e.attrs[r].name === t)
+      return e.attrs[r].value;
+  return null;
+}
+const Ic = /* @__PURE__ */ new Map([
+  [0, 65533],
+  // C1 Unicode control character reference replacements
+  [128, 8364],
+  [130, 8218],
+  [131, 402],
+  [132, 8222],
+  [133, 8230],
+  [134, 8224],
+  [135, 8225],
+  [136, 710],
+  [137, 8240],
+  [138, 352],
+  [139, 8249],
+  [140, 338],
+  [142, 381],
+  [145, 8216],
+  [146, 8217],
+  [147, 8220],
+  [148, 8221],
+  [149, 8226],
+  [150, 8211],
+  [151, 8212],
+  [152, 732],
+  [153, 8482],
+  [154, 353],
+  [155, 8250],
+  [156, 339],
+  [158, 382],
+  [159, 376]
+]);
+function _c(e) {
+  return e >= 55296 && e <= 57343 || e > 1114111 ? 65533 : Ic.get(e) ?? e;
+}
+function Dc(e) {
+  const t = atob(e), r = t.length & -2, n = new Uint16Array(r / 2);
+  for (let i = 0, s = 0; i < r; i += 2) {
+    const o = t.charCodeAt(i), u = t.charCodeAt(i + 1);
+    n[s++] = o | u << 8;
+  }
+  return n;
+}
+const Sc = /* @__PURE__ */ Dc("QR08ALkAAgH6AYsDNQR2BO0EPgXZBQEGLAbdBxMISQrvCmQLfQurDKQNLw4fD4YPpA+6D/IPAAAAAAAAAAAAAAAAKhBMEY8TmxUWF2EYLBkxGuAa3RsJHDscWR8YIC8jSCSIJcMl6ie3Ku8rEC0CLjoupS7kLgAIRU1hYmNmZ2xtbm9wcnN0dVQAWgBeAGUAaQBzAHcAfgCBAIQAhwCSAJoAoACsALMAbABpAGcAO4DGAMZAUAA7gCYAJkBjAHUAdABlADuAwQDBQHIiZXZlAAJhAAFpeW0AcgByAGMAO4DCAMJAEGRyAADgNdgE3XIAYQB2AGUAO4DAAMBA8CFoYZFj4SFjcgBhZAAAoFMqAAFncIsAjgBvAG4ABGFmAADgNdg43fAlbHlGdW5jdGlvbgCgYSBpAG4AZwA7gMUAxUAAAWNzpACoAHIAAOA12Jzc6SFnbgCgVCJpAGwAZABlADuAwwDDQG0AbAA7gMQAxEAABGFjZWZvcnN1xQDYANoA7QDxAPYA+QD8AAABY3LJAM8AayNzbGFzaAAAoBYidgHTANUAAKDnKmUAZAAAoAYjeQARZIABY3J0AOAA5QDrAGEidXNlAACgNSLuI291bGxpcwCgLCFhAJJjcgAA4DXYBd1wAGYAAOA12Dnd5SF2ZdhiYwDyAOoAbSJwZXEAAKBOIgAHSE9hY2RlZmhpbG9yc3UXARoBHwE6AVIBVQFiAWQBZgGCAakB6QHtAfIBYwB5ACdkUABZADuAqQCpQIABY3B5ACUBKAE1AfUhdGUGYWmg0iJ0KGFsRGlmZmVyZW50aWFsRAAAoEUhbCJleXMAAKAtIQACYWVpb0EBRAFKAU0B8iFvbgxhZABpAGwAO4DHAMdAcgBjAAhhbiJpbnQAAKAwIm8AdAAKYQABZG5ZAV0BaSJsbGEAuGB0I2VyRG90ALdg8gA5AWkAp2NyImNsZQAAAkRNUFRwAXQBeQF9AW8AdAAAoJkiaSJudXMAAKCWIuwhdXMAoJUiaSJtZXMAAKCXIm8AAAFjc4cBlAFrKndpc2VDb250b3VySW50ZWdyYWwAAKAyImUjQ3VybHkAAAFEUZwBpAFvJXVibGVRdW90ZQAAoB0gdSJvdGUAAKAZIAACbG5wdbABtgHNAdgBbwBuAGWgNyIAoHQqgAFnaXQAvAHBAcUB8iJ1ZW50AKBhIm4AdAAAoC8i7yV1ckludGVncmFsAKAuIgABZnLRAdMBAKACIe8iZHVjdACgECJuLnRlckNsb2Nrd2lzZUNvbnRvdXJJbnRlZ3JhbAAAoDMi7yFzcwCgLypjAHIAAOA12J7ccABDoNMiYQBwAACgTSKABURKU1phY2VmaW9zAAsCEgIVAhgCGwIsAjQCOQI9AnMCfwNvoEUh9CJyYWhkAKARKWMAeQACZGMAeQAFZGMAeQAPZIABZ3JzACECJQIoAuchZXIAoCEgcgAAoKEhaAB2AACg5CoAAWF5MAIzAvIhb24OYRRkbAB0oAciYQCUY3IAAOA12AfdAAFhZkECawIAAWNtRQJnAvIjaXRpY2FsAAJBREdUUAJUAl8CYwJjInV0ZQC0YG8AdAFZAloC2WJiJGxlQWN1dGUA3WJyImF2ZQBgYGkibGRlANxi7yFuZACgxCJmJWVyZW50aWFsRAAAoEYhcAR9AgAAAAAAAIECjgIAABoDZgAA4DXYO91EoagAhQKJAm8AdAAAoNwgcSJ1YWwAAKBQIuIhbGUAA0NETFJVVpkCqAK1Au8C/wIRA28AbgB0AG8AdQByAEkAbgB0AGUAZwByAGEA7ADEAW8AdAKvAgAAAACwAqhgbiNBcnJvdwAAoNMhAAFlb7kC0AJmAHQAgAFBUlQAwQLGAs0CciJyb3cAAKDQIekkZ2h0QXJyb3cAoNQhZQDlACsCbgBnAAABTFLWAugC5SFmdAABQVLcAuECciJyb3cAAKD4J+kkZ2h0QXJyb3cAoPon6SRnaHRBcnJvdwCg+SdpImdodAAAAUFU9gL7AnIicm93AACg0iFlAGUAAKCoInAAQQIGAwAAAAALA3Iicm93AACg0SFvJHduQXJyb3cAAKDVIWUlcnRpY2FsQmFyAACgJSJuAAADQUJMUlRhJAM2AzoDWgNxA3oDciJyb3cAAKGTIUJVLAMwA2EAcgAAoBMpcCNBcnJvdwAAoPUhciJldmUAEWPlIWZ00gJDAwAASwMAAFIDaSVnaHRWZWN0b3IAAKBQKWUkZVZlY3RvcgAAoF4p5SJjdG9yQqC9IWEAcgAAoFYpaSJnaHQA1AFiAwAAaQNlJGVWZWN0b3IAAKBfKeUiY3RvckKgwSFhAHIAAKBXKWUAZQBBoKQiciJyb3cAAKCnIXIAcgBvAPcAtAIAAWN0gwOHA3IAAOA12J/c8iFvaxBhAAhOVGFjZGZnbG1vcHFzdHV4owOlA6kDsAO/A8IDxgPNA9ID8gP9AwEEFAQeBCAEJQRHAEphSAA7gNAA0EBjAHUAdABlADuAyQDJQIABYWl5ALYDuQO+A/Ihb24aYXIAYwA7gMoAykAtZG8AdAAWYXIAAOA12AjdcgBhAHYAZQA7gMgAyEDlIm1lbnQAoAgiAAFhcNYD2QNjAHIAEmF0AHkAUwLhAwAAAADpA20lYWxsU3F1YXJlAACg+yVlJ3J5U21hbGxTcXVhcmUAAKCrJQABZ3D2A/kDbwBuABhhZgAA4DXYPN3zImlsb26VY3UAAAFhaQYEDgRsAFSgdSppImxkZQAAoEIi7CNpYnJpdW0AoMwhAAFjaRgEGwRyAACgMCFtAACgcyphAJdjbQBsADuAywDLQAABaXApBC0E8yF0cwCgAyLvJG5lbnRpYWxFAKBHIYACY2Zpb3MAPQQ/BEMEXQRyBHkAJGRyAADgNdgJ3WwibGVkAFMCTAQAAAAAVARtJWFsbFNxdWFyZQAAoPwlZSdyeVNtYWxsU3F1YXJlAACgqiVwA2UEAABpBAAAAABtBGYAAOA12D3dwSFsbACgACLyI2llcnRyZgCgMSFjAPIAcQQABkpUYWJjZGZnb3JzdIgEiwSOBJMElwSkBKcEqwStBLIE5QTqBGMAeQADZDuAPgA+QO0hbWFkoJMD3GNyImV2ZQAeYYABZWl5AJ0EoASjBOQhaWwiYXIAYwAcYRNkbwB0ACBhcgAA4DXYCt0AoNkicABmAADgNdg+3eUiYXRlcgADRUZHTFNUvwTIBM8E1QTZBOAEcSJ1YWwATKBlIuUhc3MAoNsidSRsbEVxdWFsAACgZyJyI2VhdGVyAACgoirlIXNzAKB3IuwkYW50RXF1YWwAoH4qaSJsZGUAAKBzImMAcgAA4DXYotwAoGsiAARBYWNmaW9zdfkE/QQFBQgFCwUTBSIFKwVSIkRjeQAqZAABY3QBBQQFZQBrAMdiXmDpIXJjJGFyAACgDCFsJWJlcnRTcGFjZQAAoAsh8AEYBQAAGwVmAACgDSHpJXpvbnRhbExpbmUAoAAlAAFjdCYFKAXyABIF8iFvayZhbQBwAEQBMQU5BW8AdwBuAEgAdQBtAPAAAAFxInVhbAAAoE8iAAdFSk9hY2RmZ21ub3N0dVMFVgVZBVwFYwVtBXAFcwV6BZAFtgXFBckFzQVjAHkAFWTsIWlnMmFjAHkAAWRjAHUAdABlADuAzQDNQAABaXlnBWwFcgBjADuAzgDOQBhkbwB0ADBhcgAAoBEhcgBhAHYAZQA7gMwAzEAAoREhYXB/BYsFAAFjZ4MFhQVyACphaSNuYXJ5SQAAoEghbABpAGUA8wD6AvQBlQUAAKUFZaAsIgABZ3KaBZ4F8iFhbACgKyLzI2VjdGlvbgCgwiJpI3NpYmxlAAABQ1SsBbEFbyJtbWEAAKBjIGkibWVzAACgYiCAAWdwdAC8Bb8FwwVvAG4ALmFmAADgNdhA3WEAmWNjAHIAAKAQIWkibGRlAChh6wHSBQAA1QVjAHkABmRsADuAzwDPQIACY2Zvc3UA4QXpBe0F8gX9BQABaXnlBegFcgBjADRhGWRyAADgNdgN3XAAZgAA4DXYQd3jAfcFAAD7BXIAAOA12KXc8iFjeQhk6yFjeQRkgANISmFjZm9zAAwGDwYSBhUGHQYhBiYGYwB5ACVkYwB5AAxk8CFwYZpjAAFleRkGHAbkIWlsNmEaZHIAAOA12A7dcABmAADgNdhC3WMAcgAA4DXYptyABUpUYWNlZmxtb3N0AD0GQAZDBl4GawZkB2gHcAd0B80H2gdjAHkACWQ7gDwAPECAAmNtbnByAEwGTwZSBlUGWwb1IXRlOWHiIWRhm2NnAACg6ifsI2FjZXRyZgCgEiFyAACgniGAAWFleQBkBmcGagbyIW9uPWHkIWlsO2EbZAABZnNvBjQHdAAABUFDREZSVFVWYXKABp4GpAbGBssG3AYDByEHwQIqBwABbnKEBowGZyVsZUJyYWNrZXQAAKDoJ/Ihb3cAoZAhQlKTBpcGYQByAACg5CHpJGdodEFycm93AKDGIWUjaWxpbmcAAKAII28A9QGqBgAAsgZiJWxlQnJhY2tldAAAoOYnbgDUAbcGAAC+BmUkZVZlY3RvcgAAoGEp5SJjdG9yQqDDIWEAcgAAoFkpbCJvb3IAAKAKI2kiZ2h0AAABQVbSBtcGciJyb3cAAKCUIeUiY3RvcgCgTikAAWVy4AbwBmUAAKGjIkFW5gbrBnIicm93AACgpCHlImN0b3IAoFopaSNhbmdsZQBCorIi+wYAAAAA/wZhAHIAAKDPKXEidWFsAACgtCJwAIABRFRWAAoHEQcYB+8kd25WZWN0b3IAoFEpZSRlVmVjdG9yAACgYCnlImN0b3JCoL8hYQByAACgWCnlImN0b3JCoLwhYQByAACgUilpAGcAaAB0AGEAcgByAG8A9wDMAnMAAANFRkdMU1Q/B0cHTgdUB1gHXwfxJXVhbEdyZWF0ZXIAoNoidSRsbEVxdWFsAACgZiJyI2VhdGVyAACgdiLlIXNzAKChKuwkYW50RXF1YWwAoH0qaSJsZGUAAKByInIAAOA12A/dZaDYIuYjdGFycm93AKDaIWkiZG90AD9hgAFucHcAege1B7kHZwAAAkxSbHKCB5QHmwerB+UhZnQAAUFSiAeNB3Iicm93AACg9SfpJGdodEFycm93AKD3J+kkZ2h0QXJyb3cAoPYn5SFmdAABYXLcAqEHaQBnAGgAdABhAHIAcgBvAPcA5wJpAGcAaAB0AGEAcgByAG8A9wDuAmYAAOA12EPdZQByAAABTFK/B8YHZSRmdEFycm93AACgmSHpJGdodEFycm93AKCYIYABY2h0ANMH1QfXB/IAWgYAoLAh8iFva0FhAKBqIgAEYWNlZmlvc3XpB+wH7gf/BwMICQgOCBEIcAAAoAUpeQAcZAABZGzyB/kHaSR1bVNwYWNlAACgXyBsI2ludHJmAACgMyFyAADgNdgQ3e4jdXNQbHVzAKATInAAZgAA4DXYRN1jAPIA/gecY4AESmFjZWZvc3R1ACEIJAgoCDUIgQiFCDsKQApHCmMAeQAKZGMidXRlAENhgAFhZXkALggxCDQI8iFvbkdh5CFpbEVhHWSAAWdzdwA7CGEIfQjhInRpdmWAAU1UVgBECEwIWQhlJWRpdW1TcGFjZQAAoAsgaABpAAABY25SCFMIawBTAHAAYQBjAOUASwhlAHIAeQBUAGgAaQDuAFQI9CFlZAABR0xnCHUIcgBlAGEAdABlAHIARwByAGUAYQB0AGUA8gDrBGUAcwBzAEwAZQBzAPMA2wdMImluZQAKYHIAAOA12BHdAAJCbnB0jAiRCJkInAhyImVhawAAoGAgwiZyZWFraW5nU3BhY2WgYGYAAKAVIUOq7CqzCMIIzQgAAOcIGwkAAAAAAAAtCQAAbwkAAIcJAACdCcAJGQoAADQKAAFvdbYIvAjuI2dydWVudACgYiJwIkNhcAAAoG0ibyh1YmxlVmVydGljYWxCYXIAAKAmIoABbHF4ANII1wjhCOUibWVudACgCSL1IWFsVKBgImkibGRlAADgQiI4A2kic3RzAACgBCJyI2VhdGVyAACjbyJFRkdMU1T1CPoIAgkJCQ0JFQlxInVhbAAAoHEidSRsbEVxdWFsAADgZyI4A3IjZWF0ZXIAAOBrIjgD5SFzcwCgeSLsJGFudEVxdWFsAOB+KjgDaSJsZGUAAKB1IvUhbXBEASAJJwnvI3duSHVtcADgTiI4A3EidWFsAADgTyI4A2UAAAFmczEJRgn0JFRyaWFuZ2xlQqLqIj0JAAAAAEIJYQByAADgzyk4A3EidWFsAACg7CJzAICibiJFR0xTVABRCVYJXAlhCWkJcSJ1YWwAAKBwInIjZWF0ZXIAAKB4IuUhc3MA4GoiOAPsJGFudEVxdWFsAOB9KjgDaSJsZGUAAKB0IuUic3RlZAABR0x1CX8J8iZlYXRlckdyZWF0ZXIA4KIqOAPlI3NzTGVzcwDgoSo4A/IjZWNlZGVzAKGAIkVTjwmVCXEidWFsAADgryo4A+wkYW50RXF1YWwAoOAiAAFlaaAJqQl2JmVyc2VFbGVtZW50AACgDCLnJWh0VHJpYW5nbGVCousitgkAAAAAuwlhAHIAAODQKTgDcSJ1YWwAAKDtIgABcXXDCeAJdSNhcmVTdQAAAWJwywnVCfMhZXRF4I8iOANxInVhbAAAoOIi5SJyc2V0ReCQIjgDcSJ1YWwAAKDjIoABYmNwAOYJ8AkNCvMhZXRF4IIi0iBxInVhbAAAoIgi4yJlZWRzgKGBIkVTVAD6CQAKBwpxInVhbAAA4LAqOAPsJGFudEVxdWFsAKDhImkibGRlAADgfyI4A+UicnNldEXggyLSIHEidWFsAACgiSJpImxkZQCAoUEiRUZUACIKJwouCnEidWFsAACgRCJ1JGxsRXF1YWwAAKBHImkibGRlAACgSSJlJXJ0aWNhbEJhcgAAoCQiYwByAADgNdip3GkAbABkAGUAO4DRANFAnWMAB0VhY2RmZ21vcHJzdHV2XgphCmgKcgp2CnoKgQqRCpYKqwqtCrsKyArNCuwhaWdSYWMAdQB0AGUAO4DTANNAAAFpeWwKcQpyAGMAO4DUANRAHmRiImxhYwBQYXIAAOA12BLdcgBhAHYAZQA7gNIA0kCAAWFlaQCHCooKjQpjAHIATGFnAGEAqWNjInJvbgCfY3AAZgAA4DXYRt3lI25DdXJseQABRFGeCqYKbyV1YmxlUXVvdGUAAKAcIHUib3RlAACgGCAAoFQqAAFjbLEKtQpyAADgNdiq3GEAcwBoADuA2ADYQGkAbAHACsUKZABlADuA1QDVQGUAcwAAoDcqbQBsADuA1gDWQGUAcgAAAUJQ0wrmCgABYXLXCtoKcgAAoD4gYQBjAAABZWvgCuIKAKDeI2UAdAAAoLQjYSVyZW50aGVzaXMAAKDcI4AEYWNmaGlsb3JzAP0KAwsFCwkLCwsMCxELIwtaC3IjdGlhbEQAAKACInkAH2RyAADgNdgT3WkApmOgY/Ujc01pbnVzsWAAAWlwFQsgC24AYwBhAHIAZQBwAGwAYQBuAOUACgVmAACgGSGAobsqZWlvACoLRQtJC+MiZWRlc4CheiJFU1QANAs5C0ALcSJ1YWwAAKCvKuwkYW50RXF1YWwAoHwiaSJsZGUAAKB+Im0AZQAAoDMgAAFkcE0LUQv1IWN0AKAPIm8jcnRpb24AYaA3ImwAAKAdIgABY2leC2ILcgAA4DXYq9yoYwACVWZvc2oLbwtzC3cLTwBUADuAIgAiQHIAAOA12BTdcABmAACgGiFjAHIAAOA12KzcAAZCRWFjZWZoaW9yc3WPC5MLlwupC7YL2AvbC90LhQyTDJoMowzhIXJyAKAQKUcAO4CuAK5AgAFjbnIAnQugC6ML9SF0ZVRhZwAAoOsncgB0oKAhbAAAoBYpgAFhZXkArwuyC7UL8iFvblhh5CFpbFZhIGR2oBwhZSJyc2UAAAFFVb8LzwsAAWxxwwvIC+UibWVudACgCyL1JGlsaWJyaXVtAKDLIXAmRXF1aWxpYnJpdW0AAKBvKXIAAKAcIW8AoWPnIWh0AARBQ0RGVFVWYewLCgwQDDIMNwxeDHwM9gIAAW5y8Av4C2clbGVCcmFja2V0AACg6SfyIW93AKGSIUJM/wsDDGEAcgAAoOUhZSRmdEFycm93AACgxCFlI2lsaW5nAACgCSNvAPUBFgwAAB4MYiVsZUJyYWNrZXQAAKDnJ24A1AEjDAAAKgxlJGVWZWN0b3IAAKBdKeUiY3RvckKgwiFhAHIAAKBVKWwib29yAACgCyMAAWVyOwxLDGUAAKGiIkFWQQxGDHIicm93AACgpiHlImN0b3IAoFspaSNhbmdsZQBCorMiVgwAAAAAWgxhAHIAAKDQKXEidWFsAACgtSJwAIABRFRWAGUMbAxzDO8kd25WZWN0b3IAoE8pZSRlVmVjdG9yAACgXCnlImN0b3JCoL4hYQByAACgVCnlImN0b3JCoMAhYQByAACgUykAAXB1iQyMDGYAAKAdIe4kZEltcGxpZXMAoHAp6SRnaHRhcnJvdwCg2yEAAWNongyhDHIAAKAbIQCgsSHsJGVEZWxheWVkAKD0KYAGSE9hY2ZoaW1vcXN0dQC/DMgMzAzQDOIM5gwKDQ0NFA0ZDU8NVA1YDQABQ2PDDMYMyCFjeSlkeQAoZEYiVGN5ACxkYyJ1dGUAWmEAorwqYWVpedgM2wzeDOEM8iFvbmBh5CFpbF5hcgBjAFxhIWRyAADgNdgW3e8hcnQAAkRMUlXvDPYM/QwEDW8kd25BcnJvdwAAoJMhZSRmdEFycm93AACgkCHpJGdodEFycm93AKCSIXAjQXJyb3cAAKCRIechbWGjY+EkbGxDaXJjbGUAoBgicABmAADgNdhK3XICHw0AAAAAIg10AACgGiLhIXJlgKGhJUlTVQAqDTINSg3uJXRlcnNlY3Rpb24AoJMidQAAAWJwNw1ADfMhZXRFoI8icSJ1YWwAAKCRIuUicnNldEWgkCJxInVhbAAAoJIibiJpb24AAKCUImMAcgAA4DXYrtxhAHIAAKDGIgACYmNtcF8Nag2ODZANc6DQImUAdABFoNAicSJ1YWwAAKCGIgABY2huDYkNZSJlZHMAgKF7IkVTVAB4DX0NhA1xInVhbAAAoLAq7CRhbnRFcXVhbACgfSJpImxkZQAAoH8iVABoAGEA9ADHCwCgESIAodEiZXOVDZ8NciJzZXQARaCDInEidWFsAACghyJlAHQAAKDRIoAFSFJTYWNmaGlvcnMAtQ27Db8NyA3ODdsN3w3+DRgOHQ4jDk8AUgBOADuA3gDeQMEhREUAoCIhAAFIY8MNxg1jAHkAC2R5ACZkAAFidcwNzQ0JYKRjgAFhZXkA1A3XDdoN8iFvbmRh5CFpbGJhImRyAADgNdgX3QABZWnjDe4N8gHoDQAA7Q3lImZvcmUAoDQiYQCYYwABY27yDfkNayNTcGFjZQAA4F8gCiDTInBhY2UAoAkg7CFkZYChPCJFRlQABw4MDhMOcSJ1YWwAAKBDInUkbGxFcXVhbAAAoEUiaSJsZGUAAKBIInAAZgAA4DXYS93pI3BsZURvdACg2yAAAWN0Jw4rDnIAAOA12K/c8iFva2Zh4QpFDlYOYA5qDgAAbg5yDgAAAAAAAAAAAAB5DnwOqA6zDgAADg8RDxYPGg8AAWNySA5ODnUAdABlADuA2gDaQHIAb6CfIeMhaXIAoEkpcgDjAVsOAABdDnkADmR2AGUAbGEAAWl5Yw5oDnIAYwA7gNsA20AjZGIibGFjAHBhcgAA4DXYGN1yAGEAdgBlADuA2QDZQOEhY3JqYQABZGl/Dp8OZQByAAABQlCFDpcOAAFhcokOiw5yAF9gYQBjAAABZWuRDpMOAKDfI2UAdAAAoLUjYSVyZW50aGVzaXMAAKDdI28AbgBQoMMi7CF1cwCgjiIAAWdwqw6uDm8AbgByYWYAAOA12EzdAARBREVUYWRwc78O0g7ZDuEOBQPqDvMOBw9yInJvdwDCoZEhyA4AAMwOYQByAACgEilvJHduQXJyb3cAAKDFIW8kd25BcnJvdwAAoJUhcSV1aWxpYnJpdW0AAKBuKWUAZQBBoKUiciJyb3cAAKClIW8AdwBuAGEAcgByAG8A9wAQA2UAcgAAAUxS+Q4AD2UkZnRBcnJvdwAAoJYh6SRnaHRBcnJvdwCglyFpAGyg0gNvAG4ApWPpIW5nbmFjAHIAAOA12LDcaSJsZGUAaGFtAGwAO4DcANxAgAREYmNkZWZvc3YALQ8xDzUPNw89D3IPdg97D4AP4SFzaACgqyJhAHIAAKDrKnkAEmThIXNobKCpIgCg5ioAAWVyQQ9DDwCgwSKAAWJ0eQBJD00Paw9hAHIAAKAWIGmgFiDjIWFsAAJCTFNUWA9cD18PZg9hAHIAAKAjIukhbmV8YGUkcGFyYXRvcgAAoFgnaSJsZGUAAKBAItQkaGluU3BhY2UAoAogcgAA4DXYGd1wAGYAAOA12E3dYwByAADgNdix3GQiYXNoAACgqiKAAmNlZm9zAI4PkQ+VD5kPng/pIXJjdGHkIWdlAKDAInIAAOA12BrdcABmAADgNdhO3WMAcgAA4DXYstwAAmZpb3OqD64Prw+0D3IAAOA12BvdnmNwAGYAAOA12E/dYwByAADgNdiz3IAEQUlVYWNmb3N1AMgPyw/OD9EP2A/gD+QP6Q/uD2MAeQAvZGMAeQAHZGMAeQAuZGMAdQB0AGUAO4DdAN1AAAFpedwP3w9yAGMAdmErZHIAAOA12BzdcABmAADgNdhQ3WMAcgAA4DXYtNxtAGwAeGEABEhhY2RlZm9z/g8BEAUQDRAQEB0QIBAkEGMAeQAWZGMidXRlAHlhAAFheQkQDBDyIW9ufWEXZG8AdAB7YfIBFRAAABwQbwBXAGkAZAB0AOgAVAhhAJZjcgAAoCghcABmAACgJCFjAHIAAOA12LXc4QtCEEkQTRAAAGcQbRByEAAAAAAAAAAAeRCKEJcQ8hD9EAAAGxEhETIROREAAD4RYwB1AHQAZQA7gOEA4UByImV2ZQADYYCiPiJFZGl1eQBWEFkQWxBgEGUQAOA+IjMDAKA/InIAYwA7gOIA4kB0AGUAO4C0ALRAMGRsAGkAZwA7gOYA5kByoGEgAOA12B7dcgBhAHYAZQA7gOAA4EAAAWVwfBCGEAABZnCAEIQQ8yF5bQCgNSHoAIMQaABhALFjAAFhcI0QWwAAAWNskRCTEHIAAWFnAACgPypkApwQAAAAALEQAKInImFkc3ajEKcQqRCuEG4AZAAAoFUqAKBcKmwib3BlAACgWCoAoFoqAKMgImVsbXJzersQvRDAEN0Q5RDtEACgpCllAACgICJzAGQAYaAhImEEzhDQENIQ1BDWENgQ2hDcEACgqCkAoKkpAKCqKQCgqykAoKwpAKCtKQCgrikAoK8pdAB2oB8iYgBkoL4iAKCdKQABcHTpEOwQaAAAoCIixWDhIXJyAKB8IwABZ3D1EPgQbwBuAAVhZgAA4DXYUt0Ao0giRWFlaW9wBxEJEQ0RDxESERQRAKBwKuMhaXIAoG8qAKBKImQAAKBLInMAJ2DyIW94ZaBIIvEADhFpAG4AZwA7gOUA5UCAAWN0eQAmESoRKxFyAADgNdi23CpgbQBwAGWgSCLxAPgBaQBsAGQAZQA7gOMA40BtAGwAO4DkAORAAAFjaUERRxFvAG4AaQBuAPQA6AFuAHQAAKARKgAITmFiY2RlZmlrbG5vcHJzdWQRaBGXEZ8RpxGrEdIR1hErEjASexKKEn0RThNbE3oTbwB0AACg7SoAAWNybBGJEWsAAAJjZXBzdBF4EX0RghHvIW5nAKBMInAjc2lsb24A9mNyImltZQAAoDUgaQBtAGWgPSJxAACgzSJ2AY0RkRFlAGUAAKC9ImUAZABnoAUjZQAAoAUjcgBrAHSgtSPiIXJrAKC2IwABb3mjEaYRbgDnAHcRMWTxIXVvAKAeIIACY21wcnQAtBG5Eb4RwRHFEeEhdXPloDUi5ABwInR5dgAAoLApcwDpAH0RbgBvAPUA6gCAAWFodwDLEcwRzhGyYwCgNiHlIWVuAKBsInIAAOA12B/dZwCAA2Nvc3R1dncA4xHyEQUSEhIhEiYSKRKAAWFpdQDpEesR7xHwAKMFcgBjAACg7yVwAACgwyKAAWRwdAD4EfwRABJvAHQAAKAAKuwhdXMAoAEqaSJtZXMAAKACKnECCxIAAAAADxLjIXVwAKAGKmEAcgAAoAUm8iNpYW5nbGUAAWR1GhIeEu8hd24AoL0lcAAAoLMlcCJsdXMAAKAEKmUA5QBCD+UAkg9hInJvdwAAoA0pgAFha28ANhJoEncSAAFjbjoSZRJrAIABbHN0AEESRxJNEm8jemVuZ2UAAKDrKXEAdQBhAHIA5QBcBPIjaWFuZ2xlgKG0JWRscgBYElwSYBLvIXduAKC+JeUhZnQAoMIlaSJnaHQAAKC4JWsAAKAjJLEBbRIAAHUSsgFxEgAAcxIAoJIlAKCRJTQAAKCTJWMAawAAoIglAAFlb38ShxJx4D0A5SD1IWl2AOBhIuUgdAAAoBAjAAJwdHd4kRKVEpsSnxJmAADgNdhT3XSgpSJvAG0AAKClIvQhaWUAoMgiAAZESFVWYmRobXB0dXayEsES0RLgEvcS+xIKExoTHxMjEygTNxMAAkxSbHK5ErsSvRK/EgCgVyUAoFQlAKBWJQCgUyUAolAlRFVkdckSyxLNEs8SAKBmJQCgaSUAoGQlAKBnJQACTFJsctgS2hLcEt4SAKBdJQCgWiUAoFwlAKBZJQCjUSVITFJobHLrEu0S7xLxEvMS9RIAoGwlAKBjJQCgYCUAoGslAKBiJQCgXyVvAHgAAKDJKQACTFJscgITBBMGEwgTAKBVJQCgUiUAoBAlAKAMJQCiACVEVWR1EhMUExYTGBMAoGUlAKBoJQCgLCUAoDQlaSJudXMAAKCfIuwhdXMAoJ4iaSJtZXMAAKCgIgACTFJsci8TMRMzEzUTAKBbJQCgWCUAoBglAKAUJQCjAiVITFJobHJCE0QTRhNIE0oTTBMAoGolAKBhJQCgXiUAoDwlAKAkJQCgHCUAAWV2UhNVE3YA5QD5AGIAYQByADuApgCmQAACY2Vpb2ITZhNqE24TcgAA4DXYt9xtAGkAAKBPIG0A5aA9IogRbAAAoVwAYmh0E3YTAKDFKfMhdWIAoMgnbAF+E4QTbABloCIgdAAAoCIgcAAAoU4iRWWJE4sTAKCuKvGgTyI8BeEMqRMAAN8TABQDFB8UAAAjFDQUAAAAAIUUAAAAAI0UAAAAANcU4xT3FPsUAACIFQAAlhWAAWNwcgCuE7ET1RP1IXRlB2GAoikiYWJjZHMAuxO/E8QTzhPSE24AZAAAoEQqciJjdXAAAKBJKgABYXXIE8sTcAAAoEsqcAAAoEcqbwB0AACgQCoA4CkiAP4AAWVv2RPcE3QAAKBBIO4ABAUAAmFlaXXlE+8T9RP4E/AB6hMAAO0TcwAAoE0qbwBuAA1hZABpAGwAO4DnAOdAcgBjAAlhcABzAHOgTCptAACgUCpvAHQAC2GAAWRtbgAIFA0UEhRpAGwAO4C4ALhAcCJ0eXYAAKCyKXQAAIGiADtlGBQZFKJAcgBkAG8A9ABiAXIAAOA12CDdgAFjZWkAKBQqFDIUeQBHZGMAawBtoBMn4SFyawCgEyfHY3IAAKPLJUVjZWZtcz8UQRRHFHcUfBSAFACgwykAocYCZWxGFEkUcQAAoFciZQBhAlAUAAAAAGAUciJyb3cAAAFsclYUWhTlIWZ0AKC6IWkiZ2h0AACguyGAAlJTYWNkAGgUaRRrFG8UcxSuYACgyCRzAHQAAKCbIukhcmMAoJoi4SFzaACgnSJuImludAAAoBAqaQBkAACg7yrjIWlyAKDCKfUhYnN1oGMmaQB0AACgYybsApMUmhS2FAAAwxRvAG4AZaA6APGgVCKrAG0CnxQAAAAAoxRhAHSgLABAYAChASJmbKcUqRTuABMNZQAAAW14rhSyFOUhbnQAoAEiZQDzANIB5wG6FAAAwBRkoEUibwB0AACgbSpuAPQAzAGAAWZyeQDIFMsUzhQA4DXYVN1vAOQA1wEAgakAO3MeAdMUcgAAoBchAAFhb9oU3hRyAHIAAKC1IXMAcwAAoBcnAAFjdeYU6hRyAADgNdi43AABYnDuFPIUZaDPKgCg0SploNAqAKDSKuQhb3QAoO8igANkZWxwcnZ3AAYVEBUbFSEVRBVlFYQV4SFycgABbHIMFQ4VAKA4KQCgNSlwAhYVAAAAABkVcgAAoN4iYwAAoN8i4SFycnCgtiEAoD0pgKIqImJjZG9zACsVMBU6FT4VQRVyImNhcAAAoEgqAAFhdTQVNxVwAACgRipwAACgSipvAHQAAKCNInIAAKBFKgDgKiIA/gACYWxydksVURVuFXMVcgByAG2gtyEAoDwpeQCAAWV2dwBYFWUVaRVxAHACXxUAAAAAYxVyAGUA4wAXFXUA4wAZFWUAZQAAoM4iZSJkZ2UAAKDPImUAbgA7gKQApEBlI2Fycm93AAABbHJ7FX8V5SFmdACgtiFpImdodAAAoLchZQDkAG0VAAFjaYsVkRVvAG4AaQBuAPQAkwFuAHQAAKAxImwiY3R5AACgLSOACUFIYWJjZGVmaGlqbG9yc3R1d3oAuBW7Fb8V1RXgFegV+RUKFhUWHxZUFlcWZRbFFtsW7xb7FgUXChdyAPIAtAJhAHIAAKBlKQACZ2xyc8YVyhXOFdAV5yFlcgCgICDlIXRoAKA4IfIA9QxoAHagECAAoKMiawHZFd4VYSJyb3cAAKAPKWEA4wBfAgABYXnkFecV8iFvbg9hNGQAoUYhYW/tFfQVAAFnciEC8RVyAACgyiF0InNlcQAAoHcqgAFnbG0A/xUCFgUWO4CwALBAdABhALRjcCJ0eXYAAKCxKQABaXIOFhIW8yFodACgfykA4DXYId1hAHIAAAFschsWHRYAoMMhAKDCIYACYWVnc3YAKBauAjYWOhY+Fm0AAKHEIm9zLhY0Fm4AZABzoMQi9SFpdACgZiZhIm1tYQDdY2kAbgAAoPIiAKH3AGlvQxZRFmQAZQAAgfcAO29KFksW90BuI3RpbWVzAACgxyJuAPgAUBZjAHkAUmRjAG8CXhYAAAAAYhZyAG4AAKAeI28AcAAAoA0jgAJscHR1dwBuFnEWdRaSFp4W7CFhciRgZgAA4DXYVd0AotkCZW1wc30WhBaJFo0WcQBkoFAibwB0AACgUSJpIm51cwAAoDgi7CF1cwCgFCLxInVhcmUAoKEiYgBsAGUAYgBhAHIAdwBlAGQAZwDlANcAbgCAAWFkaAClFqoWtBZyAHIAbwD3APUMbwB3AG4AYQByAHIAbwB3APMA8xVhI3Jwb29uAAABbHK8FsAWZQBmAPQAHBZpAGcAaAD0AB4WYgHJFs8WawBhAHIAbwD3AJILbwLUFgAAAADYFnIAbgAAoB8jbwBwAACgDCOAAWNvdADhFukW7BYAAXJ55RboFgDgNdi53FVkbAAAoPYp8iFvaxFhAAFkcvMW9xZvAHQAAKDxImkA5qC/JVsSAAFhaP8WAhdyAPIANQNhAPIA1wvhIm5nbGUAoKYpAAFjaQ4XEBd5AF9k5yJyYXJyAKD/JwAJRGFjZGVmZ2xtbm9wcXJzdHV4MRc4F0YXWxcyBF4XaRd5F40XrBe0F78X2RcVGCEYLRg1GEAYAAFEbzUXgRZvAPQA+BUAAWNzPBdCF3UAdABlADuA6QDpQPQhZXIAoG4qAAJhaW95TRdQF1YXWhfyIW9uG2FyAGOgViI7gOoA6kDsIW9uAKBVIk1kbwB0ABdhAAFEcmIXZhdvAHQAAKBSIgDgNdgi3XKhmipuF3QXYQB2AGUAO4DoAOhAZKCWKm8AdAAAoJgqgKGZKmlscwCAF4UXhxfuInRlcnMAoOcjAKATIWSglSpvAHQAAKCXKoABYXBzAJMXlheiF2MAcgATYXQAeQBzogUinxcAAAAAoRdlAHQAAKAFInAAMaADIDMBqRerFwCgBCAAoAUgAAFnc7AXsRdLYXAAAKACIAABZ3C4F7sXbwBuABlhZgAA4DXYVt2AAWFscwDFF8sXzxdyAHOg1SJsAACg4yl1AHMAAKBxKmkAAKG1A2x21RfYF28AbgC1Y/VjAAJjc3V24BfoF/0XEBgAAWlv5BdWF3IAYwAAoFYiaQLuFwAAAADwF+0ADQThIW50AAFnbPUX+Rd0AHIAAKCWKuUhc3MAoJUqgAFhZWkAAxgGGAoYbABzAD1gcwB0AACgXyJ2AESgYSJEAACgeCrwImFyc2wAoOUpAAFEYRkYHRhvAHQAAKBTInIAcgAAoHEpgAFjZGkAJxgqGO0XcgAAoC8hbwD0AIwCAAFhaDEYMhi3YzuA8ADwQAABbXI5GD0YbAA7gOsA60BvAACgrCCAAWNpcABGGEgYSxhsACFgcwD0ACwEAAFlb08YVxhjAHQAYQB0AGkAbwDuABoEbgBlAG4AdABpAGEAbADlADME4Ql1GAAAgRgAAIMYiBgAAAAAoRilGAAAqhgAALsYvhjRGAAA1xgnGWwAbABpAG4AZwBkAG8AdABzAGUA8QBlF3kARGRtImFsZQAAoEAmgAFpbHIAjRiRGJ0Y7CFpZwCgA/tpApcYAAAAAJoYZwAAoAD7aQBnAACgBPsA4DXYI93sIWlnAKAB++whaWcA4GYAagCAAWFsdACvGLIYthh0AACgbSZpAGcAAKAC+24AcwAAoLElbwBmAJJh8AHCGAAAxhhmAADgNdhX3QABYWvJGMwYbADsAGsEdqDUIgCg2SphI3J0aW50AACgDSoAAWFv2hgiGQABY3PeGB8ZsQPnGP0YBRkSGRUZAAAdGbID7xjyGPQY9xj5GAAA+xg7gL0AvUAAoFMhO4C8ALxAAKBVIQCgWSEAoFshswEBGQAAAxkAoFQhAKBWIbQCCxkOGQAAAAAQGTuAvgC+QACgVyEAoFwhNQAAoFghtgEZGQAAGxkAoFohAKBdITgAAKBeIWwAAKBEIHcAbgAAoCIjYwByAADgNdi73IAIRWFiY2RlZmdpamxub3JzdHYARhlKGVoZXhlmGWkZkhmWGZkZnRmgGa0ZxhnLGc8Z4BkjGmygZyIAoIwqgAFjbXAAUBlTGVgZ9SF0ZfVhbQBhAOSgswM6FgCghipyImV2ZQAfYQABaXliGWUZcgBjAB1hM2RvAHQAIWGAoWUibHFzAMYEcBl6GfGhZSLOBAAAdhlsAGEAbgD0AN8EgKF+KmNkbACBGYQZjBljAACgqSpvAHQAb6CAKmyggioAoIQqZeDbIgD+cwAAoJQqcgAA4DXYJN3noGsirATtIWVsAKA3IWMAeQBTZIChdyJFYWoApxmpGasZAKCSKgCgpSoAoKQqAAJFYWVztBm2Gb0ZwhkAoGkicABwoIoq8iFveACgiipxoIgq8aCIKrUZaQBtAACg5yJwAGYAAOA12FjdYQB2AOUAYwIAAWNp0xnWGXIAAKAKIW0AAKFzImVs3BneGQCgjioAoJAqAIM+ADtjZGxxco0E6xn0GfgZ/BkBGgABY2nvGfEZAKCnKnIAAKB6Km8AdAAAoNci0CFhcgCglSl1ImVzdAAAoHwqgAJhZGVscwAKGvQZFhrVBCAa8AEPGgAAFBpwAHIAbwD4AFkZcgAAoHgpcQAAAWxxxAQbGmwAZQBzAPMASRlpAO0A5AQAAWVuJxouGnIjdG5lcXEAAOBpIgD+xQAsGgAFQWFiY2Vma29zeUAaQxpmGmoabRqDGocalhrCGtMacgDyAMwCAAJpbG1yShpOGlAaVBpyAHMA8ABxD2YAvWBpAGwA9AASBQABZHJYGlsaYwB5AEpkAKGUIWN3YBpkGmkAcgAAoEgpAKCtIWEAcgAAoA8h6SFyYyVhgAFhbHIAcxp7Gn8a8iF0c3WgZSZpAHQAAKBlJuwhaXAAoCYg4yFvbgCguSJyAADgNdgl3XMAAAFld4wakRphInJvdwAAoCUpYSJyb3cAAKAmKYACYW1vcHIAnxqjGqcauhq+GnIAcgAAoP8h9CFodACgOyJrAAABbHKsGrMaZSRmdGFycm93AACgqSHpJGdodGFycm93AKCqIWYAAOA12Fnd4iFhcgCgFSCAAWNsdADIGswa0BpyAADgNdi93GEAcwDoAGka8iFvaydhAAFicNca2xr1IWxsAKBDIOghZW4AoBAg4Qr2GgAA/RoAAAgbExsaGwAAIRs7GwAAAAA+G2IbmRuVG6sbAACyG80b0htjAHUAdABlADuA7QDtQAChYyBpeQEbBhtyAGMAO4DuAO5AOGQAAWN4CxsNG3kANWRjAGwAO4ChAKFAAAFmcssCFhsA4DXYJt1yAGEAdgBlADuA7ADsQIChSCFpbm8AJxsyGzYbAAFpbisbLxtuAHQAAKAMKnQAAKAtIuYhaW4AoNwpdABhAACgKSHsIWlnM2GAAWFvcABDG1sbXhuAAWNndABJG0sbWRtyACthgAFlbHAAcQVRG1UbaQBuAOUAyAVhAHIA9AByBWgAMWFmAACgtyJlAGQAtWEAoggiY2ZvdGkbbRt1G3kb4SFyZQCgBSFpAG4AdKAeImkAZQAAoN0pZABvAPQAWxsAoisiY2VscIEbhRuPG5QbYQBsAACguiIAAWdyiRuNG2UAcgDzACMQ4wCCG2EicmhrAACgFyryIW9kAKA8KgACY2dwdJ8boRukG6gbeQBRZG8AbgAvYWYAAOA12FrdYQC5Y3UAZQBzAHQAO4C/AL9AAAFjabUbuRtyAADgNdi+3G4AAKIIIkVkc3bCG8QbyBvQAwCg+SJvAHQAAKD1Inag9CIAoPMiaaBiIOwhZGUpYesB1hsAANkbYwB5AFZkbAA7gO8A70AAA2NmbW9zdeYb7hvyG/Ub+hsFHAABaXnqG+0bcgBjADVhOWRyAADgNdgn3eEhdGg3YnAAZgAA4DXYW93jAf8bAAADHHIAAOA12L/c8iFjeVhk6yFjeVRkAARhY2ZnaGpvcxUcGhwiHCYcKhwtHDAcNRzwIXBhdqC6A/BjAAFleR4cIRzkIWlsN2E6ZHIAAOA12CjdciJlZW4AOGFjAHkARWRjAHkAXGRwAGYAAOA12FzdYwByAADgNdjA3IALQUJFSGFiY2RlZmdoamxtbm9wcnN0dXYAXhxtHHEcdRx5HN8cBx0dHTwd3B3tHfEdAR4EHh0eLB5FHrwewx7hHgkfPR9LH4ABYXJ0AGQcZxxpHHIA8gBvB/IAxQLhIWlsAKAbKeEhcnIAoA4pZ6BmIgCgiyphAHIAAKBiKWMJjRwAAJAcAACVHAAAAAAAAAAAAACZHJwcAACmHKgcrRwAANIc9SF0ZTph7SJwdHl2AKC0KXIAYQDuAFoG4iFkYbtjZwAAoegnZGyhHKMcAKCRKeUAiwYAoIUqdQBvADuAqwCrQHIAgKOQIWJmaGxwc3QAuhy/HMIcxBzHHMoczhxmoOQhcwAAoB8pcwAAoB0p6wCyGnAAAKCrIWwAAKA5KWkAbQAAoHMpbAAAoKIhAKGrKmFl1hzaHGkAbAAAoBkpc6CtKgDgrSoA/oABYWJyAOUc6RztHHIAcgAAoAwpcgBrAACgcicAAWFr8Rz4HGMAAAFla/Yc9xx7YFtgAAFlc/wc/hwAoIspbAAAAWR1Ax0FHQCgjykAoI0pAAJhZXV5Dh0RHRodHB3yIW9uPmEAAWRpFR0YHWkAbAA8YewAowbiAPccO2QAAmNxcnMkHScdLB05HWEAAKA2KXUAbwDyoBwgqhEAAWR1MB00HeghYXIAoGcpcyJoYXIAAKBLKWgAAKCyIQCiZCJmZ3FzRB1FB5Qdnh10AIACYWhscnQATh1WHWUdbB2NHXIicm93AHSgkCFhAOkAzxxhI3Jwb29uAAABZHVeHWId7yF3bgCgvSFwAACgvCHlJGZ0YXJyb3dzAKDHIWkiZ2h0AIABYWhzAHUdex2DHXIicm93APOglCGdBmEAcgBwAG8AbwBuAPMAzgtxAHUAaQBnAGEAcgByAG8A9wBlGugkcmVldGltZXMAoMsi8aFkIk0HAACaHWwAYQBuAPQAXgcAon0qY2Rnc6YdqR2xHbcdYwAAoKgqbwB0AG+gfypyoIEqAKCDKmXg2iIA/nMAAKCTKoACYWRlZ3MAwB3GHcod1h3ZHXAAcAByAG8A+ACmHG8AdAAAoNYicQAAAWdxzx3SHXQA8gBGB2cAdADyAHQcdADyAFMHaQDtAGMHgAFpbHIA4h3mHeod8yFodACgfClvAG8A8gDKBgDgNdgp3UWgdiIAoJEqYQH1Hf4dcgAAAWR1YB35HWygvCEAoGopbABrAACghCVjAHkAWWQAomoiYWNodAweDx4VHhkecgDyAGsdbwByAG4AZQDyAGAW4SFyZACgaylyAGkAAKD6JQABaW8hHiQe5CFvdEBh9SFzdGGgsCPjIWhlAKCwIwACRWFlczMeNR48HkEeAKBoInAAcKCJKvIhb3gAoIkqcaCHKvGghyo0HmkAbQAAoOYiAARhYm5vcHR3elIeXB5fHoUelh6mHqsetB4AAW5yVh5ZHmcAAKDsJ3IAAKD9IXIA6wCwBmcAgAFsbXIAZh52Hnse5SFmdAABYXKIB2weaQBnAGgAdABhAHIAcgBvAPcAkwfhInBzdG8AoPwnaQBnAGgAdABhAHIAcgBvAPcAmgdwI2Fycm93AAABbHKNHpEeZQBmAPQAxhxpImdodAAAoKwhgAFhZmwAnB6fHqIecgAAoIUpAOA12F3ddQBzAACgLSppIm1lcwAAoDQqYQGvHrMecwB0AACgFyLhAIoOZaHKJbkeRhLuIWdlAKDKJWEAcgBsoCgAdAAAoJMpgAJhY2htdADMHs8e1R7bHt0ecgDyAJ0GbwByAG4AZQDyANYWYQByAGSgyyEAoG0pAKAOIHIAaQAAoL8iAANhY2hpcXTrHu8e1QfzHv0eBh/xIXVvAKA5IHIAAOA12MHcbQDloXIi+h4AAPweAKCNKgCgjyoAAWJ19xwBH28AcqAYIACgGiDyIW9rQmEAhDwAO2NkaGlscXJCBhcfxh0gHyQfKB8sHzEfAAFjaRsfHR8AoKYqcgAAoHkqcgBlAOUAkx3tIWVzAKDJIuEhcnIAoHYpdSJlc3QAAKB7KgABUGk1HzkfYQByAACglillocMlAgdfEnIAAAFkdUIfRx9zImhhcgAAoEop6CFhcgCgZikAAWVuTx9WH3IjdG5lcXEAAOBoIgD+xQBUHwAHRGFjZGVmaGlsbm9wc3VuH3Ifoh+rH68ftx+7H74f5h/uH/MfBwj/HwsgxCFvdACgOiIAAmNscHJ5H30fiR+eH3IAO4CvAK9AAAFldIEfgx8AoEImZaAgJ3MAZQAAoCAnc6CmIXQAbwCAoaYhZGx1AJQfmB+cH28AdwDuAHkDZQBmAPQA6gbwAOkO6yFlcgCgriUAAW95ph+qH+0hbWEAoCkqPGThIXNoAKAUIOElc3VyZWRhbmdsZQCgISJyAADgNdgq3W8AAKAnIYABY2RuAMQfyR/bH3IAbwA7gLUAtUBhoiMi0B8AANMf1x9zAPQAKxFpAHIAAKDwKm8AdAA7gLcAt0B1AHMA4qESIh4TAADjH3WgOCIAoCoqYwHqH+0fcAAAoNsq8gB+GnAAbAB1APMACAgAAWRw9x/7H+UhbHMAoKciZgAA4DXYXt0AAWN0AyAHIHIAAOA12MLc8CFvcwCgPiJsobwDECAVIPQiaW1hcACguCJhAPAAEyAADEdMUlZhYmNkZWZnaGlqbG1vcHJzdHV2dzwgRyBmIG0geSCqILgg2iDeIBEhFSEyIUMhTSFQIZwhnyHSIQAiIyKLIrEivyIUIwABZ3RAIEMgAODZIjgD9uBrItIgBwmAAWVsdABNIF8gYiBmAHQAAAFhclMgWCByInJvdwAAoM0h6SRnaHRhcnJvdwCgziEA4NgiOAP24Goi0iBfCekkZ2h0YXJyb3cAoM8hAAFEZHEgdSDhIXNoAKCvIuEhc2gAoK4igAJiY25wdACCIIYgiSCNIKIgbABhAACgByL1IXRlRGFnAADgICLSIACiSSJFaW9wlSCYIJwgniAA4HAqOANkAADgSyI4A3MASWFyAG8A+AAyCnUAcgBhoG4mbADzoG4mmwjzAa8gAACzIHAAO4CgAKBAbQBwAOXgTiI4AyoJgAJhZW91eQDBIMogzSDWINkg8AHGIAAAyCAAoEMqbwBuAEhh5CFpbEZhbgBnAGSgRyJvAHQAAOBtKjgDcAAAoEIqPWThIXNoAKATIACjYCJBYWRxc3jpIO0g+SD+IAIhDCFyAHIAAKDXIXIAAAFocvIg9SBrAACgJClvoJch9wAGD28AdAAA4FAiOAN1AGkA9gC7CAABZWkGIQohYQByAACgKCntAN8I6SFzdPOgBCLlCHIAAOA12CvdAAJFZXN0/wgcISshLiHxoXEiIiEAABMJ8aFxIgAJAAAnIWwAYQBuAPQAEwlpAO0AGQlyoG8iAKBvIoABQWFwADghOyE/IXIA8gBeIHIAcgAAoK4hYQByAACg8ipzogsiSiEAAAAAxwtkoPwiAKD6ImMAeQBaZIADQUVhZGVzdABcIV8hYiFmIWkhkyGWIXIA8gBXIADgZiI4A3IAcgAAoJohcgAAoCUggKFwImZxcwBwIYQhjiF0AAABYXJ1IXohcgByAG8A9wBlIWkAZwBoAHQAYQByAHIAbwD3AD4h8aFwImAhAACKIWwAYQBuAPQAZwlz4H0qOAMAoG4iaQDtAG0JcqBuImkA5aDqIkUJaQDkADoKAAFwdKMhpyFmAADgNdhf3YCBrAA7aW4AriGvIcchrEBuAIChCSJFZHYAtyG6Ib8hAOD5IjgDbwB0AADg9SI4A+EB1gjEIcYhAKD3IgCg9iJpAHagDCLhAagJzyHRIQCg/iIAoP0igAFhb3IA2CHsIfEhcgCAoSYiYXN0AOAh5SHpIWwAbABlAOwAywhsAADg/SrlIADgAiI4A2wiaW50AACgFCrjoYAi9yEAAPohdQDlAJsJY+CvKjgDZaCAIvEAkwkAAkFhaXQHIgoiFyIeInIA8gBsIHIAcgAAoZshY3cRIhQiAOAzKTgDAOCdITgDZyRodGFycm93AACgmyFyAGkA5aDrIr4JgANjaGltcHF1AC8iPCJHIpwhTSJQIloigKGBImNlcgA2Iv0JOSJ1AOUABgoA4DXYw9zvIXJ0bQKdIQAAAABEImEAcgDhAOEhbQBloEEi8aBEIiYKYQDyAMsIcwB1AAABYnBWIlgi5QDUCeUA3wmAAWJjcABgInMieCKAoYQiRWVzAGci7glqIgDgxSo4A2UAdABl4IIi0iBxAPGgiCJoImMAZaCBIvEA/gmAoYUiRWVzAH8iFgqCIgDgxio4A2UAdABl4IMi0iBxAPGgiSKAIgACZ2lscpIilCKaIpwi7AAMCWwAZABlADuA8QDxQOcAWwlpI2FuZ2xlAAABbHKkIqoi5SFmdGWg6iLxAEUJaSJnaHQAZaDrIvEAvgltoL0DAKEjAGVzuCK8InIAbwAAoBYhcAAAoAcggARESGFkZ2lscnMAziLSItYi2iLeIugi7SICIw8j4SFzaACgrSLhIXJyAKAEKXAAAOBNItIg4SFzaACgrCIAAWV04iLlIgDgZSLSIADgPgDSIG4iZmluAACg3imAAUFldADzIvci+iJyAHIAAKACKQDgZCLSIHLgPADSIGkAZQAA4LQi0iAAAUF0BiMKI3IAcgAAoAMp8iFpZQDgtSLSIGkAbQAA4Dwi0iCAAUFhbgAaIx4jKiNyAHIAAKDWIXIAAAFociMjJiNrAACgIylvoJYh9wD/DuUhYXIAoCcpUxJqFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVCMAAF4jaSN/I4IjjSOeI8AUAAAAAKYjwCMAANoj3yMAAO8jHiQvJD8kRCQAAWNzVyNsFHUAdABlADuA8wDzQAABaXlhI2cjcgBjoJoiO4D0APRAPmSAAmFiaW9zAHEjdCN3I3EBeiNzAOgAdhTsIWFjUWF2AACgOCrvIWxkAKC8KewhaWdTYQABY3KFI4kjaQByAACgvykA4DXYLN1vA5QjAAAAAJYjAACcI24A22JhAHYAZQA7gPIA8kAAoMEpAAFibaEjjAphAHIAAKC1KQACYWNpdKwjryO6I70jcgDyAFkUAAFpcrMjtiNyAACgvinvIXNzAKC7KW4A5QDZCgCgwCmAAWFlaQDFI8gjyyNjAHIATWFnAGEAyWOAAWNkbgDRI9Qj1iPyIW9uv2MAoLYpdQDzAHgBcABmAADgNdhg3YABYWVsAOQj5yPrI3IAAKC3KXIAcAAAoLkpdQDzAHwBAKMoImFkaW9zdvkj/CMPJBMkFiQbJHIA8gBeFIChXSplZm0AAyQJJAwkcgBvoDQhZgAAoDQhO4CqAKpAO4C6ALpA5yFvZgCgtiJyAACgVipsIm9wZQAAoFcqAKBbKoABY2xvACMkJSQrJPIACCRhAHMAaAA7gPgA+EBsAACgmCJpAGwBMyQ4JGQAZQA7gPUA9UBlAHMAYaCXInMAAKA2Km0AbAA7gPYA9kDiIWFyAKA9I+EKXiQAAHokAAB8JJQkAACYJKkkAAAAALUkEQsAAPAkAAAAAAQleiUAAIMlcgCAoSUiYXN0AGUkbyQBCwCBtgA7bGokayS2QGwAZQDsABgDaQJ1JAAAAAB4JG0AAKDzKgCg/Sp5AD9kcgCAAmNpbXB0AIUkiCSLJJkSjyRuAHQAJWBvAGQALmBpAGwAAKAwIOUhbmsAoDEgcgAA4DXYLd2AAWltbwCdJKAkpCR2oMYD1WNtAGEA9AD+B24AZQAAoA4m9KHAA64kAAC0JGMjaGZvcmsAAKDUItZjAAFhdbgkxCRuAAABY2u9JMIkawBooA8hAKAOIfYAaRpzAACkKwBhYmNkZW1zdNMkIRPXJNsk4STjJOck6yTjIWlyAKAjKmkAcgAAoCIqAAFvdYsW3yQAoCUqAKByKm4AO4CxALFAaQBtAACgJip3AG8AAKAnKoABaXB1APUk+iT+JO4idGludACgFSpmAADgNdhh3W4AZAA7gKMAo0CApHoiRWFjZWlub3N1ABMlFSUYJRslTCVRJVklSSV1JQCgsypwAACgtyp1AOUAPwtjoK8qgKJ6ImFjZW5zACclLSU0JTYlSSVwAHAAcgBvAPgAFyV1AHIAbAB5AGUA8QA/C/EAOAuAAWFlcwA8JUElRSXwInByb3gAoLkqcQBxAACgtSppAG0AAKDoImkA7QBEC20AZQDzoDIgIguAAUVhcwBDJVclRSXwAEAlgAFkZnAATwtfJXElgAFhbHMAZSVpJW0l7CFhcgCgLiPpIW5lAKASI/UhcmYAoBMjdKAdIu8AWQvyIWVsAKCwIgABY2l9JYElcgAA4DXYxdzIY24iY3NwAACgCCAAA2Zpb3BzdZElKxuVJZolnyWkJXIAAOA12C7dcABmAADgNdhi3XIiaW1lAACgVyBjAHIAAOA12MbcgAFhZW8AqiW6JcAldAAAAWVpryW2JXIAbgBpAG8AbgDzABkFbgB0AACgFipzAHQAZaA/APEACRj0AG0LgApBQkhhYmNkZWZoaWxtbm9wcnN0dXgA4yXyJfYl+iVpJpAmpia9JtUm5ib4JlonaCdxJ3UnnietJ7EnyCfiJ+cngAFhcnQA6SXsJe4lcgDyAJkM8gD6AuEhaWwAoBwpYQByAPIA3BVhAHIAAKBkKYADY2RlbnFydAAGJhAmEyYYJiYmKyZaJgABZXUKJg0mAOA9IjEDdABlAFVhaQDjACAN7SJwdHl2AKCzKWcAgKHpJ2RlbAAgJiImJCYAoJIpAKClKeUA9wt1AG8AO4C7ALtAcgAApZIhYWJjZmhscHN0dz0mQCZFJkcmSiZMJk4mUSZVJlgmcAAAoHUpZqDlIXMAAKAgKQCgMylzAACgHinrALka8ACVHmwAAKBFKWkAbQAAoHQpbAAAoKMhAKCdIQABYWleJmImaQBsAACgGilvAG6gNiJhAGwA8wB2C4ABYWJyAG8mciZ2JnIA8gAvEnIAawAAoHMnAAFha3omgSZjAAABZWt/JoAmfWBdYAABZXOFJocmAKCMKWwAAAFkdYwmjiYAoI4pAKCQKQACYWV1eZcmmiajJqUm8iFvbllhAAFkaZ4moSZpAGwAV2HsAA8M4gCAJkBkAAJjbHFzrSawJrUmuiZhAACgNylkImhhcgAAoGkpdQBvAPKgHSCjAWgAAKCzIYABYWNnAMMm0iaUC2wAgKEcIWlwcwDLJs4migxuAOUAoAxhAHIA9ADaC3QAAKCtJYABaWxyANsm3ybjJvMhaHQAoH0pbwBvAPIANgwA4DXYL90AAWFv6ib1JnIAAAFkde8m8SYAoMEhbKDAIQCgbCl2oMED8WOAAWducwD+Jk4nUCdoAHQAAANhaGxyc3QKJxInISc1Jz0nRydyInJvdwB0oJIhYQDpAFYmYSNycG9vbgAAAWR1GiceJ28AdwDuAPAmcAAAoMAh5SFmdAABYWgnJy0ncgByAG8AdwDzAAkMYQByAHAAbwBvAG4A8wATBGklZ2h0YXJyb3dzAACgySFxAHUAaQBnAGEAcgByAG8A9wBZJugkcmVldGltZXMAoMwiZwDaYmkAbgBnAGQAbwB0AHMAZQDxABwYgAFhaG0AYCdjJ2YncgDyAAkMYQDyABMEAKAPIG8idXN0AGGgsSPjIWhlAKCxI+0haWQAoO4qAAJhYnB0fCeGJ4knmScAAW5ygCeDJ2cAAKDtJ3IAAKD+IXIA6wAcDIABYWZsAI8nkieVJ3IAAKCGKQDgNdhj3XUAcwAAoC4qaSJtZXMAAKA1KgABYXCiJ6gncgBnoCkAdAAAoJQp7yJsaW50AKASKmEAcgDyADwnAAJhY2hxuCe8J6EMwCfxIXVvAKA6IHIAAOA12MfcAAFidYAmxCdvAPKgGSCoAYABaGlyAM4n0ifWJ3IAZQDlAE0n7SFlcwCgyiJpAIChuSVlZmwAXAxjEt4n9CFyaQCgzinsInVoYXIAoGgpAKAeIWENBSgJKA0oSyhVKIYoAACLKLAoAAAAAOMo5ygAABApJCkxKW0pcSmHKaYpAACYKgAAAACxKmMidXRlAFthcQB1AO8ABR+ApHsiRWFjZWlucHN5ABwoHignKCooLygyKEEoRihJKACgtCrwASMoAAAlKACguCpvAG4AYWF1AOUAgw1koLAqaQBsAF9hcgBjAF1hgAFFYXMAOCg6KD0oAKC2KnAAAKC6KmkAbQAAoOki7yJsaW50AKATKmkA7QCIDUFkbwB0AGKixSKRFgAAAABTKACgZiqAA0FhY21zdHgAYChkKG8ocyh1KHkogihyAHIAAKDYIXIAAAFocmkoayjrAJAab6CYIfcAzAd0ADuApwCnQGkAO2D3IWFyAKApKW0AAAFpbn4ozQBuAHUA8wDOAHQAAKA2J3IA7+A12DDdIxkAAmFjb3mRKJUonSisKHIAcAAAoG8mAAFoeZkonChjAHkASWRIZHIAdABtAqUoAAAAAKgoaQDkAFsPYQByAGEA7ABsJDuArQCtQAABZ22zKLsobQBhAAChwwNmdroouijCY4CjPCJkZWdsbnByAMgozCjPKNMo1yjaKN4obwB0AACgairxoEMiCw5FoJ4qAKCgKkWgnSoAoJ8qZQAAoEYi7CF1cwCgJCrhIXJyAKByKWEAcgDyAPwMAAJhZWl07Sj8KAEpCCkAAWxz8Sj4KGwAcwBlAHQAbQDpAH8oaABwAACgMyrwImFyc2wAoOQpAAFkbFoPBSllAACgIyNloKoqc6CsKgDgrCoA/oABZmxwABUpGCkfKfQhY3lMZGKgLwBhoMQpcgAAoD8jZgAA4DXYZN1hAAABZHIoKRcDZQBzAHWgYCZpAHQAAKBgJoABY3N1ADYpRilhKQABYXU6KUApcABzoJMiAOCTIgD+cABzoJQiAOCUIgD+dQAAAWJwSylWKQChjyJlcz4NUCllAHQAZaCPIvEAPw0AoZAiZXNIDVspZQB0AGWgkCLxAEkNAKGhJWFmZilbBHIAZQFrKVwEAKChJWEAcgDyAAMNAAJjZW10dyl7KX8pgilyAADgNdjI3HQAbQDuAM4AaQDsAAYpYQByAOYAVw0AAWFyiimOKXIA5qAGJhESAAFhbpIpoylpImdodAAAAWVwmSmgKXAAcwBpAGwAbwDuANkXaADpAKAkcwCvYIACYmNtbnAArin8KY4NJSooKgCkgiJFZGVtbnByc7wpvinCKcgpzCnUKdgp3CkAoMUqbwB0AACgvSpkoIYibwB0AACgwyr1IWx0AKDBKgABRWXQKdIpAKDLKgCgiiLsIXVzAKC/KuEhcnIAoHkpgAFlaXUA4inxKfQpdAAAoYIiZW7oKewpcQDxoIYivSllAHEA8aCKItEpbQAAoMcqAAFicPgp+ikAoNUqAKDTKmMAgKJ7ImFjZW5zAAcqDSoUKhYqRihwAHAAcgBvAPgAIyh1AHIAbAB5AGUA8QCDDfEAfA2AAWFlcwAcKiIqPShwAHAAcgBvAPgAPChxAPEAOShnAACgaiYApoMiMTIzRWRlaGxtbnBzPCo/KkIqRSpHKlIqWCpjKmcqaypzKncqO4C5ALlAO4CyALJAO4CzALNAAKDGKgABb3NLKk4qdAAAoL4qdQBiAACg2CpkoIcibwB0AACgxCpzAAABb3VdKmAqbAAAoMknYgAAoNcq4SFycgCgeyn1IWx0AKDCKgABRWVvKnEqAKDMKgCgiyLsIXVzAKDAKoABZWl1AH0qjCqPKnQAAKGDImVugyqHKnEA8aCHIkYqZQBxAPGgiyJwKm0AAKDIKgABYnCTKpUqAKDUKgCg1iqAAUFhbgCdKqEqrCpyAHIAAKDZIXIAAAFocqYqqCrrAJUab6CZIfcAxQf3IWFyAKAqKWwAaQBnADuA3wDfQOELzyrZKtwq6SrsKvEqAAD1KjQrAAAAAAAAAAAAAEwrbCsAAHErvSsAAAAAAADRK3IC1CoAAAAA2CrnIWV0AKAWI8RjcgDrAOUKgAFhZXkA4SrkKucq8iFvbmVh5CFpbGNhQmRvAPQAIg5sInJlYwAAoBUjcgAA4DXYMd0AAmVpa2/7KhIrKCsuK/IBACsAAAkrZQAAATRm6g0EK28AcgDlAOsNYQBzorgDECsAAAAAEit5AG0A0WMAAWNuFislK2sAAAFhcxsrIStwAHAAcgBvAPgAFw5pAG0AAKA8InMA8AD9DQABYXMsKyEr8AAXDnIAbgA7gP4A/kDsATgrOyswG2QA5QBnAmUAcwCAgdcAO2JkAEMrRCtJK9dAYaCgInIAAKAxKgCgMCqAAWVwcwBRK1MraSvhAAkh4qKkIlsrXysAAAAAYytvAHQAAKA2I2kAcgAAoPEqb+A12GXdcgBrAACg2irhAHgociJpbWUAAKA0IIABYWlwAHYreSu3K2QA5QC+DYADYWRlbXBzdACFK6MrmiunK6wrsCuzK24iZ2xlAACitSVkbHFykCuUK5ornCvvIXduAKC/JeUhZnRloMMl8QACBwCgXCJpImdodABloLkl8QBdDG8AdAAAoOwlaSJudXMAAKA6KuwhdXMAoDkqYgAAoM0p6SFtZQCgOyrlInppdW0AoOIjgAFjaHQAwivKK80rAAFyecYrySsA4DXYydxGZGMAeQBbZPIhb2tnYQABaW/UK9creAD0ANERaCJlYWQAAAFsct4r5ytlAGYAdABhAHIAcgBvAPcAXQbpJGdodGFycm93AKCgIQAJQUhhYmNkZmdobG1vcHJzdHV3CiwNLBEsHSwnLDEsQCxLLFIsYix6LIQsjyzLLOgs7Sz/LAotcgDyAAkDYQByAACgYykAAWNyFSwbLHUAdABlADuA+gD6QPIACQ1yAOMBIywAACUseQBeZHYAZQBtYQABaXkrLDAscgBjADuA+wD7QENkgAFhYmgANyw6LD0scgDyANEO7CFhY3FhYQDyAOAOAAFpckQsSCzzIWh0AKB+KQDgNdgy3XIAYQB2AGUAO4D5APlAYQFWLF8scgAAAWxyWixcLACgvyEAoL4hbABrAACggCUAAWN0Zix2LG8CbCwAAAAAcyxyAG4AZaAcI3IAAKAcI28AcAAAoA8jcgBpAACg+CUAAWFsfiyBLGMAcgBrYTuAqACoQAABZ3CILIssbwBuAHNhZgAA4DXYZt0AA2FkaGxzdZksniynLLgsuyzFLHIAcgBvAPcACQ1vAHcAbgBhAHIAcgBvAPcA2A5hI3Jwb29uAAABbHKvLLMsZQBmAPQAWyxpAGcAaAD0AF0sdQDzAKYOaQAAocUDaGzBLMIs0mNvAG4AxWPwI2Fycm93cwCgyCGAAWNpdADRLOEs5CxvAtcsAAAAAN4scgBuAGWgHSNyAACgHSNvAHAAAKAOI24AZwBvYXIAaQAAoPklYwByAADgNdjK3IABZGlyAPMs9yz6LG8AdAAAoPAi7CFkZWlhaQBmoLUlAKC0JQABYW0DLQYtcgDyAMosbAA7gPwA/EDhIm5nbGUAoKcpgAdBQkRhY2RlZmxub3Byc3oAJy0qLTAtNC2bLZ0toS2/LcMtxy3TLdgt3C3gLfwtcgDyABADYQByAHag6CoAoOkqYQBzAOgA/gIAAW5yOC08LechcnQAoJwpgANla25wcnN0AJkpSC1NLVQtXi1iLYItYQBwAHAA4QAaHG8AdABoAGkAbgDnAKEXgAFoaXIAoSmzJFotbwBwAPQAdCVooJUh7wD4JgABaXVmLWotZwBtAOEAuygAAWJwbi14LXMjZXRuZXEAceCKIgD+AODLKgD+cyNldG5lcQBx4IsiAP4A4MwqAP4AAWhyhi2KLWUAdADhABIraSNhbmdsZQAAAWxyki2WLeUhZnQAoLIiaSJnaHQAAKCzInkAMmThIXNoAKCiIoABZWxyAKcttC24LWKiKCKuLQAAAACyLWEAcgAAoLsicQAAoFoi7CFpcACg7iIAAWJ0vC1eD2EA8gBfD3IAAOA12DPddAByAOkAlS1zAHUAAAFicM0t0C0A4IIi0iAA4IMi0iBwAGYAAOA12GfdcgBvAPAAWQt0AHIA6QCaLQABY3XkLegtcgAA4DXYy9wAAWJw7C30LW4AAAFFZXUt8S0A4IoiAP5uAAABRWV/LfktAOCLIgD+6SJnemFnAKCaKYADY2Vmb3BycwANLhAuJS4pLiMuLi40LukhcmN1YQABZGkULiEuAAFiZxguHC5hAHIAAKBfKmUAcaAnIgCgWSLlIXJwAKAYIXIAAOA12DTdcABmAADgNdho3WWgQCJhAHQA6ABqD2MAcgAA4DXYzNzjCuQRUC4AAFQuAABYLmIuAAAAAGMubS5wLnQuAAAAAIguki4AAJouJxIqEnQAcgDpAB0ScgAA4DXYNd0AAUFhWy5eLnIA8gDnAnIA8gCTB75jAAFBYWYuaS5yAPIA4AJyAPIAjAdhAPAAeh5pAHMAAKD7IoABZHB0APgReS6DLgABZmx9LoAuAOA12GnddQDzAP8RaQBtAOUABBIAAUFhiy6OLnIA8gDuAnIA8gCaBwABY3GVLgoScgAA4DXYzdwAAXB0nS6hLmwAdQDzACUScgDpACASAARhY2VmaW9zdbEuvC7ELsguzC7PLtQu2S5jAAABdXm2LrsudABlADuA/QD9QE9kAAFpecAuwy5yAGMAd2FLZG4AO4ClAKVAcgAA4DXYNt1jAHkAV2RwAGYAAOA12GrdYwByAADgNdjO3AABY23dLt8ueQBOZGwAO4D/AP9AAAVhY2RlZmhpb3N38y73Lv8uAi8MLxAvEy8YLx0vIi9jInV0ZQB6YQABYXn7Lv4u8iFvbn5hN2RvAHQAfGEAAWV0Bi8KL3QAcgDmAB8QYQC2Y3IAAOA12DfdYwB5ADZk5yJyYXJyAKDdIXAAZgAA4DXYa91jAHIAAOA12M/cAAFqbiYvKC8AoA0gagAAoAwg");
+var St;
+(function(e) {
+  e[e.VALUE_LENGTH = 49152] = "VALUE_LENGTH", e[e.FLAG13 = 8192] = "FLAG13", e[e.BRANCH_LENGTH = 8064] = "BRANCH_LENGTH", e[e.JUMP_TABLE = 127] = "JUMP_TABLE";
+})(St || (St = {}));
+var Ve;
+(function(e) {
+  e[e.NUM = 35] = "NUM", e[e.SEMI = 59] = "SEMI", e[e.EQUALS = 61] = "EQUALS", e[e.ZERO = 48] = "ZERO", e[e.NINE = 57] = "NINE", e[e.LOWER_A = 97] = "LOWER_A", e[e.LOWER_F = 102] = "LOWER_F", e[e.LOWER_X = 120] = "LOWER_X", e[e.LOWER_Z = 122] = "LOWER_Z", e[e.UPPER_A = 65] = "UPPER_A", e[e.UPPER_F = 70] = "UPPER_F", e[e.UPPER_Z = 90] = "UPPER_Z";
+})(Ve || (Ve = {}));
+const co = 32;
+function Ni(e) {
+  return e >= Ve.ZERO && e <= Ve.NINE;
+}
+function Tc(e) {
+  return e >= Ve.UPPER_A && e <= Ve.UPPER_F || e >= Ve.LOWER_A && e <= Ve.LOWER_F;
+}
+function Nc(e) {
+  return e >= Ve.UPPER_A && e <= Ve.UPPER_Z || e >= Ve.LOWER_A && e <= Ve.LOWER_Z || Ni(e);
+}
+function Oc(e) {
+  return e === Ve.EQUALS || Nc(e);
+}
+var dt;
+(function(e) {
+  e[e.EntityStart = 0] = "EntityStart", e[e.NumericStart = 1] = "NumericStart", e[e.NumericDecimal = 2] = "NumericDecimal", e[e.NumericHex = 3] = "NumericHex", e[e.NamedEntity = 4] = "NamedEntity";
+})(dt || (dt = {}));
+var Ar;
+(function(e) {
+  e[e.Legacy = 0] = "Legacy", e[e.Strict = 1] = "Strict", e[e.Attribute = 2] = "Attribute";
+})(Ar || (Ar = {}));
+class vc {
+  decodeTree;
+  emitCodePoint;
+  errors;
+  constructor(t, r, n) {
+    this.decodeTree = t, this.emitCodePoint = r, this.errors = n;
+  }
+  /** The current state of the decoder. */
+  state = dt.EntityStart;
+  /** Characters that were consumed while parsing an entity. */
+  consumed = 1;
+  /**
+   * The result of the entity.
+   *
+   * Either the result index of a numeric entity, or the codepoint of a
+   * numeric entity.
+   */
+  result = 0;
+  /** The current index in the decode tree. */
+  treeIndex = 0;
+  /** The number of characters that were consumed in excess. */
+  excess = 1;
+  /** The mode in which the decoder is operating. */
+  decodeMode = Ar.Strict;
+  /** The number of characters that have been consumed in the current run. */
+  runConsumed = 0;
+  /**
+   * Resets the instance to make it reusable.
+   * @param decodeMode Entity decoding mode to use.
+   */
+  startEntity(t) {
+    this.decodeMode = t, this.state = dt.EntityStart, this.result = 0, this.treeIndex = 0, this.excess = 1, this.consumed = 1, this.runConsumed = 0;
+  }
+  /**
+   * Write an entity to the decoder. This can be called multiple times with partial entities.
+   * If the entity is incomplete, the decoder will return -1.
+   *
+   * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+   * entity is incomplete, and resume when the next string is written.
+   * @param input The string containing the entity (or a continuation of the entity).
+   * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  write(t, r) {
+    switch (this.state) {
+      case dt.EntityStart:
+        return t.charCodeAt(r) === Ve.NUM ? (this.state = dt.NumericStart, this.consumed += 1, this.stateNumericStart(t, r + 1)) : (this.state = dt.NamedEntity, this.stateNamedEntity(t, r));
+      case dt.NumericStart:
+        return this.stateNumericStart(t, r);
+      case dt.NumericDecimal:
+        return this.stateNumericDecimal(t, r);
+      case dt.NumericHex:
+        return this.stateNumericHex(t, r);
+      case dt.NamedEntity:
+        return this.stateNamedEntity(t, r);
+    }
+  }
+  /**
+   * Switches between the numeric decimal and hexadecimal states.
+   *
+   * Equivalent to the `Numeric character reference state` in the HTML spec.
+   * @param input The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericStart(t, r) {
+    return r >= t.length ? -1 : (t.charCodeAt(r) | co) === Ve.LOWER_X ? (this.state = dt.NumericHex, this.consumed += 1, this.stateNumericHex(t, r + 1)) : (this.state = dt.NumericDecimal, this.stateNumericDecimal(t, r));
+  }
+  /**
+   * Parses a hexadecimal numeric entity.
+   *
+   * Equivalent to the `Hexademical character reference state` in the HTML spec.
+   * @param input The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericHex(t, r) {
+    for (; r < t.length; ) {
+      const n = t.charCodeAt(r);
+      if (Ni(n) || Tc(n)) {
+        const i = n <= Ve.NINE ? n - Ve.ZERO : (n | co) - Ve.LOWER_A + 10;
+        this.result = this.result * 16 + i, this.consumed++, r++;
+      } else
+        return this.emitNumericEntity(n, 3);
+    }
+    return -1;
+  }
+  /**
+   * Parses a decimal numeric entity.
+   *
+   * Equivalent to the `Decimal character reference state` in the HTML spec.
+   * @param input The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericDecimal(t, r) {
+    for (; r < t.length; ) {
+      const n = t.charCodeAt(r);
+      if (Ni(n))
+        this.result = this.result * 10 + (n - Ve.ZERO), this.consumed++, r++;
+      else
+        return this.emitNumericEntity(n, 2);
+    }
+    return -1;
+  }
+  /**
+   * Validate and emit a numeric entity.
+   *
+   * Implements the logic from the `Hexademical character reference start
+   * state` and `Numeric character reference end state` in the HTML spec.
+   * @param lastCp The last code point of the entity. Used to see if the
+   *               entity was terminated with a semicolon.
+   * @param expectedLength The minimum number of characters that should be
+   *                       consumed. Used to validate that at least one digit
+   *                       was consumed.
+   * @returns The number of characters that were consumed.
+   */
+  emitNumericEntity(t, r) {
+    if (this.consumed <= r)
+      return this.errors?.absenceOfDigitsInNumericCharacterReference(this.consumed), 0;
+    if (t === Ve.SEMI)
+      this.consumed += 1;
+    else if (this.decodeMode === Ar.Strict)
+      return 0;
+    return this.emitCodePoint(_c(this.result), this.consumed), this.errors && (t !== Ve.SEMI && this.errors.missingSemicolonAfterCharacterReference(), this.errors.validateNumericCharacterReference(this.result)), this.consumed;
+  }
+  /**
+   * Parses a named entity.
+   *
+   * Equivalent to the `Named character reference state` in the HTML spec.
+   * @param input The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNamedEntity(t, r) {
+    const { decodeTree: n } = this;
+    let i = n[this.treeIndex], s = (i & St.VALUE_LENGTH) >> 14;
+    for (; r < t.length; ) {
+      if (s === 0 && (i & St.FLAG13) !== 0) {
+        const u = (i & St.BRANCH_LENGTH) >> 7;
+        if (this.runConsumed === 0) {
+          const a = i & St.JUMP_TABLE;
+          if (t.charCodeAt(r) !== a)
+            return this.result === 0 ? 0 : this.emitNotTerminatedNamedEntity();
+          r++, this.excess++, this.runConsumed++;
+        }
+        for (; this.runConsumed < u; ) {
+          if (r >= t.length)
+            return -1;
+          const a = this.runConsumed - 1, c = n[this.treeIndex + 1 + (a >> 1)], A = a % 2 === 0 ? c & 255 : c >> 8 & 255;
+          if (t.charCodeAt(r) !== A)
+            return this.runConsumed = 0, this.result === 0 ? 0 : this.emitNotTerminatedNamedEntity();
+          r++, this.excess++, this.runConsumed++;
+        }
+        this.runConsumed = 0, this.treeIndex += 1 + (u >> 1), i = n[this.treeIndex], s = (i & St.VALUE_LENGTH) >> 14;
+      }
+      if (r >= t.length)
+        break;
+      const o = t.charCodeAt(r);
+      if (o === Ve.SEMI && s !== 0 && (i & St.FLAG13) !== 0)
+        return this.emitNamedEntityData(this.treeIndex, s, this.consumed + this.excess);
+      if (this.treeIndex = Bc(n, i, this.treeIndex + Math.max(1, s), o), this.treeIndex < 0)
+        return this.result === 0 || // If we are parsing an attribute
+        this.decodeMode === Ar.Attribute && // We shouldn't have consumed any characters after the entity,
+        (s === 0 || // And there should be no invalid characters.
+        Oc(o)) ? 0 : this.emitNotTerminatedNamedEntity();
+      if (i = n[this.treeIndex], s = (i & St.VALUE_LENGTH) >> 14, s !== 0) {
+        if (o === Ve.SEMI)
+          return this.emitNamedEntityData(this.treeIndex, s, this.consumed + this.excess);
+        this.decodeMode !== Ar.Strict && (i & St.FLAG13) === 0 && (this.result = this.treeIndex, this.consumed += this.excess, this.excess = 0);
+      }
+      r++, this.excess++;
+    }
+    return -1;
+  }
+  /**
+   * Emit a named entity that was not terminated with a semicolon.
+   * @returns The number of characters consumed.
+   */
+  emitNotTerminatedNamedEntity() {
+    const { result: t, decodeTree: r } = this, n = (r[t] & St.VALUE_LENGTH) >> 14;
+    return this.emitNamedEntityData(t, n, this.consumed), this.errors?.missingSemicolonAfterCharacterReference(), this.consumed;
+  }
+  /**
+   * Emit a named entity.
+   * @param result The index of the entity in the decode tree.
+   * @param valueLength The number of bytes in the entity.
+   * @param consumed The number of characters consumed.
+   * @returns The number of characters consumed.
+   */
+  emitNamedEntityData(t, r, n) {
+    const { decodeTree: i } = this;
+    return this.emitCodePoint(r === 1 ? i[t] & ~(St.VALUE_LENGTH | St.FLAG13) : i[t + 1], n), r === 3 && this.emitCodePoint(i[t + 2], n), n;
+  }
+  /**
+   * Signal to the parser that the end of the input was reached.
+   *
+   * Remaining data will be emitted and relevant errors will be produced.
+   * @returns The number of characters consumed.
+   */
+  end() {
+    switch (this.state) {
+      case dt.NamedEntity:
+        return this.result !== 0 && (this.decodeMode !== Ar.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
+      // Otherwise, emit a numeric entity if we have one.
+      case dt.NumericDecimal:
+        return this.emitNumericEntity(0, 2);
+      case dt.NumericHex:
+        return this.emitNumericEntity(0, 3);
+      case dt.NumericStart:
+        return this.errors?.absenceOfDigitsInNumericCharacterReference(this.consumed), 0;
+      case dt.EntityStart:
+        return 0;
+    }
+  }
+}
+function Bc(e, t, r, n) {
+  const i = (t & St.BRANCH_LENGTH) >> 7, s = t & St.JUMP_TABLE;
+  if (i === 0)
+    return s !== 0 && n === s ? r : -1;
+  if (s) {
+    const c = n - s;
+    return c < 0 || c >= i ? -1 : e[r + c] - 1;
+  }
+  const o = i + 1 >> 1;
+  let u = 0, a = i - 1;
+  for (; u <= a; ) {
+    const c = u + a >>> 1, A = c >> 1, p = e[r + A] >> (c & 1) * 8 & 255;
+    if (p < n)
+      u = c + 1;
+    else if (p > n)
+      a = c - 1;
+    else
+      return e[r + o + c];
+  }
+  return -1;
+}
+var Be;
+(function(e) {
+  e.HTML = "http://www.w3.org/1999/xhtml", e.MATHML = "http://www.w3.org/1998/Math/MathML", e.SVG = "http://www.w3.org/2000/svg", e.XLINK = "http://www.w3.org/1999/xlink", e.XML = "http://www.w3.org/XML/1998/namespace", e.XMLNS = "http://www.w3.org/2000/xmlns/";
+})(Be || (Be = {}));
+var zr;
+(function(e) {
+  e.TYPE = "type", e.ACTION = "action", e.ENCODING = "encoding", e.PROMPT = "prompt", e.NAME = "name", e.COLOR = "color", e.FACE = "face", e.SIZE = "size";
+})(zr || (zr = {}));
+var Ao;
+(function(e) {
+  e.NO_QUIRKS = "no-quirks", e.QUIRKS = "quirks", e.LIMITED_QUIRKS = "limited-quirks";
+})(Ao || (Ao = {}));
+var O;
+(function(e) {
+  e.A = "a", e.ADDRESS = "address", e.ANNOTATION_XML = "annotation-xml", e.APPLET = "applet", e.AREA = "area", e.ARTICLE = "article", e.ASIDE = "aside", e.B = "b", e.BASE = "base", e.BASEFONT = "basefont", e.BGSOUND = "bgsound", e.BIG = "big", e.BLOCKQUOTE = "blockquote", e.BODY = "body", e.BR = "br", e.BUTTON = "button", e.CAPTION = "caption", e.CENTER = "center", e.CODE = "code", e.COL = "col", e.COLGROUP = "colgroup", e.DD = "dd", e.DESC = "desc", e.DETAILS = "details", e.DIALOG = "dialog", e.DIR = "dir", e.DIV = "div", e.DL = "dl", e.DT = "dt", e.EM = "em", e.EMBED = "embed", e.FIELDSET = "fieldset", e.FIGCAPTION = "figcaption", e.FIGURE = "figure", e.FONT = "font", e.FOOTER = "footer", e.FOREIGN_OBJECT = "foreignObject", e.FORM = "form", e.FRAME = "frame", e.FRAMESET = "frameset", e.H1 = "h1", e.H2 = "h2", e.H3 = "h3", e.H4 = "h4", e.H5 = "h5", e.H6 = "h6", e.HEAD = "head", e.HEADER = "header", e.HGROUP = "hgroup", e.HR = "hr", e.HTML = "html", e.I = "i", e.IMG = "img", e.IMAGE = "image", e.INPUT = "input", e.IFRAME = "iframe", e.KEYGEN = "keygen", e.LABEL = "label", e.LI = "li", e.LINK = "link", e.LISTING = "listing", e.MAIN = "main", e.MALIGNMARK = "malignmark", e.MARQUEE = "marquee", e.MATH = "math", e.MENU = "menu", e.META = "meta", e.MGLYPH = "mglyph", e.MI = "mi", e.MO = "mo", e.MN = "mn", e.MS = "ms", e.MTEXT = "mtext", e.NAV = "nav", e.NOBR = "nobr", e.NOFRAMES = "noframes", e.NOEMBED = "noembed", e.NOSCRIPT = "noscript", e.OBJECT = "object", e.OL = "ol", e.OPTGROUP = "optgroup", e.OPTION = "option", e.P = "p", e.PARAM = "param", e.PLAINTEXT = "plaintext", e.PRE = "pre", e.RB = "rb", e.RP = "rp", e.RT = "rt", e.RTC = "rtc", e.RUBY = "ruby", e.S = "s", e.SCRIPT = "script", e.SEARCH = "search", e.SECTION = "section", e.SELECT = "select", e.SOURCE = "source", e.SMALL = "small", e.SPAN = "span", e.STRIKE = "strike", e.STRONG = "strong", e.STYLE = "style", e.SUB = "sub", e.SUMMARY = "summary", e.SUP = "sup", e.TABLE = "table", e.TBODY = "tbody", e.TEMPLATE = "template", e.TEXTAREA = "textarea", e.TFOOT = "tfoot", e.TD = "td", e.TH = "th", e.THEAD = "thead", e.TITLE = "title", e.TR = "tr", e.TRACK = "track", e.TT = "tt", e.U = "u", e.UL = "ul", e.SVG = "svg", e.VAR = "var", e.WBR = "wbr", e.XMP = "xmp";
+})(O || (O = {}));
+var C;
+(function(e) {
+  e[e.UNKNOWN = 0] = "UNKNOWN", e[e.A = 1] = "A", e[e.ADDRESS = 2] = "ADDRESS", e[e.ANNOTATION_XML = 3] = "ANNOTATION_XML", e[e.APPLET = 4] = "APPLET", e[e.AREA = 5] = "AREA", e[e.ARTICLE = 6] = "ARTICLE", e[e.ASIDE = 7] = "ASIDE", e[e.B = 8] = "B", e[e.BASE = 9] = "BASE", e[e.BASEFONT = 10] = "BASEFONT", e[e.BGSOUND = 11] = "BGSOUND", e[e.BIG = 12] = "BIG", e[e.BLOCKQUOTE = 13] = "BLOCKQUOTE", e[e.BODY = 14] = "BODY", e[e.BR = 15] = "BR", e[e.BUTTON = 16] = "BUTTON", e[e.CAPTION = 17] = "CAPTION", e[e.CENTER = 18] = "CENTER", e[e.CODE = 19] = "CODE", e[e.COL = 20] = "COL", e[e.COLGROUP = 21] = "COLGROUP", e[e.DD = 22] = "DD", e[e.DESC = 23] = "DESC", e[e.DETAILS = 24] = "DETAILS", e[e.DIALOG = 25] = "DIALOG", e[e.DIR = 26] = "DIR", e[e.DIV = 27] = "DIV", e[e.DL = 28] = "DL", e[e.DT = 29] = "DT", e[e.EM = 30] = "EM", e[e.EMBED = 31] = "EMBED", e[e.FIELDSET = 32] = "FIELDSET", e[e.FIGCAPTION = 33] = "FIGCAPTION", e[e.FIGURE = 34] = "FIGURE", e[e.FONT = 35] = "FONT", e[e.FOOTER = 36] = "FOOTER", e[e.FOREIGN_OBJECT = 37] = "FOREIGN_OBJECT", e[e.FORM = 38] = "FORM", e[e.FRAME = 39] = "FRAME", e[e.FRAMESET = 40] = "FRAMESET", e[e.H1 = 41] = "H1", e[e.H2 = 42] = "H2", e[e.H3 = 43] = "H3", e[e.H4 = 44] = "H4", e[e.H5 = 45] = "H5", e[e.H6 = 46] = "H6", e[e.HEAD = 47] = "HEAD", e[e.HEADER = 48] = "HEADER", e[e.HGROUP = 49] = "HGROUP", e[e.HR = 50] = "HR", e[e.HTML = 51] = "HTML", e[e.I = 52] = "I", e[e.IMG = 53] = "IMG", e[e.IMAGE = 54] = "IMAGE", e[e.INPUT = 55] = "INPUT", e[e.IFRAME = 56] = "IFRAME", e[e.KEYGEN = 57] = "KEYGEN", e[e.LABEL = 58] = "LABEL", e[e.LI = 59] = "LI", e[e.LINK = 60] = "LINK", e[e.LISTING = 61] = "LISTING", e[e.MAIN = 62] = "MAIN", e[e.MALIGNMARK = 63] = "MALIGNMARK", e[e.MARQUEE = 64] = "MARQUEE", e[e.MATH = 65] = "MATH", e[e.MENU = 66] = "MENU", e[e.META = 67] = "META", e[e.MGLYPH = 68] = "MGLYPH", e[e.MI = 69] = "MI", e[e.MO = 70] = "MO", e[e.MN = 71] = "MN", e[e.MS = 72] = "MS", e[e.MTEXT = 73] = "MTEXT", e[e.NAV = 74] = "NAV", e[e.NOBR = 75] = "NOBR", e[e.NOFRAMES = 76] = "NOFRAMES", e[e.NOEMBED = 77] = "NOEMBED", e[e.NOSCRIPT = 78] = "NOSCRIPT", e[e.OBJECT = 79] = "OBJECT", e[e.OL = 80] = "OL", e[e.OPTGROUP = 81] = "OPTGROUP", e[e.OPTION = 82] = "OPTION", e[e.P = 83] = "P", e[e.PARAM = 84] = "PARAM", e[e.PLAINTEXT = 85] = "PLAINTEXT", e[e.PRE = 86] = "PRE", e[e.RB = 87] = "RB", e[e.RP = 88] = "RP", e[e.RT = 89] = "RT", e[e.RTC = 90] = "RTC", e[e.RUBY = 91] = "RUBY", e[e.S = 92] = "S", e[e.SCRIPT = 93] = "SCRIPT", e[e.SEARCH = 94] = "SEARCH", e[e.SECTION = 95] = "SECTION", e[e.SELECT = 96] = "SELECT", e[e.SOURCE = 97] = "SOURCE", e[e.SMALL = 98] = "SMALL", e[e.SPAN = 99] = "SPAN", e[e.STRIKE = 100] = "STRIKE", e[e.STRONG = 101] = "STRONG", e[e.STYLE = 102] = "STYLE", e[e.SUB = 103] = "SUB", e[e.SUMMARY = 104] = "SUMMARY", e[e.SUP = 105] = "SUP", e[e.TABLE = 106] = "TABLE", e[e.TBODY = 107] = "TBODY", e[e.TEMPLATE = 108] = "TEMPLATE", e[e.TEXTAREA = 109] = "TEXTAREA", e[e.TFOOT = 110] = "TFOOT", e[e.TD = 111] = "TD", e[e.TH = 112] = "TH", e[e.THEAD = 113] = "THEAD", e[e.TITLE = 114] = "TITLE", e[e.TR = 115] = "TR", e[e.TRACK = 116] = "TRACK", e[e.TT = 117] = "TT", e[e.U = 118] = "U", e[e.UL = 119] = "UL", e[e.SVG = 120] = "SVG", e[e.VAR = 121] = "VAR", e[e.WBR = 122] = "WBR", e[e.XMP = 123] = "XMP";
+})(C || (C = {}));
+const Rc = /* @__PURE__ */ new Map([
+  [O.A, C.A],
+  [O.ADDRESS, C.ADDRESS],
+  [O.ANNOTATION_XML, C.ANNOTATION_XML],
+  [O.APPLET, C.APPLET],
+  [O.AREA, C.AREA],
+  [O.ARTICLE, C.ARTICLE],
+  [O.ASIDE, C.ASIDE],
+  [O.B, C.B],
+  [O.BASE, C.BASE],
+  [O.BASEFONT, C.BASEFONT],
+  [O.BGSOUND, C.BGSOUND],
+  [O.BIG, C.BIG],
+  [O.BLOCKQUOTE, C.BLOCKQUOTE],
+  [O.BODY, C.BODY],
+  [O.BR, C.BR],
+  [O.BUTTON, C.BUTTON],
+  [O.CAPTION, C.CAPTION],
+  [O.CENTER, C.CENTER],
+  [O.CODE, C.CODE],
+  [O.COL, C.COL],
+  [O.COLGROUP, C.COLGROUP],
+  [O.DD, C.DD],
+  [O.DESC, C.DESC],
+  [O.DETAILS, C.DETAILS],
+  [O.DIALOG, C.DIALOG],
+  [O.DIR, C.DIR],
+  [O.DIV, C.DIV],
+  [O.DL, C.DL],
+  [O.DT, C.DT],
+  [O.EM, C.EM],
+  [O.EMBED, C.EMBED],
+  [O.FIELDSET, C.FIELDSET],
+  [O.FIGCAPTION, C.FIGCAPTION],
+  [O.FIGURE, C.FIGURE],
+  [O.FONT, C.FONT],
+  [O.FOOTER, C.FOOTER],
+  [O.FOREIGN_OBJECT, C.FOREIGN_OBJECT],
+  [O.FORM, C.FORM],
+  [O.FRAME, C.FRAME],
+  [O.FRAMESET, C.FRAMESET],
+  [O.H1, C.H1],
+  [O.H2, C.H2],
+  [O.H3, C.H3],
+  [O.H4, C.H4],
+  [O.H5, C.H5],
+  [O.H6, C.H6],
+  [O.HEAD, C.HEAD],
+  [O.HEADER, C.HEADER],
+  [O.HGROUP, C.HGROUP],
+  [O.HR, C.HR],
+  [O.HTML, C.HTML],
+  [O.I, C.I],
+  [O.IMG, C.IMG],
+  [O.IMAGE, C.IMAGE],
+  [O.INPUT, C.INPUT],
+  [O.IFRAME, C.IFRAME],
+  [O.KEYGEN, C.KEYGEN],
+  [O.LABEL, C.LABEL],
+  [O.LI, C.LI],
+  [O.LINK, C.LINK],
+  [O.LISTING, C.LISTING],
+  [O.MAIN, C.MAIN],
+  [O.MALIGNMARK, C.MALIGNMARK],
+  [O.MARQUEE, C.MARQUEE],
+  [O.MATH, C.MATH],
+  [O.MENU, C.MENU],
+  [O.META, C.META],
+  [O.MGLYPH, C.MGLYPH],
+  [O.MI, C.MI],
+  [O.MO, C.MO],
+  [O.MN, C.MN],
+  [O.MS, C.MS],
+  [O.MTEXT, C.MTEXT],
+  [O.NAV, C.NAV],
+  [O.NOBR, C.NOBR],
+  [O.NOFRAMES, C.NOFRAMES],
+  [O.NOEMBED, C.NOEMBED],
+  [O.NOSCRIPT, C.NOSCRIPT],
+  [O.OBJECT, C.OBJECT],
+  [O.OL, C.OL],
+  [O.OPTGROUP, C.OPTGROUP],
+  [O.OPTION, C.OPTION],
+  [O.P, C.P],
+  [O.PARAM, C.PARAM],
+  [O.PLAINTEXT, C.PLAINTEXT],
+  [O.PRE, C.PRE],
+  [O.RB, C.RB],
+  [O.RP, C.RP],
+  [O.RT, C.RT],
+  [O.RTC, C.RTC],
+  [O.RUBY, C.RUBY],
+  [O.S, C.S],
+  [O.SCRIPT, C.SCRIPT],
+  [O.SEARCH, C.SEARCH],
+  [O.SECTION, C.SECTION],
+  [O.SELECT, C.SELECT],
+  [O.SOURCE, C.SOURCE],
+  [O.SMALL, C.SMALL],
+  [O.SPAN, C.SPAN],
+  [O.STRIKE, C.STRIKE],
+  [O.STRONG, C.STRONG],
+  [O.STYLE, C.STYLE],
+  [O.SUB, C.SUB],
+  [O.SUMMARY, C.SUMMARY],
+  [O.SUP, C.SUP],
+  [O.TABLE, C.TABLE],
+  [O.TBODY, C.TBODY],
+  [O.TEMPLATE, C.TEMPLATE],
+  [O.TEXTAREA, C.TEXTAREA],
+  [O.TFOOT, C.TFOOT],
+  [O.TD, C.TD],
+  [O.TH, C.TH],
+  [O.THEAD, C.THEAD],
+  [O.TITLE, C.TITLE],
+  [O.TR, C.TR],
+  [O.TRACK, C.TRACK],
+  [O.TT, C.TT],
+  [O.U, C.U],
+  [O.UL, C.UL],
+  [O.SVG, C.SVG],
+  [O.VAR, C.VAR],
+  [O.WBR, C.WBR],
+  [O.XMP, C.XMP]
+]);
+function Wi(e) {
+  var t;
+  return (t = Rc.get(e)) !== null && t !== void 0 ? t : C.UNKNOWN;
+}
+const j = C;
+Be.HTML + "", j.ADDRESS, j.APPLET, j.AREA, j.ARTICLE, j.ASIDE, j.BASE, j.BASEFONT, j.BGSOUND, j.BLOCKQUOTE, j.BODY, j.BR, j.BUTTON, j.CAPTION, j.CENTER, j.COL, j.COLGROUP, j.DD, j.DETAILS, j.DIR, j.DIV, j.DL, j.DT, j.EMBED, j.FIELDSET, j.FIGCAPTION, j.FIGURE, j.FOOTER, j.FORM, j.FRAME, j.FRAMESET, j.H1, j.H2, j.H3, j.H4, j.H5, j.H6, j.HEAD, j.HEADER, j.HGROUP, j.HR, j.HTML, j.IFRAME, j.IMG, j.INPUT, j.LI, j.LINK, j.LISTING, j.MAIN, j.MARQUEE, j.MENU, j.META, j.NAV, j.NOEMBED, j.NOFRAMES, j.NOSCRIPT, j.OBJECT, j.OL, j.P, j.PARAM, j.PLAINTEXT, j.PRE, j.SCRIPT, j.SECTION, j.SELECT, j.SOURCE, j.STYLE, j.SUMMARY, j.TABLE, j.TBODY, j.TD, j.TEMPLATE, j.TEXTAREA, j.TFOOT, j.TH, j.THEAD, j.TITLE, j.TR, j.TRACK, j.UL, j.WBR, j.XMP, Be.MATHML + "", j.MI, j.MO, j.MN, j.MS, j.MTEXT, j.ANNOTATION_XML, Be.SVG + "", j.TITLE, j.FOREIGN_OBJECT, j.DESC, Be.XLINK + "", Be.XML + "", Be.XMLNS + "";
+j.H1, j.H2, j.H3, j.H4, j.H5, j.H6;
+O.STYLE, O.SCRIPT, O.XMP, O.IFRAME, O.NOEMBED, O.NOFRAMES, O.PLAINTEXT;
+var E;
+(function(e) {
+  e[e.DATA = 0] = "DATA", e[e.RCDATA = 1] = "RCDATA", e[e.RAWTEXT = 2] = "RAWTEXT", e[e.SCRIPT_DATA = 3] = "SCRIPT_DATA", e[e.PLAINTEXT = 4] = "PLAINTEXT", e[e.TAG_OPEN = 5] = "TAG_OPEN", e[e.END_TAG_OPEN = 6] = "END_TAG_OPEN", e[e.TAG_NAME = 7] = "TAG_NAME", e[e.RCDATA_LESS_THAN_SIGN = 8] = "RCDATA_LESS_THAN_SIGN", e[e.RCDATA_END_TAG_OPEN = 9] = "RCDATA_END_TAG_OPEN", e[e.RCDATA_END_TAG_NAME = 10] = "RCDATA_END_TAG_NAME", e[e.RAWTEXT_LESS_THAN_SIGN = 11] = "RAWTEXT_LESS_THAN_SIGN", e[e.RAWTEXT_END_TAG_OPEN = 12] = "RAWTEXT_END_TAG_OPEN", e[e.RAWTEXT_END_TAG_NAME = 13] = "RAWTEXT_END_TAG_NAME", e[e.SCRIPT_DATA_LESS_THAN_SIGN = 14] = "SCRIPT_DATA_LESS_THAN_SIGN", e[e.SCRIPT_DATA_END_TAG_OPEN = 15] = "SCRIPT_DATA_END_TAG_OPEN", e[e.SCRIPT_DATA_END_TAG_NAME = 16] = "SCRIPT_DATA_END_TAG_NAME", e[e.SCRIPT_DATA_ESCAPE_START = 17] = "SCRIPT_DATA_ESCAPE_START", e[e.SCRIPT_DATA_ESCAPE_START_DASH = 18] = "SCRIPT_DATA_ESCAPE_START_DASH", e[e.SCRIPT_DATA_ESCAPED = 19] = "SCRIPT_DATA_ESCAPED", e[e.SCRIPT_DATA_ESCAPED_DASH = 20] = "SCRIPT_DATA_ESCAPED_DASH", e[e.SCRIPT_DATA_ESCAPED_DASH_DASH = 21] = "SCRIPT_DATA_ESCAPED_DASH_DASH", e[e.SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN = 22] = "SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN", e[e.SCRIPT_DATA_ESCAPED_END_TAG_OPEN = 23] = "SCRIPT_DATA_ESCAPED_END_TAG_OPEN", e[e.SCRIPT_DATA_ESCAPED_END_TAG_NAME = 24] = "SCRIPT_DATA_ESCAPED_END_TAG_NAME", e[e.SCRIPT_DATA_DOUBLE_ESCAPE_START = 25] = "SCRIPT_DATA_DOUBLE_ESCAPE_START", e[e.SCRIPT_DATA_DOUBLE_ESCAPED = 26] = "SCRIPT_DATA_DOUBLE_ESCAPED", e[e.SCRIPT_DATA_DOUBLE_ESCAPED_DASH = 27] = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH", e[e.SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH = 28] = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH", e[e.SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN = 29] = "SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN", e[e.SCRIPT_DATA_DOUBLE_ESCAPE_END = 30] = "SCRIPT_DATA_DOUBLE_ESCAPE_END", e[e.BEFORE_ATTRIBUTE_NAME = 31] = "BEFORE_ATTRIBUTE_NAME", e[e.ATTRIBUTE_NAME = 32] = "ATTRIBUTE_NAME", e[e.AFTER_ATTRIBUTE_NAME = 33] = "AFTER_ATTRIBUTE_NAME", e[e.BEFORE_ATTRIBUTE_VALUE = 34] = "BEFORE_ATTRIBUTE_VALUE", e[e.ATTRIBUTE_VALUE_DOUBLE_QUOTED = 35] = "ATTRIBUTE_VALUE_DOUBLE_QUOTED", e[e.ATTRIBUTE_VALUE_SINGLE_QUOTED = 36] = "ATTRIBUTE_VALUE_SINGLE_QUOTED", e[e.ATTRIBUTE_VALUE_UNQUOTED = 37] = "ATTRIBUTE_VALUE_UNQUOTED", e[e.AFTER_ATTRIBUTE_VALUE_QUOTED = 38] = "AFTER_ATTRIBUTE_VALUE_QUOTED", e[e.SELF_CLOSING_START_TAG = 39] = "SELF_CLOSING_START_TAG", e[e.BOGUS_COMMENT = 40] = "BOGUS_COMMENT", e[e.MARKUP_DECLARATION_OPEN = 41] = "MARKUP_DECLARATION_OPEN", e[e.COMMENT_START = 42] = "COMMENT_START", e[e.COMMENT_START_DASH = 43] = "COMMENT_START_DASH", e[e.COMMENT = 44] = "COMMENT", e[e.COMMENT_LESS_THAN_SIGN = 45] = "COMMENT_LESS_THAN_SIGN", e[e.COMMENT_LESS_THAN_SIGN_BANG = 46] = "COMMENT_LESS_THAN_SIGN_BANG", e[e.COMMENT_LESS_THAN_SIGN_BANG_DASH = 47] = "COMMENT_LESS_THAN_SIGN_BANG_DASH", e[e.COMMENT_LESS_THAN_SIGN_BANG_DASH_DASH = 48] = "COMMENT_LESS_THAN_SIGN_BANG_DASH_DASH", e[e.COMMENT_END_DASH = 49] = "COMMENT_END_DASH", e[e.COMMENT_END = 50] = "COMMENT_END", e[e.COMMENT_END_BANG = 51] = "COMMENT_END_BANG", e[e.DOCTYPE = 52] = "DOCTYPE", e[e.BEFORE_DOCTYPE_NAME = 53] = "BEFORE_DOCTYPE_NAME", e[e.DOCTYPE_NAME = 54] = "DOCTYPE_NAME", e[e.AFTER_DOCTYPE_NAME = 55] = "AFTER_DOCTYPE_NAME", e[e.AFTER_DOCTYPE_PUBLIC_KEYWORD = 56] = "AFTER_DOCTYPE_PUBLIC_KEYWORD", e[e.BEFORE_DOCTYPE_PUBLIC_IDENTIFIER = 57] = "BEFORE_DOCTYPE_PUBLIC_IDENTIFIER", e[e.DOCTYPE_PUBLIC_IDENTIFIER_DOUBLE_QUOTED = 58] = "DOCTYPE_PUBLIC_IDENTIFIER_DOUBLE_QUOTED", e[e.DOCTYPE_PUBLIC_IDENTIFIER_SINGLE_QUOTED = 59] = "DOCTYPE_PUBLIC_IDENTIFIER_SINGLE_QUOTED", e[e.AFTER_DOCTYPE_PUBLIC_IDENTIFIER = 60] = "AFTER_DOCTYPE_PUBLIC_IDENTIFIER", e[e.BETWEEN_DOCTYPE_PUBLIC_AND_SYSTEM_IDENTIFIERS = 61] = "BETWEEN_DOCTYPE_PUBLIC_AND_SYSTEM_IDENTIFIERS", e[e.AFTER_DOCTYPE_SYSTEM_KEYWORD = 62] = "AFTER_DOCTYPE_SYSTEM_KEYWORD", e[e.BEFORE_DOCTYPE_SYSTEM_IDENTIFIER = 63] = "BEFORE_DOCTYPE_SYSTEM_IDENTIFIER", e[e.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED = 64] = "DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED", e[e.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED = 65] = "DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED", e[e.AFTER_DOCTYPE_SYSTEM_IDENTIFIER = 66] = "AFTER_DOCTYPE_SYSTEM_IDENTIFIER", e[e.BOGUS_DOCTYPE = 67] = "BOGUS_DOCTYPE", e[e.CDATA_SECTION = 68] = "CDATA_SECTION", e[e.CDATA_SECTION_BRACKET = 69] = "CDATA_SECTION_BRACKET", e[e.CDATA_SECTION_END = 70] = "CDATA_SECTION_END", e[e.CHARACTER_REFERENCE = 71] = "CHARACTER_REFERENCE", e[e.AMBIGUOUS_AMPERSAND = 72] = "AMBIGUOUS_AMPERSAND";
+})(E || (E = {}));
+const Sn = {
+  DATA: E.DATA,
+  RCDATA: E.RCDATA,
+  RAWTEXT: E.RAWTEXT,
+  SCRIPT_DATA: E.SCRIPT_DATA,
+  PLAINTEXT: E.PLAINTEXT,
+  CDATA_SECTION: E.CDATA_SECTION
+};
+function Fc(e) {
+  return e >= m.DIGIT_0 && e <= m.DIGIT_9;
+}
+function ln(e) {
+  return e >= m.LATIN_CAPITAL_A && e <= m.LATIN_CAPITAL_Z;
+}
+function kc(e) {
+  return e >= m.LATIN_SMALL_A && e <= m.LATIN_SMALL_Z;
+}
+function gr(e) {
+  return kc(e) || ln(e);
+}
+function lo(e) {
+  return gr(e) || Fc(e);
+}
+function Tn(e) {
+  return e + 32;
+}
+function Ia(e) {
+  return e === m.SPACE || e === m.LINE_FEED || e === m.TABULATION || e === m.FORM_FEED;
+}
+function fo(e) {
+  return Ia(e) || e === m.SOLIDUS || e === m.GREATER_THAN_SIGN;
+}
+function Pc(e) {
+  return e === m.NULL ? H.nullCharacterReference : e > 1114111 ? H.characterReferenceOutsideUnicodeRange : ya(e) ? H.surrogateCharacterReference : wa(e) ? H.noncharacterCharacterReference : ba(e) || e === m.CARRIAGE_RETURN ? H.controlCharacterReference : null;
+}
+class Lc {
+  constructor(t, r) {
+    this.options = t, this.handler = r, this.paused = !1, this.inLoop = !1, this.inForeignNode = !1, this.lastStartTagName = "", this.active = !1, this.state = E.DATA, this.returnState = E.DATA, this.entityStartPos = 0, this.consumedAfterSnapshot = -1, this.currentCharacterToken = null, this.currentToken = null, this.currentAttr = { name: "", value: "" }, this.preprocessor = new bc(r), this.currentLocation = this.getCurrentLocation(-1), this.entityDecoder = new vc(Sc, (n, i) => {
+      this.preprocessor.pos = this.entityStartPos + i - 1, this._flushCodePointConsumedAsCharacterReference(n);
+    }, r.onParseError ? {
+      missingSemicolonAfterCharacterReference: () => {
+        this._err(H.missingSemicolonAfterCharacterReference, 1);
+      },
+      absenceOfDigitsInNumericCharacterReference: (n) => {
+        this._err(H.absenceOfDigitsInNumericCharacterReference, this.entityStartPos - this.preprocessor.pos + n);
+      },
+      validateNumericCharacterReference: (n) => {
+        const i = Pc(n);
+        i && this._err(i, 1);
+      }
+    } : void 0);
+  }
+  //Errors
+  _err(t, r = 0) {
+    var n, i;
+    (i = (n = this.handler).onParseError) === null || i === void 0 || i.call(n, this.preprocessor.getError(t, r));
+  }
+  // NOTE: `offset` may never run across line boundaries.
+  getCurrentLocation(t) {
+    return this.options.sourceCodeLocationInfo ? {
+      startLine: this.preprocessor.line,
+      startCol: this.preprocessor.col - t,
+      startOffset: this.preprocessor.offset - t,
+      endLine: -1,
+      endCol: -1,
+      endOffset: -1
+    } : null;
+  }
+  _runParsingLoop() {
+    if (!this.inLoop) {
+      for (this.inLoop = !0; this.active && !this.paused; ) {
+        this.consumedAfterSnapshot = 0;
+        const t = this._consume();
+        this._ensureHibernation() || this._callState(t);
+      }
+      this.inLoop = !1;
+    }
+  }
+  //API
+  pause() {
+    this.paused = !0;
+  }
+  resume(t) {
+    if (!this.paused)
+      throw new Error("Parser was already resumed");
+    this.paused = !1, !this.inLoop && (this._runParsingLoop(), this.paused || t?.());
+  }
+  write(t, r, n) {
+    this.active = !0, this.preprocessor.write(t, r), this._runParsingLoop(), this.paused || n?.();
+  }
+  insertHtmlAtCurrentPos(t) {
+    this.active = !0, this.preprocessor.insertHtmlAtCurrentPos(t), this._runParsingLoop();
+  }
+  //Hibernation
+  _ensureHibernation() {
+    return this.preprocessor.endOfChunkHit ? (this.preprocessor.retreat(this.consumedAfterSnapshot), this.consumedAfterSnapshot = 0, this.active = !1, !0) : !1;
+  }
+  //Consumption
+  _consume() {
+    return this.consumedAfterSnapshot++, this.preprocessor.advance();
+  }
+  _advanceBy(t) {
+    this.consumedAfterSnapshot += t;
+    for (let r = 0; r < t; r++)
+      this.preprocessor.advance();
+  }
+  _consumeSequenceIfMatch(t, r) {
+    return this.preprocessor.startsWith(t, r) ? (this._advanceBy(t.length - 1), !0) : !1;
+  }
+  //Token creation
+  _createStartTagToken() {
+    this.currentToken = {
+      type: bt.START_TAG,
+      tagName: "",
+      tagID: C.UNKNOWN,
+      selfClosing: !1,
+      ackSelfClosing: !1,
+      attrs: [],
+      location: this.getCurrentLocation(1)
+    };
+  }
+  _createEndTagToken() {
+    this.currentToken = {
+      type: bt.END_TAG,
+      tagName: "",
+      tagID: C.UNKNOWN,
+      selfClosing: !1,
+      ackSelfClosing: !1,
+      attrs: [],
+      location: this.getCurrentLocation(2)
+    };
+  }
+  _createCommentToken(t) {
+    this.currentToken = {
+      type: bt.COMMENT,
+      data: "",
+      location: this.getCurrentLocation(t)
+    };
+  }
+  _createDoctypeToken(t) {
+    this.currentToken = {
+      type: bt.DOCTYPE,
+      name: t,
+      forceQuirks: !1,
+      publicId: null,
+      systemId: null,
+      location: this.currentLocation
+    };
+  }
+  _createCharacterToken(t, r) {
+    this.currentCharacterToken = {
+      type: t,
+      chars: r,
+      location: this.currentLocation
+    };
+  }
+  //Tag attributes
+  _createAttr(t) {
+    this.currentAttr = {
+      name: t,
+      value: ""
+    }, this.currentLocation = this.getCurrentLocation(0);
+  }
+  _leaveAttrName() {
+    var t, r;
+    const n = this.currentToken;
+    if (wc(n, this.currentAttr.name) === null) {
+      if (n.attrs.push(this.currentAttr), n.location && this.currentLocation) {
+        const i = (t = (r = n.location).attrs) !== null && t !== void 0 ? t : r.attrs = /* @__PURE__ */ Object.create(null);
+        i[this.currentAttr.name] = this.currentLocation, this._leaveAttrValue();
+      }
+    } else
+      this._err(H.duplicateAttribute);
+  }
+  _leaveAttrValue() {
+    this.currentLocation && (this.currentLocation.endLine = this.preprocessor.line, this.currentLocation.endCol = this.preprocessor.col, this.currentLocation.endOffset = this.preprocessor.offset);
+  }
+  //Token emission
+  prepareToken(t) {
+    this._emitCurrentCharacterToken(t.location), this.currentToken = null, t.location && (t.location.endLine = this.preprocessor.line, t.location.endCol = this.preprocessor.col + 1, t.location.endOffset = this.preprocessor.offset + 1), this.currentLocation = this.getCurrentLocation(-1);
+  }
+  emitCurrentTagToken() {
+    const t = this.currentToken;
+    this.prepareToken(t), t.tagID = Wi(t.tagName), t.type === bt.START_TAG ? (this.lastStartTagName = t.tagName, this.handler.onStartTag(t)) : (t.attrs.length > 0 && this._err(H.endTagWithAttributes), t.selfClosing && this._err(H.endTagWithTrailingSolidus), this.handler.onEndTag(t)), this.preprocessor.dropParsedChunk();
+  }
+  emitCurrentComment(t) {
+    this.prepareToken(t), this.handler.onComment(t), this.preprocessor.dropParsedChunk();
+  }
+  emitCurrentDoctype(t) {
+    this.prepareToken(t), this.handler.onDoctype(t), this.preprocessor.dropParsedChunk();
+  }
+  _emitCurrentCharacterToken(t) {
+    if (this.currentCharacterToken) {
+      switch (t && this.currentCharacterToken.location && (this.currentCharacterToken.location.endLine = t.startLine, this.currentCharacterToken.location.endCol = t.startCol, this.currentCharacterToken.location.endOffset = t.startOffset), this.currentCharacterToken.type) {
+        case bt.CHARACTER: {
+          this.handler.onCharacter(this.currentCharacterToken);
+          break;
+        }
+        case bt.NULL_CHARACTER: {
+          this.handler.onNullCharacter(this.currentCharacterToken);
+          break;
+        }
+        case bt.WHITESPACE_CHARACTER: {
+          this.handler.onWhitespaceCharacter(this.currentCharacterToken);
+          break;
+        }
+      }
+      this.currentCharacterToken = null;
+    }
+  }
+  _emitEOFToken() {
+    const t = this.getCurrentLocation(0);
+    t && (t.endLine = t.startLine, t.endCol = t.startCol, t.endOffset = t.startOffset), this._emitCurrentCharacterToken(t), this.handler.onEof({ type: bt.EOF, location: t }), this.active = !1;
+  }
+  //Characters emission
+  //OPTIMIZATION: The specification uses only one type of character token (one token per character).
+  //This causes a huge memory overhead and a lot of unnecessary parser loops. parse5 uses 3 groups of characters.
+  //If we have a sequence of characters that belong to the same group, the parser can process it
+  //as a single solid character token.
+  //So, there are 3 types of character tokens in parse5:
+  //1)TokenType.NULL_CHARACTER - \u0000-character sequences (e.g. '\u0000\u0000\u0000')
+  //2)TokenType.WHITESPACE_CHARACTER - any whitespace/new-line character sequences (e.g. '\n  \r\t   \f')
+  //3)TokenType.CHARACTER - any character sequence which don't belong to groups 1 and 2 (e.g. 'abcdef1234@@#$%^')
+  _appendCharToCurrentCharacterToken(t, r) {
+    if (this.currentCharacterToken)
+      if (this.currentCharacterToken.type === t) {
+        this.currentCharacterToken.chars += r;
+        return;
+      } else
+        this.currentLocation = this.getCurrentLocation(0), this._emitCurrentCharacterToken(this.currentLocation), this.preprocessor.dropParsedChunk();
+    this._createCharacterToken(t, r);
+  }
+  _emitCodePoint(t) {
+    const r = Ia(t) ? bt.WHITESPACE_CHARACTER : t === m.NULL ? bt.NULL_CHARACTER : bt.CHARACTER;
+    this._appendCharToCurrentCharacterToken(r, t < 65536 ? String.fromCharCode(t) : String.fromCodePoint(t));
+  }
+  //NOTE: used when we emit characters explicitly.
+  //This is always for non-whitespace and non-null characters, which allows us to avoid additional checks.
+  _emitChars(t) {
+    this._appendCharToCurrentCharacterToken(bt.CHARACTER, t);
+  }
+  // Character reference helpers
+  _startCharacterReference() {
+    this.returnState = this.state, this.state = E.CHARACTER_REFERENCE, this.entityStartPos = this.preprocessor.pos, this.entityDecoder.startEntity(this._isCharacterReferenceInAttribute() ? Ar.Attribute : Ar.Legacy);
+  }
+  _isCharacterReferenceInAttribute() {
+    return this.returnState === E.ATTRIBUTE_VALUE_DOUBLE_QUOTED || this.returnState === E.ATTRIBUTE_VALUE_SINGLE_QUOTED || this.returnState === E.ATTRIBUTE_VALUE_UNQUOTED;
+  }
+  _flushCodePointConsumedAsCharacterReference(t) {
+    this._isCharacterReferenceInAttribute() ? this.currentAttr.value += String.fromCodePoint(t) : this._emitCodePoint(t);
+  }
+  // Calling states this way turns out to be much faster than any other approach.
+  _callState(t) {
+    switch (this.state) {
+      case E.DATA: {
+        this._stateData(t);
+        break;
+      }
+      case E.RCDATA: {
+        this._stateRcdata(t);
+        break;
+      }
+      case E.RAWTEXT: {
+        this._stateRawtext(t);
+        break;
+      }
+      case E.SCRIPT_DATA: {
+        this._stateScriptData(t);
+        break;
+      }
+      case E.PLAINTEXT: {
+        this._statePlaintext(t);
+        break;
+      }
+      case E.TAG_OPEN: {
+        this._stateTagOpen(t);
+        break;
+      }
+      case E.END_TAG_OPEN: {
+        this._stateEndTagOpen(t);
+        break;
+      }
+      case E.TAG_NAME: {
+        this._stateTagName(t);
+        break;
+      }
+      case E.RCDATA_LESS_THAN_SIGN: {
+        this._stateRcdataLessThanSign(t);
+        break;
+      }
+      case E.RCDATA_END_TAG_OPEN: {
+        this._stateRcdataEndTagOpen(t);
+        break;
+      }
+      case E.RCDATA_END_TAG_NAME: {
+        this._stateRcdataEndTagName(t);
+        break;
+      }
+      case E.RAWTEXT_LESS_THAN_SIGN: {
+        this._stateRawtextLessThanSign(t);
+        break;
+      }
+      case E.RAWTEXT_END_TAG_OPEN: {
+        this._stateRawtextEndTagOpen(t);
+        break;
+      }
+      case E.RAWTEXT_END_TAG_NAME: {
+        this._stateRawtextEndTagName(t);
+        break;
+      }
+      case E.SCRIPT_DATA_LESS_THAN_SIGN: {
+        this._stateScriptDataLessThanSign(t);
+        break;
+      }
+      case E.SCRIPT_DATA_END_TAG_OPEN: {
+        this._stateScriptDataEndTagOpen(t);
+        break;
+      }
+      case E.SCRIPT_DATA_END_TAG_NAME: {
+        this._stateScriptDataEndTagName(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPE_START: {
+        this._stateScriptDataEscapeStart(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPE_START_DASH: {
+        this._stateScriptDataEscapeStartDash(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED: {
+        this._stateScriptDataEscaped(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED_DASH: {
+        this._stateScriptDataEscapedDash(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED_DASH_DASH: {
+        this._stateScriptDataEscapedDashDash(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN: {
+        this._stateScriptDataEscapedLessThanSign(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED_END_TAG_OPEN: {
+        this._stateScriptDataEscapedEndTagOpen(t);
+        break;
+      }
+      case E.SCRIPT_DATA_ESCAPED_END_TAG_NAME: {
+        this._stateScriptDataEscapedEndTagName(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPE_START: {
+        this._stateScriptDataDoubleEscapeStart(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPED: {
+        this._stateScriptDataDoubleEscaped(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPED_DASH: {
+        this._stateScriptDataDoubleEscapedDash(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH: {
+        this._stateScriptDataDoubleEscapedDashDash(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN: {
+        this._stateScriptDataDoubleEscapedLessThanSign(t);
+        break;
+      }
+      case E.SCRIPT_DATA_DOUBLE_ESCAPE_END: {
+        this._stateScriptDataDoubleEscapeEnd(t);
+        break;
+      }
+      case E.BEFORE_ATTRIBUTE_NAME: {
+        this._stateBeforeAttributeName(t);
+        break;
+      }
+      case E.ATTRIBUTE_NAME: {
+        this._stateAttributeName(t);
+        break;
+      }
+      case E.AFTER_ATTRIBUTE_NAME: {
+        this._stateAfterAttributeName(t);
+        break;
+      }
+      case E.BEFORE_ATTRIBUTE_VALUE: {
+        this._stateBeforeAttributeValue(t);
+        break;
+      }
+      case E.ATTRIBUTE_VALUE_DOUBLE_QUOTED: {
+        this._stateAttributeValueDoubleQuoted(t);
+        break;
+      }
+      case E.ATTRIBUTE_VALUE_SINGLE_QUOTED: {
+        this._stateAttributeValueSingleQuoted(t);
+        break;
+      }
+      case E.ATTRIBUTE_VALUE_UNQUOTED: {
+        this._stateAttributeValueUnquoted(t);
+        break;
+      }
+      case E.AFTER_ATTRIBUTE_VALUE_QUOTED: {
+        this._stateAfterAttributeValueQuoted(t);
+        break;
+      }
+      case E.SELF_CLOSING_START_TAG: {
+        this._stateSelfClosingStartTag(t);
+        break;
+      }
+      case E.BOGUS_COMMENT: {
+        this._stateBogusComment(t);
+        break;
+      }
+      case E.MARKUP_DECLARATION_OPEN: {
+        this._stateMarkupDeclarationOpen(t);
+        break;
+      }
+      case E.COMMENT_START: {
+        this._stateCommentStart(t);
+        break;
+      }
+      case E.COMMENT_START_DASH: {
+        this._stateCommentStartDash(t);
+        break;
+      }
+      case E.COMMENT: {
+        this._stateComment(t);
+        break;
+      }
+      case E.COMMENT_LESS_THAN_SIGN: {
+        this._stateCommentLessThanSign(t);
+        break;
+      }
+      case E.COMMENT_LESS_THAN_SIGN_BANG: {
+        this._stateCommentLessThanSignBang(t);
+        break;
+      }
+      case E.COMMENT_LESS_THAN_SIGN_BANG_DASH: {
+        this._stateCommentLessThanSignBangDash(t);
+        break;
+      }
+      case E.COMMENT_LESS_THAN_SIGN_BANG_DASH_DASH: {
+        this._stateCommentLessThanSignBangDashDash(t);
+        break;
+      }
+      case E.COMMENT_END_DASH: {
+        this._stateCommentEndDash(t);
+        break;
+      }
+      case E.COMMENT_END: {
+        this._stateCommentEnd(t);
+        break;
+      }
+      case E.COMMENT_END_BANG: {
+        this._stateCommentEndBang(t);
+        break;
+      }
+      case E.DOCTYPE: {
+        this._stateDoctype(t);
+        break;
+      }
+      case E.BEFORE_DOCTYPE_NAME: {
+        this._stateBeforeDoctypeName(t);
+        break;
+      }
+      case E.DOCTYPE_NAME: {
+        this._stateDoctypeName(t);
+        break;
+      }
+      case E.AFTER_DOCTYPE_NAME: {
+        this._stateAfterDoctypeName(t);
+        break;
+      }
+      case E.AFTER_DOCTYPE_PUBLIC_KEYWORD: {
+        this._stateAfterDoctypePublicKeyword(t);
+        break;
+      }
+      case E.BEFORE_DOCTYPE_PUBLIC_IDENTIFIER: {
+        this._stateBeforeDoctypePublicIdentifier(t);
+        break;
+      }
+      case E.DOCTYPE_PUBLIC_IDENTIFIER_DOUBLE_QUOTED: {
+        this._stateDoctypePublicIdentifierDoubleQuoted(t);
+        break;
+      }
+      case E.DOCTYPE_PUBLIC_IDENTIFIER_SINGLE_QUOTED: {
+        this._stateDoctypePublicIdentifierSingleQuoted(t);
+        break;
+      }
+      case E.AFTER_DOCTYPE_PUBLIC_IDENTIFIER: {
+        this._stateAfterDoctypePublicIdentifier(t);
+        break;
+      }
+      case E.BETWEEN_DOCTYPE_PUBLIC_AND_SYSTEM_IDENTIFIERS: {
+        this._stateBetweenDoctypePublicAndSystemIdentifiers(t);
+        break;
+      }
+      case E.AFTER_DOCTYPE_SYSTEM_KEYWORD: {
+        this._stateAfterDoctypeSystemKeyword(t);
+        break;
+      }
+      case E.BEFORE_DOCTYPE_SYSTEM_IDENTIFIER: {
+        this._stateBeforeDoctypeSystemIdentifier(t);
+        break;
+      }
+      case E.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED: {
+        this._stateDoctypeSystemIdentifierDoubleQuoted(t);
+        break;
+      }
+      case E.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED: {
+        this._stateDoctypeSystemIdentifierSingleQuoted(t);
+        break;
+      }
+      case E.AFTER_DOCTYPE_SYSTEM_IDENTIFIER: {
+        this._stateAfterDoctypeSystemIdentifier(t);
+        break;
+      }
+      case E.BOGUS_DOCTYPE: {
+        this._stateBogusDoctype(t);
+        break;
+      }
+      case E.CDATA_SECTION: {
+        this._stateCdataSection(t);
+        break;
+      }
+      case E.CDATA_SECTION_BRACKET: {
+        this._stateCdataSectionBracket(t);
+        break;
+      }
+      case E.CDATA_SECTION_END: {
+        this._stateCdataSectionEnd(t);
+        break;
+      }
+      case E.CHARACTER_REFERENCE: {
+        this._stateCharacterReference();
+        break;
+      }
+      case E.AMBIGUOUS_AMPERSAND: {
+        this._stateAmbiguousAmpersand(t);
+        break;
+      }
+      default:
+        throw new Error("Unknown state");
+    }
+  }
+  // State machine
+  // Data state
+  //------------------------------------------------------------------
+  _stateData(t) {
+    switch (t) {
+      case m.LESS_THAN_SIGN: {
+        this.state = E.TAG_OPEN;
+        break;
+      }
+      case m.AMPERSAND: {
+        this._startCharacterReference();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitCodePoint(t);
+        break;
+      }
+      case m.EOF: {
+        this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  //  RCDATA state
+  //------------------------------------------------------------------
+  _stateRcdata(t) {
+    switch (t) {
+      case m.AMPERSAND: {
+        this._startCharacterReference();
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.RCDATA_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // RAWTEXT state
+  //------------------------------------------------------------------
+  _stateRawtext(t) {
+    switch (t) {
+      case m.LESS_THAN_SIGN: {
+        this.state = E.RAWTEXT_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // Script data state
+  //------------------------------------------------------------------
+  _stateScriptData(t) {
+    switch (t) {
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // PLAINTEXT state
+  //------------------------------------------------------------------
+  _statePlaintext(t) {
+    switch (t) {
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // Tag open state
+  //------------------------------------------------------------------
+  _stateTagOpen(t) {
+    if (gr(t))
+      this._createStartTagToken(), this.state = E.TAG_NAME, this._stateTagName(t);
+    else
+      switch (t) {
+        case m.EXCLAMATION_MARK: {
+          this.state = E.MARKUP_DECLARATION_OPEN;
+          break;
+        }
+        case m.SOLIDUS: {
+          this.state = E.END_TAG_OPEN;
+          break;
+        }
+        case m.QUESTION_MARK: {
+          this._err(H.unexpectedQuestionMarkInsteadOfTagName), this._createCommentToken(1), this.state = E.BOGUS_COMMENT, this._stateBogusComment(t);
+          break;
+        }
+        case m.EOF: {
+          this._err(H.eofBeforeTagName), this._emitChars("<"), this._emitEOFToken();
+          break;
+        }
+        default:
+          this._err(H.invalidFirstCharacterOfTagName), this._emitChars("<"), this.state = E.DATA, this._stateData(t);
+      }
+  }
+  // End tag open state
+  //------------------------------------------------------------------
+  _stateEndTagOpen(t) {
+    if (gr(t))
+      this._createEndTagToken(), this.state = E.TAG_NAME, this._stateTagName(t);
+    else
+      switch (t) {
+        case m.GREATER_THAN_SIGN: {
+          this._err(H.missingEndTagName), this.state = E.DATA;
+          break;
+        }
+        case m.EOF: {
+          this._err(H.eofBeforeTagName), this._emitChars("</"), this._emitEOFToken();
+          break;
+        }
+        default:
+          this._err(H.invalidFirstCharacterOfTagName), this._createCommentToken(2), this.state = E.BOGUS_COMMENT, this._stateBogusComment(t);
+      }
+  }
+  // Tag name state
+  //------------------------------------------------------------------
+  _stateTagName(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.BEFORE_ATTRIBUTE_NAME;
+        break;
+      }
+      case m.SOLIDUS: {
+        this.state = E.SELF_CLOSING_START_TAG;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.tagName += Je;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.tagName += String.fromCodePoint(ln(t) ? Tn(t) : t);
+    }
+  }
+  // RCDATA less-than sign state
+  //------------------------------------------------------------------
+  _stateRcdataLessThanSign(t) {
+    t === m.SOLIDUS ? this.state = E.RCDATA_END_TAG_OPEN : (this._emitChars("<"), this.state = E.RCDATA, this._stateRcdata(t));
+  }
+  // RCDATA end tag open state
+  //------------------------------------------------------------------
+  _stateRcdataEndTagOpen(t) {
+    gr(t) ? (this.state = E.RCDATA_END_TAG_NAME, this._stateRcdataEndTagName(t)) : (this._emitChars("</"), this.state = E.RCDATA, this._stateRcdata(t));
+  }
+  handleSpecialEndTag(t) {
+    if (!this.preprocessor.startsWith(this.lastStartTagName, !1))
+      return !this._ensureHibernation();
+    this._createEndTagToken();
+    const r = this.currentToken;
+    switch (r.tagName = this.lastStartTagName, this.preprocessor.peek(this.lastStartTagName.length)) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        return this._advanceBy(this.lastStartTagName.length), this.state = E.BEFORE_ATTRIBUTE_NAME, !1;
+      case m.SOLIDUS:
+        return this._advanceBy(this.lastStartTagName.length), this.state = E.SELF_CLOSING_START_TAG, !1;
+      case m.GREATER_THAN_SIGN:
+        return this._advanceBy(this.lastStartTagName.length), this.emitCurrentTagToken(), this.state = E.DATA, !1;
+      default:
+        return !this._ensureHibernation();
+    }
+  }
+  // RCDATA end tag name state
+  //------------------------------------------------------------------
+  _stateRcdataEndTagName(t) {
+    this.handleSpecialEndTag(t) && (this._emitChars("</"), this.state = E.RCDATA, this._stateRcdata(t));
+  }
+  // RAWTEXT less-than sign state
+  //------------------------------------------------------------------
+  _stateRawtextLessThanSign(t) {
+    t === m.SOLIDUS ? this.state = E.RAWTEXT_END_TAG_OPEN : (this._emitChars("<"), this.state = E.RAWTEXT, this._stateRawtext(t));
+  }
+  // RAWTEXT end tag open state
+  //------------------------------------------------------------------
+  _stateRawtextEndTagOpen(t) {
+    gr(t) ? (this.state = E.RAWTEXT_END_TAG_NAME, this._stateRawtextEndTagName(t)) : (this._emitChars("</"), this.state = E.RAWTEXT, this._stateRawtext(t));
+  }
+  // RAWTEXT end tag name state
+  //------------------------------------------------------------------
+  _stateRawtextEndTagName(t) {
+    this.handleSpecialEndTag(t) && (this._emitChars("</"), this.state = E.RAWTEXT, this._stateRawtext(t));
+  }
+  // Script data less-than sign state
+  //------------------------------------------------------------------
+  _stateScriptDataLessThanSign(t) {
+    switch (t) {
+      case m.SOLIDUS: {
+        this.state = E.SCRIPT_DATA_END_TAG_OPEN;
+        break;
+      }
+      case m.EXCLAMATION_MARK: {
+        this.state = E.SCRIPT_DATA_ESCAPE_START, this._emitChars("<!");
+        break;
+      }
+      default:
+        this._emitChars("<"), this.state = E.SCRIPT_DATA, this._stateScriptData(t);
+    }
+  }
+  // Script data end tag open state
+  //------------------------------------------------------------------
+  _stateScriptDataEndTagOpen(t) {
+    gr(t) ? (this.state = E.SCRIPT_DATA_END_TAG_NAME, this._stateScriptDataEndTagName(t)) : (this._emitChars("</"), this.state = E.SCRIPT_DATA, this._stateScriptData(t));
+  }
+  // Script data end tag name state
+  //------------------------------------------------------------------
+  _stateScriptDataEndTagName(t) {
+    this.handleSpecialEndTag(t) && (this._emitChars("</"), this.state = E.SCRIPT_DATA, this._stateScriptData(t));
+  }
+  // Script data escape start state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapeStart(t) {
+    t === m.HYPHEN_MINUS ? (this.state = E.SCRIPT_DATA_ESCAPE_START_DASH, this._emitChars("-")) : (this.state = E.SCRIPT_DATA, this._stateScriptData(t));
+  }
+  // Script data escape start dash state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapeStartDash(t) {
+    t === m.HYPHEN_MINUS ? (this.state = E.SCRIPT_DATA_ESCAPED_DASH_DASH, this._emitChars("-")) : (this.state = E.SCRIPT_DATA, this._stateScriptData(t));
+  }
+  // Script data escaped state
+  //------------------------------------------------------------------
+  _stateScriptDataEscaped(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.SCRIPT_DATA_ESCAPED_DASH, this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // Script data escaped dash state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapedDash(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.SCRIPT_DATA_ESCAPED_DASH_DASH, this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.state = E.SCRIPT_DATA_ESCAPED, this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.state = E.SCRIPT_DATA_ESCAPED, this._emitCodePoint(t);
+    }
+  }
+  // Script data escaped dash dash state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapedDashDash(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA, this._emitChars(">");
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.state = E.SCRIPT_DATA_ESCAPED, this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.state = E.SCRIPT_DATA_ESCAPED, this._emitCodePoint(t);
+    }
+  }
+  // Script data escaped less-than sign state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapedLessThanSign(t) {
+    t === m.SOLIDUS ? this.state = E.SCRIPT_DATA_ESCAPED_END_TAG_OPEN : gr(t) ? (this._emitChars("<"), this.state = E.SCRIPT_DATA_DOUBLE_ESCAPE_START, this._stateScriptDataDoubleEscapeStart(t)) : (this._emitChars("<"), this.state = E.SCRIPT_DATA_ESCAPED, this._stateScriptDataEscaped(t));
+  }
+  // Script data escaped end tag open state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapedEndTagOpen(t) {
+    gr(t) ? (this.state = E.SCRIPT_DATA_ESCAPED_END_TAG_NAME, this._stateScriptDataEscapedEndTagName(t)) : (this._emitChars("</"), this.state = E.SCRIPT_DATA_ESCAPED, this._stateScriptDataEscaped(t));
+  }
+  // Script data escaped end tag name state
+  //------------------------------------------------------------------
+  _stateScriptDataEscapedEndTagName(t) {
+    this.handleSpecialEndTag(t) && (this._emitChars("</"), this.state = E.SCRIPT_DATA_ESCAPED, this._stateScriptDataEscaped(t));
+  }
+  // Script data double escape start state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscapeStart(t) {
+    if (this.preprocessor.startsWith(Bt.SCRIPT, !1) && fo(this.preprocessor.peek(Bt.SCRIPT.length))) {
+      this._emitCodePoint(t);
+      for (let r = 0; r < Bt.SCRIPT.length; r++)
+        this._emitCodePoint(this._consume());
+      this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED;
+    } else this._ensureHibernation() || (this.state = E.SCRIPT_DATA_ESCAPED, this._stateScriptDataEscaped(t));
+  }
+  // Script data double escaped state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscaped(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED_DASH, this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN, this._emitChars("<");
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // Script data double escaped dash state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscapedDash(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH, this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN, this._emitChars("<");
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._emitCodePoint(t);
+    }
+  }
+  // Script data double escaped dash dash state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscapedDashDash(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this._emitChars("-");
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN, this._emitChars("<");
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.SCRIPT_DATA, this._emitChars(">");
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._emitChars(Je);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInScriptHtmlCommentLikeText), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._emitCodePoint(t);
+    }
+  }
+  // Script data double escaped less-than sign state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscapedLessThanSign(t) {
+    t === m.SOLIDUS ? (this.state = E.SCRIPT_DATA_DOUBLE_ESCAPE_END, this._emitChars("/")) : (this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._stateScriptDataDoubleEscaped(t));
+  }
+  // Script data double escape end state
+  //------------------------------------------------------------------
+  _stateScriptDataDoubleEscapeEnd(t) {
+    if (this.preprocessor.startsWith(Bt.SCRIPT, !1) && fo(this.preprocessor.peek(Bt.SCRIPT.length))) {
+      this._emitCodePoint(t);
+      for (let r = 0; r < Bt.SCRIPT.length; r++)
+        this._emitCodePoint(this._consume());
+      this.state = E.SCRIPT_DATA_ESCAPED;
+    } else this._ensureHibernation() || (this.state = E.SCRIPT_DATA_DOUBLE_ESCAPED, this._stateScriptDataDoubleEscaped(t));
+  }
+  // Before attribute name state
+  //------------------------------------------------------------------
+  _stateBeforeAttributeName(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.SOLIDUS:
+      case m.GREATER_THAN_SIGN:
+      case m.EOF: {
+        this.state = E.AFTER_ATTRIBUTE_NAME, this._stateAfterAttributeName(t);
+        break;
+      }
+      case m.EQUALS_SIGN: {
+        this._err(H.unexpectedEqualsSignBeforeAttributeName), this._createAttr("="), this.state = E.ATTRIBUTE_NAME;
+        break;
+      }
+      default:
+        this._createAttr(""), this.state = E.ATTRIBUTE_NAME, this._stateAttributeName(t);
+    }
+  }
+  // Attribute name state
+  //------------------------------------------------------------------
+  _stateAttributeName(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+      case m.SOLIDUS:
+      case m.GREATER_THAN_SIGN:
+      case m.EOF: {
+        this._leaveAttrName(), this.state = E.AFTER_ATTRIBUTE_NAME, this._stateAfterAttributeName(t);
+        break;
+      }
+      case m.EQUALS_SIGN: {
+        this._leaveAttrName(), this.state = E.BEFORE_ATTRIBUTE_VALUE;
+        break;
+      }
+      case m.QUOTATION_MARK:
+      case m.APOSTROPHE:
+      case m.LESS_THAN_SIGN: {
+        this._err(H.unexpectedCharacterInAttributeName), this.currentAttr.name += String.fromCodePoint(t);
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.currentAttr.name += Je;
+        break;
+      }
+      default:
+        this.currentAttr.name += String.fromCodePoint(ln(t) ? Tn(t) : t);
+    }
+  }
+  // After attribute name state
+  //------------------------------------------------------------------
+  _stateAfterAttributeName(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.SOLIDUS: {
+        this.state = E.SELF_CLOSING_START_TAG;
+        break;
+      }
+      case m.EQUALS_SIGN: {
+        this.state = E.BEFORE_ATTRIBUTE_VALUE;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._createAttr(""), this.state = E.ATTRIBUTE_NAME, this._stateAttributeName(t);
+    }
+  }
+  // Before attribute value state
+  //------------------------------------------------------------------
+  _stateBeforeAttributeValue(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.QUOTATION_MARK: {
+        this.state = E.ATTRIBUTE_VALUE_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        this.state = E.ATTRIBUTE_VALUE_SINGLE_QUOTED;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.missingAttributeValue), this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      default:
+        this.state = E.ATTRIBUTE_VALUE_UNQUOTED, this._stateAttributeValueUnquoted(t);
+    }
+  }
+  // Attribute value (double-quoted) state
+  //------------------------------------------------------------------
+  _stateAttributeValueDoubleQuoted(t) {
+    switch (t) {
+      case m.QUOTATION_MARK: {
+        this.state = E.AFTER_ATTRIBUTE_VALUE_QUOTED;
+        break;
+      }
+      case m.AMPERSAND: {
+        this._startCharacterReference();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.currentAttr.value += Je;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.currentAttr.value += String.fromCodePoint(t);
+    }
+  }
+  // Attribute value (single-quoted) state
+  //------------------------------------------------------------------
+  _stateAttributeValueSingleQuoted(t) {
+    switch (t) {
+      case m.APOSTROPHE: {
+        this.state = E.AFTER_ATTRIBUTE_VALUE_QUOTED;
+        break;
+      }
+      case m.AMPERSAND: {
+        this._startCharacterReference();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.currentAttr.value += Je;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.currentAttr.value += String.fromCodePoint(t);
+    }
+  }
+  // Attribute value (unquoted) state
+  //------------------------------------------------------------------
+  _stateAttributeValueUnquoted(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this._leaveAttrValue(), this.state = E.BEFORE_ATTRIBUTE_NAME;
+        break;
+      }
+      case m.AMPERSAND: {
+        this._startCharacterReference();
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._leaveAttrValue(), this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), this.currentAttr.value += Je;
+        break;
+      }
+      case m.QUOTATION_MARK:
+      case m.APOSTROPHE:
+      case m.LESS_THAN_SIGN:
+      case m.EQUALS_SIGN:
+      case m.GRAVE_ACCENT: {
+        this._err(H.unexpectedCharacterInUnquotedAttributeValue), this.currentAttr.value += String.fromCodePoint(t);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this.currentAttr.value += String.fromCodePoint(t);
+    }
+  }
+  // After attribute value (quoted) state
+  //------------------------------------------------------------------
+  _stateAfterAttributeValueQuoted(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this._leaveAttrValue(), this.state = E.BEFORE_ATTRIBUTE_NAME;
+        break;
+      }
+      case m.SOLIDUS: {
+        this._leaveAttrValue(), this.state = E.SELF_CLOSING_START_TAG;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._leaveAttrValue(), this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingWhitespaceBetweenAttributes), this.state = E.BEFORE_ATTRIBUTE_NAME, this._stateBeforeAttributeName(t);
+    }
+  }
+  // Self-closing start tag state
+  //------------------------------------------------------------------
+  _stateSelfClosingStartTag(t) {
+    switch (t) {
+      case m.GREATER_THAN_SIGN: {
+        const r = this.currentToken;
+        r.selfClosing = !0, this.state = E.DATA, this.emitCurrentTagToken();
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInTag), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.unexpectedSolidusInTag), this.state = E.BEFORE_ATTRIBUTE_NAME, this._stateBeforeAttributeName(t);
+    }
+  }
+  // Bogus comment state
+  //------------------------------------------------------------------
+  _stateBogusComment(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentComment(r);
+        break;
+      }
+      case m.EOF: {
+        this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.data += Je;
+        break;
+      }
+      default:
+        r.data += String.fromCodePoint(t);
+    }
+  }
+  // Markup declaration open state
+  //------------------------------------------------------------------
+  _stateMarkupDeclarationOpen(t) {
+    this._consumeSequenceIfMatch(Bt.DASH_DASH, !0) ? (this._createCommentToken(Bt.DASH_DASH.length + 1), this.state = E.COMMENT_START) : this._consumeSequenceIfMatch(Bt.DOCTYPE, !1) ? (this.currentLocation = this.getCurrentLocation(Bt.DOCTYPE.length + 1), this.state = E.DOCTYPE) : this._consumeSequenceIfMatch(Bt.CDATA_START, !0) ? this.inForeignNode ? this.state = E.CDATA_SECTION : (this._err(H.cdataInHtmlContent), this._createCommentToken(Bt.CDATA_START.length + 1), this.currentToken.data = "[CDATA[", this.state = E.BOGUS_COMMENT) : this._ensureHibernation() || (this._err(H.incorrectlyOpenedComment), this._createCommentToken(2), this.state = E.BOGUS_COMMENT, this._stateBogusComment(t));
+  }
+  // Comment start state
+  //------------------------------------------------------------------
+  _stateCommentStart(t) {
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.COMMENT_START_DASH;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptClosingOfEmptyComment), this.state = E.DATA;
+        const r = this.currentToken;
+        this.emitCurrentComment(r);
+        break;
+      }
+      default:
+        this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // Comment start dash state
+  //------------------------------------------------------------------
+  _stateCommentStartDash(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.COMMENT_END;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptClosingOfEmptyComment), this.state = E.DATA, this.emitCurrentComment(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInComment), this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.data += "-", this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // Comment state
+  //------------------------------------------------------------------
+  _stateComment(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.COMMENT_END_DASH;
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        r.data += "<", this.state = E.COMMENT_LESS_THAN_SIGN;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.data += Je;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInComment), this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.data += String.fromCodePoint(t);
+    }
+  }
+  // Comment less-than sign state
+  //------------------------------------------------------------------
+  _stateCommentLessThanSign(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.EXCLAMATION_MARK: {
+        r.data += "!", this.state = E.COMMENT_LESS_THAN_SIGN_BANG;
+        break;
+      }
+      case m.LESS_THAN_SIGN: {
+        r.data += "<";
+        break;
+      }
+      default:
+        this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // Comment less-than sign bang state
+  //------------------------------------------------------------------
+  _stateCommentLessThanSignBang(t) {
+    t === m.HYPHEN_MINUS ? this.state = E.COMMENT_LESS_THAN_SIGN_BANG_DASH : (this.state = E.COMMENT, this._stateComment(t));
+  }
+  // Comment less-than sign bang dash state
+  //------------------------------------------------------------------
+  _stateCommentLessThanSignBangDash(t) {
+    t === m.HYPHEN_MINUS ? this.state = E.COMMENT_LESS_THAN_SIGN_BANG_DASH_DASH : (this.state = E.COMMENT_END_DASH, this._stateCommentEndDash(t));
+  }
+  // Comment less-than sign bang dash dash state
+  //------------------------------------------------------------------
+  _stateCommentLessThanSignBangDashDash(t) {
+    t !== m.GREATER_THAN_SIGN && t !== m.EOF && this._err(H.nestedComment), this.state = E.COMMENT_END, this._stateCommentEnd(t);
+  }
+  // Comment end dash state
+  //------------------------------------------------------------------
+  _stateCommentEndDash(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        this.state = E.COMMENT_END;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInComment), this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.data += "-", this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // Comment end state
+  //------------------------------------------------------------------
+  _stateCommentEnd(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentComment(r);
+        break;
+      }
+      case m.EXCLAMATION_MARK: {
+        this.state = E.COMMENT_END_BANG;
+        break;
+      }
+      case m.HYPHEN_MINUS: {
+        r.data += "-";
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInComment), this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.data += "--", this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // Comment end bang state
+  //------------------------------------------------------------------
+  _stateCommentEndBang(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.HYPHEN_MINUS: {
+        r.data += "--!", this.state = E.COMMENT_END_DASH;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.incorrectlyClosedComment), this.state = E.DATA, this.emitCurrentComment(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInComment), this.emitCurrentComment(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.data += "--!", this.state = E.COMMENT, this._stateComment(t);
+    }
+  }
+  // DOCTYPE state
+  //------------------------------------------------------------------
+  _stateDoctype(t) {
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.BEFORE_DOCTYPE_NAME;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.BEFORE_DOCTYPE_NAME, this._stateBeforeDoctypeName(t);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), this._createDoctypeToken(null);
+        const r = this.currentToken;
+        r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingWhitespaceBeforeDoctypeName), this.state = E.BEFORE_DOCTYPE_NAME, this._stateBeforeDoctypeName(t);
+    }
+  }
+  // Before DOCTYPE name state
+  //------------------------------------------------------------------
+  _stateBeforeDoctypeName(t) {
+    if (ln(t))
+      this._createDoctypeToken(String.fromCharCode(Tn(t))), this.state = E.DOCTYPE_NAME;
+    else
+      switch (t) {
+        case m.SPACE:
+        case m.LINE_FEED:
+        case m.TABULATION:
+        case m.FORM_FEED:
+          break;
+        case m.NULL: {
+          this._err(H.unexpectedNullCharacter), this._createDoctypeToken(Je), this.state = E.DOCTYPE_NAME;
+          break;
+        }
+        case m.GREATER_THAN_SIGN: {
+          this._err(H.missingDoctypeName), this._createDoctypeToken(null);
+          const r = this.currentToken;
+          r.forceQuirks = !0, this.emitCurrentDoctype(r), this.state = E.DATA;
+          break;
+        }
+        case m.EOF: {
+          this._err(H.eofInDoctype), this._createDoctypeToken(null);
+          const r = this.currentToken;
+          r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+          break;
+        }
+        default:
+          this._createDoctypeToken(String.fromCodePoint(t)), this.state = E.DOCTYPE_NAME;
+      }
+  }
+  // DOCTYPE name state
+  //------------------------------------------------------------------
+  _stateDoctypeName(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.AFTER_DOCTYPE_NAME;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.name += Je;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.name += String.fromCodePoint(ln(t) ? Tn(t) : t);
+    }
+  }
+  // After DOCTYPE name state
+  //------------------------------------------------------------------
+  _stateAfterDoctypeName(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._consumeSequenceIfMatch(Bt.PUBLIC, !1) ? this.state = E.AFTER_DOCTYPE_PUBLIC_KEYWORD : this._consumeSequenceIfMatch(Bt.SYSTEM, !1) ? this.state = E.AFTER_DOCTYPE_SYSTEM_KEYWORD : this._ensureHibernation() || (this._err(H.invalidCharacterSequenceAfterDoctypeName), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t));
+    }
+  }
+  // After DOCTYPE public keyword state
+  //------------------------------------------------------------------
+  _stateAfterDoctypePublicKeyword(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.BEFORE_DOCTYPE_PUBLIC_IDENTIFIER;
+        break;
+      }
+      case m.QUOTATION_MARK: {
+        this._err(H.missingWhitespaceAfterDoctypePublicKeyword), r.publicId = "", this.state = E.DOCTYPE_PUBLIC_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        this._err(H.missingWhitespaceAfterDoctypePublicKeyword), r.publicId = "", this.state = E.DOCTYPE_PUBLIC_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.missingDoctypePublicIdentifier), r.forceQuirks = !0, this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypePublicIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // Before DOCTYPE public identifier state
+  //------------------------------------------------------------------
+  _stateBeforeDoctypePublicIdentifier(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.QUOTATION_MARK: {
+        r.publicId = "", this.state = E.DOCTYPE_PUBLIC_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        r.publicId = "", this.state = E.DOCTYPE_PUBLIC_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.missingDoctypePublicIdentifier), r.forceQuirks = !0, this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypePublicIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // DOCTYPE public identifier (double-quoted) state
+  //------------------------------------------------------------------
+  _stateDoctypePublicIdentifierDoubleQuoted(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.QUOTATION_MARK: {
+        this.state = E.AFTER_DOCTYPE_PUBLIC_IDENTIFIER;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.publicId += Je;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptDoctypePublicIdentifier), r.forceQuirks = !0, this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.publicId += String.fromCodePoint(t);
+    }
+  }
+  // DOCTYPE public identifier (single-quoted) state
+  //------------------------------------------------------------------
+  _stateDoctypePublicIdentifierSingleQuoted(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.APOSTROPHE: {
+        this.state = E.AFTER_DOCTYPE_PUBLIC_IDENTIFIER;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.publicId += Je;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptDoctypePublicIdentifier), r.forceQuirks = !0, this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.publicId += String.fromCodePoint(t);
+    }
+  }
+  // After DOCTYPE public identifier state
+  //------------------------------------------------------------------
+  _stateAfterDoctypePublicIdentifier(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.BETWEEN_DOCTYPE_PUBLIC_AND_SYSTEM_IDENTIFIERS;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.QUOTATION_MARK: {
+        this._err(H.missingWhitespaceBetweenDoctypePublicAndSystemIdentifiers), r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        this._err(H.missingWhitespaceBetweenDoctypePublicAndSystemIdentifiers), r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // Between DOCTYPE public and system identifiers state
+  //------------------------------------------------------------------
+  _stateBetweenDoctypePublicAndSystemIdentifiers(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.GREATER_THAN_SIGN: {
+        this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.QUOTATION_MARK: {
+        r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // After DOCTYPE system keyword state
+  //------------------------------------------------------------------
+  _stateAfterDoctypeSystemKeyword(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED: {
+        this.state = E.BEFORE_DOCTYPE_SYSTEM_IDENTIFIER;
+        break;
+      }
+      case m.QUOTATION_MARK: {
+        this._err(H.missingWhitespaceAfterDoctypeSystemKeyword), r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        this._err(H.missingWhitespaceAfterDoctypeSystemKeyword), r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.missingDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // Before DOCTYPE system identifier state
+  //------------------------------------------------------------------
+  _stateBeforeDoctypeSystemIdentifier(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.QUOTATION_MARK: {
+        r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_DOUBLE_QUOTED;
+        break;
+      }
+      case m.APOSTROPHE: {
+        r.systemId = "", this.state = E.DOCTYPE_SYSTEM_IDENTIFIER_SINGLE_QUOTED;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.missingDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.DATA, this.emitCurrentDoctype(r);
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.missingQuoteBeforeDoctypeSystemIdentifier), r.forceQuirks = !0, this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // DOCTYPE system identifier (double-quoted) state
+  //------------------------------------------------------------------
+  _stateDoctypeSystemIdentifierDoubleQuoted(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.QUOTATION_MARK: {
+        this.state = E.AFTER_DOCTYPE_SYSTEM_IDENTIFIER;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.systemId += Je;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptDoctypeSystemIdentifier), r.forceQuirks = !0, this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.systemId += String.fromCodePoint(t);
+    }
+  }
+  // DOCTYPE system identifier (single-quoted) state
+  //------------------------------------------------------------------
+  _stateDoctypeSystemIdentifierSingleQuoted(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.APOSTROPHE: {
+        this.state = E.AFTER_DOCTYPE_SYSTEM_IDENTIFIER;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter), r.systemId += Je;
+        break;
+      }
+      case m.GREATER_THAN_SIGN: {
+        this._err(H.abruptDoctypeSystemIdentifier), r.forceQuirks = !0, this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        r.systemId += String.fromCodePoint(t);
+    }
+  }
+  // After DOCTYPE system identifier state
+  //------------------------------------------------------------------
+  _stateAfterDoctypeSystemIdentifier(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.SPACE:
+      case m.LINE_FEED:
+      case m.TABULATION:
+      case m.FORM_FEED:
+        break;
+      case m.GREATER_THAN_SIGN: {
+        this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInDoctype), r.forceQuirks = !0, this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._err(H.unexpectedCharacterAfterDoctypeSystemIdentifier), this.state = E.BOGUS_DOCTYPE, this._stateBogusDoctype(t);
+    }
+  }
+  // Bogus DOCTYPE state
+  //------------------------------------------------------------------
+  _stateBogusDoctype(t) {
+    const r = this.currentToken;
+    switch (t) {
+      case m.GREATER_THAN_SIGN: {
+        this.emitCurrentDoctype(r), this.state = E.DATA;
+        break;
+      }
+      case m.NULL: {
+        this._err(H.unexpectedNullCharacter);
+        break;
+      }
+      case m.EOF: {
+        this.emitCurrentDoctype(r), this._emitEOFToken();
+        break;
+      }
+    }
+  }
+  // CDATA section state
+  //------------------------------------------------------------------
+  _stateCdataSection(t) {
+    switch (t) {
+      case m.RIGHT_SQUARE_BRACKET: {
+        this.state = E.CDATA_SECTION_BRACKET;
+        break;
+      }
+      case m.EOF: {
+        this._err(H.eofInCdata), this._emitEOFToken();
+        break;
+      }
+      default:
+        this._emitCodePoint(t);
+    }
+  }
+  // CDATA section bracket state
+  //------------------------------------------------------------------
+  _stateCdataSectionBracket(t) {
+    t === m.RIGHT_SQUARE_BRACKET ? this.state = E.CDATA_SECTION_END : (this._emitChars("]"), this.state = E.CDATA_SECTION, this._stateCdataSection(t));
+  }
+  // CDATA section end state
+  //------------------------------------------------------------------
+  _stateCdataSectionEnd(t) {
+    switch (t) {
+      case m.GREATER_THAN_SIGN: {
+        this.state = E.DATA;
+        break;
+      }
+      case m.RIGHT_SQUARE_BRACKET: {
+        this._emitChars("]");
+        break;
+      }
+      default:
+        this._emitChars("]]"), this.state = E.CDATA_SECTION, this._stateCdataSection(t);
+    }
+  }
+  // Character reference state
+  //------------------------------------------------------------------
+  _stateCharacterReference() {
+    let t = this.entityDecoder.write(this.preprocessor.html, this.preprocessor.pos);
+    if (t < 0)
+      if (this.preprocessor.lastChunkWritten)
+        t = this.entityDecoder.end();
+      else {
+        this.active = !1, this.preprocessor.pos = this.preprocessor.html.length - 1, this.consumedAfterSnapshot = 0, this.preprocessor.endOfChunkHit = !0;
+        return;
+      }
+    t === 0 ? (this.preprocessor.pos = this.entityStartPos, this._flushCodePointConsumedAsCharacterReference(m.AMPERSAND), this.state = !this._isCharacterReferenceInAttribute() && lo(this.preprocessor.peek(1)) ? E.AMBIGUOUS_AMPERSAND : this.returnState) : this.state = this.returnState;
+  }
+  // Ambiguos ampersand state
+  //------------------------------------------------------------------
+  _stateAmbiguousAmpersand(t) {
+    lo(t) ? this._flushCodePointConsumedAsCharacterReference(t) : (t === m.SEMICOLON && this._err(H.unknownNamedCharacterReference), this.state = this.returnState, this._callState(t));
+  }
+}
+const xc = /* @__PURE__ */ new Set([C.DD, C.DT, C.LI, C.OPTGROUP, C.OPTION, C.P, C.RB, C.RP, C.RT, C.RTC]);
+[
+  ...xc,
+  C.CAPTION,
+  C.COLGROUP,
+  C.TBODY,
+  C.TD,
+  C.TFOOT,
+  C.TH,
+  C.THEAD,
+  C.TR
+];
+const _a = /* @__PURE__ */ new Set([
+  C.APPLET,
+  C.CAPTION,
+  C.HTML,
+  C.MARQUEE,
+  C.OBJECT,
+  C.TABLE,
+  C.TD,
+  C.TEMPLATE,
+  C.TH
+]);
+[..._a, C.OL, C.UL];
+[..._a, C.BUTTON];
+C.ANNOTATION_XML, C.MI, C.MN, C.MO, C.MS, C.MTEXT;
+C.DESC, C.FOREIGN_OBJECT, C.TITLE;
+C.TR, C.TEMPLATE, C.HTML;
+C.TBODY, C.TFOOT, C.THEAD, C.TEMPLATE, C.HTML;
+C.TABLE, C.TEMPLATE, C.HTML;
+C.TD, C.TH;
+var Oi;
+(function(e) {
+  e[e.Marker = 0] = "Marker", e[e.Element = 1] = "Element";
+})(Oi || (Oi = {}));
+Oi.Marker;
+const ho = {
+  TEXT_HTML: "text/html",
+  APPLICATION_XML: "application/xhtml+xml"
+}, Uc = "definitionurl", Mc = "definitionURL", Hc = new Map([
+  "attributeName",
+  "attributeType",
+  "baseFrequency",
+  "baseProfile",
+  "calcMode",
+  "clipPathUnits",
+  "diffuseConstant",
+  "edgeMode",
+  "filterUnits",
+  "glyphRef",
+  "gradientTransform",
+  "gradientUnits",
+  "kernelMatrix",
+  "kernelUnitLength",
+  "keyPoints",
+  "keySplines",
+  "keyTimes",
+  "lengthAdjust",
+  "limitingConeAngle",
+  "markerHeight",
+  "markerUnits",
+  "markerWidth",
+  "maskContentUnits",
+  "maskUnits",
+  "numOctaves",
+  "pathLength",
+  "patternContentUnits",
+  "patternTransform",
+  "patternUnits",
+  "pointsAtX",
+  "pointsAtY",
+  "pointsAtZ",
+  "preserveAlpha",
+  "preserveAspectRatio",
+  "primitiveUnits",
+  "refX",
+  "refY",
+  "repeatCount",
+  "repeatDur",
+  "requiredExtensions",
+  "requiredFeatures",
+  "specularConstant",
+  "specularExponent",
+  "spreadMethod",
+  "startOffset",
+  "stdDeviation",
+  "stitchTiles",
+  "surfaceScale",
+  "systemLanguage",
+  "tableValues",
+  "targetX",
+  "targetY",
+  "textLength",
+  "viewBox",
+  "viewTarget",
+  "xChannelSelector",
+  "yChannelSelector",
+  "zoomAndPan"
+].map((e) => [e.toLowerCase(), e])), Yc = /* @__PURE__ */ new Map([
+  ["xlink:actuate", { prefix: "xlink", name: "actuate", namespace: Be.XLINK }],
+  ["xlink:arcrole", { prefix: "xlink", name: "arcrole", namespace: Be.XLINK }],
+  ["xlink:href", { prefix: "xlink", name: "href", namespace: Be.XLINK }],
+  ["xlink:role", { prefix: "xlink", name: "role", namespace: Be.XLINK }],
+  ["xlink:show", { prefix: "xlink", name: "show", namespace: Be.XLINK }],
+  ["xlink:title", { prefix: "xlink", name: "title", namespace: Be.XLINK }],
+  ["xlink:type", { prefix: "xlink", name: "type", namespace: Be.XLINK }],
+  ["xml:lang", { prefix: "xml", name: "lang", namespace: Be.XML }],
+  ["xml:space", { prefix: "xml", name: "space", namespace: Be.XML }],
+  ["xmlns", { prefix: "", name: "xmlns", namespace: Be.XMLNS }],
+  ["xmlns:xlink", { prefix: "xmlns", name: "xlink", namespace: Be.XMLNS }]
+]), Da = new Map([
+  "altGlyph",
+  "altGlyphDef",
+  "altGlyphItem",
+  "animateColor",
+  "animateMotion",
+  "animateTransform",
+  "clipPath",
+  "feBlend",
+  "feColorMatrix",
+  "feComponentTransfer",
+  "feComposite",
+  "feConvolveMatrix",
+  "feDiffuseLighting",
+  "feDisplacementMap",
+  "feDistantLight",
+  "feFlood",
+  "feFuncA",
+  "feFuncB",
+  "feFuncG",
+  "feFuncR",
+  "feGaussianBlur",
+  "feImage",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "fePointLight",
+  "feSpecularLighting",
+  "feSpotLight",
+  "feTile",
+  "feTurbulence",
+  "foreignObject",
+  "glyphRef",
+  "linearGradient",
+  "radialGradient",
+  "textPath"
+].map((e) => [e.toLowerCase(), e])), $c = /* @__PURE__ */ new Set([
+  C.B,
+  C.BIG,
+  C.BLOCKQUOTE,
+  C.BODY,
+  C.BR,
+  C.CENTER,
+  C.CODE,
+  C.DD,
+  C.DIV,
+  C.DL,
+  C.DT,
+  C.EM,
+  C.EMBED,
+  C.H1,
+  C.H2,
+  C.H3,
+  C.H4,
+  C.H5,
+  C.H6,
+  C.HEAD,
+  C.HR,
+  C.I,
+  C.IMG,
+  C.LI,
+  C.LISTING,
+  C.MENU,
+  C.META,
+  C.NOBR,
+  C.OL,
+  C.P,
+  C.PRE,
+  C.RUBY,
+  C.S,
+  C.SMALL,
+  C.SPAN,
+  C.STRONG,
+  C.STRIKE,
+  C.SUB,
+  C.SUP,
+  C.TABLE,
+  C.TT,
+  C.U,
+  C.UL,
+  C.VAR
+]);
+function Kc(e) {
+  const t = e.tagID;
+  return t === C.FONT && e.attrs.some(({ name: n }) => n === zr.COLOR || n === zr.SIZE || n === zr.FACE) || $c.has(t);
+}
+function Qc(e) {
+  for (let t = 0; t < e.attrs.length; t++)
+    if (e.attrs[t].name === Uc) {
+      e.attrs[t].name = Mc;
+      break;
+    }
+}
+function Gc(e) {
+  for (let t = 0; t < e.attrs.length; t++) {
+    const r = Hc.get(e.attrs[t].name);
+    r != null && (e.attrs[t].name = r);
+  }
+}
+function Wc(e) {
+  for (let t = 0; t < e.attrs.length; t++) {
+    const r = Yc.get(e.attrs[t].name);
+    r && (e.attrs[t].prefix = r.prefix, e.attrs[t].name = r.name, e.attrs[t].namespace = r.namespace);
+  }
+}
+function po(e) {
+  const t = Da.get(e.tagName);
+  t != null && (e.tagName = t, e.tagID = Wi(e.tagName));
+}
+function jc(e, t) {
+  return t === Be.MATHML && (e === C.MI || e === C.MO || e === C.MN || e === C.MS || e === C.MTEXT);
+}
+function Jc(e, t, r) {
+  if (t === Be.MATHML && e === C.ANNOTATION_XML) {
+    for (let n = 0; n < r.length; n++)
+      if (r[n].name === zr.ENCODING) {
+        const i = r[n].value.toLowerCase();
+        return i === ho.TEXT_HTML || i === ho.APPLICATION_XML;
+      }
+  }
+  return t === Be.SVG && (e === C.FOREIGN_OBJECT || e === C.DESC || e === C.TITLE);
+}
+function mo(e, t, r, n) {
+  return (!n || n === Be.HTML) && Jc(e, t, r) || (!n || n === Be.MATHML) && jc(e, t);
+}
+var go;
+(function(e) {
+  e[e.INITIAL = 0] = "INITIAL", e[e.BEFORE_HTML = 1] = "BEFORE_HTML", e[e.BEFORE_HEAD = 2] = "BEFORE_HEAD", e[e.IN_HEAD = 3] = "IN_HEAD", e[e.IN_HEAD_NO_SCRIPT = 4] = "IN_HEAD_NO_SCRIPT", e[e.AFTER_HEAD = 5] = "AFTER_HEAD", e[e.IN_BODY = 6] = "IN_BODY", e[e.TEXT = 7] = "TEXT", e[e.IN_TABLE = 8] = "IN_TABLE", e[e.IN_TABLE_TEXT = 9] = "IN_TABLE_TEXT", e[e.IN_CAPTION = 10] = "IN_CAPTION", e[e.IN_COLUMN_GROUP = 11] = "IN_COLUMN_GROUP", e[e.IN_TABLE_BODY = 12] = "IN_TABLE_BODY", e[e.IN_ROW = 13] = "IN_ROW", e[e.IN_CELL = 14] = "IN_CELL", e[e.IN_SELECT = 15] = "IN_SELECT", e[e.IN_SELECT_IN_TABLE = 16] = "IN_SELECT_IN_TABLE", e[e.IN_TEMPLATE = 17] = "IN_TEMPLATE", e[e.AFTER_BODY = 18] = "AFTER_BODY", e[e.IN_FRAMESET = 19] = "IN_FRAMESET", e[e.AFTER_FRAMESET = 20] = "AFTER_FRAMESET", e[e.AFTER_AFTER_BODY = 21] = "AFTER_AFTER_BODY", e[e.AFTER_AFTER_FRAMESET = 22] = "AFTER_AFTER_FRAMESET";
+})(go || (go = {}));
+C.TABLE, C.TBODY, C.TFOOT, C.THEAD, C.TR;
+C.CAPTION, C.COL, C.COLGROUP, C.TBODY, C.TD, C.TFOOT, C.TH, C.THEAD, C.TR;
+O.AREA, O.BASE, O.BASEFONT, O.BGSOUND, O.BR, O.COL, O.EMBED, O.FRAME, O.HR, O.IMG, O.INPUT, O.KEYGEN, O.LINK, O.META, O.PARAM, O.SOURCE, O.TRACK, O.WBR;
+const ot = C, Vc = "�", Zc = 10;
+class zc {
+  constructor(t, r) {
+    this.handler = r, this.namespaceStack = [], this.inForeignContent = !1, this.skipNextNewLine = !1, this.tokenizer = new Lc(t, this), this._enterNamespace(Be.HTML);
+  }
+  /** @internal */
+  onNullCharacter(t) {
+    this.skipNextNewLine = !1, this.inForeignContent ? this.handler.onCharacter({
+      type: bt.CHARACTER,
+      chars: Vc,
+      location: t.location
+    }) : this.handler.onNullCharacter(t);
+  }
+  /** @internal */
+  onWhitespaceCharacter(t) {
+    if (this.skipNextNewLine && t.chars.charCodeAt(0) === Zc) {
+      if (this.skipNextNewLine = !1, t.chars.length === 1)
+        return;
+      t.chars = t.chars.substr(1);
+    }
+    this.handler.onWhitespaceCharacter(t);
+  }
+  /** @internal */
+  onCharacter(t) {
+    this.skipNextNewLine = !1, this.handler.onCharacter(t);
+  }
+  /** @internal */
+  onComment(t) {
+    this.skipNextNewLine = !1, this.handler.onComment(t);
+  }
+  /** @internal */
+  onDoctype(t) {
+    this.skipNextNewLine = !1, this.handler.onDoctype(t);
+  }
+  /** @internal */
+  onEof(t) {
+    this.skipNextNewLine = !1, this.handler.onEof(t);
+  }
+  //Namespace stack mutations
+  _enterNamespace(t) {
+    this.namespaceStack.unshift(t), this.inForeignContent = t !== Be.HTML, this.tokenizer.inForeignNode = this.inForeignContent;
+  }
+  _leaveCurrentNamespace() {
+    this.namespaceStack.shift(), this.inForeignContent = this.namespaceStack[0] !== Be.HTML, this.tokenizer.inForeignNode = this.inForeignContent;
+  }
+  //Token handlers
+  _ensureTokenizerMode(t) {
+    switch (t) {
+      case ot.TEXTAREA:
+      case ot.TITLE: {
+        this.tokenizer.state = Sn.RCDATA;
+        break;
+      }
+      case ot.PLAINTEXT: {
+        this.tokenizer.state = Sn.PLAINTEXT;
+        break;
+      }
+      case ot.SCRIPT: {
+        this.tokenizer.state = Sn.SCRIPT_DATA;
+        break;
+      }
+      case ot.STYLE:
+      case ot.IFRAME:
+      case ot.XMP:
+      case ot.NOEMBED:
+      case ot.NOFRAMES:
+      case ot.NOSCRIPT: {
+        this.tokenizer.state = Sn.RAWTEXT;
+        break;
+      }
+    }
+  }
+  /** @internal */
+  onStartTag(t) {
+    let r = t.tagID;
+    switch (r) {
+      case ot.SVG: {
+        this._enterNamespace(Be.SVG);
+        break;
+      }
+      case ot.MATH: {
+        this._enterNamespace(Be.MATHML);
+        break;
+      }
+    }
+    if (this.inForeignContent)
+      if (Kc(t))
+        this._leaveCurrentNamespace();
+      else {
+        const n = this.namespaceStack[0];
+        n === Be.MATHML ? Qc(t) : n === Be.SVG && (po(t), Gc(t)), Wc(t), r = t.tagID, !t.selfClosing && mo(r, n, t.attrs) && this._enterNamespace(Be.HTML);
+      }
+    else {
+      switch (r) {
+        case ot.PRE:
+        case ot.TEXTAREA:
+        case ot.LISTING: {
+          this.skipNextNewLine = !0;
+          break;
+        }
+        case ot.IMAGE: {
+          t.tagName = O.IMG, t.tagID = ot.IMG;
+          break;
+        }
+      }
+      this._ensureTokenizerMode(r);
+    }
+    this.handler.onStartTag(t);
+  }
+  /** @internal */
+  onEndTag(t) {
+    let r = t.tagID;
+    if (this.inForeignContent)
+      (r === ot.SVG && this.namespaceStack[0] === Be.SVG || r === ot.MATH && this.namespaceStack[0] === Be.MATHML) && this._leaveCurrentNamespace();
+    else {
+      const n = this.namespaceStack[1];
+      if (n === Be.SVG) {
+        const i = Da.get(t.tagName);
+        i && (r = Wi(i));
+      }
+      mo(r, n, t.attrs) && this._leaveCurrentNamespace();
+    }
+    this.namespaceStack[0] === Be.SVG && po(t), this.handler.onEndTag(t);
+  }
+}
+class qc extends ic {
+  /**
+   * @param options Parsing options.
+   */
+  constructor(t = {}) {
+    super({ encoding: "utf8", decodeStrings: !1 }), this.pendingText = null, this.lastChunkWritten = !1, this.stopped = !1, this.options = {
+      sourceCodeLocationInfo: !1,
+      ...t
+    }, this.parserFeedbackSimulator = new zc(this.options, this), this.tokenizer = this.parserFeedbackSimulator.tokenizer, this.pipe(new mc());
+  }
+  //`Transform` implementation
+  _transform(t, r, n) {
+    if (typeof t != "string")
+      throw new TypeError("Parser can work only with string streams.");
+    n(null, this._transformChunk(t));
+  }
+  _final(t) {
+    this.lastChunkWritten = !0, t(null, this._transformChunk(""));
+  }
+  /**
+   * Stops parsing. Useful if you want the parser to stop consuming CPU time
+   * once you've obtained the desired info from the input stream. Doesn't
+   * prevent piping, so that data will flow through the parser as usual.
+   *
+   * @example
+   *
+   * ```js
+   * const SAXParser = require('parse5-sax-parser');
+   * const http = require('http');
+   * const fs = require('fs');
+   *
+   * const file = fs.createWriteStream('google.com.html');
+   * const parser = new SAXParser();
+   *
+   * parser.on('doctype', ({ name, publicId, systemId }) => {
+   *     // Process doctype info and stop parsing
+   *     ...
+   *     parser.stop();
+   * });
+   *
+   * http.get('http://google.com', res => {
+   *     // Despite the fact that parser.stop() was called whole
+   *     // content of the page will be written to the file
+   *     res.pipe(parser).pipe(file);
+   * });
+   * ```
+   */
+  stop() {
+    this.stopped = !0, this.tokenizer.pause();
+  }
+  //Internals
+  _transformChunk(t) {
+    return this.stopped || this.tokenizer.write(t, this.lastChunkWritten), t;
+  }
+  /** @internal */
+  onCharacter({ chars: t, location: r }) {
+    if (this.pendingText === null)
+      this.pendingText = { text: t, sourceCodeLocation: r };
+    else if (this.pendingText.text += t, r && this.pendingText.sourceCodeLocation) {
+      const { endLine: n, endCol: i, endOffset: s } = r;
+      this.pendingText.sourceCodeLocation = {
+        ...this.pendingText.sourceCodeLocation,
+        endLine: n,
+        endCol: i,
+        endOffset: s
+      };
+    }
+    this.tokenizer.preprocessor.willDropParsedChunk() && this._emitPendingText();
+  }
+  /** @internal */
+  onWhitespaceCharacter(t) {
+    this.onCharacter(t);
+  }
+  /** @internal */
+  onNullCharacter(t) {
+    this.onCharacter(t);
+  }
+  /** @internal */
+  onEof() {
+    this._emitPendingText(), this.stopped = !0;
+  }
+  /** @internal */
+  onStartTag(t) {
+    this._emitPendingText();
+    const r = {
+      tagName: t.tagName,
+      attrs: t.attrs,
+      selfClosing: t.selfClosing,
+      sourceCodeLocation: t.location
+    };
+    this.emitIfListenerExists("startTag", r);
+  }
+  /** @internal */
+  onEndTag(t) {
+    this._emitPendingText();
+    const r = {
+      tagName: t.tagName,
+      sourceCodeLocation: t.location
+    };
+    this.emitIfListenerExists("endTag", r);
+  }
+  /** @internal */
+  onDoctype(t) {
+    this._emitPendingText();
+    const r = {
+      name: t.name,
+      publicId: t.publicId,
+      systemId: t.systemId,
+      sourceCodeLocation: t.location
+    };
+    this.emitIfListenerExists("doctype", r);
+  }
+  /** @internal */
+  onComment(t) {
+    this._emitPendingText();
+    const r = {
+      text: t.data,
+      sourceCodeLocation: t.location
+    };
+    this.emitIfListenerExists("comment", r);
+  }
+  emitIfListenerExists(t, r) {
+    return this.listenerCount(t) === 0 ? !1 : (this._emitToken(t, r), !0);
+  }
+  _emitToken(t, r) {
+    this.emit(t, r);
+  }
+  _emitPendingText() {
+    this.pendingText !== null && (this.emitIfListenerExists("text", this.pendingText), this.pendingText = null);
+  }
+}
+var Sa = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {};
+function Ta(e) {
+  return e && e.__esModule && Object.prototype.hasOwnProperty.call(e, "default") ? e.default : e;
+}
+var un = {}, qt = {}, Xt = {}, Eo;
+function dn() {
+  if (Eo) return Xt;
+  Eo = 1;
+  function e(a, c, A) {
+    if (A === void 0 && (A = Array.prototype), a && typeof A.find == "function")
+      return A.find.call(a, c);
+    for (var d = 0; d < a.length; d++)
+      if (Object.prototype.hasOwnProperty.call(a, d)) {
+        var p = a[d];
+        if (c.call(void 0, p, d, a))
+          return p;
+      }
+  }
+  function t(a, c) {
+    return c === void 0 && (c = Object), c && typeof c.freeze == "function" ? c.freeze(a) : a;
+  }
+  function r(a, c) {
+    if (a === null || typeof a != "object")
+      throw new TypeError("target is not an object");
+    for (var A in c)
+      Object.prototype.hasOwnProperty.call(c, A) && (a[A] = c[A]);
+    return a;
+  }
+  var n = t({
+    /**
+     * `text/html`, the only mime type that triggers treating an XML document as HTML.
+     *
+     * @see DOMParser.SupportedType.isHTML
+     * @see https://www.iana.org/assignments/media-types/text/html IANA MimeType registration
+     * @see https://en.wikipedia.org/wiki/HTML Wikipedia
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString MDN
+     * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring WHATWG HTML Spec
+     */
+    HTML: "text/html",
+    /**
+     * Helper method to check a mime type if it indicates an HTML document
+     *
+     * @param {string} [value]
+     * @returns {boolean}
+     *
+     * @see https://www.iana.org/assignments/media-types/text/html IANA MimeType registration
+     * @see https://en.wikipedia.org/wiki/HTML Wikipedia
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString MDN
+     * @see https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-domparser-parsefromstring 	 */
+    isHTML: function(a) {
+      return a === n.HTML;
+    },
+    /**
+     * `application/xml`, the standard mime type for XML documents.
+     *
+     * @see https://www.iana.org/assignments/media-types/application/xml IANA MimeType registration
+     * @see https://tools.ietf.org/html/rfc7303#section-9.1 RFC 7303
+     * @see https://en.wikipedia.org/wiki/XML_and_MIME Wikipedia
+     */
+    XML_APPLICATION: "application/xml",
+    /**
+     * `text/html`, an alias for `application/xml`.
+     *
+     * @see https://tools.ietf.org/html/rfc7303#section-9.2 RFC 7303
+     * @see https://www.iana.org/assignments/media-types/text/xml IANA MimeType registration
+     * @see https://en.wikipedia.org/wiki/XML_and_MIME Wikipedia
+     */
+    XML_TEXT: "text/xml",
+    /**
+     * `application/xhtml+xml`, indicates an XML document that has the default HTML namespace,
+     * but is parsed as an XML document.
+     *
+     * @see https://www.iana.org/assignments/media-types/application/xhtml+xml IANA MimeType registration
+     * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument WHATWG DOM Spec
+     * @see https://en.wikipedia.org/wiki/XHTML Wikipedia
+     */
+    XML_XHTML_APPLICATION: "application/xhtml+xml",
+    /**
+     * `image/svg+xml`,
+     *
+     * @see https://www.iana.org/assignments/media-types/image/svg+xml IANA MimeType registration
+     * @see https://www.w3.org/TR/SVG11/ W3C SVG 1.1
+     * @see https://en.wikipedia.org/wiki/Scalable_Vector_Graphics Wikipedia
+     */
+    XML_SVG_IMAGE: "image/svg+xml"
+  }), i = t({
+    /**
+     * The XHTML namespace.
+     *
+     * @see http://www.w3.org/1999/xhtml
+     */
+    HTML: "http://www.w3.org/1999/xhtml",
+    /**
+     * Checks if `uri` equals `NAMESPACE.HTML`.
+     *
+     * @param {string} [uri]
+     *
+     * @see NAMESPACE.HTML
+     */
+    isHTML: function(a) {
+      return a === i.HTML;
+    },
+    /**
+     * The SVG namespace.
+     *
+     * @see http://www.w3.org/2000/svg
+     */
+    SVG: "http://www.w3.org/2000/svg",
+    /**
+     * The `xml:` namespace.
+     *
+     * @see http://www.w3.org/XML/1998/namespace
+     */
+    XML: "http://www.w3.org/XML/1998/namespace",
+    /**
+     * The `xmlns:` namespace
+     *
+     * @see https://www.w3.org/2000/xmlns/
+     */
+    XMLNS: "http://www.w3.org/2000/xmlns/"
+  }), s = /[A-Z_a-z\xC0-\xD6\xD8-\xF6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/, o = new RegExp("[\\-\\.0-9" + s.source.slice(1, -1) + "\\u00B7\\u0300-\\u036F\\u203F-\\u2040]"), u = new RegExp("^" + s.source + o.source + "*(?::" + s.source + o.source + "*)?$");
+  return Xt.assign = r, Xt.find = e, Xt.freeze = t, Xt.MIME_TYPE = n, Xt.NAMESPACE = i, Xt.nameStartChar = s, Xt.nameChar = o, Xt.tagNamePattern = u, Xt;
+}
+var Co;
+function Na() {
+  if (Co) return qt;
+  Co = 1;
+  var e = dn(), t = e.find, r = e.NAMESPACE, n = e.tagNamePattern;
+  function i(l) {
+    return l !== "";
+  }
+  function s(l) {
+    return l ? l.split(/[\t\n\f\r ]+/).filter(i) : [];
+  }
+  function o(l, h) {
+    return l.hasOwnProperty(h) || (l[h] = !0), l;
+  }
+  function u(l) {
+    if (!l) return [];
+    var h = s(l);
+    return Object.keys(h.reduce(o, {}));
+  }
+  function a(l) {
+    return function(h) {
+      return l && l.indexOf(h) !== -1;
+    };
+  }
+  function c(l, h) {
+    for (var y in l)
+      Object.prototype.hasOwnProperty.call(l, y) && (h[y] = l[y]);
+  }
+  function A(l, h) {
+    var y = l.prototype;
+    if (!(y instanceof h)) {
+      let F = function() {
+      };
+      F.prototype = h.prototype, F = new F(), c(y, F), l.prototype = y = F;
+    }
+    y.constructor != l && (typeof l != "function" && console.error("unknown Class:" + l), y.constructor = l);
+  }
+  var d = {}, p = d.ELEMENT_NODE = 1, w = d.ATTRIBUTE_NODE = 2, _ = d.TEXT_NODE = 3, R = d.CDATA_SECTION_NODE = 4, I = d.ENTITY_REFERENCE_NODE = 5, k = d.ENTITY_NODE = 6, x = d.PROCESSING_INSTRUCTION_NODE = 7, M = d.COMMENT_NODE = 8, $ = d.DOCUMENT_NODE = 9, ne = d.DOCUMENT_TYPE_NODE = 10, Y = d.DOCUMENT_FRAGMENT_NODE = 11, v = d.NOTATION_NODE = 12, B = {}, N = {};
+  B.INDEX_SIZE_ERR = (N[1] = "Index size error", 1), B.DOMSTRING_SIZE_ERR = (N[2] = "DOMString size error", 2);
+  var ee = B.HIERARCHY_REQUEST_ERR = (N[3] = "Hierarchy request error", 3);
+  B.WRONG_DOCUMENT_ERR = (N[4] = "Wrong document", 4);
+  var Ae = B.INVALID_CHARACTER_ERR = (N[5] = "Invalid character", 5);
+  B.NO_DATA_ALLOWED_ERR = (N[6] = "No data allowed", 6), B.NO_MODIFICATION_ALLOWED_ERR = (N[7] = "No modification allowed", 7);
+  var be = B.NOT_FOUND_ERR = (N[8] = "Not found", 8);
+  B.NOT_SUPPORTED_ERR = (N[9] = "Not supported", 9);
+  var X = B.INUSE_ATTRIBUTE_ERR = (N[10] = "Attribute in use", 10), le = B.INVALID_STATE_ERR = (N[11] = "Invalid state", 11);
+  B.SYNTAX_ERR = (N[12] = "Syntax error", 12), B.INVALID_MODIFICATION_ERR = (N[13] = "Invalid modification", 13), B.NAMESPACE_ERR = (N[14] = "Invalid namespace", 14), B.INVALID_ACCESS_ERR = (N[15] = "Invalid access", 15);
+  function J(l, h) {
+    if (h instanceof Error)
+      var y = h;
+    else
+      y = this, Error.call(this, N[l]), this.message = N[l], Error.captureStackTrace && Error.captureStackTrace(this, J);
+    return y.code = l, h && (this.message = this.message + ": " + h), y;
+  }
+  J.prototype = Error.prototype, c(B, J);
+  function ie() {
+  }
+  ie.prototype = {
+    /**
+     * The number of nodes in the list. The range of valid child node indices is 0 to length-1 inclusive.
+     * @standard level1
+     */
+    length: 0,
+    /**
+     * Returns the indexth item in the collection. If index is greater than or equal to the number of nodes in the list, this returns null.
+     * @standard level1
+     * @param index  unsigned long
+     *   Index into the collection.
+     * @return Node
+     * 	The node at the indexth position in the NodeList, or null if that is not a valid index.
+     */
+    item: function(l) {
+      return l >= 0 && l < this.length ? this[l] : null;
+    },
+    toString: function(l, h, y) {
+      for (var F = !!y && !!y.requireWellFormed, W = [], te = 0; te < this.length; te++)
+        Yr(this[te], W, l, h, null, F);
+      return W.join("");
+    },
+    /**
+     * @private
+     * @param {function (Node):boolean} predicate
+     * @returns {Node[]}
+     */
+    filter: function(l) {
+      return Array.prototype.filter.call(this, l);
+    },
+    /**
+     * @private
+     * @param {Node} item
+     * @returns {number}
+     */
+    indexOf: function(l) {
+      return Array.prototype.indexOf.call(this, l);
+    }
+  };
+  function ge(l, h) {
+    this._node = l, this._refresh = h, Ge(this);
+  }
+  function Ge(l) {
+    var h = l._node._inc || l._node.ownerDocument._inc;
+    if (l._inc !== h) {
+      var y = l._refresh(l._node);
+      if (Jt(l, "length", y.length), !l.$$length || y.length < l.$$length)
+        for (var F = y.length; F in l; F++)
+          Object.prototype.hasOwnProperty.call(l, F) && delete l[F];
+      c(y, l), l._inc = h;
+    }
+  }
+  ge.prototype.item = function(l) {
+    return Ge(this), this[l] || null;
+  }, A(ge, ie);
+  function Ue() {
+    this._nameIndex = /* @__PURE__ */ Object.create(null);
+  }
+  function mt(l, h) {
+    for (var y = l.length; y--; )
+      if (l[y] === h)
+        return y;
+  }
+  function wr(l, h) {
+    l._nameIndex[h.nodeName] = h;
+  }
+  function ct(l, h) {
+    l._nameIndex[h.nodeName] === h && delete l._nameIndex[h.nodeName];
+  }
+  function Ze(l, h, y, F) {
+    if (F ? (h[mt(h, F)] = y, ct(h, F)) : h[h.length++] = y, wr(h, y), l) {
+      y.ownerElement = l;
+      var W = l.ownerDocument;
+      W && (F && At(W, l, F), _r(W, l, y));
+    }
+  }
+  function Ir(l, h, y) {
+    var F = mt(h, y);
+    if (F >= 0) {
+      for (var W = h.length - 1; F < W; )
+        h[F] = h[++F];
+      if (h.length = W, ct(h, y), l) {
+        var te = l.ownerDocument;
+        te && (At(te, l, y), y.ownerElement = null);
+      }
+    } else
+      throw new J(be, new Error(l.tagName + "@" + y));
+  }
+  Ue.prototype = {
+    length: 0,
+    item: ie.prototype.item,
+    getNamedItem: function(l) {
+      for (var h = this.length; h--; ) {
+        var y = this[h];
+        if (y.nodeName == l)
+          return y;
+      }
+    },
+    setNamedItem: function(l) {
+      var h = l.ownerElement;
+      if (h && h != this._ownerElement)
+        throw new J(X);
+      var y = this._nameIndex[l.nodeName];
+      return Ze(this._ownerElement, this, l, y), y;
+    },
+    /* returns Node */
+    setNamedItemNS: function(l) {
+      var h = l.ownerElement, y;
+      if (h && h != this._ownerElement)
+        throw new J(X);
+      return y = this.getNamedItemNS(l.namespaceURI, l.localName), Ze(this._ownerElement, this, l, y), y;
+    },
+    /* returns Node */
+    removeNamedItem: function(l) {
+      var h = this.getNamedItem(l);
+      return Ir(this._ownerElement, this, h), h;
+    },
+    // raises: NOT_FOUND_ERR,NO_MODIFICATION_ALLOWED_ERR
+    //for level2
+    removeNamedItemNS: function(l, h) {
+      var y = this.getNamedItemNS(l, h);
+      return Ir(this._ownerElement, this, y), y;
+    },
+    getNamedItemNS: function(l, h) {
+      for (var y = this.length; y--; ) {
+        var F = this[y];
+        if (F.localName == h && F.namespaceURI == l)
+          return F;
+      }
+      return null;
+    }
+  };
+  function S() {
+  }
+  S.prototype = {
+    /**
+     * The DOMImplementation.hasFeature() method returns a Boolean flag indicating if a given feature is supported.
+     * The different implementations fairly diverged in what kind of features were reported.
+     * The latest version of the spec settled to force this method to always return true, where the functionality was accurate and in use.
+     *
+     * @deprecated It is deprecated and modern browsers return true in all cases.
+     *
+     * @param {string} feature
+     * @param {string} [version]
+     * @returns {boolean} always true
+     *
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/hasFeature MDN
+     * @see https://www.w3.org/TR/REC-DOM-Level-1/level-one-core.html#ID-5CED94D7 DOM Level 1 Core
+     * @see https://dom.spec.whatwg.org/#dom-domimplementation-hasfeature DOM Living Standard
+     */
+    hasFeature: function(l, h) {
+      return !0;
+    },
+    /**
+     * Creates an XML Document object of the specified type with its document element.
+     *
+     * __It behaves slightly different from the description in the living standard__:
+     * - There is no interface/class `XMLDocument`, it returns a `Document` instance.
+     * - `contentType`, `encoding`, `mode`, `origin`, `url` fields are currently not declared.
+     * - this implementation is not validating names or qualified names
+     *   (when parsing XML strings, the SAX parser takes care of that)
+     *
+     * @param {string|null} namespaceURI
+     * @param {string} qualifiedName
+     * @param {DocumentType=null} doctype
+     * @returns {Document}
+     *
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/createDocument MDN
+     * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocument DOM Level 2 Core (initial)
+     * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocument  DOM Level 2 Core
+     *
+     * @see https://dom.spec.whatwg.org/#validate-and-extract DOM: Validate and extract
+     * @see https://www.w3.org/TR/xml/#NT-NameStartChar XML Spec: Names
+     * @see https://www.w3.org/TR/xml-names/#ns-qualnames XML Namespaces: Qualified names
+     */
+    createDocument: function(l, h, y) {
+      var F = new ze();
+      if (F.implementation = this, F.childNodes = new ie(), F.doctype = y || null, y && F.appendChild(y), h) {
+        var W = F.createElementNS(l, h);
+        F.appendChild(W);
+      }
+      return F;
+    },
+    /**
+     * Returns a doctype, with the given `qualifiedName`, `publicId`, and `systemId`.
+     *
+     * __This implementation differs from the specification:__
+     * - this implementation is not validating names or qualified names
+     *   (when parsing XML strings, the SAX parser takes care of that)
+     *
+     * Note: `internalSubset` can only be introduced via a direct property write to `node.internalSubset` after creation.
+     * Creation-time validation of `publicId`, `systemId` is not enforced.
+     * The serializer-level check covers all mutation vectors, including direct property writes.
+     * `internalSubset` is only serialized as `[ ... ]` when both `publicId` and `systemId` are
+     * absent (empty or `'.'`) — if either external identifier is present, `internalSubset` is
+     * silently omitted from the serialized output.
+     *
+     * @param {string} qualifiedName
+     * @param {string} [publicId]
+     * The external subset public identifier. Stored verbatim including surrounding quotes.
+     * When serialized with `requireWellFormed: true` (via the 4th-parameter options object),
+     * throws `DOMException` with code `INVALID_STATE_ERR` if the value is non-empty and does
+     * not match the XML `PubidLiteral` production (W3C DOM Parsing §3.2.1.3; XML 1.0 [12]).
+     * @param {string} [systemId]
+     * The external subset system identifier. Stored verbatim including surrounding quotes.
+     * When serialized with `requireWellFormed: true`, throws `DOMException` with code
+     * `INVALID_STATE_ERR` if the value is non-empty and does not match the XML `SystemLiteral`
+     * production (W3C DOM Parsing §3.2.1.3; XML 1.0 [11]).
+     * @returns {DocumentType} which can either be used with `DOMImplementation.createDocument` upon document creation
+     * 				  or can be put into the document via methods like `Node.insertBefore()` or `Node.replaceChild()`
+     *
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/DOMImplementation/createDocumentType MDN
+     * @see https://www.w3.org/TR/DOM-Level-2-Core/core.html#Level-2-Core-DOM-createDocType DOM Level 2 Core
+     * @see https://dom.spec.whatwg.org/#dom-domimplementation-createdocumenttype DOM Living Standard
+     *
+     * @see https://dom.spec.whatwg.org/#validate-and-extract DOM: Validate and extract
+     * @see https://www.w3.org/TR/xml/#NT-NameStartChar XML Spec: Names
+     * @see https://www.w3.org/TR/xml-names/#ns-qualnames XML Namespaces: Qualified names
+     */
+    createDocumentType: function(l, h, y) {
+      var F = new Ur();
+      return F.name = l, F.nodeName = l, F.publicId = h || "", F.systemId = y || "", F;
+    }
+  };
+  function se() {
+  }
+  se.prototype = {
+    firstChild: null,
+    lastChild: null,
+    previousSibling: null,
+    nextSibling: null,
+    attributes: null,
+    parentNode: null,
+    childNodes: null,
+    ownerDocument: null,
+    nodeValue: null,
+    namespaceURI: null,
+    prefix: null,
+    localName: null,
+    // Modified in DOM Level 2:
+    insertBefore: function(l, h) {
+      return tr(this, l, h);
+    },
+    replaceChild: function(l, h) {
+      tr(this, l, h, Pt), h && this.removeChild(h);
+    },
+    removeChild: function(l) {
+      return et(this, l);
+    },
+    appendChild: function(l) {
+      return this.insertBefore(l, null);
+    },
+    hasChildNodes: function() {
+      return this.firstChild != null;
+    },
+    cloneNode: function(l) {
+      return $r(this.ownerDocument || this, this, l);
+    },
+    // Modified in DOM Level 2:
+    /**
+     * Puts the specified node and all of its subtree into a "normalized" form. In a normalized
+     * subtree, no text nodes in the subtree are empty and there are no adjacent text nodes.
+     *
+     * Specifically, this method merges any adjacent text nodes (i.e., nodes for which `nodeType`
+     * is `TEXT_NODE`) into a single node with the combined data. It also removes any empty text
+     * nodes.
+     *
+     * This method iteratively traverses all child nodes to normalize all descendant nodes within
+     * the subtree.
+     *
+     * @throws {DOMException}
+     * May throw a DOMException if operations within removeChild or appendData (which are
+     * potentially invoked in this method) do not meet their specific constraints.
+     * @see {@link Node.removeChild}
+     * @see {@link CharacterData.appendData}
+     * @see ../docs/walk-dom.md.
+     */
+    normalize: function() {
+      He(this, null, {
+        enter: function(l) {
+          for (var h = l.firstChild; h; ) {
+            var y = h.nextSibling;
+            if (y !== null && y.nodeType === _ && h.nodeType === _) {
+              for (var F = [], W = y; W !== null && W.nodeType === _; )
+                F.push(W.data), W = W.nextSibling;
+              for (var te = h.nextSibling; te !== W; ) {
+                var K = te.nextSibling;
+                te.parentNode = null, te.previousSibling = null, te.nextSibling = null, te = K;
+              }
+              h.nextSibling = W, W !== null ? W.previousSibling = h : l.lastChild = h, h.appendData(F.join("")), Gt(l.ownerDocument, l), h = W;
+            } else
+              h = y;
+          }
+          return !0;
+        }
+      });
+    },
+    // Introduced in DOM Level 2:
+    isSupported: function(l, h) {
+      return this.ownerDocument.implementation.hasFeature(l, h);
+    },
+    // Introduced in DOM Level 2:
+    hasAttributes: function() {
+      return this.attributes.length > 0;
+    },
+    /**
+     * Look up the prefix associated to the given namespace URI, starting from this node.
+     * **The default namespace declarations are ignored by this method.**
+     * See Namespace Prefix Lookup for details on the algorithm used by this method.
+     *
+     * _Note: The implementation seems to be incomplete when compared to the algorithm described in the specs._
+     *
+     * @param {string | null} namespaceURI
+     * @returns {string | null}
+     * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#Node3-lookupNamespacePrefix
+     * @see https://www.w3.org/TR/DOM-Level-3-Core/namespaces-algorithms.html#lookupNamespacePrefixAlgo
+     * @see https://dom.spec.whatwg.org/#dom-node-lookupprefix
+     * @see https://github.com/xmldom/xmldom/issues/322
+     */
+    lookupPrefix: function(l) {
+      for (var h = this; h; ) {
+        var y = h._nsMap;
+        if (y) {
+          for (var F in y)
+            if (Object.prototype.hasOwnProperty.call(y, F) && y[F] === l)
+              return F;
+        }
+        h = h.nodeType == w ? h.ownerDocument : h.parentNode;
+      }
+      return null;
+    },
+    // Introduced in DOM Level 3:
+    lookupNamespaceURI: function(l) {
+      for (var h = this; h; ) {
+        var y = h._nsMap;
+        if (y && Object.prototype.hasOwnProperty.call(y, l))
+          return y[l];
+        h = h.nodeType == w ? h.ownerDocument : h.parentNode;
+      }
+      return null;
+    },
+    // Introduced in DOM Level 3:
+    isDefaultNamespace: function(l) {
+      var h = this.lookupPrefix(l);
+      return h == null;
+    }
+  };
+  function Nt(l) {
+    return l == "<" && "&lt;" || l == ">" && "&gt;" || l == "&" && "&amp;" || l == '"' && "&quot;" || "&#" + l.charCodeAt() + ";";
+  }
+  c(d, se), c(d, se.prototype);
+  function $t(l, h) {
+    return He(l, null, { enter: function(y) {
+      return h(y) ? He.STOP : !0;
+    } }) === He.STOP;
+  }
+  function He(l, h, y) {
+    for (var F = [{ node: l, context: h, phase: He.ENTER }]; F.length > 0; ) {
+      var W = F.pop();
+      if (W.phase === He.ENTER) {
+        var te = y.enter(W.node, W.context);
+        if (te === He.STOP)
+          return He.STOP;
+        if (F.push({ node: W.node, context: te, phase: He.EXIT }), te == null)
+          continue;
+        for (var K = W.node.lastChild; K; )
+          F.push({ node: K, context: te, phase: He.ENTER }), K = K.previousSibling;
+      } else
+        y.exit && y.exit(W.node, W.context);
+    }
+  }
+  He.STOP = /* @__PURE__ */ Symbol("walkDOM.STOP"), He.ENTER = 0, He.EXIT = 1;
+  function ze() {
+    this.ownerDocument = this;
+  }
+  function _r(l, h, y) {
+    l && l._inc++;
+    var F = y.namespaceURI;
+    F === r.XMLNS && (h._nsMap[y.prefix ? y.localName : ""] = y.value);
+  }
+  function At(l, h, y, F) {
+    l && l._inc++;
+    var W = y.namespaceURI;
+    W === r.XMLNS && delete h._nsMap[y.prefix ? y.localName : ""];
+  }
+  function Gt(l, h, y) {
+    if (l && l._inc) {
+      l._inc++;
+      var F = h.childNodes;
+      if (y)
+        F[F.length++] = y;
+      else {
+        for (var W = h.firstChild, te = 0; W; )
+          F[te++] = W, W = W.nextSibling;
+        F.length = te, delete F[F.length];
+      }
+    }
+  }
+  function et(l, h) {
+    var y = h.previousSibling, F = h.nextSibling;
+    return y ? y.nextSibling = F : l.firstChild = F, F ? F.previousSibling = y : l.lastChild = y, h.parentNode = null, h.previousSibling = null, h.nextSibling = null, Gt(l.ownerDocument, l), h;
+  }
+  function Pr(l) {
+    return l && (l.nodeType === se.DOCUMENT_NODE || l.nodeType === se.DOCUMENT_FRAGMENT_NODE || l.nodeType === se.ELEMENT_NODE);
+  }
+  function rn(l) {
+    return l && (lt(l) || ke(l) || Ct(l) || l.nodeType === se.DOCUMENT_FRAGMENT_NODE || l.nodeType === se.COMMENT_NODE || l.nodeType === se.PROCESSING_INSTRUCTION_NODE);
+  }
+  function Ct(l) {
+    return l && l.nodeType === se.DOCUMENT_TYPE_NODE;
+  }
+  function lt(l) {
+    return l && l.nodeType === se.ELEMENT_NODE;
+  }
+  function ke(l) {
+    return l && l.nodeType === se.TEXT_NODE;
+  }
+  function ft(l, h) {
+    var y = l.childNodes || [];
+    if (t(y, lt) || Ct(h))
+      return !1;
+    var F = t(y, Ct);
+    return !(h && F && y.indexOf(F) > y.indexOf(h));
+  }
+  function Wt(l, h) {
+    var y = l.childNodes || [];
+    function F(te) {
+      return lt(te) && te !== h;
+    }
+    if (t(y, F))
+      return !1;
+    var W = t(y, Ct);
+    return !(h && W && y.indexOf(W) > y.indexOf(h));
+  }
+  function dr(l, h, y) {
+    if (!Pr(l))
+      throw new J(ee, "Unexpected parent node type " + l.nodeType);
+    if (y && y.parentNode !== l)
+      throw new J(be, "child not in parent");
+    if (
+      // 4. If `node` is not a DocumentFragment, DocumentType, Element, or CharacterData node, then throw a "HierarchyRequestError" DOMException.
+      !rn(h) || // 5. If either `node` is a Text node and `parent` is a document,
+      // the sax parser currently adds top level text nodes, this will be fixed in 0.9.0
+      // || (node.nodeType === Node.TEXT_NODE && parent.nodeType === Node.DOCUMENT_NODE)
+      // or `node` is a doctype and `parent` is not a document, then throw a "HierarchyRequestError" DOMException.
+      Ct(h) && l.nodeType !== se.DOCUMENT_NODE
+    )
+      throw new J(
+        ee,
+        "Unexpected node type " + h.nodeType + " for parent node type " + l.nodeType
+      );
+  }
+  function bn(l, h, y) {
+    var F = l.childNodes || [], W = h.childNodes || [];
+    if (h.nodeType === se.DOCUMENT_FRAGMENT_NODE) {
+      var te = W.filter(lt);
+      if (te.length > 1 || t(W, ke))
+        throw new J(ee, "More than one element or text in fragment");
+      if (te.length === 1 && !ft(l, y))
+        throw new J(ee, "Element in fragment can not be inserted before doctype");
+    }
+    if (lt(h) && !ft(l, y))
+      throw new J(ee, "Only one element can be added and only after doctype");
+    if (Ct(h)) {
+      if (t(F, Ct))
+        throw new J(ee, "Only one doctype is allowed");
+      var K = t(F, lt);
+      if (y && F.indexOf(K) < F.indexOf(y))
+        throw new J(ee, "Doctype can only be inserted before an element");
+      if (!y && K)
+        throw new J(ee, "Doctype can not be appended since element is present");
+    }
+  }
+  function Pt(l, h, y) {
+    var F = l.childNodes || [], W = h.childNodes || [];
+    if (h.nodeType === se.DOCUMENT_FRAGMENT_NODE) {
+      var te = W.filter(lt);
+      if (te.length > 1 || t(W, ke))
+        throw new J(ee, "More than one element or text in fragment");
+      if (te.length === 1 && !Wt(l, y))
+        throw new J(ee, "Element in fragment can not be inserted before doctype");
+    }
+    if (lt(h) && !Wt(l, y))
+      throw new J(ee, "Only one element can be added and only after doctype");
+    if (Ct(h)) {
+      if (t(F, function(it) {
+        return Ct(it) && it !== y;
+      }))
+        throw new J(ee, "Only one doctype is allowed");
+      var K = t(F, lt);
+      if (y && F.indexOf(K) < F.indexOf(y))
+        throw new J(ee, "Doctype can only be inserted before an element");
+    }
+  }
+  function tr(l, h, y, F) {
+    dr(l, h, y), l.nodeType === se.DOCUMENT_NODE && (F || bn)(l, h, y);
+    var W = h.parentNode;
+    if (W && W.removeChild(h), h.nodeType === Y) {
+      var te = h.firstChild;
+      if (te == null)
+        return h;
+      var K = h.lastChild;
+    } else
+      te = K = h;
+    var Ye = y ? y.previousSibling : l.lastChild;
+    te.previousSibling = Ye, K.nextSibling = y, Ye ? Ye.nextSibling = te : l.firstChild = te, y == null ? l.lastChild = K : y.previousSibling = K;
+    do {
+      te.parentNode = l;
+      var it = l.ownerDocument || l;
+      Dr(te, it);
+    } while (te !== K && (te = te.nextSibling));
+    return Gt(l.ownerDocument || l, l), h.nodeType == Y && (h.firstChild = h.lastChild = null), h;
+  }
+  function Dr(l, h) {
+    if (l.ownerDocument !== h) {
+      if (l.ownerDocument = h, l.nodeType === p && l.attributes)
+        for (var y = 0; y < l.attributes.length; y++) {
+          var F = l.attributes.item(y);
+          F && (F.ownerDocument = h);
+        }
+      for (var W = l.firstChild; W; )
+        Dr(W, h), W = W.nextSibling;
+    }
+  }
+  function Jn(l, h) {
+    h.parentNode && h.parentNode.removeChild(h), h.parentNode = l, h.previousSibling = l.lastChild, h.nextSibling = null, h.previousSibling ? h.previousSibling.nextSibling = h : l.firstChild = h, l.lastChild = h, Gt(l.ownerDocument, l, h);
+    var y = l.ownerDocument || l;
+    return Dr(h, y), h;
+  }
+  ze.prototype = {
+    //implementation : null,
+    nodeName: "#document",
+    nodeType: $,
+    /**
+     * The DocumentType node of the document.
+     *
+     * @readonly
+     * @type DocumentType
+     */
+    doctype: null,
+    documentElement: null,
+    _inc: 1,
+    insertBefore: function(l, h) {
+      if (l.nodeType == Y) {
+        for (var y = l.firstChild; y; ) {
+          var F = y.nextSibling;
+          this.insertBefore(y, h), y = F;
+        }
+        return l;
+      }
+      return tr(this, l, h), Dr(l, this), this.documentElement === null && l.nodeType === p && (this.documentElement = l), l;
+    },
+    removeChild: function(l) {
+      return this.documentElement == l && (this.documentElement = null), et(this, l);
+    },
+    replaceChild: function(l, h) {
+      tr(this, l, h, Pt), Dr(l, this), h && this.removeChild(h), lt(l) && (this.documentElement = l);
+    },
+    // Introduced in DOM Level 2:
+    importNode: function(l, h) {
+      return Vn(this, l, h);
+    },
+    // Introduced in DOM Level 2:
+    getElementById: function(l) {
+      var h = null;
+      return $t(this.documentElement, function(y) {
+        if (y.nodeType == p && y.getAttribute("id") == l)
+          return h = y, !0;
+      }), h;
+    },
+    /**
+     * The `getElementsByClassName` method of `Document` interface returns an array-like object
+     * of all child elements which have **all** of the given class name(s).
+     *
+     * Returns an empty list if `classeNames` is an empty string or only contains HTML white space characters.
+     *
+     *
+     * Warning: This is a live LiveNodeList.
+     * Changes in the DOM will reflect in the array as the changes occur.
+     * If an element selected by this array no longer qualifies for the selector,
+     * it will automatically be removed. Be aware of this for iteration purposes.
+     *
+     * @param {string} classNames is a string representing the class name(s) to match; multiple class names are separated by (ASCII-)whitespace
+     *
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementsByClassName
+     * @see https://dom.spec.whatwg.org/#concept-getelementsbyclassname
+     */
+    getElementsByClassName: function(l) {
+      var h = u(l);
+      return new ge(this, function(y) {
+        var F = [];
+        return h.length > 0 && $t(y.documentElement, function(W) {
+          if (W !== y && W.nodeType === p) {
+            var te = W.getAttribute("class");
+            if (te) {
+              var K = l === te;
+              if (!K) {
+                var Ye = u(te);
+                K = h.every(a(Ye));
+              }
+              K && F.push(W);
+            }
+          }
+        }), F;
+      });
+    },
+    //document factory method:
+    createElement: function(l) {
+      var h = new Lt();
+      h.ownerDocument = this, h.nodeName = l, h.tagName = l, h.localName = l, h.childNodes = new ie();
+      var y = h.attributes = new Ue();
+      return y._ownerElement = h, h;
+    },
+    createDocumentFragment: function() {
+      var l = new rr();
+      return l.ownerDocument = this, l.childNodes = new ie(), l;
+    },
+    createTextNode: function(l) {
+      var h = new xr();
+      return h.ownerDocument = this, h.appendData(l), h;
+    },
+    createComment: function(l) {
+      var h = new yt();
+      return h.ownerDocument = this, h.appendData(l), h;
+    },
+    /**
+     * Returns a new CDATASection node whose data is `data`.
+     *
+     * __This implementation differs from the specification:__
+     * - calling this method on an HTML document does not throw `NotSupportedError`.
+     *
+     * @param {string} data
+     * @returns {CDATASection}
+     * @throws DOMException with code `INVALID_CHARACTER_ERR` if `data` contains `"]]>"`.
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/Document/createCDATASection
+     * @see https://dom.spec.whatwg.org/#dom-document-createcdatasection
+     */
+    createCDATASection: function(l) {
+      if (l.indexOf("]]>") !== -1)
+        throw new J(Ae, 'data contains "]]>"');
+      var h = new jt();
+      return h.ownerDocument = this, h.appendData(l), h;
+    },
+    /**
+     * Returns a ProcessingInstruction node whose target is target and data is data.
+     *
+     * __This implementation differs from the specification:__
+     * - it does not do any input validation on the arguments and doesn't throw "InvalidCharacterError".
+     *
+     * Note: When the resulting document is serialized with `requireWellFormed: true`, the
+     * serializer throws with code `INVALID_STATE_ERR` if `.target` is not a valid XML `NCName`
+     * (a `Name` with no colon) or is an ASCII case-insensitive match for `"xml"`, or if `.data`
+     * contains `?>` (W3C DOM Parsing §3.2.1.7). Without that option the target and data are
+     * emitted verbatim.
+     *
+     * @param {string} target
+     * @param {string} data
+     * @returns {ProcessingInstruction}
+     * @see https://developer.mozilla.org/docs/Web/API/Document/createProcessingInstruction
+     * @see https://dom.spec.whatwg.org/#dom-document-createprocessinginstruction
+     * @see https://www.w3.org/TR/DOM-Parsing/#dfn-concept-serialize-xml §3.2.1.7
+     */
+    createProcessingInstruction: function(l, h) {
+      var y = new Mr();
+      return y.ownerDocument = this, y.tagName = y.nodeName = y.target = l, y.nodeValue = y.data = h, y;
+    },
+    createAttribute: function(l) {
+      var h = new Lr();
+      return h.ownerDocument = this, h.name = l, h.nodeName = l, h.localName = l, h.specified = !0, h;
+    },
+    /**
+     * Creates an EntityReference object, serialized as `&name;`.
+     *
+     * The `name` is validated against the XML `Name` production at creation time; an invalid name
+     * throws a `DOMException` with code `INVALID_CHARACTER_ERR`. When the resulting node is
+     * serialized with `requireWellFormed: true`, the serializer re-validates `nodeName` and throws
+     * a `DOMException` with code `INVALID_STATE_ERR` if a later `nodeName` mutation made it invalid;
+     * without that option the name is emitted verbatim.
+     *
+     * Note: xmldom does not expand entities — the parser resolves entity references inline and never
+     * constructs `EntityReference` nodes, so this method is the only producer.
+     *
+     * @param {string} name The name of the entity to reference.
+     * @returns {EntityReference}
+     * @throws {DOMException} With code `INVALID_CHARACTER_ERR` when `name` is not a valid XML `Name`.
+     * @see https://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-392B75AE
+     */
+    createEntityReference: function(l) {
+      if (!n.test(l))
+        throw new J(Ae, 'not a valid xml name "' + l + '"');
+      var h = new pr();
+      return h.ownerDocument = this, h.nodeName = l, h;
+    },
+    // Introduced in DOM Level 2:
+    createElementNS: function(l, h) {
+      var y = new Lt(), F = h.split(":"), W = y.attributes = new Ue();
+      return y.childNodes = new ie(), y.ownerDocument = this, y.nodeName = h, y.tagName = h, y.namespaceURI = l, F.length == 2 ? (y.prefix = F[0], y.localName = F[1]) : y.localName = h, W._ownerElement = y, y;
+    },
+    // Introduced in DOM Level 2:
+    createAttributeNS: function(l, h) {
+      var y = new Lr(), F = h.split(":");
+      return y.ownerDocument = this, y.nodeName = h, y.name = h, y.namespaceURI = l, y.specified = !0, F.length == 2 ? (y.prefix = F[0], y.localName = F[1]) : y.localName = h, y;
+    }
+  }, A(ze, se);
+  function Lt() {
+    this._nsMap = {};
+  }
+  Lt.prototype = {
+    nodeType: p,
+    hasAttribute: function(l) {
+      return this.getAttributeNode(l) != null;
+    },
+    getAttribute: function(l) {
+      var h = this.getAttributeNode(l);
+      return h && h.value || "";
+    },
+    getAttributeNode: function(l) {
+      return this.attributes.getNamedItem(l);
+    },
+    setAttribute: function(l, h) {
+      var y = this.ownerDocument.createAttribute(l);
+      y.value = y.nodeValue = "" + h, this.setAttributeNode(y);
+    },
+    removeAttribute: function(l) {
+      var h = this.getAttributeNode(l);
+      h && this.removeAttributeNode(h);
+    },
+    //four real opeartion method
+    appendChild: function(l) {
+      return l.nodeType === Y ? this.insertBefore(l, null) : Jn(this, l);
+    },
+    setAttributeNode: function(l) {
+      return this.attributes.setNamedItem(l);
+    },
+    setAttributeNodeNS: function(l) {
+      return this.attributes.setNamedItemNS(l);
+    },
+    removeAttributeNode: function(l) {
+      return this.attributes.removeNamedItem(l.nodeName);
+    },
+    //get real attribute name,and remove it by removeAttributeNode
+    removeAttributeNS: function(l, h) {
+      var y = this.getAttributeNodeNS(l, h);
+      y && this.removeAttributeNode(y);
+    },
+    hasAttributeNS: function(l, h) {
+      return this.getAttributeNodeNS(l, h) != null;
+    },
+    getAttributeNS: function(l, h) {
+      var y = this.getAttributeNodeNS(l, h);
+      return y && y.value || "";
+    },
+    setAttributeNS: function(l, h, y) {
+      var F = this.ownerDocument.createAttributeNS(l, h);
+      F.value = F.nodeValue = "" + y, this.setAttributeNode(F);
+    },
+    getAttributeNodeNS: function(l, h) {
+      return this.attributes.getNamedItemNS(l, h);
+    },
+    getElementsByTagName: function(l) {
+      return new ge(this, function(h) {
+        var y = [];
+        return $t(h, function(F) {
+          F !== h && F.nodeType == p && (l === "*" || F.tagName == l) && y.push(F);
+        }), y;
+      });
+    },
+    getElementsByTagNameNS: function(l, h) {
+      return new ge(this, function(y) {
+        var F = [];
+        return $t(y, function(W) {
+          W !== y && W.nodeType === p && (l === "*" || W.namespaceURI === l) && (h === "*" || W.localName == h) && F.push(W);
+        }), F;
+      });
+    }
+  }, ze.prototype.getElementsByTagName = Lt.prototype.getElementsByTagName, ze.prototype.getElementsByTagNameNS = Lt.prototype.getElementsByTagNameNS, A(Lt, se);
+  function Lr() {
+  }
+  Lr.prototype.nodeType = w, A(Lr, se);
+  function Ot() {
+  }
+  Ot.prototype = {
+    data: "",
+    substringData: function(l, h) {
+      return this.data.substring(l, l + h);
+    },
+    appendData: function(l) {
+      l = this.data + l, this.nodeValue = this.data = l, this.length = l.length;
+    },
+    insertData: function(l, h) {
+      this.replaceData(l, 0, h);
+    },
+    appendChild: function(l) {
+      throw new Error(N[ee]);
+    },
+    deleteData: function(l, h) {
+      this.replaceData(l, h, "");
+    },
+    replaceData: function(l, h, y) {
+      var F = this.data.substring(0, l), W = this.data.substring(l + h);
+      y = F + y + W, this.nodeValue = this.data = y, this.length = y.length;
+    }
+  }, A(Ot, se);
+  function xr() {
+  }
+  xr.prototype = {
+    nodeName: "#text",
+    nodeType: _,
+    splitText: function(l) {
+      var h = this.data, y = h.substring(l);
+      h = h.substring(0, l), this.data = this.nodeValue = h, this.length = h.length;
+      var F = this.ownerDocument.createTextNode(y);
+      return this.parentNode && this.parentNode.insertBefore(F, this.nextSibling), F;
+    }
+  }, A(xr, Ot);
+  function yt() {
+  }
+  yt.prototype = {
+    nodeName: "#comment",
+    nodeType: M
+  }, A(yt, Ot);
+  function jt() {
+  }
+  jt.prototype = {
+    nodeName: "#cdata-section",
+    nodeType: R
+  }, A(jt, Ot);
+  function Ur() {
+  }
+  Ur.prototype.nodeType = ne, A(Ur, se);
+  function nn() {
+  }
+  nn.prototype.nodeType = v, A(nn, se);
+  function on() {
+  }
+  on.prototype.nodeType = k, A(on, se);
+  function pr() {
+  }
+  pr.prototype.nodeType = I, A(pr, se);
+  function rr() {
+  }
+  rr.prototype.nodeName = "#document-fragment", rr.prototype.nodeType = Y, A(rr, se);
+  function Mr() {
+  }
+  Mr.prototype.nodeType = x, A(Mr, se);
+  function wn() {
+  }
+  wn.prototype.serializeToString = function(l, h, y, F) {
+    return In.call(l, h, y, F);
+  }, se.prototype.toString = In;
+  function In(l, h, y) {
+    var F = !!y && !!y.requireWellFormed, W = [], te = this.nodeType == 9 && this.documentElement || this, K = te.prefix, Ye = te.namespaceURI;
+    if (Ye && K == null) {
+      var K = te.lookupPrefix(Ye);
+      if (K == null)
+        var it = [
+          { namespace: Ye, prefix: null }
+          //{namespace:uri,prefix:''}
+        ];
+    }
+    return Yr(this, W, l, h, it, F), W.join("");
+  }
+  function _n(l, h, y) {
+    var F = l.prefix || "", W = l.namespaceURI;
+    if (!W || F === "xml" && W === r.XML || W === r.XMLNS)
+      return !1;
+    for (var te = y.length; te--; ) {
+      var K = y[te];
+      if (K.prefix === F)
+        return K.namespace !== W;
+    }
+    return !0;
+  }
+  function Hr(l, h, y, F) {
+    if (F && !n.test(h))
+      throw new J(le, 'The attribute name "' + h + '" is not a valid XML QName');
+    l.push(" ", h, '="', y.replace(/[<>&"\t\n\r]/g, Nt), '"');
+  }
+  function Yr(l, h, y, F, W, te) {
+    W || (W = []), He(l, { ns: W, isHTML: y }, {
+      enter: function(K, Ye) {
+        var it = Ye.ns, It = Ye.isHTML;
+        if (F)
+          if (K = F(K), K) {
+            if (typeof K == "string")
+              return h.push(K), null;
+          } else
+            return null;
+        switch (K.nodeType) {
+          case p:
+            var Kt = K.attributes, Kr = Kt.length, Vt = K.tagName;
+            It = r.isHTML(K.namespaceURI) || It;
+            var xt = Vt;
+            if (!It && !K.prefix && K.namespaceURI) {
+              for (var Qr, Gr = 0; Gr < Kt.length; Gr++)
+                if (Kt.item(Gr).name === "xmlns") {
+                  Qr = Kt.item(Gr).value;
+                  break;
+                }
+              if (!Qr)
+                for (var nr = it.length - 1; nr >= 0; nr--) {
+                  var ir = it[nr];
+                  if (ir.prefix === "" && ir.namespace === K.namespaceURI) {
+                    Qr = ir.namespace;
+                    break;
+                  }
+                }
+              if (Qr !== K.namespaceURI)
+                for (var nr = it.length - 1; nr >= 0; nr--) {
+                  var ir = it[nr];
+                  if (ir.namespace === K.namespaceURI) {
+                    ir.prefix && (xt = ir.prefix + ":" + Vt);
+                    break;
+                  }
+                }
+            }
+            if (te && !n.test(xt))
+              throw new J(le, 'The element name "' + xt + '" is not a valid XML QName');
+            h.push("<", xt);
+            for (var Zt = it.slice(), or = 0; or < Kr; or++) {
+              var _t = Kt.item(or);
+              _t.prefix == "xmlns" ? Zt.push({ prefix: _t.localName, namespace: _t.value }) : _t.nodeName == "xmlns" && Zt.push({ prefix: "", namespace: _t.value });
+            }
+            for (var or = 0; or < Kr; or++) {
+              var _t = Kt.item(or);
+              if (_n(_t, It, Zt)) {
+                var sn = _t.prefix || "", Ft = _t.namespaceURI;
+                Hr(h, sn ? "xmlns:" + sn : "xmlns", Ft, te), Zt.push({ prefix: sn, namespace: Ft });
+              }
+              var Qt = F ? F(_t) : _t;
+              Qt && (typeof Qt == "string" ? h.push(Qt) : Hr(h, Qt.name, Qt.value, te));
+            }
+            if (Vt === xt && _n(K, It, Zt)) {
+              var mr = K.prefix || "", Ft = K.namespaceURI;
+              Hr(h, mr ? "xmlns:" + mr : "xmlns", Ft, te), Zt.push({ prefix: mr, namespace: Ft });
+            }
+            var Dt = K.firstChild;
+            if (Dt || It && !/^(?:meta|link|img|br|hr|input)$/i.test(Vt)) {
+              if (h.push(">"), It && /^script$/i.test(Vt)) {
+                for (; Dt; )
+                  Dt.data ? h.push(Dt.data) : Yr(Dt, h, It, F, Zt.slice(), te), Dt = Dt.nextSibling;
+                return h.push("</", Vt, ">"), null;
+              }
+              return { ns: Zt, isHTML: It, tag: xt };
+            } else
+              return h.push("/>"), null;
+          case $:
+          case Y:
+            return { ns: it.slice(), isHTML: It, tag: null };
+          case w:
+            return Hr(h, K.name, K.value, te), null;
+          case _:
+            return h.push(K.data.replace(/[<&>]/g, Nt)), null;
+          case R:
+            if (te && K.data.indexOf("]]>") !== -1)
+              throw new J(le, 'The CDATASection data contains "]]>"');
+            return h.push("<![CDATA[", K.data.replace(/]]>/g, "]]]]><![CDATA[>"), "]]>"), null;
+          case M:
+            if (te && K.data.indexOf("-->") !== -1)
+              throw new J(le, 'The comment node data contains "-->"');
+            return h.push("<!--", K.data, "-->"), null;
+          case ne:
+            if (te) {
+              if (!n.test(K.name))
+                throw new J(le, 'The doctype name "' + K.name + '" is not a valid XML Name');
+              if (K.publicId && !/^("[\x20\r\na-zA-Z0-9\-()+,.\/:=?;!*#@$_%']*"|'[\x20\r\na-zA-Z0-9\-()+,.\/:=?;!*#@$_%'"]*')$/.test(K.publicId))
+                throw new J(le, "DocumentType publicId is not a valid PubidLiteral");
+              if (K.systemId && !/^("[^"]*"|'[^']*')$/.test(K.systemId))
+                throw new J(le, "DocumentType systemId is not a valid SystemLiteral");
+              if (K.internalSubset && K.internalSubset.indexOf("]>") !== -1)
+                throw new J(le, 'DocumentType internalSubset contains "]>"');
+            }
+            var Sr = K.publicId, sr = K.systemId;
+            if (h.push("<!DOCTYPE ", K.name), Sr)
+              h.push(" PUBLIC ", Sr), sr && sr != "." && h.push(" ", sr), h.push(">");
+            else if (sr && sr != ".")
+              h.push(" SYSTEM ", sr, ">");
+            else {
+              var ht = K.internalSubset;
+              ht && h.push(" [", ht, "]"), h.push(">");
+            }
+            return null;
+          case x:
+            if (te) {
+              if (!n.test(K.target) || K.target.indexOf(":") !== -1 || K.target.toLowerCase() === "xml")
+                throw new J(
+                  le,
+                  'The processing instruction target "' + K.target + '" is not a valid XML NCName or is reserved'
+                );
+              if (K.data.indexOf("?>") !== -1)
+                throw new J(le, 'The ProcessingInstruction data contains "?>"');
+            }
+            return h.push("<?", K.target, " ", K.data, "?>"), null;
+          case I:
+            if (te && !n.test(K.nodeName))
+              throw new J(
+                le,
+                'The entity reference name "' + K.nodeName + '" is not a valid XML Name'
+              );
+            return h.push("&", K.nodeName, ";"), null;
+          //case ENTITY_NODE:
+          //case NOTATION_NODE:
+          default:
+            return h.push("??", K.nodeName), null;
+        }
+      },
+      exit: function(K, Ye) {
+        Ye && Ye.tag && h.push("</", Ye.tag, ">");
+      }
+    });
+  }
+  function Vn(l, h, y) {
+    var F;
+    return He(h, null, {
+      enter: function(W, te) {
+        var K = W.cloneNode(!1);
+        K.ownerDocument = l, K.parentNode = null, te === null ? F = K : te.appendChild(K);
+        var Ye = W.nodeType === w || y;
+        return Ye ? K : null;
+      }
+    }), F;
+  }
+  function $r(l, h, y) {
+    var F;
+    return He(h, null, {
+      enter: function(W, te) {
+        var K = new W.constructor();
+        for (var Ye in W)
+          if (Object.prototype.hasOwnProperty.call(W, Ye)) {
+            var it = W[Ye];
+            typeof it != "object" && it != K[Ye] && (K[Ye] = it);
+          }
+        W.childNodes && (K.childNodes = new ie()), K.ownerDocument = l;
+        var It = y;
+        switch (K.nodeType) {
+          case p:
+            var Kt = W.attributes, Kr = K.attributes = new Ue(), Vt = Kt.length;
+            Kr._ownerElement = K;
+            for (var xt = 0; xt < Vt; xt++)
+              K.setAttributeNode($r(l, Kt.item(xt), !0));
+            break;
+          case w:
+            It = !0;
+        }
+        return te !== null ? te.appendChild(K) : F = K, It ? K : null;
+      }
+    }), F;
+  }
+  function Jt(l, h, y) {
+    l[h] = y;
+  }
+  try {
+    Object.defineProperty && (Object.defineProperty(ge.prototype, "length", {
+      get: function() {
+        return Ge(this), this.$$length;
+      }
+    }), Object.defineProperty(se.prototype, "textContent", {
+      get: function() {
+        if (this.nodeType === p || this.nodeType === Y) {
+          var l = [];
+          return He(this, null, {
+            enter: function(h) {
+              if (h.nodeType === p || h.nodeType === Y)
+                return !0;
+              if (h.nodeType === x || h.nodeType === M)
+                return null;
+              l.push(h.nodeValue);
+            }
+          }), l.join("");
+        }
+        return this.nodeValue;
+      },
+      set: function(l) {
+        switch (this.nodeType) {
+          case p:
+          case Y:
+            for (; this.firstChild; )
+              this.removeChild(this.firstChild);
+            (l || String(l)) && this.appendChild(this.ownerDocument.createTextNode(l));
+            break;
+          default:
+            this.data = l, this.value = l, this.nodeValue = l;
+        }
+      }
+    }), Jt = function(l, h, y) {
+      l["$$" + h] = y;
+    });
+  } catch {
+  }
+  return qt.DocumentType = Ur, qt.DOMException = J, qt.DOMImplementation = S, qt.Element = Lt, qt.Node = se, qt.NodeList = ie, qt.walkDOM = He, qt.XMLSerializer = wn, qt;
+}
+var cn = {}, Zn = {}, yo;
+function Xc() {
+  return yo || (yo = 1, (function(e) {
+    var t = dn().freeze;
+    e.XML_ENTITIES = t({
+      amp: "&",
+      apos: "'",
+      gt: ">",
+      lt: "<",
+      quot: '"'
+    }), e.HTML_ENTITIES = t({
+      Aacute: "Á",
+      aacute: "á",
+      Abreve: "Ă",
+      abreve: "ă",
+      ac: "∾",
+      acd: "∿",
+      acE: "∾̳",
+      Acirc: "Â",
+      acirc: "â",
+      acute: "´",
+      Acy: "А",
+      acy: "а",
+      AElig: "Æ",
+      aelig: "æ",
+      af: "⁡",
+      Afr: "𝔄",
+      afr: "𝔞",
+      Agrave: "À",
+      agrave: "à",
+      alefsym: "ℵ",
+      aleph: "ℵ",
+      Alpha: "Α",
+      alpha: "α",
+      Amacr: "Ā",
+      amacr: "ā",
+      amalg: "⨿",
+      AMP: "&",
+      amp: "&",
+      And: "⩓",
+      and: "∧",
+      andand: "⩕",
+      andd: "⩜",
+      andslope: "⩘",
+      andv: "⩚",
+      ang: "∠",
+      ange: "⦤",
+      angle: "∠",
+      angmsd: "∡",
+      angmsdaa: "⦨",
+      angmsdab: "⦩",
+      angmsdac: "⦪",
+      angmsdad: "⦫",
+      angmsdae: "⦬",
+      angmsdaf: "⦭",
+      angmsdag: "⦮",
+      angmsdah: "⦯",
+      angrt: "∟",
+      angrtvb: "⊾",
+      angrtvbd: "⦝",
+      angsph: "∢",
+      angst: "Å",
+      angzarr: "⍼",
+      Aogon: "Ą",
+      aogon: "ą",
+      Aopf: "𝔸",
+      aopf: "𝕒",
+      ap: "≈",
+      apacir: "⩯",
+      apE: "⩰",
+      ape: "≊",
+      apid: "≋",
+      apos: "'",
+      ApplyFunction: "⁡",
+      approx: "≈",
+      approxeq: "≊",
+      Aring: "Å",
+      aring: "å",
+      Ascr: "𝒜",
+      ascr: "𝒶",
+      Assign: "≔",
+      ast: "*",
+      asymp: "≈",
+      asympeq: "≍",
+      Atilde: "Ã",
+      atilde: "ã",
+      Auml: "Ä",
+      auml: "ä",
+      awconint: "∳",
+      awint: "⨑",
+      backcong: "≌",
+      backepsilon: "϶",
+      backprime: "‵",
+      backsim: "∽",
+      backsimeq: "⋍",
+      Backslash: "∖",
+      Barv: "⫧",
+      barvee: "⊽",
+      Barwed: "⌆",
+      barwed: "⌅",
+      barwedge: "⌅",
+      bbrk: "⎵",
+      bbrktbrk: "⎶",
+      bcong: "≌",
+      Bcy: "Б",
+      bcy: "б",
+      bdquo: "„",
+      becaus: "∵",
+      Because: "∵",
+      because: "∵",
+      bemptyv: "⦰",
+      bepsi: "϶",
+      bernou: "ℬ",
+      Bernoullis: "ℬ",
+      Beta: "Β",
+      beta: "β",
+      beth: "ℶ",
+      between: "≬",
+      Bfr: "𝔅",
+      bfr: "𝔟",
+      bigcap: "⋂",
+      bigcirc: "◯",
+      bigcup: "⋃",
+      bigodot: "⨀",
+      bigoplus: "⨁",
+      bigotimes: "⨂",
+      bigsqcup: "⨆",
+      bigstar: "★",
+      bigtriangledown: "▽",
+      bigtriangleup: "△",
+      biguplus: "⨄",
+      bigvee: "⋁",
+      bigwedge: "⋀",
+      bkarow: "⤍",
+      blacklozenge: "⧫",
+      blacksquare: "▪",
+      blacktriangle: "▴",
+      blacktriangledown: "▾",
+      blacktriangleleft: "◂",
+      blacktriangleright: "▸",
+      blank: "␣",
+      blk12: "▒",
+      blk14: "░",
+      blk34: "▓",
+      block: "█",
+      bne: "=⃥",
+      bnequiv: "≡⃥",
+      bNot: "⫭",
+      bnot: "⌐",
+      Bopf: "𝔹",
+      bopf: "𝕓",
+      bot: "⊥",
+      bottom: "⊥",
+      bowtie: "⋈",
+      boxbox: "⧉",
+      boxDL: "╗",
+      boxDl: "╖",
+      boxdL: "╕",
+      boxdl: "┐",
+      boxDR: "╔",
+      boxDr: "╓",
+      boxdR: "╒",
+      boxdr: "┌",
+      boxH: "═",
+      boxh: "─",
+      boxHD: "╦",
+      boxHd: "╤",
+      boxhD: "╥",
+      boxhd: "┬",
+      boxHU: "╩",
+      boxHu: "╧",
+      boxhU: "╨",
+      boxhu: "┴",
+      boxminus: "⊟",
+      boxplus: "⊞",
+      boxtimes: "⊠",
+      boxUL: "╝",
+      boxUl: "╜",
+      boxuL: "╛",
+      boxul: "┘",
+      boxUR: "╚",
+      boxUr: "╙",
+      boxuR: "╘",
+      boxur: "└",
+      boxV: "║",
+      boxv: "│",
+      boxVH: "╬",
+      boxVh: "╫",
+      boxvH: "╪",
+      boxvh: "┼",
+      boxVL: "╣",
+      boxVl: "╢",
+      boxvL: "╡",
+      boxvl: "┤",
+      boxVR: "╠",
+      boxVr: "╟",
+      boxvR: "╞",
+      boxvr: "├",
+      bprime: "‵",
+      Breve: "˘",
+      breve: "˘",
+      brvbar: "¦",
+      Bscr: "ℬ",
+      bscr: "𝒷",
+      bsemi: "⁏",
+      bsim: "∽",
+      bsime: "⋍",
+      bsol: "\\",
+      bsolb: "⧅",
+      bsolhsub: "⟈",
+      bull: "•",
+      bullet: "•",
+      bump: "≎",
+      bumpE: "⪮",
+      bumpe: "≏",
+      Bumpeq: "≎",
+      bumpeq: "≏",
+      Cacute: "Ć",
+      cacute: "ć",
+      Cap: "⋒",
+      cap: "∩",
+      capand: "⩄",
+      capbrcup: "⩉",
+      capcap: "⩋",
+      capcup: "⩇",
+      capdot: "⩀",
+      CapitalDifferentialD: "ⅅ",
+      caps: "∩︀",
+      caret: "⁁",
+      caron: "ˇ",
+      Cayleys: "ℭ",
+      ccaps: "⩍",
+      Ccaron: "Č",
+      ccaron: "č",
+      Ccedil: "Ç",
+      ccedil: "ç",
+      Ccirc: "Ĉ",
+      ccirc: "ĉ",
+      Cconint: "∰",
+      ccups: "⩌",
+      ccupssm: "⩐",
+      Cdot: "Ċ",
+      cdot: "ċ",
+      cedil: "¸",
+      Cedilla: "¸",
+      cemptyv: "⦲",
+      cent: "¢",
+      CenterDot: "·",
+      centerdot: "·",
+      Cfr: "ℭ",
+      cfr: "𝔠",
+      CHcy: "Ч",
+      chcy: "ч",
+      check: "✓",
+      checkmark: "✓",
+      Chi: "Χ",
+      chi: "χ",
+      cir: "○",
+      circ: "ˆ",
+      circeq: "≗",
+      circlearrowleft: "↺",
+      circlearrowright: "↻",
+      circledast: "⊛",
+      circledcirc: "⊚",
+      circleddash: "⊝",
+      CircleDot: "⊙",
+      circledR: "®",
+      circledS: "Ⓢ",
+      CircleMinus: "⊖",
+      CirclePlus: "⊕",
+      CircleTimes: "⊗",
+      cirE: "⧃",
+      cire: "≗",
+      cirfnint: "⨐",
+      cirmid: "⫯",
+      cirscir: "⧂",
+      ClockwiseContourIntegral: "∲",
+      CloseCurlyDoubleQuote: "”",
+      CloseCurlyQuote: "’",
+      clubs: "♣",
+      clubsuit: "♣",
+      Colon: "∷",
+      colon: ":",
+      Colone: "⩴",
+      colone: "≔",
+      coloneq: "≔",
+      comma: ",",
+      commat: "@",
+      comp: "∁",
+      compfn: "∘",
+      complement: "∁",
+      complexes: "ℂ",
+      cong: "≅",
+      congdot: "⩭",
+      Congruent: "≡",
+      Conint: "∯",
+      conint: "∮",
+      ContourIntegral: "∮",
+      Copf: "ℂ",
+      copf: "𝕔",
+      coprod: "∐",
+      Coproduct: "∐",
+      COPY: "©",
+      copy: "©",
+      copysr: "℗",
+      CounterClockwiseContourIntegral: "∳",
+      crarr: "↵",
+      Cross: "⨯",
+      cross: "✗",
+      Cscr: "𝒞",
+      cscr: "𝒸",
+      csub: "⫏",
+      csube: "⫑",
+      csup: "⫐",
+      csupe: "⫒",
+      ctdot: "⋯",
+      cudarrl: "⤸",
+      cudarrr: "⤵",
+      cuepr: "⋞",
+      cuesc: "⋟",
+      cularr: "↶",
+      cularrp: "⤽",
+      Cup: "⋓",
+      cup: "∪",
+      cupbrcap: "⩈",
+      CupCap: "≍",
+      cupcap: "⩆",
+      cupcup: "⩊",
+      cupdot: "⊍",
+      cupor: "⩅",
+      cups: "∪︀",
+      curarr: "↷",
+      curarrm: "⤼",
+      curlyeqprec: "⋞",
+      curlyeqsucc: "⋟",
+      curlyvee: "⋎",
+      curlywedge: "⋏",
+      curren: "¤",
+      curvearrowleft: "↶",
+      curvearrowright: "↷",
+      cuvee: "⋎",
+      cuwed: "⋏",
+      cwconint: "∲",
+      cwint: "∱",
+      cylcty: "⌭",
+      Dagger: "‡",
+      dagger: "†",
+      daleth: "ℸ",
+      Darr: "↡",
+      dArr: "⇓",
+      darr: "↓",
+      dash: "‐",
+      Dashv: "⫤",
+      dashv: "⊣",
+      dbkarow: "⤏",
+      dblac: "˝",
+      Dcaron: "Ď",
+      dcaron: "ď",
+      Dcy: "Д",
+      dcy: "д",
+      DD: "ⅅ",
+      dd: "ⅆ",
+      ddagger: "‡",
+      ddarr: "⇊",
+      DDotrahd: "⤑",
+      ddotseq: "⩷",
+      deg: "°",
+      Del: "∇",
+      Delta: "Δ",
+      delta: "δ",
+      demptyv: "⦱",
+      dfisht: "⥿",
+      Dfr: "𝔇",
+      dfr: "𝔡",
+      dHar: "⥥",
+      dharl: "⇃",
+      dharr: "⇂",
+      DiacriticalAcute: "´",
+      DiacriticalDot: "˙",
+      DiacriticalDoubleAcute: "˝",
+      DiacriticalGrave: "`",
+      DiacriticalTilde: "˜",
+      diam: "⋄",
+      Diamond: "⋄",
+      diamond: "⋄",
+      diamondsuit: "♦",
+      diams: "♦",
+      die: "¨",
+      DifferentialD: "ⅆ",
+      digamma: "ϝ",
+      disin: "⋲",
+      div: "÷",
+      divide: "÷",
+      divideontimes: "⋇",
+      divonx: "⋇",
+      DJcy: "Ђ",
+      djcy: "ђ",
+      dlcorn: "⌞",
+      dlcrop: "⌍",
+      dollar: "$",
+      Dopf: "𝔻",
+      dopf: "𝕕",
+      Dot: "¨",
+      dot: "˙",
+      DotDot: "⃜",
+      doteq: "≐",
+      doteqdot: "≑",
+      DotEqual: "≐",
+      dotminus: "∸",
+      dotplus: "∔",
+      dotsquare: "⊡",
+      doublebarwedge: "⌆",
+      DoubleContourIntegral: "∯",
+      DoubleDot: "¨",
+      DoubleDownArrow: "⇓",
+      DoubleLeftArrow: "⇐",
+      DoubleLeftRightArrow: "⇔",
+      DoubleLeftTee: "⫤",
+      DoubleLongLeftArrow: "⟸",
+      DoubleLongLeftRightArrow: "⟺",
+      DoubleLongRightArrow: "⟹",
+      DoubleRightArrow: "⇒",
+      DoubleRightTee: "⊨",
+      DoubleUpArrow: "⇑",
+      DoubleUpDownArrow: "⇕",
+      DoubleVerticalBar: "∥",
+      DownArrow: "↓",
+      Downarrow: "⇓",
+      downarrow: "↓",
+      DownArrowBar: "⤓",
+      DownArrowUpArrow: "⇵",
+      DownBreve: "̑",
+      downdownarrows: "⇊",
+      downharpoonleft: "⇃",
+      downharpoonright: "⇂",
+      DownLeftRightVector: "⥐",
+      DownLeftTeeVector: "⥞",
+      DownLeftVector: "↽",
+      DownLeftVectorBar: "⥖",
+      DownRightTeeVector: "⥟",
+      DownRightVector: "⇁",
+      DownRightVectorBar: "⥗",
+      DownTee: "⊤",
+      DownTeeArrow: "↧",
+      drbkarow: "⤐",
+      drcorn: "⌟",
+      drcrop: "⌌",
+      Dscr: "𝒟",
+      dscr: "𝒹",
+      DScy: "Ѕ",
+      dscy: "ѕ",
+      dsol: "⧶",
+      Dstrok: "Đ",
+      dstrok: "đ",
+      dtdot: "⋱",
+      dtri: "▿",
+      dtrif: "▾",
+      duarr: "⇵",
+      duhar: "⥯",
+      dwangle: "⦦",
+      DZcy: "Џ",
+      dzcy: "џ",
+      dzigrarr: "⟿",
+      Eacute: "É",
+      eacute: "é",
+      easter: "⩮",
+      Ecaron: "Ě",
+      ecaron: "ě",
+      ecir: "≖",
+      Ecirc: "Ê",
+      ecirc: "ê",
+      ecolon: "≕",
+      Ecy: "Э",
+      ecy: "э",
+      eDDot: "⩷",
+      Edot: "Ė",
+      eDot: "≑",
+      edot: "ė",
+      ee: "ⅇ",
+      efDot: "≒",
+      Efr: "𝔈",
+      efr: "𝔢",
+      eg: "⪚",
+      Egrave: "È",
+      egrave: "è",
+      egs: "⪖",
+      egsdot: "⪘",
+      el: "⪙",
+      Element: "∈",
+      elinters: "⏧",
+      ell: "ℓ",
+      els: "⪕",
+      elsdot: "⪗",
+      Emacr: "Ē",
+      emacr: "ē",
+      empty: "∅",
+      emptyset: "∅",
+      EmptySmallSquare: "◻",
+      emptyv: "∅",
+      EmptyVerySmallSquare: "▫",
+      emsp: " ",
+      emsp13: " ",
+      emsp14: " ",
+      ENG: "Ŋ",
+      eng: "ŋ",
+      ensp: " ",
+      Eogon: "Ę",
+      eogon: "ę",
+      Eopf: "𝔼",
+      eopf: "𝕖",
+      epar: "⋕",
+      eparsl: "⧣",
+      eplus: "⩱",
+      epsi: "ε",
+      Epsilon: "Ε",
+      epsilon: "ε",
+      epsiv: "ϵ",
+      eqcirc: "≖",
+      eqcolon: "≕",
+      eqsim: "≂",
+      eqslantgtr: "⪖",
+      eqslantless: "⪕",
+      Equal: "⩵",
+      equals: "=",
+      EqualTilde: "≂",
+      equest: "≟",
+      Equilibrium: "⇌",
+      equiv: "≡",
+      equivDD: "⩸",
+      eqvparsl: "⧥",
+      erarr: "⥱",
+      erDot: "≓",
+      Escr: "ℰ",
+      escr: "ℯ",
+      esdot: "≐",
+      Esim: "⩳",
+      esim: "≂",
+      Eta: "Η",
+      eta: "η",
+      ETH: "Ð",
+      eth: "ð",
+      Euml: "Ë",
+      euml: "ë",
+      euro: "€",
+      excl: "!",
+      exist: "∃",
+      Exists: "∃",
+      expectation: "ℰ",
+      ExponentialE: "ⅇ",
+      exponentiale: "ⅇ",
+      fallingdotseq: "≒",
+      Fcy: "Ф",
+      fcy: "ф",
+      female: "♀",
+      ffilig: "ﬃ",
+      fflig: "ﬀ",
+      ffllig: "ﬄ",
+      Ffr: "𝔉",
+      ffr: "𝔣",
+      filig: "ﬁ",
+      FilledSmallSquare: "◼",
+      FilledVerySmallSquare: "▪",
+      fjlig: "fj",
+      flat: "♭",
+      fllig: "ﬂ",
+      fltns: "▱",
+      fnof: "ƒ",
+      Fopf: "𝔽",
+      fopf: "𝕗",
+      ForAll: "∀",
+      forall: "∀",
+      fork: "⋔",
+      forkv: "⫙",
+      Fouriertrf: "ℱ",
+      fpartint: "⨍",
+      frac12: "½",
+      frac13: "⅓",
+      frac14: "¼",
+      frac15: "⅕",
+      frac16: "⅙",
+      frac18: "⅛",
+      frac23: "⅔",
+      frac25: "⅖",
+      frac34: "¾",
+      frac35: "⅗",
+      frac38: "⅜",
+      frac45: "⅘",
+      frac56: "⅚",
+      frac58: "⅝",
+      frac78: "⅞",
+      frasl: "⁄",
+      frown: "⌢",
+      Fscr: "ℱ",
+      fscr: "𝒻",
+      gacute: "ǵ",
+      Gamma: "Γ",
+      gamma: "γ",
+      Gammad: "Ϝ",
+      gammad: "ϝ",
+      gap: "⪆",
+      Gbreve: "Ğ",
+      gbreve: "ğ",
+      Gcedil: "Ģ",
+      Gcirc: "Ĝ",
+      gcirc: "ĝ",
+      Gcy: "Г",
+      gcy: "г",
+      Gdot: "Ġ",
+      gdot: "ġ",
+      gE: "≧",
+      ge: "≥",
+      gEl: "⪌",
+      gel: "⋛",
+      geq: "≥",
+      geqq: "≧",
+      geqslant: "⩾",
+      ges: "⩾",
+      gescc: "⪩",
+      gesdot: "⪀",
+      gesdoto: "⪂",
+      gesdotol: "⪄",
+      gesl: "⋛︀",
+      gesles: "⪔",
+      Gfr: "𝔊",
+      gfr: "𝔤",
+      Gg: "⋙",
+      gg: "≫",
+      ggg: "⋙",
+      gimel: "ℷ",
+      GJcy: "Ѓ",
+      gjcy: "ѓ",
+      gl: "≷",
+      gla: "⪥",
+      glE: "⪒",
+      glj: "⪤",
+      gnap: "⪊",
+      gnapprox: "⪊",
+      gnE: "≩",
+      gne: "⪈",
+      gneq: "⪈",
+      gneqq: "≩",
+      gnsim: "⋧",
+      Gopf: "𝔾",
+      gopf: "𝕘",
+      grave: "`",
+      GreaterEqual: "≥",
+      GreaterEqualLess: "⋛",
+      GreaterFullEqual: "≧",
+      GreaterGreater: "⪢",
+      GreaterLess: "≷",
+      GreaterSlantEqual: "⩾",
+      GreaterTilde: "≳",
+      Gscr: "𝒢",
+      gscr: "ℊ",
+      gsim: "≳",
+      gsime: "⪎",
+      gsiml: "⪐",
+      Gt: "≫",
+      GT: ">",
+      gt: ">",
+      gtcc: "⪧",
+      gtcir: "⩺",
+      gtdot: "⋗",
+      gtlPar: "⦕",
+      gtquest: "⩼",
+      gtrapprox: "⪆",
+      gtrarr: "⥸",
+      gtrdot: "⋗",
+      gtreqless: "⋛",
+      gtreqqless: "⪌",
+      gtrless: "≷",
+      gtrsim: "≳",
+      gvertneqq: "≩︀",
+      gvnE: "≩︀",
+      Hacek: "ˇ",
+      hairsp: " ",
+      half: "½",
+      hamilt: "ℋ",
+      HARDcy: "Ъ",
+      hardcy: "ъ",
+      hArr: "⇔",
+      harr: "↔",
+      harrcir: "⥈",
+      harrw: "↭",
+      Hat: "^",
+      hbar: "ℏ",
+      Hcirc: "Ĥ",
+      hcirc: "ĥ",
+      hearts: "♥",
+      heartsuit: "♥",
+      hellip: "…",
+      hercon: "⊹",
+      Hfr: "ℌ",
+      hfr: "𝔥",
+      HilbertSpace: "ℋ",
+      hksearow: "⤥",
+      hkswarow: "⤦",
+      hoarr: "⇿",
+      homtht: "∻",
+      hookleftarrow: "↩",
+      hookrightarrow: "↪",
+      Hopf: "ℍ",
+      hopf: "𝕙",
+      horbar: "―",
+      HorizontalLine: "─",
+      Hscr: "ℋ",
+      hscr: "𝒽",
+      hslash: "ℏ",
+      Hstrok: "Ħ",
+      hstrok: "ħ",
+      HumpDownHump: "≎",
+      HumpEqual: "≏",
+      hybull: "⁃",
+      hyphen: "‐",
+      Iacute: "Í",
+      iacute: "í",
+      ic: "⁣",
+      Icirc: "Î",
+      icirc: "î",
+      Icy: "И",
+      icy: "и",
+      Idot: "İ",
+      IEcy: "Е",
+      iecy: "е",
+      iexcl: "¡",
+      iff: "⇔",
+      Ifr: "ℑ",
+      ifr: "𝔦",
+      Igrave: "Ì",
+      igrave: "ì",
+      ii: "ⅈ",
+      iiiint: "⨌",
+      iiint: "∭",
+      iinfin: "⧜",
+      iiota: "℩",
+      IJlig: "Ĳ",
+      ijlig: "ĳ",
+      Im: "ℑ",
+      Imacr: "Ī",
+      imacr: "ī",
+      image: "ℑ",
+      ImaginaryI: "ⅈ",
+      imagline: "ℐ",
+      imagpart: "ℑ",
+      imath: "ı",
+      imof: "⊷",
+      imped: "Ƶ",
+      Implies: "⇒",
+      in: "∈",
+      incare: "℅",
+      infin: "∞",
+      infintie: "⧝",
+      inodot: "ı",
+      Int: "∬",
+      int: "∫",
+      intcal: "⊺",
+      integers: "ℤ",
+      Integral: "∫",
+      intercal: "⊺",
+      Intersection: "⋂",
+      intlarhk: "⨗",
+      intprod: "⨼",
+      InvisibleComma: "⁣",
+      InvisibleTimes: "⁢",
+      IOcy: "Ё",
+      iocy: "ё",
+      Iogon: "Į",
+      iogon: "į",
+      Iopf: "𝕀",
+      iopf: "𝕚",
+      Iota: "Ι",
+      iota: "ι",
+      iprod: "⨼",
+      iquest: "¿",
+      Iscr: "ℐ",
+      iscr: "𝒾",
+      isin: "∈",
+      isindot: "⋵",
+      isinE: "⋹",
+      isins: "⋴",
+      isinsv: "⋳",
+      isinv: "∈",
+      it: "⁢",
+      Itilde: "Ĩ",
+      itilde: "ĩ",
+      Iukcy: "І",
+      iukcy: "і",
+      Iuml: "Ï",
+      iuml: "ï",
+      Jcirc: "Ĵ",
+      jcirc: "ĵ",
+      Jcy: "Й",
+      jcy: "й",
+      Jfr: "𝔍",
+      jfr: "𝔧",
+      jmath: "ȷ",
+      Jopf: "𝕁",
+      jopf: "𝕛",
+      Jscr: "𝒥",
+      jscr: "𝒿",
+      Jsercy: "Ј",
+      jsercy: "ј",
+      Jukcy: "Є",
+      jukcy: "є",
+      Kappa: "Κ",
+      kappa: "κ",
+      kappav: "ϰ",
+      Kcedil: "Ķ",
+      kcedil: "ķ",
+      Kcy: "К",
+      kcy: "к",
+      Kfr: "𝔎",
+      kfr: "𝔨",
+      kgreen: "ĸ",
+      KHcy: "Х",
+      khcy: "х",
+      KJcy: "Ќ",
+      kjcy: "ќ",
+      Kopf: "𝕂",
+      kopf: "𝕜",
+      Kscr: "𝒦",
+      kscr: "𝓀",
+      lAarr: "⇚",
+      Lacute: "Ĺ",
+      lacute: "ĺ",
+      laemptyv: "⦴",
+      lagran: "ℒ",
+      Lambda: "Λ",
+      lambda: "λ",
+      Lang: "⟪",
+      lang: "⟨",
+      langd: "⦑",
+      langle: "⟨",
+      lap: "⪅",
+      Laplacetrf: "ℒ",
+      laquo: "«",
+      Larr: "↞",
+      lArr: "⇐",
+      larr: "←",
+      larrb: "⇤",
+      larrbfs: "⤟",
+      larrfs: "⤝",
+      larrhk: "↩",
+      larrlp: "↫",
+      larrpl: "⤹",
+      larrsim: "⥳",
+      larrtl: "↢",
+      lat: "⪫",
+      lAtail: "⤛",
+      latail: "⤙",
+      late: "⪭",
+      lates: "⪭︀",
+      lBarr: "⤎",
+      lbarr: "⤌",
+      lbbrk: "❲",
+      lbrace: "{",
+      lbrack: "[",
+      lbrke: "⦋",
+      lbrksld: "⦏",
+      lbrkslu: "⦍",
+      Lcaron: "Ľ",
+      lcaron: "ľ",
+      Lcedil: "Ļ",
+      lcedil: "ļ",
+      lceil: "⌈",
+      lcub: "{",
+      Lcy: "Л",
+      lcy: "л",
+      ldca: "⤶",
+      ldquo: "“",
+      ldquor: "„",
+      ldrdhar: "⥧",
+      ldrushar: "⥋",
+      ldsh: "↲",
+      lE: "≦",
+      le: "≤",
+      LeftAngleBracket: "⟨",
+      LeftArrow: "←",
+      Leftarrow: "⇐",
+      leftarrow: "←",
+      LeftArrowBar: "⇤",
+      LeftArrowRightArrow: "⇆",
+      leftarrowtail: "↢",
+      LeftCeiling: "⌈",
+      LeftDoubleBracket: "⟦",
+      LeftDownTeeVector: "⥡",
+      LeftDownVector: "⇃",
+      LeftDownVectorBar: "⥙",
+      LeftFloor: "⌊",
+      leftharpoondown: "↽",
+      leftharpoonup: "↼",
+      leftleftarrows: "⇇",
+      LeftRightArrow: "↔",
+      Leftrightarrow: "⇔",
+      leftrightarrow: "↔",
+      leftrightarrows: "⇆",
+      leftrightharpoons: "⇋",
+      leftrightsquigarrow: "↭",
+      LeftRightVector: "⥎",
+      LeftTee: "⊣",
+      LeftTeeArrow: "↤",
+      LeftTeeVector: "⥚",
+      leftthreetimes: "⋋",
+      LeftTriangle: "⊲",
+      LeftTriangleBar: "⧏",
+      LeftTriangleEqual: "⊴",
+      LeftUpDownVector: "⥑",
+      LeftUpTeeVector: "⥠",
+      LeftUpVector: "↿",
+      LeftUpVectorBar: "⥘",
+      LeftVector: "↼",
+      LeftVectorBar: "⥒",
+      lEg: "⪋",
+      leg: "⋚",
+      leq: "≤",
+      leqq: "≦",
+      leqslant: "⩽",
+      les: "⩽",
+      lescc: "⪨",
+      lesdot: "⩿",
+      lesdoto: "⪁",
+      lesdotor: "⪃",
+      lesg: "⋚︀",
+      lesges: "⪓",
+      lessapprox: "⪅",
+      lessdot: "⋖",
+      lesseqgtr: "⋚",
+      lesseqqgtr: "⪋",
+      LessEqualGreater: "⋚",
+      LessFullEqual: "≦",
+      LessGreater: "≶",
+      lessgtr: "≶",
+      LessLess: "⪡",
+      lesssim: "≲",
+      LessSlantEqual: "⩽",
+      LessTilde: "≲",
+      lfisht: "⥼",
+      lfloor: "⌊",
+      Lfr: "𝔏",
+      lfr: "𝔩",
+      lg: "≶",
+      lgE: "⪑",
+      lHar: "⥢",
+      lhard: "↽",
+      lharu: "↼",
+      lharul: "⥪",
+      lhblk: "▄",
+      LJcy: "Љ",
+      ljcy: "љ",
+      Ll: "⋘",
+      ll: "≪",
+      llarr: "⇇",
+      llcorner: "⌞",
+      Lleftarrow: "⇚",
+      llhard: "⥫",
+      lltri: "◺",
+      Lmidot: "Ŀ",
+      lmidot: "ŀ",
+      lmoust: "⎰",
+      lmoustache: "⎰",
+      lnap: "⪉",
+      lnapprox: "⪉",
+      lnE: "≨",
+      lne: "⪇",
+      lneq: "⪇",
+      lneqq: "≨",
+      lnsim: "⋦",
+      loang: "⟬",
+      loarr: "⇽",
+      lobrk: "⟦",
+      LongLeftArrow: "⟵",
+      Longleftarrow: "⟸",
+      longleftarrow: "⟵",
+      LongLeftRightArrow: "⟷",
+      Longleftrightarrow: "⟺",
+      longleftrightarrow: "⟷",
+      longmapsto: "⟼",
+      LongRightArrow: "⟶",
+      Longrightarrow: "⟹",
+      longrightarrow: "⟶",
+      looparrowleft: "↫",
+      looparrowright: "↬",
+      lopar: "⦅",
+      Lopf: "𝕃",
+      lopf: "𝕝",
+      loplus: "⨭",
+      lotimes: "⨴",
+      lowast: "∗",
+      lowbar: "_",
+      LowerLeftArrow: "↙",
+      LowerRightArrow: "↘",
+      loz: "◊",
+      lozenge: "◊",
+      lozf: "⧫",
+      lpar: "(",
+      lparlt: "⦓",
+      lrarr: "⇆",
+      lrcorner: "⌟",
+      lrhar: "⇋",
+      lrhard: "⥭",
+      lrm: "‎",
+      lrtri: "⊿",
+      lsaquo: "‹",
+      Lscr: "ℒ",
+      lscr: "𝓁",
+      Lsh: "↰",
+      lsh: "↰",
+      lsim: "≲",
+      lsime: "⪍",
+      lsimg: "⪏",
+      lsqb: "[",
+      lsquo: "‘",
+      lsquor: "‚",
+      Lstrok: "Ł",
+      lstrok: "ł",
+      Lt: "≪",
+      LT: "<",
+      lt: "<",
+      ltcc: "⪦",
+      ltcir: "⩹",
+      ltdot: "⋖",
+      lthree: "⋋",
+      ltimes: "⋉",
+      ltlarr: "⥶",
+      ltquest: "⩻",
+      ltri: "◃",
+      ltrie: "⊴",
+      ltrif: "◂",
+      ltrPar: "⦖",
+      lurdshar: "⥊",
+      luruhar: "⥦",
+      lvertneqq: "≨︀",
+      lvnE: "≨︀",
+      macr: "¯",
+      male: "♂",
+      malt: "✠",
+      maltese: "✠",
+      Map: "⤅",
+      map: "↦",
+      mapsto: "↦",
+      mapstodown: "↧",
+      mapstoleft: "↤",
+      mapstoup: "↥",
+      marker: "▮",
+      mcomma: "⨩",
+      Mcy: "М",
+      mcy: "м",
+      mdash: "—",
+      mDDot: "∺",
+      measuredangle: "∡",
+      MediumSpace: " ",
+      Mellintrf: "ℳ",
+      Mfr: "𝔐",
+      mfr: "𝔪",
+      mho: "℧",
+      micro: "µ",
+      mid: "∣",
+      midast: "*",
+      midcir: "⫰",
+      middot: "·",
+      minus: "−",
+      minusb: "⊟",
+      minusd: "∸",
+      minusdu: "⨪",
+      MinusPlus: "∓",
+      mlcp: "⫛",
+      mldr: "…",
+      mnplus: "∓",
+      models: "⊧",
+      Mopf: "𝕄",
+      mopf: "𝕞",
+      mp: "∓",
+      Mscr: "ℳ",
+      mscr: "𝓂",
+      mstpos: "∾",
+      Mu: "Μ",
+      mu: "μ",
+      multimap: "⊸",
+      mumap: "⊸",
+      nabla: "∇",
+      Nacute: "Ń",
+      nacute: "ń",
+      nang: "∠⃒",
+      nap: "≉",
+      napE: "⩰̸",
+      napid: "≋̸",
+      napos: "ŉ",
+      napprox: "≉",
+      natur: "♮",
+      natural: "♮",
+      naturals: "ℕ",
+      nbsp: " ",
+      nbump: "≎̸",
+      nbumpe: "≏̸",
+      ncap: "⩃",
+      Ncaron: "Ň",
+      ncaron: "ň",
+      Ncedil: "Ņ",
+      ncedil: "ņ",
+      ncong: "≇",
+      ncongdot: "⩭̸",
+      ncup: "⩂",
+      Ncy: "Н",
+      ncy: "н",
+      ndash: "–",
+      ne: "≠",
+      nearhk: "⤤",
+      neArr: "⇗",
+      nearr: "↗",
+      nearrow: "↗",
+      nedot: "≐̸",
+      NegativeMediumSpace: "​",
+      NegativeThickSpace: "​",
+      NegativeThinSpace: "​",
+      NegativeVeryThinSpace: "​",
+      nequiv: "≢",
+      nesear: "⤨",
+      nesim: "≂̸",
+      NestedGreaterGreater: "≫",
+      NestedLessLess: "≪",
+      NewLine: `
+`,
+      nexist: "∄",
+      nexists: "∄",
+      Nfr: "𝔑",
+      nfr: "𝔫",
+      ngE: "≧̸",
+      nge: "≱",
+      ngeq: "≱",
+      ngeqq: "≧̸",
+      ngeqslant: "⩾̸",
+      nges: "⩾̸",
+      nGg: "⋙̸",
+      ngsim: "≵",
+      nGt: "≫⃒",
+      ngt: "≯",
+      ngtr: "≯",
+      nGtv: "≫̸",
+      nhArr: "⇎",
+      nharr: "↮",
+      nhpar: "⫲",
+      ni: "∋",
+      nis: "⋼",
+      nisd: "⋺",
+      niv: "∋",
+      NJcy: "Њ",
+      njcy: "њ",
+      nlArr: "⇍",
+      nlarr: "↚",
+      nldr: "‥",
+      nlE: "≦̸",
+      nle: "≰",
+      nLeftarrow: "⇍",
+      nleftarrow: "↚",
+      nLeftrightarrow: "⇎",
+      nleftrightarrow: "↮",
+      nleq: "≰",
+      nleqq: "≦̸",
+      nleqslant: "⩽̸",
+      nles: "⩽̸",
+      nless: "≮",
+      nLl: "⋘̸",
+      nlsim: "≴",
+      nLt: "≪⃒",
+      nlt: "≮",
+      nltri: "⋪",
+      nltrie: "⋬",
+      nLtv: "≪̸",
+      nmid: "∤",
+      NoBreak: "⁠",
+      NonBreakingSpace: " ",
+      Nopf: "ℕ",
+      nopf: "𝕟",
+      Not: "⫬",
+      not: "¬",
+      NotCongruent: "≢",
+      NotCupCap: "≭",
+      NotDoubleVerticalBar: "∦",
+      NotElement: "∉",
+      NotEqual: "≠",
+      NotEqualTilde: "≂̸",
+      NotExists: "∄",
+      NotGreater: "≯",
+      NotGreaterEqual: "≱",
+      NotGreaterFullEqual: "≧̸",
+      NotGreaterGreater: "≫̸",
+      NotGreaterLess: "≹",
+      NotGreaterSlantEqual: "⩾̸",
+      NotGreaterTilde: "≵",
+      NotHumpDownHump: "≎̸",
+      NotHumpEqual: "≏̸",
+      notin: "∉",
+      notindot: "⋵̸",
+      notinE: "⋹̸",
+      notinva: "∉",
+      notinvb: "⋷",
+      notinvc: "⋶",
+      NotLeftTriangle: "⋪",
+      NotLeftTriangleBar: "⧏̸",
+      NotLeftTriangleEqual: "⋬",
+      NotLess: "≮",
+      NotLessEqual: "≰",
+      NotLessGreater: "≸",
+      NotLessLess: "≪̸",
+      NotLessSlantEqual: "⩽̸",
+      NotLessTilde: "≴",
+      NotNestedGreaterGreater: "⪢̸",
+      NotNestedLessLess: "⪡̸",
+      notni: "∌",
+      notniva: "∌",
+      notnivb: "⋾",
+      notnivc: "⋽",
+      NotPrecedes: "⊀",
+      NotPrecedesEqual: "⪯̸",
+      NotPrecedesSlantEqual: "⋠",
+      NotReverseElement: "∌",
+      NotRightTriangle: "⋫",
+      NotRightTriangleBar: "⧐̸",
+      NotRightTriangleEqual: "⋭",
+      NotSquareSubset: "⊏̸",
+      NotSquareSubsetEqual: "⋢",
+      NotSquareSuperset: "⊐̸",
+      NotSquareSupersetEqual: "⋣",
+      NotSubset: "⊂⃒",
+      NotSubsetEqual: "⊈",
+      NotSucceeds: "⊁",
+      NotSucceedsEqual: "⪰̸",
+      NotSucceedsSlantEqual: "⋡",
+      NotSucceedsTilde: "≿̸",
+      NotSuperset: "⊃⃒",
+      NotSupersetEqual: "⊉",
+      NotTilde: "≁",
+      NotTildeEqual: "≄",
+      NotTildeFullEqual: "≇",
+      NotTildeTilde: "≉",
+      NotVerticalBar: "∤",
+      npar: "∦",
+      nparallel: "∦",
+      nparsl: "⫽⃥",
+      npart: "∂̸",
+      npolint: "⨔",
+      npr: "⊀",
+      nprcue: "⋠",
+      npre: "⪯̸",
+      nprec: "⊀",
+      npreceq: "⪯̸",
+      nrArr: "⇏",
+      nrarr: "↛",
+      nrarrc: "⤳̸",
+      nrarrw: "↝̸",
+      nRightarrow: "⇏",
+      nrightarrow: "↛",
+      nrtri: "⋫",
+      nrtrie: "⋭",
+      nsc: "⊁",
+      nsccue: "⋡",
+      nsce: "⪰̸",
+      Nscr: "𝒩",
+      nscr: "𝓃",
+      nshortmid: "∤",
+      nshortparallel: "∦",
+      nsim: "≁",
+      nsime: "≄",
+      nsimeq: "≄",
+      nsmid: "∤",
+      nspar: "∦",
+      nsqsube: "⋢",
+      nsqsupe: "⋣",
+      nsub: "⊄",
+      nsubE: "⫅̸",
+      nsube: "⊈",
+      nsubset: "⊂⃒",
+      nsubseteq: "⊈",
+      nsubseteqq: "⫅̸",
+      nsucc: "⊁",
+      nsucceq: "⪰̸",
+      nsup: "⊅",
+      nsupE: "⫆̸",
+      nsupe: "⊉",
+      nsupset: "⊃⃒",
+      nsupseteq: "⊉",
+      nsupseteqq: "⫆̸",
+      ntgl: "≹",
+      Ntilde: "Ñ",
+      ntilde: "ñ",
+      ntlg: "≸",
+      ntriangleleft: "⋪",
+      ntrianglelefteq: "⋬",
+      ntriangleright: "⋫",
+      ntrianglerighteq: "⋭",
+      Nu: "Ν",
+      nu: "ν",
+      num: "#",
+      numero: "№",
+      numsp: " ",
+      nvap: "≍⃒",
+      nVDash: "⊯",
+      nVdash: "⊮",
+      nvDash: "⊭",
+      nvdash: "⊬",
+      nvge: "≥⃒",
+      nvgt: ">⃒",
+      nvHarr: "⤄",
+      nvinfin: "⧞",
+      nvlArr: "⤂",
+      nvle: "≤⃒",
+      nvlt: "<⃒",
+      nvltrie: "⊴⃒",
+      nvrArr: "⤃",
+      nvrtrie: "⊵⃒",
+      nvsim: "∼⃒",
+      nwarhk: "⤣",
+      nwArr: "⇖",
+      nwarr: "↖",
+      nwarrow: "↖",
+      nwnear: "⤧",
+      Oacute: "Ó",
+      oacute: "ó",
+      oast: "⊛",
+      ocir: "⊚",
+      Ocirc: "Ô",
+      ocirc: "ô",
+      Ocy: "О",
+      ocy: "о",
+      odash: "⊝",
+      Odblac: "Ő",
+      odblac: "ő",
+      odiv: "⨸",
+      odot: "⊙",
+      odsold: "⦼",
+      OElig: "Œ",
+      oelig: "œ",
+      ofcir: "⦿",
+      Ofr: "𝔒",
+      ofr: "𝔬",
+      ogon: "˛",
+      Ograve: "Ò",
+      ograve: "ò",
+      ogt: "⧁",
+      ohbar: "⦵",
+      ohm: "Ω",
+      oint: "∮",
+      olarr: "↺",
+      olcir: "⦾",
+      olcross: "⦻",
+      oline: "‾",
+      olt: "⧀",
+      Omacr: "Ō",
+      omacr: "ō",
+      Omega: "Ω",
+      omega: "ω",
+      Omicron: "Ο",
+      omicron: "ο",
+      omid: "⦶",
+      ominus: "⊖",
+      Oopf: "𝕆",
+      oopf: "𝕠",
+      opar: "⦷",
+      OpenCurlyDoubleQuote: "“",
+      OpenCurlyQuote: "‘",
+      operp: "⦹",
+      oplus: "⊕",
+      Or: "⩔",
+      or: "∨",
+      orarr: "↻",
+      ord: "⩝",
+      order: "ℴ",
+      orderof: "ℴ",
+      ordf: "ª",
+      ordm: "º",
+      origof: "⊶",
+      oror: "⩖",
+      orslope: "⩗",
+      orv: "⩛",
+      oS: "Ⓢ",
+      Oscr: "𝒪",
+      oscr: "ℴ",
+      Oslash: "Ø",
+      oslash: "ø",
+      osol: "⊘",
+      Otilde: "Õ",
+      otilde: "õ",
+      Otimes: "⨷",
+      otimes: "⊗",
+      otimesas: "⨶",
+      Ouml: "Ö",
+      ouml: "ö",
+      ovbar: "⌽",
+      OverBar: "‾",
+      OverBrace: "⏞",
+      OverBracket: "⎴",
+      OverParenthesis: "⏜",
+      par: "∥",
+      para: "¶",
+      parallel: "∥",
+      parsim: "⫳",
+      parsl: "⫽",
+      part: "∂",
+      PartialD: "∂",
+      Pcy: "П",
+      pcy: "п",
+      percnt: "%",
+      period: ".",
+      permil: "‰",
+      perp: "⊥",
+      pertenk: "‱",
+      Pfr: "𝔓",
+      pfr: "𝔭",
+      Phi: "Φ",
+      phi: "φ",
+      phiv: "ϕ",
+      phmmat: "ℳ",
+      phone: "☎",
+      Pi: "Π",
+      pi: "π",
+      pitchfork: "⋔",
+      piv: "ϖ",
+      planck: "ℏ",
+      planckh: "ℎ",
+      plankv: "ℏ",
+      plus: "+",
+      plusacir: "⨣",
+      plusb: "⊞",
+      pluscir: "⨢",
+      plusdo: "∔",
+      plusdu: "⨥",
+      pluse: "⩲",
+      PlusMinus: "±",
+      plusmn: "±",
+      plussim: "⨦",
+      plustwo: "⨧",
+      pm: "±",
+      Poincareplane: "ℌ",
+      pointint: "⨕",
+      Popf: "ℙ",
+      popf: "𝕡",
+      pound: "£",
+      Pr: "⪻",
+      pr: "≺",
+      prap: "⪷",
+      prcue: "≼",
+      prE: "⪳",
+      pre: "⪯",
+      prec: "≺",
+      precapprox: "⪷",
+      preccurlyeq: "≼",
+      Precedes: "≺",
+      PrecedesEqual: "⪯",
+      PrecedesSlantEqual: "≼",
+      PrecedesTilde: "≾",
+      preceq: "⪯",
+      precnapprox: "⪹",
+      precneqq: "⪵",
+      precnsim: "⋨",
+      precsim: "≾",
+      Prime: "″",
+      prime: "′",
+      primes: "ℙ",
+      prnap: "⪹",
+      prnE: "⪵",
+      prnsim: "⋨",
+      prod: "∏",
+      Product: "∏",
+      profalar: "⌮",
+      profline: "⌒",
+      profsurf: "⌓",
+      prop: "∝",
+      Proportion: "∷",
+      Proportional: "∝",
+      propto: "∝",
+      prsim: "≾",
+      prurel: "⊰",
+      Pscr: "𝒫",
+      pscr: "𝓅",
+      Psi: "Ψ",
+      psi: "ψ",
+      puncsp: " ",
+      Qfr: "𝔔",
+      qfr: "𝔮",
+      qint: "⨌",
+      Qopf: "ℚ",
+      qopf: "𝕢",
+      qprime: "⁗",
+      Qscr: "𝒬",
+      qscr: "𝓆",
+      quaternions: "ℍ",
+      quatint: "⨖",
+      quest: "?",
+      questeq: "≟",
+      QUOT: '"',
+      quot: '"',
+      rAarr: "⇛",
+      race: "∽̱",
+      Racute: "Ŕ",
+      racute: "ŕ",
+      radic: "√",
+      raemptyv: "⦳",
+      Rang: "⟫",
+      rang: "⟩",
+      rangd: "⦒",
+      range: "⦥",
+      rangle: "⟩",
+      raquo: "»",
+      Rarr: "↠",
+      rArr: "⇒",
+      rarr: "→",
+      rarrap: "⥵",
+      rarrb: "⇥",
+      rarrbfs: "⤠",
+      rarrc: "⤳",
+      rarrfs: "⤞",
+      rarrhk: "↪",
+      rarrlp: "↬",
+      rarrpl: "⥅",
+      rarrsim: "⥴",
+      Rarrtl: "⤖",
+      rarrtl: "↣",
+      rarrw: "↝",
+      rAtail: "⤜",
+      ratail: "⤚",
+      ratio: "∶",
+      rationals: "ℚ",
+      RBarr: "⤐",
+      rBarr: "⤏",
+      rbarr: "⤍",
+      rbbrk: "❳",
+      rbrace: "}",
+      rbrack: "]",
+      rbrke: "⦌",
+      rbrksld: "⦎",
+      rbrkslu: "⦐",
+      Rcaron: "Ř",
+      rcaron: "ř",
+      Rcedil: "Ŗ",
+      rcedil: "ŗ",
+      rceil: "⌉",
+      rcub: "}",
+      Rcy: "Р",
+      rcy: "р",
+      rdca: "⤷",
+      rdldhar: "⥩",
+      rdquo: "”",
+      rdquor: "”",
+      rdsh: "↳",
+      Re: "ℜ",
+      real: "ℜ",
+      realine: "ℛ",
+      realpart: "ℜ",
+      reals: "ℝ",
+      rect: "▭",
+      REG: "®",
+      reg: "®",
+      ReverseElement: "∋",
+      ReverseEquilibrium: "⇋",
+      ReverseUpEquilibrium: "⥯",
+      rfisht: "⥽",
+      rfloor: "⌋",
+      Rfr: "ℜ",
+      rfr: "𝔯",
+      rHar: "⥤",
+      rhard: "⇁",
+      rharu: "⇀",
+      rharul: "⥬",
+      Rho: "Ρ",
+      rho: "ρ",
+      rhov: "ϱ",
+      RightAngleBracket: "⟩",
+      RightArrow: "→",
+      Rightarrow: "⇒",
+      rightarrow: "→",
+      RightArrowBar: "⇥",
+      RightArrowLeftArrow: "⇄",
+      rightarrowtail: "↣",
+      RightCeiling: "⌉",
+      RightDoubleBracket: "⟧",
+      RightDownTeeVector: "⥝",
+      RightDownVector: "⇂",
+      RightDownVectorBar: "⥕",
+      RightFloor: "⌋",
+      rightharpoondown: "⇁",
+      rightharpoonup: "⇀",
+      rightleftarrows: "⇄",
+      rightleftharpoons: "⇌",
+      rightrightarrows: "⇉",
+      rightsquigarrow: "↝",
+      RightTee: "⊢",
+      RightTeeArrow: "↦",
+      RightTeeVector: "⥛",
+      rightthreetimes: "⋌",
+      RightTriangle: "⊳",
+      RightTriangleBar: "⧐",
+      RightTriangleEqual: "⊵",
+      RightUpDownVector: "⥏",
+      RightUpTeeVector: "⥜",
+      RightUpVector: "↾",
+      RightUpVectorBar: "⥔",
+      RightVector: "⇀",
+      RightVectorBar: "⥓",
+      ring: "˚",
+      risingdotseq: "≓",
+      rlarr: "⇄",
+      rlhar: "⇌",
+      rlm: "‏",
+      rmoust: "⎱",
+      rmoustache: "⎱",
+      rnmid: "⫮",
+      roang: "⟭",
+      roarr: "⇾",
+      robrk: "⟧",
+      ropar: "⦆",
+      Ropf: "ℝ",
+      ropf: "𝕣",
+      roplus: "⨮",
+      rotimes: "⨵",
+      RoundImplies: "⥰",
+      rpar: ")",
+      rpargt: "⦔",
+      rppolint: "⨒",
+      rrarr: "⇉",
+      Rrightarrow: "⇛",
+      rsaquo: "›",
+      Rscr: "ℛ",
+      rscr: "𝓇",
+      Rsh: "↱",
+      rsh: "↱",
+      rsqb: "]",
+      rsquo: "’",
+      rsquor: "’",
+      rthree: "⋌",
+      rtimes: "⋊",
+      rtri: "▹",
+      rtrie: "⊵",
+      rtrif: "▸",
+      rtriltri: "⧎",
+      RuleDelayed: "⧴",
+      ruluhar: "⥨",
+      rx: "℞",
+      Sacute: "Ś",
+      sacute: "ś",
+      sbquo: "‚",
+      Sc: "⪼",
+      sc: "≻",
+      scap: "⪸",
+      Scaron: "Š",
+      scaron: "š",
+      sccue: "≽",
+      scE: "⪴",
+      sce: "⪰",
+      Scedil: "Ş",
+      scedil: "ş",
+      Scirc: "Ŝ",
+      scirc: "ŝ",
+      scnap: "⪺",
+      scnE: "⪶",
+      scnsim: "⋩",
+      scpolint: "⨓",
+      scsim: "≿",
+      Scy: "С",
+      scy: "с",
+      sdot: "⋅",
+      sdotb: "⊡",
+      sdote: "⩦",
+      searhk: "⤥",
+      seArr: "⇘",
+      searr: "↘",
+      searrow: "↘",
+      sect: "§",
+      semi: ";",
+      seswar: "⤩",
+      setminus: "∖",
+      setmn: "∖",
+      sext: "✶",
+      Sfr: "𝔖",
+      sfr: "𝔰",
+      sfrown: "⌢",
+      sharp: "♯",
+      SHCHcy: "Щ",
+      shchcy: "щ",
+      SHcy: "Ш",
+      shcy: "ш",
+      ShortDownArrow: "↓",
+      ShortLeftArrow: "←",
+      shortmid: "∣",
+      shortparallel: "∥",
+      ShortRightArrow: "→",
+      ShortUpArrow: "↑",
+      shy: "­",
+      Sigma: "Σ",
+      sigma: "σ",
+      sigmaf: "ς",
+      sigmav: "ς",
+      sim: "∼",
+      simdot: "⩪",
+      sime: "≃",
+      simeq: "≃",
+      simg: "⪞",
+      simgE: "⪠",
+      siml: "⪝",
+      simlE: "⪟",
+      simne: "≆",
+      simplus: "⨤",
+      simrarr: "⥲",
+      slarr: "←",
+      SmallCircle: "∘",
+      smallsetminus: "∖",
+      smashp: "⨳",
+      smeparsl: "⧤",
+      smid: "∣",
+      smile: "⌣",
+      smt: "⪪",
+      smte: "⪬",
+      smtes: "⪬︀",
+      SOFTcy: "Ь",
+      softcy: "ь",
+      sol: "/",
+      solb: "⧄",
+      solbar: "⌿",
+      Sopf: "𝕊",
+      sopf: "𝕤",
+      spades: "♠",
+      spadesuit: "♠",
+      spar: "∥",
+      sqcap: "⊓",
+      sqcaps: "⊓︀",
+      sqcup: "⊔",
+      sqcups: "⊔︀",
+      Sqrt: "√",
+      sqsub: "⊏",
+      sqsube: "⊑",
+      sqsubset: "⊏",
+      sqsubseteq: "⊑",
+      sqsup: "⊐",
+      sqsupe: "⊒",
+      sqsupset: "⊐",
+      sqsupseteq: "⊒",
+      squ: "□",
+      Square: "□",
+      square: "□",
+      SquareIntersection: "⊓",
+      SquareSubset: "⊏",
+      SquareSubsetEqual: "⊑",
+      SquareSuperset: "⊐",
+      SquareSupersetEqual: "⊒",
+      SquareUnion: "⊔",
+      squarf: "▪",
+      squf: "▪",
+      srarr: "→",
+      Sscr: "𝒮",
+      sscr: "𝓈",
+      ssetmn: "∖",
+      ssmile: "⌣",
+      sstarf: "⋆",
+      Star: "⋆",
+      star: "☆",
+      starf: "★",
+      straightepsilon: "ϵ",
+      straightphi: "ϕ",
+      strns: "¯",
+      Sub: "⋐",
+      sub: "⊂",
+      subdot: "⪽",
+      subE: "⫅",
+      sube: "⊆",
+      subedot: "⫃",
+      submult: "⫁",
+      subnE: "⫋",
+      subne: "⊊",
+      subplus: "⪿",
+      subrarr: "⥹",
+      Subset: "⋐",
+      subset: "⊂",
+      subseteq: "⊆",
+      subseteqq: "⫅",
+      SubsetEqual: "⊆",
+      subsetneq: "⊊",
+      subsetneqq: "⫋",
+      subsim: "⫇",
+      subsub: "⫕",
+      subsup: "⫓",
+      succ: "≻",
+      succapprox: "⪸",
+      succcurlyeq: "≽",
+      Succeeds: "≻",
+      SucceedsEqual: "⪰",
+      SucceedsSlantEqual: "≽",
+      SucceedsTilde: "≿",
+      succeq: "⪰",
+      succnapprox: "⪺",
+      succneqq: "⪶",
+      succnsim: "⋩",
+      succsim: "≿",
+      SuchThat: "∋",
+      Sum: "∑",
+      sum: "∑",
+      sung: "♪",
+      Sup: "⋑",
+      sup: "⊃",
+      sup1: "¹",
+      sup2: "²",
+      sup3: "³",
+      supdot: "⪾",
+      supdsub: "⫘",
+      supE: "⫆",
+      supe: "⊇",
+      supedot: "⫄",
+      Superset: "⊃",
+      SupersetEqual: "⊇",
+      suphsol: "⟉",
+      suphsub: "⫗",
+      suplarr: "⥻",
+      supmult: "⫂",
+      supnE: "⫌",
+      supne: "⊋",
+      supplus: "⫀",
+      Supset: "⋑",
+      supset: "⊃",
+      supseteq: "⊇",
+      supseteqq: "⫆",
+      supsetneq: "⊋",
+      supsetneqq: "⫌",
+      supsim: "⫈",
+      supsub: "⫔",
+      supsup: "⫖",
+      swarhk: "⤦",
+      swArr: "⇙",
+      swarr: "↙",
+      swarrow: "↙",
+      swnwar: "⤪",
+      szlig: "ß",
+      Tab: "	",
+      target: "⌖",
+      Tau: "Τ",
+      tau: "τ",
+      tbrk: "⎴",
+      Tcaron: "Ť",
+      tcaron: "ť",
+      Tcedil: "Ţ",
+      tcedil: "ţ",
+      Tcy: "Т",
+      tcy: "т",
+      tdot: "⃛",
+      telrec: "⌕",
+      Tfr: "𝔗",
+      tfr: "𝔱",
+      there4: "∴",
+      Therefore: "∴",
+      therefore: "∴",
+      Theta: "Θ",
+      theta: "θ",
+      thetasym: "ϑ",
+      thetav: "ϑ",
+      thickapprox: "≈",
+      thicksim: "∼",
+      ThickSpace: "  ",
+      thinsp: " ",
+      ThinSpace: " ",
+      thkap: "≈",
+      thksim: "∼",
+      THORN: "Þ",
+      thorn: "þ",
+      Tilde: "∼",
+      tilde: "˜",
+      TildeEqual: "≃",
+      TildeFullEqual: "≅",
+      TildeTilde: "≈",
+      times: "×",
+      timesb: "⊠",
+      timesbar: "⨱",
+      timesd: "⨰",
+      tint: "∭",
+      toea: "⤨",
+      top: "⊤",
+      topbot: "⌶",
+      topcir: "⫱",
+      Topf: "𝕋",
+      topf: "𝕥",
+      topfork: "⫚",
+      tosa: "⤩",
+      tprime: "‴",
+      TRADE: "™",
+      trade: "™",
+      triangle: "▵",
+      triangledown: "▿",
+      triangleleft: "◃",
+      trianglelefteq: "⊴",
+      triangleq: "≜",
+      triangleright: "▹",
+      trianglerighteq: "⊵",
+      tridot: "◬",
+      trie: "≜",
+      triminus: "⨺",
+      TripleDot: "⃛",
+      triplus: "⨹",
+      trisb: "⧍",
+      tritime: "⨻",
+      trpezium: "⏢",
+      Tscr: "𝒯",
+      tscr: "𝓉",
+      TScy: "Ц",
+      tscy: "ц",
+      TSHcy: "Ћ",
+      tshcy: "ћ",
+      Tstrok: "Ŧ",
+      tstrok: "ŧ",
+      twixt: "≬",
+      twoheadleftarrow: "↞",
+      twoheadrightarrow: "↠",
+      Uacute: "Ú",
+      uacute: "ú",
+      Uarr: "↟",
+      uArr: "⇑",
+      uarr: "↑",
+      Uarrocir: "⥉",
+      Ubrcy: "Ў",
+      ubrcy: "ў",
+      Ubreve: "Ŭ",
+      ubreve: "ŭ",
+      Ucirc: "Û",
+      ucirc: "û",
+      Ucy: "У",
+      ucy: "у",
+      udarr: "⇅",
+      Udblac: "Ű",
+      udblac: "ű",
+      udhar: "⥮",
+      ufisht: "⥾",
+      Ufr: "𝔘",
+      ufr: "𝔲",
+      Ugrave: "Ù",
+      ugrave: "ù",
+      uHar: "⥣",
+      uharl: "↿",
+      uharr: "↾",
+      uhblk: "▀",
+      ulcorn: "⌜",
+      ulcorner: "⌜",
+      ulcrop: "⌏",
+      ultri: "◸",
+      Umacr: "Ū",
+      umacr: "ū",
+      uml: "¨",
+      UnderBar: "_",
+      UnderBrace: "⏟",
+      UnderBracket: "⎵",
+      UnderParenthesis: "⏝",
+      Union: "⋃",
+      UnionPlus: "⊎",
+      Uogon: "Ų",
+      uogon: "ų",
+      Uopf: "𝕌",
+      uopf: "𝕦",
+      UpArrow: "↑",
+      Uparrow: "⇑",
+      uparrow: "↑",
+      UpArrowBar: "⤒",
+      UpArrowDownArrow: "⇅",
+      UpDownArrow: "↕",
+      Updownarrow: "⇕",
+      updownarrow: "↕",
+      UpEquilibrium: "⥮",
+      upharpoonleft: "↿",
+      upharpoonright: "↾",
+      uplus: "⊎",
+      UpperLeftArrow: "↖",
+      UpperRightArrow: "↗",
+      Upsi: "ϒ",
+      upsi: "υ",
+      upsih: "ϒ",
+      Upsilon: "Υ",
+      upsilon: "υ",
+      UpTee: "⊥",
+      UpTeeArrow: "↥",
+      upuparrows: "⇈",
+      urcorn: "⌝",
+      urcorner: "⌝",
+      urcrop: "⌎",
+      Uring: "Ů",
+      uring: "ů",
+      urtri: "◹",
+      Uscr: "𝒰",
+      uscr: "𝓊",
+      utdot: "⋰",
+      Utilde: "Ũ",
+      utilde: "ũ",
+      utri: "▵",
+      utrif: "▴",
+      uuarr: "⇈",
+      Uuml: "Ü",
+      uuml: "ü",
+      uwangle: "⦧",
+      vangrt: "⦜",
+      varepsilon: "ϵ",
+      varkappa: "ϰ",
+      varnothing: "∅",
+      varphi: "ϕ",
+      varpi: "ϖ",
+      varpropto: "∝",
+      vArr: "⇕",
+      varr: "↕",
+      varrho: "ϱ",
+      varsigma: "ς",
+      varsubsetneq: "⊊︀",
+      varsubsetneqq: "⫋︀",
+      varsupsetneq: "⊋︀",
+      varsupsetneqq: "⫌︀",
+      vartheta: "ϑ",
+      vartriangleleft: "⊲",
+      vartriangleright: "⊳",
+      Vbar: "⫫",
+      vBar: "⫨",
+      vBarv: "⫩",
+      Vcy: "В",
+      vcy: "в",
+      VDash: "⊫",
+      Vdash: "⊩",
+      vDash: "⊨",
+      vdash: "⊢",
+      Vdashl: "⫦",
+      Vee: "⋁",
+      vee: "∨",
+      veebar: "⊻",
+      veeeq: "≚",
+      vellip: "⋮",
+      Verbar: "‖",
+      verbar: "|",
+      Vert: "‖",
+      vert: "|",
+      VerticalBar: "∣",
+      VerticalLine: "|",
+      VerticalSeparator: "❘",
+      VerticalTilde: "≀",
+      VeryThinSpace: " ",
+      Vfr: "𝔙",
+      vfr: "𝔳",
+      vltri: "⊲",
+      vnsub: "⊂⃒",
+      vnsup: "⊃⃒",
+      Vopf: "𝕍",
+      vopf: "𝕧",
+      vprop: "∝",
+      vrtri: "⊳",
+      Vscr: "𝒱",
+      vscr: "𝓋",
+      vsubnE: "⫋︀",
+      vsubne: "⊊︀",
+      vsupnE: "⫌︀",
+      vsupne: "⊋︀",
+      Vvdash: "⊪",
+      vzigzag: "⦚",
+      Wcirc: "Ŵ",
+      wcirc: "ŵ",
+      wedbar: "⩟",
+      Wedge: "⋀",
+      wedge: "∧",
+      wedgeq: "≙",
+      weierp: "℘",
+      Wfr: "𝔚",
+      wfr: "𝔴",
+      Wopf: "𝕎",
+      wopf: "𝕨",
+      wp: "℘",
+      wr: "≀",
+      wreath: "≀",
+      Wscr: "𝒲",
+      wscr: "𝓌",
+      xcap: "⋂",
+      xcirc: "◯",
+      xcup: "⋃",
+      xdtri: "▽",
+      Xfr: "𝔛",
+      xfr: "𝔵",
+      xhArr: "⟺",
+      xharr: "⟷",
+      Xi: "Ξ",
+      xi: "ξ",
+      xlArr: "⟸",
+      xlarr: "⟵",
+      xmap: "⟼",
+      xnis: "⋻",
+      xodot: "⨀",
+      Xopf: "𝕏",
+      xopf: "𝕩",
+      xoplus: "⨁",
+      xotime: "⨂",
+      xrArr: "⟹",
+      xrarr: "⟶",
+      Xscr: "𝒳",
+      xscr: "𝓍",
+      xsqcup: "⨆",
+      xuplus: "⨄",
+      xutri: "△",
+      xvee: "⋁",
+      xwedge: "⋀",
+      Yacute: "Ý",
+      yacute: "ý",
+      YAcy: "Я",
+      yacy: "я",
+      Ycirc: "Ŷ",
+      ycirc: "ŷ",
+      Ycy: "Ы",
+      ycy: "ы",
+      yen: "¥",
+      Yfr: "𝔜",
+      yfr: "𝔶",
+      YIcy: "Ї",
+      yicy: "ї",
+      Yopf: "𝕐",
+      yopf: "𝕪",
+      Yscr: "𝒴",
+      yscr: "𝓎",
+      YUcy: "Ю",
+      yucy: "ю",
+      Yuml: "Ÿ",
+      yuml: "ÿ",
+      Zacute: "Ź",
+      zacute: "ź",
+      Zcaron: "Ž",
+      zcaron: "ž",
+      Zcy: "З",
+      zcy: "з",
+      Zdot: "Ż",
+      zdot: "ż",
+      zeetrf: "ℨ",
+      ZeroWidthSpace: "​",
+      Zeta: "Ζ",
+      zeta: "ζ",
+      Zfr: "ℨ",
+      zfr: "𝔷",
+      ZHcy: "Ж",
+      zhcy: "ж",
+      zigrarr: "⇝",
+      Zopf: "ℤ",
+      zopf: "𝕫",
+      Zscr: "𝒵",
+      zscr: "𝓏",
+      zwj: "‍",
+      zwnj: "‌"
+    }), e.entityMap = e.HTML_ENTITIES;
+  })(Zn)), Zn;
+}
+var Nn = {}, bo;
+function eA() {
+  if (bo) return Nn;
+  bo = 1;
+  var e = dn().NAMESPACE, t = dn().tagNamePattern, r = 0, n = 1, i = 2, s = 3, o = 4, u = 5, a = 6, c = 7;
+  function A(v, B) {
+    this.message = v, this.locator = B, Error.captureStackTrace && Error.captureStackTrace(this, A);
+  }
+  A.prototype = new Error(), A.prototype.name = A.name;
+  function d() {
+  }
+  d.prototype = {
+    parse: function(v, B, N) {
+      var ee = this.domBuilder;
+      ee.startDocument(), x(B, B = {}), p(
+        v,
+        B,
+        N,
+        ee,
+        this.errorHandler
+      ), ee.endDocument();
+    }
+  };
+  function p(v, B, N, ee, Ae) {
+    function be(ke) {
+      if (ke > 65535) {
+        ke -= 65536;
+        var ft = 55296 + (ke >> 10), Wt = 56320 + (ke & 1023);
+        return String.fromCharCode(ft, Wt);
+      } else
+        return String.fromCharCode(ke);
+    }
+    function X(ke) {
+      var ft = ke.slice(1, -1);
+      return Object.hasOwnProperty.call(N, ft) ? N[ft] : ft.charAt(0) === "#" ? be(parseInt(ft.substr(1).replace("x", "0x"))) : (Ae.error("entity not found:" + ke), ke);
+    }
+    function le(ke) {
+      if (ke > ct) {
+        var ft = v.substring(ct, ke).replace(/&#?\w+;/g, X);
+        Ue && J(ct), ee.characters(ft, 0, ke - ct), ct = ke;
+      }
+    }
+    function J(ke, ft) {
+      for (; ke >= ge && (ft = Ge.exec(v)); )
+        ie = ft.index, ge = ie + ft[0].length, Ue.lineNumber++;
+      Ue.columnNumber = ke - ie + 1;
+    }
+    for (var ie = 0, ge = 0, Ge = /.*(?:\r\n?|\n)|.*$/g, Ue = ee.locator, mt = [{ currentNSMap: B }], wr = {}, ct = 0; ; ) {
+      try {
+        var Ze = v.indexOf("<", ct);
+        if (Ze < 0) {
+          if (!v.substr(ct).match(/^\s*$/)) {
+            var Ir = ee.doc, S = Ir.createTextNode(v.substr(ct));
+            Ir.appendChild(S), ee.currentElement = S;
+          }
+          return;
+        }
+        switch (Ze > ct && le(Ze), v.charAt(Ze + 1)) {
+          case "/":
+            var et = v.indexOf(">", Ze + 3), se = v.substring(Ze + 2, et).replace(/^([\s\S]*?[^ \t\n\r])?[ \t\n\r]*$/, "$1"), Nt = mt.pop();
+            et < 0 ? (se = v.substring(Ze + 2).replace(/[\s<].*/, ""), Ae.error("end tag name: " + se + " is not complete:" + Nt.tagName), et = Ze + 1 + se.length) : se.match(/\s</) ? (se = se.replace(/[\s<].*/, ""), Ae.error("end tag name: " + se + " maybe not complete"), et = Ze + 1 + se.length) : /[ \t\n\r]/.test(se) && t.test(se.split(/[ \t\n\r]/)[0]) && Ae.error('end tag name is followed by whitespace and trailing content: "' + se + '"');
+            var $t = Nt.localNSMap, He = Nt.tagName == se, ze = He || Nt.tagName && Nt.tagName.toLowerCase() == se.toLowerCase();
+            if (ze) {
+              if (ee.endElement(Nt.uri, Nt.localName, se), $t)
+                for (var _r in $t)
+                  Object.prototype.hasOwnProperty.call($t, _r) && ee.endPrefixMapping(_r);
+              He || Ae.fatalError("end tag name: " + se + " is not match the current start tagName:" + Nt.tagName);
+            } else
+              mt.push(Nt);
+            et++;
+            break;
+          // end elment
+          case "?":
+            Ue && J(Ze), et = $(v, Ze, ee);
+            break;
+          case "!":
+            Ue && J(Ze), et = M(v, Ze, ee, Ae);
+            break;
+          default:
+            Ue && J(Ze);
+            var At = new ne(), Gt = mt[mt.length - 1].currentNSMap, et = _(v, Ze, At, Gt, X, Ae), Pr = At.length;
+            if (!At.closed && k(v, et, At.tagName, wr) && (At.closed = !0, N.nbsp || Ae.warning("unclosed xml attribute")), Ue && Pr) {
+              for (var rn = w(Ue, {}), Ct = 0; Ct < Pr; Ct++) {
+                var lt = At[Ct];
+                J(lt.offset), lt.locator = w(Ue, {});
+              }
+              ee.locator = rn, R(At, ee, Gt) && mt.push(At), ee.locator = Ue;
+            } else
+              R(At, ee, Gt) && mt.push(At);
+            e.isHTML(At.uri) && !At.closed ? et = I(v, et, At.tagName, X, ee) : et++;
+        }
+      } catch (ke) {
+        if (ke instanceof A)
+          throw ke;
+        Ae.error("element parse error: " + ke), et = -1;
+      }
+      et > ct ? ct = et : le(Math.max(Ze, ct) + 1);
+    }
+  }
+  function w(v, B) {
+    return B.lineNumber = v.lineNumber, B.columnNumber = v.columnNumber, B;
+  }
+  function _(v, B, N, ee, Ae, be) {
+    function X(Ue, mt, wr) {
+      N.attributeNames.hasOwnProperty(Ue) && be.fatalError("Attribute " + Ue + " redefined"), N.addValue(
+        Ue,
+        // @see https://www.w3.org/TR/xml/#AVNormalize
+        // since the xmldom sax parser does not "interpret" DTD the following is not implemented:
+        // - recursive replacement of (DTD) entity references
+        // - trimming and collapsing multiple spaces into a single one for attributes that are not of type CDATA
+        mt.replace(/[\t\n\r]/g, " ").replace(/&#?\w+;/g, Ae),
+        wr
+      );
+    }
+    for (var le, J, ie = ++B, ge = r; ; ) {
+      var Ge = v.charAt(ie);
+      if (ge === r && Ge === "<")
+        throw new Error("unexpected < in tag name: " + v.slice(B, ie));
+      switch (Ge) {
+        case "=":
+          if (ge === n)
+            le = v.slice(B, ie), ge = s;
+          else if (ge === i)
+            ge = s;
+          else
+            throw new Error("attribute equal must after attrName");
+          break;
+        case "'":
+        case '"':
+          if (ge === s || ge === n)
+            if (ge === n && (be.warning('attribute value must after "="'), le = v.slice(B, ie)), B = ie + 1, ie = v.indexOf(Ge, B), ie > 0)
+              J = v.slice(B, ie), X(le, J, B - 1), ge = u;
+            else
+              throw new Error("attribute value no end '" + Ge + "' match");
+          else if (ge == o)
+            J = v.slice(B, ie), X(le, J, B), be.warning('attribute "' + le + '" missed start quot(' + Ge + ")!!"), B = ie + 1, ge = u;
+          else
+            throw new Error('attribute value must after "="');
+          break;
+        case "/":
+          switch (ge) {
+            case r:
+              N.setTagName(v.slice(B, ie));
+            case u:
+            case a:
+            case c:
+              ge = c, N.closed = !0;
+            case o:
+            case n:
+              break;
+            case i:
+              N.closed = !0;
+              break;
+            //case S_EQ:
+            default:
+              throw new Error("attribute invalid close char('/')");
+          }
+          break;
+        case "":
+          return be.error("unexpected end of input"), ge == r && N.setTagName(v.slice(B, ie)), ie;
+        case ">":
+          switch (ge) {
+            case r:
+              N.setTagName(v.slice(B, ie));
+            case u:
+            case a:
+            case c:
+              break;
+            //normal
+            case o:
+            //Compatible state
+            case n:
+              J = v.slice(B, ie), J.slice(-1) === "/" && (N.closed = !0, J = J.slice(0, -1));
+            case i:
+              ge === i && (J = le), ge == o ? (be.warning('attribute "' + J + '" missed quot(")!'), X(le, J, B)) : ((!e.isHTML(ee[""]) || !J.match(/^(?:disabled|checked|selected)$/i)) && be.warning('attribute "' + J + '" missed value!! "' + J + '" instead!!'), X(J, J, B));
+              break;
+            case s:
+              throw new Error("attribute value missed!!");
+          }
+          return ie;
+        /*xml space '\x20' | #x9 | #xD | #xA; */
+        case "":
+          Ge = " ";
+        default:
+          if (Ge <= " ")
+            switch (ge) {
+              case r:
+                N.setTagName(v.slice(B, ie)), ge = a;
+                break;
+              case n:
+                le = v.slice(B, ie), ge = i;
+                break;
+              case o:
+                var J = v.slice(B, ie);
+                be.warning('attribute "' + J + '" missed quot(")!!'), X(le, J, B);
+              case u:
+                ge = a;
+                break;
+            }
+          else
+            switch (ge) {
+              //case S_TAG:void();break;
+              //case S_ATTR:void();break;
+              //case S_ATTR_NOQUOT_VALUE:void();break;
+              case i:
+                N.tagName, (!e.isHTML(ee[""]) || !le.match(/^(?:disabled|checked|selected)$/i)) && be.warning('attribute "' + le + '" missed value!! "' + le + '" instead2!!'), X(le, le, B), B = ie, ge = n;
+                break;
+              case u:
+                be.warning('attribute space is required"' + le + '"!!');
+              case a:
+                ge = n, B = ie;
+                break;
+              case s:
+                ge = o, B = ie;
+                break;
+              case c:
+                throw new Error("elements closed character '/' and '>' must be connected to");
+            }
+      }
+      ie++;
+    }
+  }
+  function R(v, B, N) {
+    for (var ee = v.tagName, Ae = null, Ge = v.length; Ge--; ) {
+      var be = v[Ge], X = be.qName, le = be.value, Ue = X.indexOf(":");
+      if (Ue > 0)
+        var J = be.prefix = X.slice(0, Ue), ie = X.slice(Ue + 1), ge = J === "xmlns" && ie;
+      else
+        ie = X, J = null, ge = X === "xmlns" && "";
+      be.localName = ie, ge !== !1 && (Ae == null && (Ae = {}, N = Object.create(N)), N[ge] = Ae[ge] = le, be.uri = e.XMLNS, B.startPrefixMapping(ge, le));
+    }
+    for (var Ge = v.length; Ge--; ) {
+      be = v[Ge];
+      var J = be.prefix;
+      J && (J === "xml" && (be.uri = e.XML), J !== "xmlns" && (be.uri = N[J || ""]));
+    }
+    var Ue = ee.indexOf(":");
+    Ue > 0 ? (J = v.prefix = ee.slice(0, Ue), ie = v.localName = ee.slice(Ue + 1)) : (J = null, ie = v.localName = ee);
+    var mt = v.uri = N[J || ""];
+    if (B.startElement(mt, ie, ee, v), v.closed) {
+      if (B.endElement(mt, ie, ee), Ae)
+        for (J in Ae)
+          Object.prototype.hasOwnProperty.call(Ae, J) && B.endPrefixMapping(J);
+    } else
+      return v.currentNSMap = N, v.localNSMap = Ae, !0;
+  }
+  function I(v, B, N, ee, Ae) {
+    if (/^(?:script|textarea)$/i.test(N)) {
+      var be = v.indexOf("</" + N + ">", B), X = v.substring(B + 1, be);
+      if (/[&<]/.test(X))
+        return /^script$/i.test(N) ? (Ae.characters(X, 0, X.length), be) : (X = X.replace(/&#?\w+;/g, ee), Ae.characters(X, 0, X.length), be);
+    }
+    return B + 1;
+  }
+  function k(v, B, N, ee) {
+    var Ae = ee[N];
+    return Ae == null && (Ae = v.lastIndexOf("</" + N + ">"), Ae < B && (Ae = v.lastIndexOf("</" + N)), ee[N] = Ae), Ae < B;
+  }
+  function x(v, B) {
+    for (var N in v)
+      Object.prototype.hasOwnProperty.call(v, N) && (B[N] = v[N]);
+  }
+  function M(v, B, N, ee) {
+    var Ae = v.charAt(B + 2);
+    switch (Ae) {
+      case "-":
+        if (v.charAt(B + 3) === "-") {
+          var be = v.indexOf("-->", B + 4);
+          return be > B ? (N.comment(v, B + 4, be - B - 4), be + 3) : (ee.error("Unclosed comment"), -1);
+        } else
+          return -1;
+      default:
+        if (v.substr(B + 3, 6) == "CDATA[") {
+          var be = v.indexOf("]]>", B + 9);
+          return N.startCDATA(), N.characters(v, B + 9, be - B - 9), N.endCDATA(), be + 3;
+        }
+        var X = Y(v, B), le = X.length;
+        if (le > 1 && /!doctype/i.test(X[0][0])) {
+          var J = X[1][0], ie = !1, ge = !1;
+          le > 3 && (/^public$/i.test(X[2][0]) ? (ie = X[3][0], ge = le > 4 && X[4][0]) : /^system$/i.test(X[2][0]) && (ge = X[3][0]));
+          var Ge = X[le - 1];
+          return N.startDTD(J, ie, ge), N.endDTD(), Ge.index + Ge[0].length;
+        }
+    }
+    return -1;
+  }
+  function $(v, B, N) {
+    var ee = v.indexOf("?>", B);
+    if (ee) {
+      var Ae = v.substring(B, ee).match(/^<\?(\S*)\s*([\s\S]*?)$/);
+      return Ae ? (Ae[0].length, N.processingInstruction(Ae[1], Ae[2]), ee + 2) : -1;
+    }
+    return -1;
+  }
+  function ne() {
+    this.attributeNames = {};
+  }
+  ne.prototype = {
+    setTagName: function(v) {
+      if (!t.test(v))
+        throw new Error("invalid tagName:" + v);
+      this.tagName = v;
+    },
+    addValue: function(v, B, N) {
+      if (!t.test(v))
+        throw new Error("invalid attribute:" + v);
+      this.attributeNames[v] = this.length, this[this.length++] = { qName: v, value: B, offset: N };
+    },
+    length: 0,
+    getLocalName: function(v) {
+      return this[v].localName;
+    },
+    getLocator: function(v) {
+      return this[v].locator;
+    },
+    getQName: function(v) {
+      return this[v].qName;
+    },
+    getURI: function(v) {
+      return this[v].uri;
+    },
+    getValue: function(v) {
+      return this[v].value;
+    }
+    //	,getIndex:function(uri, localName)){
+    //		if(localName){
+    //
+    //		}else{
+    //			var qName = uri
+    //		}
+    //	},
+    //	getValue:function(){return this.getValue(this.getIndex.apply(this,arguments))},
+    //	getType:function(uri,localName){}
+    //	getType:function(i){},
+  };
+  function Y(v, B) {
+    var N, ee = [], Ae = /'[^']+'|"[^"]+"|[^\s<>\/=]+=?|(\/?\s*>|<)/g;
+    for (Ae.lastIndex = B, Ae.exec(v); N = Ae.exec(v); )
+      if (ee.push(N), N[1]) return ee;
+  }
+  return Nn.XMLReader = d, Nn.ParseError = A, Nn;
+}
+var wo;
+function tA() {
+  if (wo) return cn;
+  wo = 1;
+  var e = dn(), t = Na(), r = Xc(), n = eA(), i = t.DOMImplementation, s = e.NAMESPACE, o = n.ParseError, u = n.XMLReader;
+  function a(I) {
+    return I.replace(/\r[\n\u0085]/g, `
+`).replace(/[\r\u0085\u2028]/g, `
+`);
+  }
+  function c(I) {
+    this.options = I || { locator: {} };
+  }
+  c.prototype.parseFromString = function(I, k) {
+    var x = this.options, M = new u(), $ = x.domBuilder || new d(), ne = x.errorHandler, Y = x.locator, v = x.xmlns || {}, B = /\/x?html?$/.test(k), N = B ? r.HTML_ENTITIES : r.XML_ENTITIES;
+    Y && $.setDocumentLocator(Y), M.errorHandler = A(ne, $, Y), M.domBuilder = x.domBuilder || $, B && (v[""] = s.HTML), v.xml = v.xml || s.XML;
+    var ee = x.normalizeLineEndings || a;
+    return I && typeof I == "string" ? M.parse(
+      ee(I),
+      v,
+      N
+    ) : M.errorHandler.error("invalid doc source"), $.doc;
+  };
+  function A(I, k, x) {
+    if (!I) {
+      if (k instanceof d)
+        return k;
+      I = k;
+    }
+    var M = {}, $ = I instanceof Function;
+    x = x || {};
+    function ne(Y) {
+      var v = I[Y];
+      !v && $ && (v = I.length == 2 ? function(B) {
+        I(Y, B);
+      } : I), M[Y] = v && function(B) {
+        v("[xmldom " + Y + "]	" + B + w(x));
+      } || function() {
+      };
+    }
+    return ne("warning"), ne("error"), ne("fatalError"), M;
+  }
+  function d() {
+    this.cdata = !1;
+  }
+  function p(I, k) {
+    k.lineNumber = I.lineNumber, k.columnNumber = I.columnNumber;
+  }
+  d.prototype = {
+    startDocument: function() {
+      this.doc = new i().createDocument(null, null, null), this.locator && (this.doc.documentURI = this.locator.systemId);
+    },
+    startElement: function(I, k, x, M) {
+      var $ = this.doc, ne = $.createElementNS(I, x || k), Y = M.length;
+      R(this, ne), this.currentElement = ne, this.locator && p(this.locator, ne);
+      for (var v = 0; v < Y; v++) {
+        var I = M.getURI(v), B = M.getValue(v), x = M.getQName(v), N = $.createAttributeNS(I, x);
+        this.locator && p(M.getLocator(v), N), N.value = N.nodeValue = B, ne.setAttributeNode(N);
+      }
+    },
+    endElement: function(I, k, x) {
+      var M = this.currentElement;
+      M.tagName, this.currentElement = M.parentNode;
+    },
+    startPrefixMapping: function(I, k) {
+    },
+    endPrefixMapping: function(I) {
+    },
+    processingInstruction: function(I, k) {
+      var x = this.doc.createProcessingInstruction(I, k);
+      this.locator && p(this.locator, x), R(this, x);
+    },
+    ignorableWhitespace: function(I, k, x) {
+    },
+    characters: function(I, k, x) {
+      if (I = _.apply(this, arguments), I) {
+        if (this.cdata)
+          var M = this.doc.createCDATASection(I);
+        else
+          var M = this.doc.createTextNode(I);
+        this.currentElement ? this.currentElement.appendChild(M) : /^\s*$/.test(I) && this.doc.appendChild(M), this.locator && p(this.locator, M);
+      }
+    },
+    skippedEntity: function(I) {
+    },
+    endDocument: function() {
+      this.doc.normalize();
+    },
+    setDocumentLocator: function(I) {
+      (this.locator = I) && (I.lineNumber = 0);
+    },
+    //LexicalHandler
+    comment: function(I, k, x) {
+      I = _.apply(this, arguments);
+      var M = this.doc.createComment(I);
+      this.locator && p(this.locator, M), R(this, M);
+    },
+    startCDATA: function() {
+      this.cdata = !0;
+    },
+    endCDATA: function() {
+      this.cdata = !1;
+    },
+    startDTD: function(I, k, x) {
+      var M = this.doc.implementation;
+      if (M && M.createDocumentType) {
+        var $ = M.createDocumentType(I, k, x);
+        this.locator && p(this.locator, $), R(this, $), this.doc.doctype = $;
+      }
+    },
+    /**
+     * @see org.xml.sax.ErrorHandler
+     * @link http://www.saxproject.org/apidoc/org/xml/sax/ErrorHandler.html
+     */
+    warning: function(I) {
+      console.warn("[xmldom warning]	" + I, w(this.locator));
+    },
+    error: function(I) {
+      console.error("[xmldom error]	" + I, w(this.locator));
+    },
+    fatalError: function(I) {
+      throw new o(I, this.locator);
+    }
+  };
+  function w(I) {
+    if (I)
+      return `
+@` + (I.systemId || "") + "#[line:" + I.lineNumber + ",col:" + I.columnNumber + "]";
+  }
+  function _(I, k, x) {
+    return typeof I == "string" ? I.substr(k, x) : I.length >= k + x || k ? new java.lang.String(I, k, x) + "" : I;
+  }
+  "endDTD,startEntity,endEntity,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,resolveEntity,getExternalSubset,notationDecl,unparsedEntityDecl".replace(/\w+/g, function(I) {
+    d.prototype[I] = function() {
+      return null;
+    };
+  });
+  function R(I, k) {
+    I.currentElement ? I.currentElement.appendChild(k) : I.doc.appendChild(k);
+  }
+  return cn.__DOMHandler = d, cn.normalizeLineEndings = a, cn.DOMParser = c, cn;
+}
+var Io;
+function rA() {
+  if (Io) return un;
+  Io = 1;
+  var e = Na();
+  return un.DOMImplementation = e.DOMImplementation, un.XMLSerializer = e.XMLSerializer, un.DOMParser = tA().DOMParser, un;
+}
+var nA = rA();
+const On = 16 * 1024 * 1024, iA = 64e6, _o = 256, Do = 128, oA = /* @__PURE__ */ new Set(["png", "jpeg", "webp"]), So = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+function Ke(e) {
+  throw new Error(`app icon: ${e}`);
+}
+function To(e, t) {
+  const r = ae.relative(e, t);
+  return r !== "" && !r.startsWith(`..${ae.sep}`) && r !== ".." && !ae.isAbsolute(r);
+}
+function sA(e) {
+  return e.replace(/\\([0-9a-f]{1,6})\s?|\\(.)/gi, (t, r, n) => r ? String.fromCodePoint(Number.parseInt(r, 16)) : n ?? "");
+}
+function No(e, t, { allowFragmentUrl: r = !1 } = {}) {
+  const n = sA(e).replace(/\/\*[\s\S]*?\*\//g, "").toLowerCase();
+  n.includes("@import") && Ke(`${t} must not import external stylesheets`);
+  const i = [...n.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)];
+  i.length > 0 && (!r || i.some((s) => !s[2].trim().startsWith("#"))) && Ke(`${t} must not reference external resources`), (n.includes("javascript:") || n.includes("data:")) && Ke(`${t} must not contain an executable or embedded data URL`);
+}
+function aA(e) {
+  /<!doctype|<!entity/i.test(e) && Ke("SVG must not contain a DOCTYPE or entity declaration"), /<\?xml-stylesheet\b/i.test(e) && Ke("SVG must not declare an xml-stylesheet processing instruction");
+  const t = [], r = new nA.DOMParser({
+    errorHandler: {
+      warning(s) {
+        t.push(s);
+      },
+      error(s) {
+        t.push(s);
+      },
+      fatalError(s) {
+        t.push(s);
+      }
+    }
+  }).parseFromString(e, "image/svg+xml");
+  t.length > 0 && Ke(`SVG could not be parsed safely (${t[0]})`);
+  for (let s = r.firstChild; s; s = s.nextSibling) {
+    const o = s;
+    o.nodeType === 7 && o.target?.toLowerCase() === "xml-stylesheet" && Ke("SVG must not declare an xml-stylesheet processing instruction");
+  }
+  const n = r.documentElement;
+  (!n || n.localName.toLowerCase() !== "svg") && Ke("SVG must have an <svg> root element");
+  const i = [n, ...Array.from(n.getElementsByTagName("*"))];
+  for (const s of i) {
+    const o = s.localName.toLowerCase();
+    ["script", "foreignobject", "iframe", "object", "embed"].includes(o) && Ke(`SVG must not contain <${o}>`), o === "style" && No(s.textContent ?? "", "SVG style element");
+    for (let u = 0; u < s.attributes.length; u += 1) {
+      const a = s.attributes.item(u);
+      if (!a) continue;
+      const c = a.name.toLowerCase(), A = a.localName.toLowerCase(), d = a.value.trim();
+      c.startsWith("on") && Ke(`SVG must not contain event attribute ${a.name}`), A === "base" && Ke("SVG must not contain xml:base"), (A === "href" || A === "src") && (d.startsWith("#") || Ke(`SVG must not reference external resource ${a.name}`)), No(d, `SVG attribute ${a.name}`, { allowFragmentUrl: c !== "style" });
+    }
+  }
+}
+function uA(e) {
+  if (e.subarray(0, So.length).equals(So)) return "png";
+  if (e.length >= 3 && e[0] === 255 && e[1] === 216 && e[2] === 255) return "jpeg";
+  if (e.length >= 12 && e.subarray(0, 4).toString("ascii") === "RIFF" && e.subarray(8, 12).toString("ascii") === "WEBP")
+    return "webp";
+  const t = e.toString("utf8");
+  if (/^\s*</.test(t))
+    return aA(t), "svg";
+  Ke("icon must be a PNG, JPEG, WebP, or SVG image");
+}
+async function cA(e, t) {
+  (typeof t != "string" || !t.trim()) && Ke("icon must be a non-empty package-relative image path");
+  const r = t.trim();
+  (r.includes("\0") || ae.isAbsolute(r) || ae.win32.isAbsolute(r) || /^[a-z][a-z0-9+.-]*:/i.test(r)) && Ke("icon must be a package-relative image path");
+  const n = await at.realpath(e), i = ae.resolve(n, r);
+  To(n, i) || Ke("icon path must stay inside the app package");
+  let s, o;
+  try {
+    s = await at.realpath(i), o = await at.stat(s);
+  } catch (a) {
+    Ke(`cannot read ${JSON.stringify(r)} (${a instanceof Error ? a.message : String(a)})`);
+  }
+  To(n, s) || Ke("icon symlink must stay inside the app package"), o.isFile() || Ke("icon must name a file"), o.size > On && Ke(`icon file must not exceed ${On / (1024 * 1024)} MiB`);
+  const u = await at.readFile(s);
+  return u.length > On && Ke(`icon file must not exceed ${On / (1024 * 1024)} MiB`), u.length === 0 && Ke("icon file is empty"), u;
+}
+async function AA(e, t) {
+  const r = await cA(e, t), n = uA(r), { default: i } = await import("sharp");
+  let s, o;
+  try {
+    s = i(r, { limitInputPixels: iA, pages: 1, animated: !1 }), o = await s.metadata();
+  } catch (M) {
+    Ke(`cannot decode image (${M instanceof Error ? M.message : String(M)})`);
+  }
+  (!o.format || !(oA.has(o.format) || o.format === "svg")) && Ke("icon must be a PNG, JPEG, WebP, or SVG image"), (!o.width || !o.height || o.width < 1 || o.height < 1) && Ke("icon image must have a positive width and height");
+  const u = [5, 6, 7, 8].includes(o.orientation ?? 1), a = u ? o.height : o.width, c = u ? o.width : o.height, A = Math.max(a, c), d = n === "svg" ? _o / A : Math.min(1, _o / A), p = Math.max(1, Math.round(a * d)), w = Math.max(1, Math.round(c * d)), _ = Math.max(p, w), R = Math.floor((_ - p) / 2), I = Math.floor((_ - w) / 2);
+  let k;
+  try {
+    k = await s.autoOrient().resize({ width: p, height: w, fit: "fill", withoutEnlargement: n !== "svg" }).extend({
+      top: I,
+      bottom: _ - w - I,
+      left: R,
+      right: _ - p - R,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }).png().toBuffer();
+  } catch (M) {
+    Ke(`cannot normalize image (${M instanceof Error ? M.message : String(M)})`);
+  }
+  const x = n !== "svg" && A < Do ? [`icon is ${A}px on its longest side; ${Do}px or larger is recommended`] : [];
+  return { icon: `data:image/png;base64,${k.toString("base64")}`, warnings: x };
+}
+async function lA(e, t, { required: r = !0 } = {}) {
+  if ((t == null || t === "") && !r) return { warnings: [] };
+  try {
+    return await AA(e, t);
+  } catch (n) {
+    if (r) throw n;
+    return { warnings: [n instanceof Error ? n.message : String(n)] };
+  }
+}
+var vn = { exports: {} }, zn, Oo;
+function fA() {
+  if (Oo) return zn;
+  Oo = 1;
+  var e = 1e3, t = e * 60, r = t * 60, n = r * 24, i = n * 7, s = n * 365.25;
+  zn = function(A, d) {
+    d = d || {};
+    var p = typeof A;
+    if (p === "string" && A.length > 0)
+      return o(A);
+    if (p === "number" && isFinite(A))
+      return d.long ? a(A) : u(A);
+    throw new Error(
+      "val is not a non-empty string or a valid number. val=" + JSON.stringify(A)
+    );
+  };
+  function o(A) {
+    if (A = String(A), !(A.length > 100)) {
+      var d = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+        A
+      );
+      if (d) {
+        var p = parseFloat(d[1]), w = (d[2] || "ms").toLowerCase();
+        switch (w) {
+          case "years":
+          case "year":
+          case "yrs":
+          case "yr":
+          case "y":
+            return p * s;
+          case "weeks":
+          case "week":
+          case "w":
+            return p * i;
+          case "days":
+          case "day":
+          case "d":
+            return p * n;
+          case "hours":
+          case "hour":
+          case "hrs":
+          case "hr":
+          case "h":
+            return p * r;
+          case "minutes":
+          case "minute":
+          case "mins":
+          case "min":
+          case "m":
+            return p * t;
+          case "seconds":
+          case "second":
+          case "secs":
+          case "sec":
+          case "s":
+            return p * e;
+          case "milliseconds":
+          case "millisecond":
+          case "msecs":
+          case "msec":
+          case "ms":
+            return p;
+          default:
+            return;
+        }
+      }
+    }
+  }
+  function u(A) {
+    var d = Math.abs(A);
+    return d >= n ? Math.round(A / n) + "d" : d >= r ? Math.round(A / r) + "h" : d >= t ? Math.round(A / t) + "m" : d >= e ? Math.round(A / e) + "s" : A + "ms";
+  }
+  function a(A) {
+    var d = Math.abs(A);
+    return d >= n ? c(A, d, n, "day") : d >= r ? c(A, d, r, "hour") : d >= t ? c(A, d, t, "minute") : d >= e ? c(A, d, e, "second") : A + " ms";
+  }
+  function c(A, d, p, w) {
+    var _ = d >= p * 1.5;
+    return Math.round(A / p) + " " + w + (_ ? "s" : "");
+  }
+  return zn;
+}
+var qn, vo;
+function hA() {
+  if (vo) return qn;
+  vo = 1;
+  function e(t) {
+    n.debug = n, n.default = n, n.coerce = c, n.disable = u, n.enable = s, n.enabled = a, n.humanize = fA(), n.destroy = A, Object.keys(t).forEach((d) => {
+      n[d] = t[d];
+    }), n.names = [], n.skips = [], n.formatters = {};
+    function r(d) {
+      let p = 0;
+      for (let w = 0; w < d.length; w++)
+        p = (p << 5) - p + d.charCodeAt(w), p |= 0;
+      return n.colors[Math.abs(p) % n.colors.length];
+    }
+    n.selectColor = r;
+    function n(d) {
+      let p, w = null, _, R;
+      function I(...k) {
+        if (!I.enabled)
+          return;
+        const x = I, M = Number(/* @__PURE__ */ new Date()), $ = M - (p || M);
+        x.diff = $, x.prev = p, x.curr = M, p = M, k[0] = n.coerce(k[0]), typeof k[0] != "string" && k.unshift("%O");
+        let ne = 0;
+        k[0] = k[0].replace(/%([a-zA-Z%])/g, (v, B) => {
+          if (v === "%%")
+            return "%";
+          ne++;
+          const N = n.formatters[B];
+          if (typeof N == "function") {
+            const ee = k[ne];
+            v = N.call(x, ee), k.splice(ne, 1), ne--;
+          }
+          return v;
+        }), n.formatArgs.call(x, k), (x.log || n.log).apply(x, k);
+      }
+      return I.namespace = d, I.useColors = n.useColors(), I.color = n.selectColor(d), I.extend = i, I.destroy = n.destroy, Object.defineProperty(I, "enabled", {
+        enumerable: !0,
+        configurable: !1,
+        get: () => w !== null ? w : (_ !== n.namespaces && (_ = n.namespaces, R = n.enabled(d)), R),
+        set: (k) => {
+          w = k;
+        }
+      }), typeof n.init == "function" && n.init(I), I;
+    }
+    function i(d, p) {
+      const w = n(this.namespace + (typeof p > "u" ? ":" : p) + d);
+      return w.log = this.log, w;
+    }
+    function s(d) {
+      n.save(d), n.namespaces = d, n.names = [], n.skips = [];
+      const p = (typeof d == "string" ? d : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
+      for (const w of p)
+        w[0] === "-" ? n.skips.push(w.slice(1)) : n.names.push(w);
+    }
+    function o(d, p) {
+      let w = 0, _ = 0, R = -1, I = 0;
+      for (; w < d.length; )
+        if (_ < p.length && (p[_] === d[w] || p[_] === "*"))
+          p[_] === "*" ? (R = _, I = w, _++) : (w++, _++);
+        else if (R !== -1)
+          _ = R + 1, I++, w = I;
+        else
+          return !1;
+      for (; _ < p.length && p[_] === "*"; )
+        _++;
+      return _ === p.length;
+    }
+    function u() {
+      const d = [
+        ...n.names,
+        ...n.skips.map((p) => "-" + p)
+      ].join(",");
+      return n.enable(""), d;
+    }
+    function a(d) {
+      for (const p of n.skips)
+        if (o(d, p))
+          return !1;
+      for (const p of n.names)
+        if (o(d, p))
+          return !0;
+      return !1;
+    }
+    function c(d) {
+      return d instanceof Error ? d.stack || d.message : d;
+    }
+    function A() {
+      console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+    }
+    return n.enable(n.load()), n;
+  }
+  return qn = e, qn;
+}
+var Bo;
+function dA() {
+  return Bo || (Bo = 1, (function(e, t) {
+    t.formatArgs = n, t.save = i, t.load = s, t.useColors = r, t.storage = o(), t.destroy = /* @__PURE__ */ (() => {
+      let a = !1;
+      return () => {
+        a || (a = !0, console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."));
+      };
+    })(), t.colors = [
+      "#0000CC",
+      "#0000FF",
+      "#0033CC",
+      "#0033FF",
+      "#0066CC",
+      "#0066FF",
+      "#0099CC",
+      "#0099FF",
+      "#00CC00",
+      "#00CC33",
+      "#00CC66",
+      "#00CC99",
+      "#00CCCC",
+      "#00CCFF",
+      "#3300CC",
+      "#3300FF",
+      "#3333CC",
+      "#3333FF",
+      "#3366CC",
+      "#3366FF",
+      "#3399CC",
+      "#3399FF",
+      "#33CC00",
+      "#33CC33",
+      "#33CC66",
+      "#33CC99",
+      "#33CCCC",
+      "#33CCFF",
+      "#6600CC",
+      "#6600FF",
+      "#6633CC",
+      "#6633FF",
+      "#66CC00",
+      "#66CC33",
+      "#9900CC",
+      "#9900FF",
+      "#9933CC",
+      "#9933FF",
+      "#99CC00",
+      "#99CC33",
+      "#CC0000",
+      "#CC0033",
+      "#CC0066",
+      "#CC0099",
+      "#CC00CC",
+      "#CC00FF",
+      "#CC3300",
+      "#CC3333",
+      "#CC3366",
+      "#CC3399",
+      "#CC33CC",
+      "#CC33FF",
+      "#CC6600",
+      "#CC6633",
+      "#CC9900",
+      "#CC9933",
+      "#CCCC00",
+      "#CCCC33",
+      "#FF0000",
+      "#FF0033",
+      "#FF0066",
+      "#FF0099",
+      "#FF00CC",
+      "#FF00FF",
+      "#FF3300",
+      "#FF3333",
+      "#FF3366",
+      "#FF3399",
+      "#FF33CC",
+      "#FF33FF",
+      "#FF6600",
+      "#FF6633",
+      "#FF9900",
+      "#FF9933",
+      "#FFCC00",
+      "#FFCC33"
+    ];
+    function r() {
+      if (typeof window < "u" && window.process && (window.process.type === "renderer" || window.process.__nwjs))
+        return !0;
+      if (typeof navigator < "u" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/))
+        return !1;
+      let a;
+      return typeof document < "u" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
+      typeof window < "u" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
+      // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+      typeof navigator < "u" && navigator.userAgent && (a = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(a[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator < "u" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
+    }
+    function n(a) {
+      if (a[0] = (this.useColors ? "%c" : "") + this.namespace + (this.useColors ? " %c" : " ") + a[0] + (this.useColors ? "%c " : " ") + "+" + e.exports.humanize(this.diff), !this.useColors)
+        return;
+      const c = "color: " + this.color;
+      a.splice(1, 0, c, "color: inherit");
+      let A = 0, d = 0;
+      a[0].replace(/%[a-zA-Z%]/g, (p) => {
+        p !== "%%" && (A++, p === "%c" && (d = A));
+      }), a.splice(d, 0, c);
+    }
+    t.log = console.debug || console.log || (() => {
+    });
+    function i(a) {
+      try {
+        a ? t.storage.setItem("debug", a) : t.storage.removeItem("debug");
+      } catch {
+      }
+    }
+    function s() {
+      let a;
+      try {
+        a = t.storage.getItem("debug") || t.storage.getItem("DEBUG");
+      } catch {
+      }
+      return !a && typeof process < "u" && "env" in process && (a = process.env.DEBUG), a;
+    }
+    function o() {
+      try {
+        return localStorage;
+      } catch {
+      }
+    }
+    e.exports = hA()(t);
+    const { formatters: u } = e.exports;
+    u.j = function(a) {
+      try {
+        return JSON.stringify(a);
+      } catch (c) {
+        return "[UnexpectedJSONParseError]: " + c.message;
+      }
+    };
+  })(vn, vn.exports)), vn.exports;
+}
+var Tr = { exports: {} }, Bn = { exports: {} }, Xn, Ro;
+function pA() {
+  if (Ro) return Xn;
+  Ro = 1, Xn = e;
+  function e(t, r) {
+    if (t && r) return e(t)(r);
+    if (typeof t != "function")
+      throw new TypeError("need wrapper function");
+    return Object.keys(t).forEach(function(i) {
+      n[i] = t[i];
+    }), n;
+    function n() {
+      for (var i = new Array(arguments.length), s = 0; s < i.length; s++)
+        i[s] = arguments[s];
+      var o = t.apply(this, i), u = i[i.length - 1];
+      return typeof o == "function" && o !== u && Object.keys(u).forEach(function(a) {
+        o[a] = u[a];
+      }), o;
+    }
+  }
+  return Xn;
+}
+var Fo;
+function Oa() {
+  if (Fo) return Bn.exports;
+  Fo = 1;
+  var e = pA();
+  Bn.exports = e(t), Bn.exports.strict = e(r), t.proto = t(function() {
+    Object.defineProperty(Function.prototype, "once", {
+      value: function() {
+        return t(this);
+      },
+      configurable: !0
+    }), Object.defineProperty(Function.prototype, "onceStrict", {
+      value: function() {
+        return r(this);
+      },
+      configurable: !0
+    });
+  });
+  function t(n) {
+    var i = function() {
+      return i.called ? i.value : (i.called = !0, i.value = n.apply(this, arguments));
+    };
+    return i.called = !1, i;
+  }
+  function r(n) {
+    var i = function() {
+      if (i.called)
+        throw new Error(i.onceError);
+      return i.called = !0, i.value = n.apply(this, arguments);
+    }, s = n.name || "Function wrapped with `once`";
+    return i.onceError = s + " shouldn't be called more than once", i.called = !1, i;
+  }
+  return Bn.exports;
+}
+var ei, ko;
+function mA() {
+  if (ko) return ei;
+  ko = 1;
+  var e = Oa(), t = function() {
+  }, r = Sa.Bare ? queueMicrotask : process.nextTick.bind(process), n = function(o) {
+    return o.setHeader && typeof o.abort == "function";
+  }, i = function(o) {
+    return o.stdio && Array.isArray(o.stdio) && o.stdio.length === 3;
+  }, s = function(o, u, a) {
+    if (typeof u == "function") return s(o, null, u);
+    u || (u = {}), a = e(a || t);
+    var c = o._writableState, A = o._readableState, d = u.readable || u.readable !== !1 && o.readable, p = u.writable || u.writable !== !1 && o.writable, w = !1, _ = function() {
+      o.writable || R();
+    }, R = function() {
+      p = !1, d || a.call(o);
+    }, I = function() {
+      d = !1, p || a.call(o);
+    }, k = function(Y) {
+      a.call(o, Y ? new Error("exited with error code: " + Y) : null);
+    }, x = function(Y) {
+      a.call(o, Y);
+    }, M = function() {
+      r($);
+    }, $ = function() {
+      if (!w) {
+        if (d && !(A && A.ended && !A.destroyed)) return a.call(o, new Error("premature close"));
+        if (p && !(c && c.ended && !c.destroyed)) return a.call(o, new Error("premature close"));
+      }
+    }, ne = function() {
+      o.req.on("finish", R);
+    };
+    return n(o) ? (o.on("complete", R), o.on("abort", M), o.req ? ne() : o.on("request", ne)) : p && !c && (o.on("end", _), o.on("close", _)), i(o) && o.on("exit", k), o.on("end", I), o.on("finish", R), u.error !== !1 && o.on("error", x), o.on("close", M), function() {
+      w = !0, o.removeListener("complete", R), o.removeListener("abort", M), o.removeListener("request", ne), o.req && o.req.removeListener("finish", R), o.removeListener("end", _), o.removeListener("close", _), o.removeListener("finish", R), o.removeListener("exit", k), o.removeListener("end", I), o.removeListener("error", x), o.removeListener("close", M);
+    };
+  };
+  return ei = s, ei;
+}
+var ti, Po;
+function gA() {
+  if (Po) return ti;
+  Po = 1;
+  var e = Oa(), t = mA(), r;
+  try {
+    r = require("fs");
+  } catch {
+  }
+  var n = function() {
+  }, i = typeof process > "u" ? !1 : /^v?\.0/.test(process.version), s = function(p) {
+    return typeof p == "function";
+  }, o = function(p) {
+    return !i || !r ? !1 : (p instanceof (r.ReadStream || n) || p instanceof (r.WriteStream || n)) && s(p.close);
+  }, u = function(p) {
+    return p.setHeader && s(p.abort);
+  }, a = function(p, w, _, R) {
+    R = e(R);
+    var I = !1;
+    p.on("close", function() {
+      I = !0;
+    }), t(p, { readable: w, writable: _ }, function(x) {
+      if (x) return R(x);
+      I = !0, R();
+    });
+    var k = !1;
+    return function(x) {
+      if (!I && !k) {
+        if (k = !0, o(p)) return p.close(n);
+        if (u(p)) return p.abort();
+        if (s(p.destroy)) return p.destroy();
+        R(x || new Error("stream was destroyed"));
+      }
+    };
+  }, c = function(p) {
+    p();
+  }, A = function(p, w) {
+    return p.pipe(w);
+  }, d = function() {
+    var p = Array.prototype.slice.call(arguments), w = s(p[p.length - 1] || n) && p.pop() || n;
+    if (Array.isArray(p[0]) && (p = p[0]), p.length < 2) throw new Error("pump requires two streams per minimum");
+    var _, R = p.map(function(I, k) {
+      var x = k < p.length - 1, M = k > 0;
+      return a(I, x, M, function($) {
+        _ || (_ = $), $ && R.forEach(c), !x && (R.forEach(c), w(_));
+      });
+    });
+    return p.reduce(A);
+  };
+  return ti = d, ti;
+}
+var ri, Lo;
+function EA() {
+  if (Lo) return ri;
+  Lo = 1;
+  const { PassThrough: e } = ga;
+  return ri = (t) => {
+    t = { ...t };
+    const { array: r } = t;
+    let { encoding: n } = t;
+    const i = n === "buffer";
+    let s = !1;
+    r ? s = !(n || i) : n = n || "utf8", i && (n = null);
+    const o = new e({ objectMode: s });
+    n && o.setEncoding(n);
+    let u = 0;
+    const a = [];
+    return o.on("data", (c) => {
+      a.push(c), s ? u = a.length : u += c.length;
+    }), o.getBufferedValue = () => r ? a : i ? Buffer.concat(a, u) : a.join(""), o.getBufferedLength = () => u, o;
+  }, ri;
+}
+var xo;
+function CA() {
+  if (xo) return Tr.exports;
+  xo = 1;
+  const { constants: e } = sc, t = gA(), r = EA();
+  class n extends Error {
+    constructor() {
+      super("maxBuffer exceeded"), this.name = "MaxBufferError";
+    }
+  }
+  async function i(s, o) {
+    if (!s)
+      return Promise.reject(new Error("Expected a stream"));
+    o = {
+      maxBuffer: 1 / 0,
+      ...o
+    };
+    const { maxBuffer: u } = o;
+    let a;
+    return await new Promise((c, A) => {
+      const d = (p) => {
+        p && a.getBufferedLength() <= e.MAX_LENGTH && (p.bufferedData = a.getBufferedValue()), A(p);
+      };
+      a = t(s, r(o), (p) => {
+        if (p) {
+          d(p);
+          return;
+        }
+        c();
+      }), a.on("data", () => {
+        a.getBufferedLength() > u && d(new n());
+      });
+    }), a.getBufferedValue();
+  }
+  return Tr.exports = i, Tr.exports.default = i, Tr.exports.buffer = (s, o) => i(s, { ...o, encoding: "buffer" }), Tr.exports.array = (s, o) => i(s, { ...o, array: !0 }), Tr.exports.MaxBufferError = n, Tr.exports;
+}
+var ni, Uo;
+function yA() {
+  if (Uo) return ni;
+  Uo = 1;
+  const e = dA()("extract-zip"), { createWriteStream: t, promises: r } = Xe, n = CA(), i = Re, { promisify: s } = uc, o = ga, a = s(cc.open), c = s(o.pipeline);
+  class A {
+    constructor(p, w) {
+      this.zipPath = p, this.opts = w;
+    }
+    async extract() {
+      return e("opening", this.zipPath, "with opts", this.opts), this.zipfile = await a(this.zipPath, { lazyEntries: !0 }), this.canceled = !1, new Promise((p, w) => {
+        this.zipfile.on("error", (_) => {
+          this.canceled = !0, w(_);
+        }), this.zipfile.readEntry(), this.zipfile.on("close", () => {
+          this.canceled || (e("zip extraction complete"), p());
+        }), this.zipfile.on("entry", async (_) => {
+          if (this.canceled) {
+            e("skipping entry", _.fileName, { cancelled: this.canceled });
+            return;
+          }
+          if (e("zipfile entry", _.fileName), _.fileName.startsWith("__MACOSX/")) {
+            this.zipfile.readEntry();
+            return;
+          }
+          const R = i.dirname(i.join(this.opts.dir, _.fileName));
+          try {
+            await r.mkdir(R, { recursive: !0 });
+            const I = await r.realpath(R);
+            if (i.relative(this.opts.dir, I).split(i.sep).includes(".."))
+              throw new Error(`Out of bound path "${I}" found while processing file ${_.fileName}`);
+            await this.extractEntry(_), e("finished processing", _.fileName), this.zipfile.readEntry();
+          } catch (I) {
+            this.canceled = !0, this.zipfile.close(), w(I);
+          }
+        });
+      });
+    }
+    async extractEntry(p) {
+      if (this.canceled) {
+        e("skipping entry extraction", p.fileName, { cancelled: this.canceled });
+        return;
+      }
+      this.opts.onEntry && this.opts.onEntry(p, this.zipfile);
+      const w = i.join(this.opts.dir, p.fileName), _ = p.externalFileAttributes >> 16 & 65535, R = 61440, I = 16384, x = (_ & R) === 40960;
+      let M = (_ & R) === I;
+      !M && p.fileName.endsWith("/") && (M = !0);
+      const $ = p.versionMadeBy >> 8;
+      M || (M = $ === 0 && p.externalFileAttributes === 16), e("extracting entry", { filename: p.fileName, isDir: M, isSymlink: x });
+      const ne = this.getExtractedMode(_, M) & 511, Y = M ? w : i.dirname(w), v = { recursive: !0 };
+      if (M && (v.mode = ne), e("mkdir", { dir: Y, ...v }), await r.mkdir(Y, v), M) return;
+      e("opening read stream", w);
+      const B = await s(this.zipfile.openReadStream.bind(this.zipfile))(p);
+      if (x) {
+        const N = await n(B);
+        e("creating symlink", N, w), await r.symlink(N, w);
+      } else
+        await c(B, t(w, { mode: ne }));
+    }
+    getExtractedMode(p, w) {
+      let _ = p;
+      return _ === 0 && (w ? (this.opts.defaultDirMode && (_ = parseInt(this.opts.defaultDirMode, 10)), _ || (_ = 493)) : (this.opts.defaultFileMode && (_ = parseInt(this.opts.defaultFileMode, 10)), _ || (_ = 420))), _;
+    }
+  }
+  return ni = async function(d, p) {
+    if (e("creating target directory", p.dir), !i.isAbsolute(p.dir))
+      throw new Error("Target directory is expected to be absolute");
+    return await r.mkdir(p.dir, { recursive: !0 }), p.dir = await r.realpath(p.dir), new A(d, p).extract();
+  }, ni;
+}
+var bA = yA();
+const wA = /* @__PURE__ */ Ta(bA), IA = 61440, _A = 40960;
+function DA(e) {
+  return !e || typeof e.externalFileAttributes != "number" ? !1 : (e.externalFileAttributes >> 16 & 65535 & IA) === _A;
+}
+function SA(e) {
+  if (DA(e)) {
+    const t = e?.fileName || "<unnamed>";
+    throw new Error(`extract-zip: symlink entry is not allowed (entry: ${t})`);
+  }
+}
+async function TA(e, t, r = {}) {
+  const n = r.maxEntries ?? Number.POSITIVE_INFINITY, i = r.maxUncompressedBytes ?? Number.POSITIVE_INFINITY;
+  let s = 0, o = 0;
+  await wA(e, {
+    dir: t,
+    onEntry(u) {
+      if (SA(u), s += 1, s > n)
+        throw new Error(`extract-zip: archive exceeds ${n} entries`);
+      const a = u?.uncompressedSize;
+      if (!Number.isSafeInteger(a) || a < 0)
+        throw new Error("extract-zip: archive entry has an invalid uncompressed size");
+      if (o += a, !Number.isSafeInteger(o) || o > i)
+        throw new Error(`extract-zip: archive exceeds ${i} uncompressed bytes`);
+    }
+  });
+}
+function Mo(e) {
+  for (const t of e) {
+    const r = t.charCodeAt(0);
+    if (r < 32 || r === 127) return !0;
+  }
+  return !1;
+}
+function Rr(e) {
+  if (typeof e != "string")
+    return { ok: !1, reason: "must be a string starting with /" };
+  const t = e.trim();
+  if (!t.startsWith("/"))
+    return { ok: !1, reason: "must start with /" };
+  if (t.startsWith("//") || Mo(t))
+    return { ok: !1, reason: "must be a local UI path without control characters" };
+  try {
+    const r = decodeURIComponent(t);
+    if (r !== t && (r.includes("..") || r.includes("\\") || r.includes("%") || r.includes("?") || r.includes("#") || Mo(r) || r.split("/").length !== t.split("/").length))
+      return { ok: !1, reason: "must not contain encoded separators or traversal" };
+  } catch {
+    return { ok: !1, reason: "must contain valid URL encoding" };
+  }
+  return t.includes("\\") ? { ok: !1, reason: "must not contain a backslash" } : t.includes("..") ? { ok: !1, reason: "must not contain .." } : t.includes("?") ? { ok: !1, reason: "must not contain a query string" } : t.includes("#") ? { ok: !1, reason: "must not contain a fragment" } : { ok: !0, route: t };
+}
+new Set(".\\+*[^]$()");
+function NA(e) {
+  const t = (r) => {
+    console.log(`[${e}] ${r}`);
+  };
+  return {
+    log: t,
+    info: t,
+    warn(r) {
+      console.warn(`[${e}] ${r}`);
+    },
+    error(r) {
+      console.error(`[${e}] ${r}`);
+    }
+  };
+}
+const OA = /* @__PURE__ */ new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+function Ho(e) {
+  if (typeof e != "string")
+    return { ok: !1, reason: "must be an absolute http(s) loopback URL" };
+  const t = e.trim();
+  if (!t)
+    return { ok: !1, reason: "must be an absolute http(s) loopback URL" };
+  let r;
+  try {
+    r = new URL(t);
+  } catch {
+    return { ok: !1, reason: "must be an absolute http(s) loopback URL" };
+  }
+  if (r.protocol !== "http:" && r.protocol !== "https:")
+    return { ok: !1, reason: "protocol must be http or https" };
+  if (r.username !== "" || r.password !== "")
+    return { ok: !1, reason: "must not contain userinfo" };
+  const n = r.hostname.toLowerCase();
+  return OA.has(n) ? { ok: !0, url: t } : { ok: !1, reason: "host must be 127.0.0.1, localhost, or [::1]" };
+}
+const vi = "app";
+function ii(e) {
+  const t = Number.parseInt(e, 10);
+  return Number.isFinite(t) && t >= 0 ? t : 0;
+}
+function vA(e) {
+  const t = String(e || "0.0.0").trim(), r = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(t);
+  return r ? {
+    major: ii(r[1]),
+    minor: ii(r[2]),
+    patch: ii(r[3]),
+    prerelease: r[4] || "",
+    raw: t
+  } : null;
+}
+const BA = [
+  "native",
+  "webview",
+  "chat.surface",
+  "artifact.html",
+  "compat.iframe",
+  "web.embed"
+];
+new Set(BA);
+function RA(e) {
+  return typeof e == "object" && e !== null && !Array.isArray(e);
+}
+function va(e) {
+  return typeof e != "string" ? null : e.trim() || null;
+}
+function FA(e) {
+  if (!Array.isArray(e)) return;
+  const t = [];
+  for (const r of e) {
+    const n = va(r);
+    n && !t.includes(n) && t.push(n);
+  }
+  return t.length > 0 ? t : void 0;
+}
+const Ba = ["framed", "flush"], kA = new Set(Ba);
+function PA(e) {
+  return typeof e == "string" && kA.has(e);
+}
+const LA = {
+  fill: { cardForm: "flush", titlebar: "translucent" },
+  unified: { cardForm: "flush", titlebar: null }
+}, Ra = ["card", "page"], xA = new Set(Ra);
+function UA(e) {
+  return typeof e == "string" && xA.has(e);
+}
+function MA(e) {
+  if (!RA(e)) return null;
+  const t = va(e.id);
+  if (!t) return null;
+  const r = e.label;
+  return r == null ? { id: t } : { id: t, label: r };
+}
+function HA(e) {
+  if (e == null)
+    return { cardForm: void 0, titlebarFromLegacyForm: null, legacyForm: null, invalid: !1 };
+  if (PA(e))
+    return { cardForm: e, titlebarFromLegacyForm: null, legacyForm: null, invalid: !1 };
+  const t = typeof e == "string" ? LA[e] : void 0;
+  return t ? {
+    cardForm: t.cardForm,
+    titlebarFromLegacyForm: t.titlebar,
+    legacyForm: e,
+    invalid: !1
+  } : { cardForm: void 0, titlebarFromLegacyForm: null, legacyForm: null, invalid: !0 };
+}
+const YA = "app/environments.manage";
+function Fa(e) {
+  return typeof e > "u" || e === null;
+}
+function $A(e) {
+  return typeof e == "object" && e !== null;
+}
+function KA(e) {
+  return Array.isArray(e) ? e : Fa(e) ? [] : [e];
+}
+function QA(e, t) {
+  var r, n, i, s;
+  if (t)
+    for (s = Object.keys(t), r = 0, n = s.length; r < n; r += 1)
+      i = s[r], e[i] = t[i];
+  return e;
+}
+function GA(e, t) {
+  var r = "", n;
+  for (n = 0; n < t; n += 1)
+    r += e;
+  return r;
+}
+function WA(e) {
+  return e === 0 && Number.NEGATIVE_INFINITY === 1 / e;
+}
+var jA = Fa, JA = $A, VA = KA, ZA = GA, zA = WA, qA = QA, ut = {
+  isNothing: jA,
+  isObject: JA,
+  toArray: VA,
+  repeat: ZA,
+  isNegativeZero: zA,
+  extend: qA
+};
+function ka(e, t) {
+  var r = "", n = e.reason || "(unknown reason)";
+  return e.mark ? (e.mark.name && (r += 'in "' + e.mark.name + '" '), r += "(" + (e.mark.line + 1) + ":" + (e.mark.column + 1) + ")", !t && e.mark.snippet && (r += `
+
+` + e.mark.snippet), n + " " + r) : n;
+}
+function pn(e, t) {
+  Error.call(this), this.name = "YAMLException", this.reason = e, this.mark = t, this.message = ka(this, !1), Error.captureStackTrace ? Error.captureStackTrace(this, this.constructor) : this.stack = new Error().stack || "";
+}
+pn.prototype = Object.create(Error.prototype);
+pn.prototype.constructor = pn;
+pn.prototype.toString = function(t) {
+  return this.name + ": " + ka(this, t);
+};
+var Tt = pn;
+function oi(e, t, r, n, i) {
+  var s = "", o = "", u = Math.floor(i / 2) - 1;
+  return n - t > u && (s = " ... ", t = n - u + s.length), r - n > u && (o = " ...", r = n + u - o.length), {
+    str: s + e.slice(t, r).replace(/\t/g, "→") + o,
+    pos: n - t + s.length
+    // relative position
+  };
+}
+function si(e, t) {
+  return ut.repeat(" ", t - e.length) + e;
+}
+function XA(e, t) {
+  if (t = Object.create(t || null), !e.buffer) return null;
+  t.maxLength || (t.maxLength = 79), typeof t.indent != "number" && (t.indent = 1), typeof t.linesBefore != "number" && (t.linesBefore = 3), typeof t.linesAfter != "number" && (t.linesAfter = 2);
+  for (var r = /\r?\n|\r|\0/g, n = [0], i = [], s, o = -1; s = r.exec(e.buffer); )
+    i.push(s.index), n.push(s.index + s[0].length), e.position <= s.index && o < 0 && (o = n.length - 2);
+  o < 0 && (o = n.length - 1);
+  var u = "", a, c, A = Math.min(e.line + t.linesAfter, i.length).toString().length, d = t.maxLength - (t.indent + A + 3);
+  for (a = 1; a <= t.linesBefore && !(o - a < 0); a++)
+    c = oi(
+      e.buffer,
+      n[o - a],
+      i[o - a],
+      e.position - (n[o] - n[o - a]),
+      d
+    ), u = ut.repeat(" ", t.indent) + si((e.line - a + 1).toString(), A) + " | " + c.str + `
+` + u;
+  for (c = oi(e.buffer, n[o], i[o], e.position, d), u += ut.repeat(" ", t.indent) + si((e.line + 1).toString(), A) + " | " + c.str + `
+`, u += ut.repeat("-", t.indent + A + 3 + c.pos) + `^
+`, a = 1; a <= t.linesAfter && !(o + a >= i.length); a++)
+    c = oi(
+      e.buffer,
+      n[o + a],
+      i[o + a],
+      e.position - (n[o] - n[o + a]),
+      d
+    ), u += ut.repeat(" ", t.indent) + si((e.line + a + 1).toString(), A) + " | " + c.str + `
+`;
+  return u.replace(/\n$/, "");
+}
+var el = XA, tl = [
+  "kind",
+  "multi",
+  "resolve",
+  "construct",
+  "instanceOf",
+  "predicate",
+  "represent",
+  "representName",
+  "defaultStyle",
+  "styleAliases"
+], rl = [
+  "scalar",
+  "sequence",
+  "mapping"
+];
+function nl(e) {
+  var t = {};
+  return e !== null && Object.keys(e).forEach(function(r) {
+    e[r].forEach(function(n) {
+      t[String(n)] = r;
+    });
+  }), t;
+}
+function il(e, t) {
+  if (t = t || {}, Object.keys(t).forEach(function(r) {
+    if (tl.indexOf(r) === -1)
+      throw new Tt('Unknown option "' + r + '" is met in definition of "' + e + '" YAML type.');
+  }), this.options = t, this.tag = e, this.kind = t.kind || null, this.resolve = t.resolve || function() {
+    return !0;
+  }, this.construct = t.construct || function(r) {
+    return r;
+  }, this.instanceOf = t.instanceOf || null, this.predicate = t.predicate || null, this.represent = t.represent || null, this.representName = t.representName || null, this.defaultStyle = t.defaultStyle || null, this.multi = t.multi || !1, this.styleAliases = nl(t.styleAliases || null), rl.indexOf(this.kind) === -1)
+    throw new Tt('Unknown kind "' + this.kind + '" is specified for "' + e + '" YAML type.');
+}
+var Et = il;
+function Yo(e, t) {
+  var r = [];
+  return e[t].forEach(function(n) {
+    var i = r.length;
+    r.forEach(function(s, o) {
+      s.tag === n.tag && s.kind === n.kind && s.multi === n.multi && (i = o);
+    }), r[i] = n;
+  }), r;
+}
+function ol() {
+  var e = {
+    scalar: {},
+    sequence: {},
+    mapping: {},
+    fallback: {},
+    multi: {
+      scalar: [],
+      sequence: [],
+      mapping: [],
+      fallback: []
+    }
+  }, t, r;
+  function n(i) {
+    i.multi ? (e.multi[i.kind].push(i), e.multi.fallback.push(i)) : e[i.kind][i.tag] = e.fallback[i.tag] = i;
+  }
+  for (t = 0, r = arguments.length; t < r; t += 1)
+    arguments[t].forEach(n);
+  return e;
+}
+function Bi(e) {
+  return this.extend(e);
+}
+Bi.prototype.extend = function(t) {
+  var r = [], n = [];
+  if (t instanceof Et)
+    n.push(t);
+  else if (Array.isArray(t))
+    n = n.concat(t);
+  else if (t && (Array.isArray(t.implicit) || Array.isArray(t.explicit)))
+    t.implicit && (r = r.concat(t.implicit)), t.explicit && (n = n.concat(t.explicit));
+  else
+    throw new Tt("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
+  r.forEach(function(s) {
+    if (!(s instanceof Et))
+      throw new Tt("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+    if (s.loadKind && s.loadKind !== "scalar")
+      throw new Tt("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+    if (s.multi)
+      throw new Tt("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
+  }), n.forEach(function(s) {
+    if (!(s instanceof Et))
+      throw new Tt("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+  });
+  var i = Object.create(Bi.prototype);
+  return i.implicit = (this.implicit || []).concat(r), i.explicit = (this.explicit || []).concat(n), i.compiledImplicit = Yo(i, "implicit"), i.compiledExplicit = Yo(i, "explicit"), i.compiledTypeMap = ol(i.compiledImplicit, i.compiledExplicit), i;
+};
+var Pa = Bi, La = new Et("tag:yaml.org,2002:str", {
+  kind: "scalar",
+  construct: function(e) {
+    return e !== null ? e : "";
+  }
+}), xa = new Et("tag:yaml.org,2002:seq", {
+  kind: "sequence",
+  construct: function(e) {
+    return e !== null ? e : [];
+  }
+}), Ua = new Et("tag:yaml.org,2002:map", {
+  kind: "mapping",
+  construct: function(e) {
+    return e !== null ? e : {};
+  }
+}), Ma = new Pa({
+  explicit: [
+    La,
+    xa,
+    Ua
+  ]
+});
+function sl(e) {
+  if (e === null) return !0;
+  var t = e.length;
+  return t === 1 && e === "~" || t === 4 && (e === "null" || e === "Null" || e === "NULL");
+}
+function al() {
+  return null;
+}
+function ul(e) {
+  return e === null;
+}
+var Ha = new Et("tag:yaml.org,2002:null", {
+  kind: "scalar",
+  resolve: sl,
+  construct: al,
+  predicate: ul,
+  represent: {
+    canonical: function() {
+      return "~";
+    },
+    lowercase: function() {
+      return "null";
+    },
+    uppercase: function() {
+      return "NULL";
+    },
+    camelcase: function() {
+      return "Null";
+    },
+    empty: function() {
+      return "";
+    }
+  },
+  defaultStyle: "lowercase"
+});
+function cl(e) {
+  if (e === null) return !1;
+  var t = e.length;
+  return t === 4 && (e === "true" || e === "True" || e === "TRUE") || t === 5 && (e === "false" || e === "False" || e === "FALSE");
+}
+function Al(e) {
+  return e === "true" || e === "True" || e === "TRUE";
+}
+function ll(e) {
+  return Object.prototype.toString.call(e) === "[object Boolean]";
+}
+var Ya = new Et("tag:yaml.org,2002:bool", {
+  kind: "scalar",
+  resolve: cl,
+  construct: Al,
+  predicate: ll,
+  represent: {
+    lowercase: function(e) {
+      return e ? "true" : "false";
+    },
+    uppercase: function(e) {
+      return e ? "TRUE" : "FALSE";
+    },
+    camelcase: function(e) {
+      return e ? "True" : "False";
+    }
+  },
+  defaultStyle: "lowercase"
+});
+function fl(e) {
+  return 48 <= e && e <= 57 || 65 <= e && e <= 70 || 97 <= e && e <= 102;
+}
+function hl(e) {
+  return 48 <= e && e <= 55;
+}
+function dl(e) {
+  return 48 <= e && e <= 57;
+}
+function pl(e) {
+  if (e === null) return !1;
+  var t = e.length, r = 0, n = !1, i;
+  if (!t) return !1;
+  if (i = e[r], (i === "-" || i === "+") && (i = e[++r]), i === "0") {
+    if (r + 1 === t) return !0;
+    if (i = e[++r], i === "b") {
+      for (r++; r < t; r++)
+        if (i = e[r], i !== "_") {
+          if (i !== "0" && i !== "1") return !1;
+          n = !0;
+        }
+      return n && i !== "_";
+    }
+    if (i === "x") {
+      for (r++; r < t; r++)
+        if (i = e[r], i !== "_") {
+          if (!fl(e.charCodeAt(r))) return !1;
+          n = !0;
+        }
+      return n && i !== "_";
+    }
+    if (i === "o") {
+      for (r++; r < t; r++)
+        if (i = e[r], i !== "_") {
+          if (!hl(e.charCodeAt(r))) return !1;
+          n = !0;
+        }
+      return n && i !== "_";
+    }
+  }
+  if (i === "_") return !1;
+  for (; r < t; r++)
+    if (i = e[r], i !== "_") {
+      if (!dl(e.charCodeAt(r)))
+        return !1;
+      n = !0;
+    }
+  return !(!n || i === "_");
+}
+function ml(e) {
+  var t = e, r = 1, n;
+  if (t.indexOf("_") !== -1 && (t = t.replace(/_/g, "")), n = t[0], (n === "-" || n === "+") && (n === "-" && (r = -1), t = t.slice(1), n = t[0]), t === "0") return 0;
+  if (n === "0") {
+    if (t[1] === "b") return r * parseInt(t.slice(2), 2);
+    if (t[1] === "x") return r * parseInt(t.slice(2), 16);
+    if (t[1] === "o") return r * parseInt(t.slice(2), 8);
+  }
+  return r * parseInt(t, 10);
+}
+function gl(e) {
+  return Object.prototype.toString.call(e) === "[object Number]" && e % 1 === 0 && !ut.isNegativeZero(e);
+}
+var $a = new Et("tag:yaml.org,2002:int", {
+  kind: "scalar",
+  resolve: pl,
+  construct: ml,
+  predicate: gl,
+  represent: {
+    binary: function(e) {
+      return e >= 0 ? "0b" + e.toString(2) : "-0b" + e.toString(2).slice(1);
+    },
+    octal: function(e) {
+      return e >= 0 ? "0o" + e.toString(8) : "-0o" + e.toString(8).slice(1);
+    },
+    decimal: function(e) {
+      return e.toString(10);
+    },
+    /* eslint-disable max-len */
+    hexadecimal: function(e) {
+      return e >= 0 ? "0x" + e.toString(16).toUpperCase() : "-0x" + e.toString(16).toUpperCase().slice(1);
+    }
+  },
+  defaultStyle: "decimal",
+  styleAliases: {
+    binary: [2, "bin"],
+    octal: [8, "oct"],
+    decimal: [10, "dec"],
+    hexadecimal: [16, "hex"]
+  }
+}), El = new RegExp(
+  // 2.5e4, 2.5 and integers
+  "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+);
+function Cl(e) {
+  return !(e === null || !El.test(e) || // Quick hack to not allow integers end with `_`
+  // Probably should update regexp & check speed
+  e[e.length - 1] === "_");
+}
+function yl(e) {
+  var t, r;
+  return t = e.replace(/_/g, "").toLowerCase(), r = t[0] === "-" ? -1 : 1, "+-".indexOf(t[0]) >= 0 && (t = t.slice(1)), t === ".inf" ? r === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY : t === ".nan" ? NaN : r * parseFloat(t, 10);
+}
+var bl = /^[-+]?[0-9]+e/;
+function wl(e, t) {
+  var r;
+  if (isNaN(e))
+    switch (t) {
+      case "lowercase":
+        return ".nan";
+      case "uppercase":
+        return ".NAN";
+      case "camelcase":
+        return ".NaN";
+    }
+  else if (Number.POSITIVE_INFINITY === e)
+    switch (t) {
+      case "lowercase":
+        return ".inf";
+      case "uppercase":
+        return ".INF";
+      case "camelcase":
+        return ".Inf";
+    }
+  else if (Number.NEGATIVE_INFINITY === e)
+    switch (t) {
+      case "lowercase":
+        return "-.inf";
+      case "uppercase":
+        return "-.INF";
+      case "camelcase":
+        return "-.Inf";
+    }
+  else if (ut.isNegativeZero(e))
+    return "-0.0";
+  return r = e.toString(10), bl.test(r) ? r.replace("e", ".e") : r;
+}
+function Il(e) {
+  return Object.prototype.toString.call(e) === "[object Number]" && (e % 1 !== 0 || ut.isNegativeZero(e));
+}
+var Ka = new Et("tag:yaml.org,2002:float", {
+  kind: "scalar",
+  resolve: Cl,
+  construct: yl,
+  predicate: Il,
+  represent: wl,
+  defaultStyle: "lowercase"
+}), Qa = Ma.extend({
+  implicit: [
+    Ha,
+    Ya,
+    $a,
+    Ka
+  ]
+}), Ga = Qa, Wa = new RegExp(
+  "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
+), ja = new RegExp(
+  "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
+);
+function _l(e) {
+  return e === null ? !1 : Wa.exec(e) !== null || ja.exec(e) !== null;
+}
+function Dl(e) {
+  var t, r, n, i, s, o, u, a = 0, c = null, A, d, p;
+  if (t = Wa.exec(e), t === null && (t = ja.exec(e)), t === null) throw new Error("Date resolve error");
+  if (r = +t[1], n = +t[2] - 1, i = +t[3], !t[4])
+    return new Date(Date.UTC(r, n, i));
+  if (s = +t[4], o = +t[5], u = +t[6], t[7]) {
+    for (a = t[7].slice(0, 3); a.length < 3; )
+      a += "0";
+    a = +a;
+  }
+  return t[9] && (A = +t[10], d = +(t[11] || 0), c = (A * 60 + d) * 6e4, t[9] === "-" && (c = -c)), p = new Date(Date.UTC(r, n, i, s, o, u, a)), c && p.setTime(p.getTime() - c), p;
+}
+function Sl(e) {
+  return e.toISOString();
+}
+var Ja = new Et("tag:yaml.org,2002:timestamp", {
+  kind: "scalar",
+  resolve: _l,
+  construct: Dl,
+  instanceOf: Date,
+  represent: Sl
+});
+function Tl(e) {
+  return e === "<<" || e === null;
+}
+var Va = new Et("tag:yaml.org,2002:merge", {
+  kind: "scalar",
+  resolve: Tl
+}), ji = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=
+\r`;
+function Nl(e) {
+  if (e === null) return !1;
+  var t, r, n = 0, i = e.length, s = ji;
+  for (r = 0; r < i; r++)
+    if (t = s.indexOf(e.charAt(r)), !(t > 64)) {
+      if (t < 0) return !1;
+      n += 6;
+    }
+  return n % 8 === 0;
+}
+function Ol(e) {
+  var t, r, n = e.replace(/[\r\n=]/g, ""), i = n.length, s = ji, o = 0, u = [];
+  for (t = 0; t < i; t++)
+    t % 4 === 0 && t && (u.push(o >> 16 & 255), u.push(o >> 8 & 255), u.push(o & 255)), o = o << 6 | s.indexOf(n.charAt(t));
+  return r = i % 4 * 6, r === 0 ? (u.push(o >> 16 & 255), u.push(o >> 8 & 255), u.push(o & 255)) : r === 18 ? (u.push(o >> 10 & 255), u.push(o >> 2 & 255)) : r === 12 && u.push(o >> 4 & 255), new Uint8Array(u);
+}
+function vl(e) {
+  var t = "", r = 0, n, i, s = e.length, o = ji;
+  for (n = 0; n < s; n++)
+    n % 3 === 0 && n && (t += o[r >> 18 & 63], t += o[r >> 12 & 63], t += o[r >> 6 & 63], t += o[r & 63]), r = (r << 8) + e[n];
+  return i = s % 3, i === 0 ? (t += o[r >> 18 & 63], t += o[r >> 12 & 63], t += o[r >> 6 & 63], t += o[r & 63]) : i === 2 ? (t += o[r >> 10 & 63], t += o[r >> 4 & 63], t += o[r << 2 & 63], t += o[64]) : i === 1 && (t += o[r >> 2 & 63], t += o[r << 4 & 63], t += o[64], t += o[64]), t;
+}
+function Bl(e) {
+  return Object.prototype.toString.call(e) === "[object Uint8Array]";
+}
+var Za = new Et("tag:yaml.org,2002:binary", {
+  kind: "scalar",
+  resolve: Nl,
+  construct: Ol,
+  predicate: Bl,
+  represent: vl
+}), Rl = Object.prototype.hasOwnProperty, Fl = Object.prototype.toString;
+function kl(e) {
+  if (e === null) return !0;
+  var t = [], r, n, i, s, o, u = e;
+  for (r = 0, n = u.length; r < n; r += 1) {
+    if (i = u[r], o = !1, Fl.call(i) !== "[object Object]") return !1;
+    for (s in i)
+      if (Rl.call(i, s))
+        if (!o) o = !0;
+        else return !1;
+    if (!o) return !1;
+    if (t.indexOf(s) === -1) t.push(s);
+    else return !1;
+  }
+  return !0;
+}
+function Pl(e) {
+  return e !== null ? e : [];
+}
+var za = new Et("tag:yaml.org,2002:omap", {
+  kind: "sequence",
+  resolve: kl,
+  construct: Pl
+}), Ll = Object.prototype.toString;
+function xl(e) {
+  if (e === null) return !0;
+  var t, r, n, i, s, o = e;
+  for (s = new Array(o.length), t = 0, r = o.length; t < r; t += 1) {
+    if (n = o[t], Ll.call(n) !== "[object Object]" || (i = Object.keys(n), i.length !== 1)) return !1;
+    s[t] = [i[0], n[i[0]]];
+  }
+  return !0;
+}
+function Ul(e) {
+  if (e === null) return [];
+  var t, r, n, i, s, o = e;
+  for (s = new Array(o.length), t = 0, r = o.length; t < r; t += 1)
+    n = o[t], i = Object.keys(n), s[t] = [i[0], n[i[0]]];
+  return s;
+}
+var qa = new Et("tag:yaml.org,2002:pairs", {
+  kind: "sequence",
+  resolve: xl,
+  construct: Ul
+}), Ml = Object.prototype.hasOwnProperty;
+function Hl(e) {
+  if (e === null) return !0;
+  var t, r = e;
+  for (t in r)
+    if (Ml.call(r, t) && r[t] !== null)
+      return !1;
+  return !0;
+}
+function Yl(e) {
+  return e !== null ? e : {};
+}
+var Xa = new Et("tag:yaml.org,2002:set", {
+  kind: "mapping",
+  resolve: Hl,
+  construct: Yl
+}), Ji = Ga.extend({
+  implicit: [
+    Ja,
+    Va
+  ],
+  explicit: [
+    Za,
+    za,
+    qa,
+    Xa
+  ]
+}), br = Object.prototype.hasOwnProperty, Yn = 1, eu = 2, tu = 3, $n = 4, ai = 1, $l = 2, $o = 3, Kl = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/, Ql = /[\x85\u2028\u2029]/, Gl = /[,\[\]\{\}]/, ru = /^(?:!|!!|![a-z\-]+!)$/i, nu = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
+function Ko(e) {
+  return Object.prototype.toString.call(e);
+}
+function er(e) {
+  return e === 10 || e === 13;
+}
+function Fr(e) {
+  return e === 9 || e === 32;
+}
+function Rt(e) {
+  return e === 9 || e === 32 || e === 10 || e === 13;
+}
+function Vr(e) {
+  return e === 44 || e === 91 || e === 93 || e === 123 || e === 125;
+}
+function Wl(e) {
+  var t;
+  return 48 <= e && e <= 57 ? e - 48 : (t = e | 32, 97 <= t && t <= 102 ? t - 97 + 10 : -1);
+}
+function jl(e) {
+  return e === 120 ? 2 : e === 117 ? 4 : e === 85 ? 8 : 0;
+}
+function Jl(e) {
+  return 48 <= e && e <= 57 ? e - 48 : -1;
+}
+function Qo(e) {
+  return e === 48 ? "\0" : e === 97 ? "\x07" : e === 98 ? "\b" : e === 116 || e === 9 ? "	" : e === 110 ? `
+` : e === 118 ? "\v" : e === 102 ? "\f" : e === 114 ? "\r" : e === 101 ? "\x1B" : e === 32 ? " " : e === 34 ? '"' : e === 47 ? "/" : e === 92 ? "\\" : e === 78 ? "" : e === 95 ? " " : e === 76 ? "\u2028" : e === 80 ? "\u2029" : "";
+}
+function Vl(e) {
+  return e <= 65535 ? String.fromCharCode(e) : String.fromCharCode(
+    (e - 65536 >> 10) + 55296,
+    (e - 65536 & 1023) + 56320
+  );
+}
+function iu(e, t, r) {
+  t === "__proto__" ? Object.defineProperty(e, t, {
+    configurable: !0,
+    enumerable: !0,
+    writable: !0,
+    value: r
+  }) : e[t] = r;
+}
+var ou = new Array(256), su = new Array(256);
+for (var jr = 0; jr < 256; jr++)
+  ou[jr] = Qo(jr) ? 1 : 0, su[jr] = Qo(jr);
+function Zl(e, t) {
+  this.input = e, this.filename = t.filename || null, this.schema = t.schema || Ji, this.onWarning = t.onWarning || null, this.legacy = t.legacy || !1, this.json = t.json || !1, this.listener = t.listener || null, this.implicitTypes = this.schema.compiledImplicit, this.typeMap = this.schema.compiledTypeMap, this.length = e.length, this.position = 0, this.line = 0, this.lineStart = 0, this.lineIndent = 0, this.firstTabInLine = -1, this.documents = [];
+}
+function au(e, t) {
+  var r = {
+    name: e.filename,
+    buffer: e.input.slice(0, -1),
+    // omit trailing \0
+    position: e.position,
+    line: e.line,
+    column: e.position - e.lineStart
+  };
+  return r.snippet = el(r), new Tt(t, r);
+}
+function he(e, t) {
+  throw au(e, t);
+}
+function Kn(e, t) {
+  e.onWarning && e.onWarning.call(null, au(e, t));
+}
+var Go = {
+  YAML: function(t, r, n) {
+    var i, s, o;
+    t.version !== null && he(t, "duplication of %YAML directive"), n.length !== 1 && he(t, "YAML directive accepts exactly one argument"), i = /^([0-9]+)\.([0-9]+)$/.exec(n[0]), i === null && he(t, "ill-formed argument of the YAML directive"), s = parseInt(i[1], 10), o = parseInt(i[2], 10), s !== 1 && he(t, "unacceptable YAML version of the document"), t.version = n[0], t.checkLineBreaks = o < 2, o !== 1 && o !== 2 && Kn(t, "unsupported YAML version of the document");
+  },
+  TAG: function(t, r, n) {
+    var i, s;
+    n.length !== 2 && he(t, "TAG directive accepts exactly two arguments"), i = n[0], s = n[1], ru.test(i) || he(t, "ill-formed tag handle (first argument) of the TAG directive"), br.call(t.tagMap, i) && he(t, 'there is a previously declared suffix for "' + i + '" tag handle'), nu.test(s) || he(t, "ill-formed tag prefix (second argument) of the TAG directive");
+    try {
+      s = decodeURIComponent(s);
+    } catch {
+      he(t, "tag prefix is malformed: " + s);
+    }
+    t.tagMap[i] = s;
+  }
+};
+function Cr(e, t, r, n) {
+  var i, s, o, u;
+  if (t < r) {
+    if (u = e.input.slice(t, r), n)
+      for (i = 0, s = u.length; i < s; i += 1)
+        o = u.charCodeAt(i), o === 9 || 32 <= o && o <= 1114111 || he(e, "expected valid JSON character");
+    else Kl.test(u) && he(e, "the stream contains non-printable characters");
+    e.result += u;
+  }
+}
+function Wo(e, t, r, n) {
+  var i, s, o, u;
+  for (ut.isObject(r) || he(e, "cannot merge mappings; the provided source object is unacceptable"), i = Object.keys(r), o = 0, u = i.length; o < u; o += 1)
+    s = i[o], br.call(t, s) || (iu(t, s, r[s]), n[s] = !0);
+}
+function Zr(e, t, r, n, i, s, o, u, a) {
+  var c, A;
+  if (Array.isArray(i))
+    for (i = Array.prototype.slice.call(i), c = 0, A = i.length; c < A; c += 1)
+      Array.isArray(i[c]) && he(e, "nested arrays are not supported inside keys"), typeof i == "object" && Ko(i[c]) === "[object Object]" && (i[c] = "[object Object]");
+  if (typeof i == "object" && Ko(i) === "[object Object]" && (i = "[object Object]"), i = String(i), t === null && (t = {}), n === "tag:yaml.org,2002:merge")
+    if (Array.isArray(s))
+      for (c = 0, A = s.length; c < A; c += 1)
+        Wo(e, t, s[c], r);
+    else
+      Wo(e, t, s, r);
+  else
+    !e.json && !br.call(r, i) && br.call(t, i) && (e.line = o || e.line, e.lineStart = u || e.lineStart, e.position = a || e.position, he(e, "duplicated mapping key")), iu(t, i, s), delete r[i];
+  return t;
+}
+function Vi(e) {
+  var t;
+  t = e.input.charCodeAt(e.position), t === 10 ? e.position++ : t === 13 ? (e.position++, e.input.charCodeAt(e.position) === 10 && e.position++) : he(e, "a line break is expected"), e.line += 1, e.lineStart = e.position, e.firstTabInLine = -1;
+}
+function nt(e, t, r) {
+  for (var n = 0, i = e.input.charCodeAt(e.position); i !== 0; ) {
+    for (; Fr(i); )
+      i === 9 && e.firstTabInLine === -1 && (e.firstTabInLine = e.position), i = e.input.charCodeAt(++e.position);
+    if (t && i === 35)
+      do
+        i = e.input.charCodeAt(++e.position);
+      while (i !== 10 && i !== 13 && i !== 0);
+    if (er(i))
+      for (Vi(e), i = e.input.charCodeAt(e.position), n++, e.lineIndent = 0; i === 32; )
+        e.lineIndent++, i = e.input.charCodeAt(++e.position);
+    else
+      break;
+  }
+  return r !== -1 && n !== 0 && e.lineIndent < r && Kn(e, "deficient indentation"), n;
+}
+function jn(e) {
+  var t = e.position, r;
+  return r = e.input.charCodeAt(t), !!((r === 45 || r === 46) && r === e.input.charCodeAt(t + 1) && r === e.input.charCodeAt(t + 2) && (t += 3, r = e.input.charCodeAt(t), r === 0 || Rt(r)));
+}
+function Zi(e, t) {
+  t === 1 ? e.result += " " : t > 1 && (e.result += ut.repeat(`
+`, t - 1));
+}
+function zl(e, t, r) {
+  var n, i, s, o, u, a, c, A, d = e.kind, p = e.result, w;
+  if (w = e.input.charCodeAt(e.position), Rt(w) || Vr(w) || w === 35 || w === 38 || w === 42 || w === 33 || w === 124 || w === 62 || w === 39 || w === 34 || w === 37 || w === 64 || w === 96 || (w === 63 || w === 45) && (i = e.input.charCodeAt(e.position + 1), Rt(i) || r && Vr(i)))
+    return !1;
+  for (e.kind = "scalar", e.result = "", s = o = e.position, u = !1; w !== 0; ) {
+    if (w === 58) {
+      if (i = e.input.charCodeAt(e.position + 1), Rt(i) || r && Vr(i))
+        break;
+    } else if (w === 35) {
+      if (n = e.input.charCodeAt(e.position - 1), Rt(n))
+        break;
+    } else {
+      if (e.position === e.lineStart && jn(e) || r && Vr(w))
+        break;
+      if (er(w))
+        if (a = e.line, c = e.lineStart, A = e.lineIndent, nt(e, !1, -1), e.lineIndent >= t) {
+          u = !0, w = e.input.charCodeAt(e.position);
+          continue;
+        } else {
+          e.position = o, e.line = a, e.lineStart = c, e.lineIndent = A;
+          break;
+        }
+    }
+    u && (Cr(e, s, o, !1), Zi(e, e.line - a), s = o = e.position, u = !1), Fr(w) || (o = e.position + 1), w = e.input.charCodeAt(++e.position);
+  }
+  return Cr(e, s, o, !1), e.result ? !0 : (e.kind = d, e.result = p, !1);
+}
+function ql(e, t) {
+  var r, n, i;
+  if (r = e.input.charCodeAt(e.position), r !== 39)
+    return !1;
+  for (e.kind = "scalar", e.result = "", e.position++, n = i = e.position; (r = e.input.charCodeAt(e.position)) !== 0; )
+    if (r === 39)
+      if (Cr(e, n, e.position, !0), r = e.input.charCodeAt(++e.position), r === 39)
+        n = e.position, e.position++, i = e.position;
+      else
+        return !0;
+    else er(r) ? (Cr(e, n, i, !0), Zi(e, nt(e, !1, t)), n = i = e.position) : e.position === e.lineStart && jn(e) ? he(e, "unexpected end of the document within a single quoted scalar") : (e.position++, i = e.position);
+  he(e, "unexpected end of the stream within a single quoted scalar");
+}
+function Xl(e, t) {
+  var r, n, i, s, o, u;
+  if (u = e.input.charCodeAt(e.position), u !== 34)
+    return !1;
+  for (e.kind = "scalar", e.result = "", e.position++, r = n = e.position; (u = e.input.charCodeAt(e.position)) !== 0; ) {
+    if (u === 34)
+      return Cr(e, r, e.position, !0), e.position++, !0;
+    if (u === 92) {
+      if (Cr(e, r, e.position, !0), u = e.input.charCodeAt(++e.position), er(u))
+        nt(e, !1, t);
+      else if (u < 256 && ou[u])
+        e.result += su[u], e.position++;
+      else if ((o = jl(u)) > 0) {
+        for (i = o, s = 0; i > 0; i--)
+          u = e.input.charCodeAt(++e.position), (o = Wl(u)) >= 0 ? s = (s << 4) + o : he(e, "expected hexadecimal character");
+        e.result += Vl(s), e.position++;
+      } else
+        he(e, "unknown escape sequence");
+      r = n = e.position;
+    } else er(u) ? (Cr(e, r, n, !0), Zi(e, nt(e, !1, t)), r = n = e.position) : e.position === e.lineStart && jn(e) ? he(e, "unexpected end of the document within a double quoted scalar") : (e.position++, n = e.position);
+  }
+  he(e, "unexpected end of the stream within a double quoted scalar");
+}
+function ef(e, t) {
+  var r = !0, n, i, s, o = e.tag, u, a = e.anchor, c, A, d, p, w, _ = /* @__PURE__ */ Object.create(null), R, I, k, x;
+  if (x = e.input.charCodeAt(e.position), x === 91)
+    A = 93, w = !1, u = [];
+  else if (x === 123)
+    A = 125, w = !0, u = {};
+  else
+    return !1;
+  for (e.anchor !== null && (e.anchorMap[e.anchor] = u), x = e.input.charCodeAt(++e.position); x !== 0; ) {
+    if (nt(e, !0, t), x = e.input.charCodeAt(e.position), x === A)
+      return e.position++, e.tag = o, e.anchor = a, e.kind = w ? "mapping" : "sequence", e.result = u, !0;
+    r ? x === 44 && he(e, "expected the node content, but found ','") : he(e, "missed comma between flow collection entries"), I = R = k = null, d = p = !1, x === 63 && (c = e.input.charCodeAt(e.position + 1), Rt(c) && (d = p = !0, e.position++, nt(e, !0, t))), n = e.line, i = e.lineStart, s = e.position, qr(e, t, Yn, !1, !0), I = e.tag, R = e.result, nt(e, !0, t), x = e.input.charCodeAt(e.position), (p || e.line === n) && x === 58 && (d = !0, x = e.input.charCodeAt(++e.position), nt(e, !0, t), qr(e, t, Yn, !1, !0), k = e.result), w ? Zr(e, u, _, I, R, k, n, i, s) : d ? u.push(Zr(e, null, _, I, R, k, n, i, s)) : u.push(R), nt(e, !0, t), x = e.input.charCodeAt(e.position), x === 44 ? (r = !0, x = e.input.charCodeAt(++e.position)) : r = !1;
+  }
+  he(e, "unexpected end of the stream within a flow collection");
+}
+function tf(e, t) {
+  var r, n, i = ai, s = !1, o = !1, u = t, a = 0, c = !1, A, d;
+  if (d = e.input.charCodeAt(e.position), d === 124)
+    n = !1;
+  else if (d === 62)
+    n = !0;
+  else
+    return !1;
+  for (e.kind = "scalar", e.result = ""; d !== 0; )
+    if (d = e.input.charCodeAt(++e.position), d === 43 || d === 45)
+      ai === i ? i = d === 43 ? $o : $l : he(e, "repeat of a chomping mode identifier");
+    else if ((A = Jl(d)) >= 0)
+      A === 0 ? he(e, "bad explicit indentation width of a block scalar; it cannot be less than one") : o ? he(e, "repeat of an indentation width identifier") : (u = t + A - 1, o = !0);
+    else
+      break;
+  if (Fr(d)) {
+    do
+      d = e.input.charCodeAt(++e.position);
+    while (Fr(d));
+    if (d === 35)
+      do
+        d = e.input.charCodeAt(++e.position);
+      while (!er(d) && d !== 0);
+  }
+  for (; d !== 0; ) {
+    for (Vi(e), e.lineIndent = 0, d = e.input.charCodeAt(e.position); (!o || e.lineIndent < u) && d === 32; )
+      e.lineIndent++, d = e.input.charCodeAt(++e.position);
+    if (!o && e.lineIndent > u && (u = e.lineIndent), er(d)) {
+      a++;
+      continue;
+    }
+    if (e.lineIndent < u) {
+      i === $o ? e.result += ut.repeat(`
+`, s ? 1 + a : a) : i === ai && s && (e.result += `
+`);
+      break;
+    }
+    for (n ? Fr(d) ? (c = !0, e.result += ut.repeat(`
+`, s ? 1 + a : a)) : c ? (c = !1, e.result += ut.repeat(`
+`, a + 1)) : a === 0 ? s && (e.result += " ") : e.result += ut.repeat(`
+`, a) : e.result += ut.repeat(`
+`, s ? 1 + a : a), s = !0, o = !0, a = 0, r = e.position; !er(d) && d !== 0; )
+      d = e.input.charCodeAt(++e.position);
+    Cr(e, r, e.position, !1);
+  }
+  return !0;
+}
+function jo(e, t) {
+  var r, n = e.tag, i = e.anchor, s = [], o, u = !1, a;
+  if (e.firstTabInLine !== -1) return !1;
+  for (e.anchor !== null && (e.anchorMap[e.anchor] = s), a = e.input.charCodeAt(e.position); a !== 0 && (e.firstTabInLine !== -1 && (e.position = e.firstTabInLine, he(e, "tab characters must not be used in indentation")), !(a !== 45 || (o = e.input.charCodeAt(e.position + 1), !Rt(o)))); ) {
+    if (u = !0, e.position++, nt(e, !0, -1) && e.lineIndent <= t) {
+      s.push(null), a = e.input.charCodeAt(e.position);
+      continue;
+    }
+    if (r = e.line, qr(e, t, tu, !1, !0), s.push(e.result), nt(e, !0, -1), a = e.input.charCodeAt(e.position), (e.line === r || e.lineIndent > t) && a !== 0)
+      he(e, "bad indentation of a sequence entry");
+    else if (e.lineIndent < t)
+      break;
+  }
+  return u ? (e.tag = n, e.anchor = i, e.kind = "sequence", e.result = s, !0) : !1;
+}
+function rf(e, t, r) {
+  var n, i, s, o, u, a, c = e.tag, A = e.anchor, d = {}, p = /* @__PURE__ */ Object.create(null), w = null, _ = null, R = null, I = !1, k = !1, x;
+  if (e.firstTabInLine !== -1) return !1;
+  for (e.anchor !== null && (e.anchorMap[e.anchor] = d), x = e.input.charCodeAt(e.position); x !== 0; ) {
+    if (!I && e.firstTabInLine !== -1 && (e.position = e.firstTabInLine, he(e, "tab characters must not be used in indentation")), n = e.input.charCodeAt(e.position + 1), s = e.line, (x === 63 || x === 58) && Rt(n))
+      x === 63 ? (I && (Zr(e, d, p, w, _, null, o, u, a), w = _ = R = null), k = !0, I = !0, i = !0) : I ? (I = !1, i = !0) : he(e, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line"), e.position += 1, x = n;
+    else {
+      if (o = e.line, u = e.lineStart, a = e.position, !qr(e, r, eu, !1, !0))
+        break;
+      if (e.line === s) {
+        for (x = e.input.charCodeAt(e.position); Fr(x); )
+          x = e.input.charCodeAt(++e.position);
+        if (x === 58)
+          x = e.input.charCodeAt(++e.position), Rt(x) || he(e, "a whitespace character is expected after the key-value separator within a block mapping"), I && (Zr(e, d, p, w, _, null, o, u, a), w = _ = R = null), k = !0, I = !1, i = !1, w = e.tag, _ = e.result;
+        else if (k)
+          he(e, "can not read an implicit mapping pair; a colon is missed");
+        else
+          return e.tag = c, e.anchor = A, !0;
+      } else if (k)
+        he(e, "can not read a block mapping entry; a multiline key may not be an implicit key");
+      else
+        return e.tag = c, e.anchor = A, !0;
+    }
+    if ((e.line === s || e.lineIndent > t) && (I && (o = e.line, u = e.lineStart, a = e.position), qr(e, t, $n, !0, i) && (I ? _ = e.result : R = e.result), I || (Zr(e, d, p, w, _, R, o, u, a), w = _ = R = null), nt(e, !0, -1), x = e.input.charCodeAt(e.position)), (e.line === s || e.lineIndent > t) && x !== 0)
+      he(e, "bad indentation of a mapping entry");
+    else if (e.lineIndent < t)
+      break;
+  }
+  return I && Zr(e, d, p, w, _, null, o, u, a), k && (e.tag = c, e.anchor = A, e.kind = "mapping", e.result = d), k;
+}
+function nf(e) {
+  var t, r = !1, n = !1, i, s, o;
+  if (o = e.input.charCodeAt(e.position), o !== 33) return !1;
+  if (e.tag !== null && he(e, "duplication of a tag property"), o = e.input.charCodeAt(++e.position), o === 60 ? (r = !0, o = e.input.charCodeAt(++e.position)) : o === 33 ? (n = !0, i = "!!", o = e.input.charCodeAt(++e.position)) : i = "!", t = e.position, r) {
+    do
+      o = e.input.charCodeAt(++e.position);
+    while (o !== 0 && o !== 62);
+    e.position < e.length ? (s = e.input.slice(t, e.position), o = e.input.charCodeAt(++e.position)) : he(e, "unexpected end of the stream within a verbatim tag");
+  } else {
+    for (; o !== 0 && !Rt(o); )
+      o === 33 && (n ? he(e, "tag suffix cannot contain exclamation marks") : (i = e.input.slice(t - 1, e.position + 1), ru.test(i) || he(e, "named tag handle cannot contain such characters"), n = !0, t = e.position + 1)), o = e.input.charCodeAt(++e.position);
+    s = e.input.slice(t, e.position), Gl.test(s) && he(e, "tag suffix cannot contain flow indicator characters");
+  }
+  s && !nu.test(s) && he(e, "tag name cannot contain such characters: " + s);
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    he(e, "tag name is malformed: " + s);
+  }
+  return r ? e.tag = s : br.call(e.tagMap, i) ? e.tag = e.tagMap[i] + s : i === "!" ? e.tag = "!" + s : i === "!!" ? e.tag = "tag:yaml.org,2002:" + s : he(e, 'undeclared tag handle "' + i + '"'), !0;
+}
+function of(e) {
+  var t, r;
+  if (r = e.input.charCodeAt(e.position), r !== 38) return !1;
+  for (e.anchor !== null && he(e, "duplication of an anchor property"), r = e.input.charCodeAt(++e.position), t = e.position; r !== 0 && !Rt(r) && !Vr(r); )
+    r = e.input.charCodeAt(++e.position);
+  return e.position === t && he(e, "name of an anchor node must contain at least one character"), e.anchor = e.input.slice(t, e.position), !0;
+}
+function sf(e) {
+  var t, r, n;
+  if (n = e.input.charCodeAt(e.position), n !== 42) return !1;
+  for (n = e.input.charCodeAt(++e.position), t = e.position; n !== 0 && !Rt(n) && !Vr(n); )
+    n = e.input.charCodeAt(++e.position);
+  return e.position === t && he(e, "name of an alias node must contain at least one character"), r = e.input.slice(t, e.position), br.call(e.anchorMap, r) || he(e, 'unidentified alias "' + r + '"'), e.result = e.anchorMap[r], nt(e, !0, -1), !0;
+}
+function qr(e, t, r, n, i) {
+  var s, o, u, a = 1, c = !1, A = !1, d, p, w, _, R, I;
+  if (e.listener !== null && e.listener("open", e), e.tag = null, e.anchor = null, e.kind = null, e.result = null, s = o = u = $n === r || tu === r, n && nt(e, !0, -1) && (c = !0, e.lineIndent > t ? a = 1 : e.lineIndent === t ? a = 0 : e.lineIndent < t && (a = -1)), a === 1)
+    for (; nf(e) || of(e); )
+      nt(e, !0, -1) ? (c = !0, u = s, e.lineIndent > t ? a = 1 : e.lineIndent === t ? a = 0 : e.lineIndent < t && (a = -1)) : u = !1;
+  if (u && (u = c || i), (a === 1 || $n === r) && (Yn === r || eu === r ? R = t : R = t + 1, I = e.position - e.lineStart, a === 1 ? u && (jo(e, I) || rf(e, I, R)) || ef(e, R) ? A = !0 : (o && tf(e, R) || ql(e, R) || Xl(e, R) ? A = !0 : sf(e) ? (A = !0, (e.tag !== null || e.anchor !== null) && he(e, "alias node should not have any properties")) : zl(e, R, Yn === r) && (A = !0, e.tag === null && (e.tag = "?")), e.anchor !== null && (e.anchorMap[e.anchor] = e.result)) : a === 0 && (A = u && jo(e, I))), e.tag === null)
+    e.anchor !== null && (e.anchorMap[e.anchor] = e.result);
+  else if (e.tag === "?") {
+    for (e.result !== null && e.kind !== "scalar" && he(e, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + e.kind + '"'), d = 0, p = e.implicitTypes.length; d < p; d += 1)
+      if (_ = e.implicitTypes[d], _.resolve(e.result)) {
+        e.result = _.construct(e.result), e.tag = _.tag, e.anchor !== null && (e.anchorMap[e.anchor] = e.result);
+        break;
+      }
+  } else if (e.tag !== "!") {
+    if (br.call(e.typeMap[e.kind || "fallback"], e.tag))
+      _ = e.typeMap[e.kind || "fallback"][e.tag];
+    else
+      for (_ = null, w = e.typeMap.multi[e.kind || "fallback"], d = 0, p = w.length; d < p; d += 1)
+        if (e.tag.slice(0, w[d].tag.length) === w[d].tag) {
+          _ = w[d];
+          break;
+        }
+    _ || he(e, "unknown tag !<" + e.tag + ">"), e.result !== null && _.kind !== e.kind && he(e, "unacceptable node kind for !<" + e.tag + '> tag; it should be "' + _.kind + '", not "' + e.kind + '"'), _.resolve(e.result, e.tag) ? (e.result = _.construct(e.result, e.tag), e.anchor !== null && (e.anchorMap[e.anchor] = e.result)) : he(e, "cannot resolve a node with !<" + e.tag + "> explicit tag");
+  }
+  return e.listener !== null && e.listener("close", e), e.tag !== null || e.anchor !== null || A;
+}
+function af(e) {
+  var t = e.position, r, n, i, s = !1, o;
+  for (e.version = null, e.checkLineBreaks = e.legacy, e.tagMap = /* @__PURE__ */ Object.create(null), e.anchorMap = /* @__PURE__ */ Object.create(null); (o = e.input.charCodeAt(e.position)) !== 0 && (nt(e, !0, -1), o = e.input.charCodeAt(e.position), !(e.lineIndent > 0 || o !== 37)); ) {
+    for (s = !0, o = e.input.charCodeAt(++e.position), r = e.position; o !== 0 && !Rt(o); )
+      o = e.input.charCodeAt(++e.position);
+    for (n = e.input.slice(r, e.position), i = [], n.length < 1 && he(e, "directive name must not be less than one character in length"); o !== 0; ) {
+      for (; Fr(o); )
+        o = e.input.charCodeAt(++e.position);
+      if (o === 35) {
+        do
+          o = e.input.charCodeAt(++e.position);
+        while (o !== 0 && !er(o));
+        break;
+      }
+      if (er(o)) break;
+      for (r = e.position; o !== 0 && !Rt(o); )
+        o = e.input.charCodeAt(++e.position);
+      i.push(e.input.slice(r, e.position));
+    }
+    o !== 0 && Vi(e), br.call(Go, n) ? Go[n](e, n, i) : Kn(e, 'unknown document directive "' + n + '"');
+  }
+  if (nt(e, !0, -1), e.lineIndent === 0 && e.input.charCodeAt(e.position) === 45 && e.input.charCodeAt(e.position + 1) === 45 && e.input.charCodeAt(e.position + 2) === 45 ? (e.position += 3, nt(e, !0, -1)) : s && he(e, "directives end mark is expected"), qr(e, e.lineIndent - 1, $n, !1, !0), nt(e, !0, -1), e.checkLineBreaks && Ql.test(e.input.slice(t, e.position)) && Kn(e, "non-ASCII line breaks are interpreted as content"), e.documents.push(e.result), e.position === e.lineStart && jn(e)) {
+    e.input.charCodeAt(e.position) === 46 && (e.position += 3, nt(e, !0, -1));
+    return;
+  }
+  if (e.position < e.length - 1)
+    he(e, "end of the stream or a document separator is expected");
+  else
+    return;
+}
+function uu(e, t) {
+  e = String(e), t = t || {}, e.length !== 0 && (e.charCodeAt(e.length - 1) !== 10 && e.charCodeAt(e.length - 1) !== 13 && (e += `
+`), e.charCodeAt(0) === 65279 && (e = e.slice(1)));
+  var r = new Zl(e, t), n = e.indexOf("\0");
+  for (n !== -1 && (r.position = n, he(r, "null byte is not allowed in input")), r.input += "\0"; r.input.charCodeAt(r.position) === 32; )
+    r.lineIndent += 1, r.position += 1;
+  for (; r.position < r.length - 1; )
+    af(r);
+  return r.documents;
+}
+function uf(e, t, r) {
+  t !== null && typeof t == "object" && typeof r > "u" && (r = t, t = null);
+  var n = uu(e, r);
+  if (typeof t != "function")
+    return n;
+  for (var i = 0, s = n.length; i < s; i += 1)
+    t(n[i]);
+}
+function cf(e, t) {
+  var r = uu(e, t);
+  if (r.length !== 0) {
+    if (r.length === 1)
+      return r[0];
+    throw new Tt("expected a single document in the stream, but found more");
+  }
+}
+var Af = uf, lf = cf, cu = {
+  loadAll: Af,
+  load: lf
+}, Au = Object.prototype.toString, lu = Object.prototype.hasOwnProperty, zi = 65279, ff = 9, mn = 10, hf = 13, df = 32, pf = 33, mf = 34, Ri = 35, gf = 37, Ef = 38, Cf = 39, yf = 42, fu = 44, bf = 45, Qn = 58, wf = 61, If = 62, _f = 63, Df = 64, hu = 91, du = 93, Sf = 96, pu = 123, Tf = 124, mu = 125, wt = {};
+wt[0] = "\\0";
+wt[7] = "\\a";
+wt[8] = "\\b";
+wt[9] = "\\t";
+wt[10] = "\\n";
+wt[11] = "\\v";
+wt[12] = "\\f";
+wt[13] = "\\r";
+wt[27] = "\\e";
+wt[34] = '\\"';
+wt[92] = "\\\\";
+wt[133] = "\\N";
+wt[160] = "\\_";
+wt[8232] = "\\L";
+wt[8233] = "\\P";
+var Nf = [
+  "y",
+  "Y",
+  "yes",
+  "Yes",
+  "YES",
+  "on",
+  "On",
+  "ON",
+  "n",
+  "N",
+  "no",
+  "No",
+  "NO",
+  "off",
+  "Off",
+  "OFF"
+], Of = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
+function vf(e, t) {
+  var r, n, i, s, o, u, a;
+  if (t === null) return {};
+  for (r = {}, n = Object.keys(t), i = 0, s = n.length; i < s; i += 1)
+    o = n[i], u = String(t[o]), o.slice(0, 2) === "!!" && (o = "tag:yaml.org,2002:" + o.slice(2)), a = e.compiledTypeMap.fallback[o], a && lu.call(a.styleAliases, u) && (u = a.styleAliases[u]), r[o] = u;
+  return r;
+}
+function Bf(e) {
+  var t, r, n;
+  if (t = e.toString(16).toUpperCase(), e <= 255)
+    r = "x", n = 2;
+  else if (e <= 65535)
+    r = "u", n = 4;
+  else if (e <= 4294967295)
+    r = "U", n = 8;
+  else
+    throw new Tt("code point within a string may not be greater than 0xFFFFFFFF");
+  return "\\" + r + ut.repeat("0", n - t.length) + t;
+}
+var Rf = 1, gn = 2;
+function Ff(e) {
+  this.schema = e.schema || Ji, this.indent = Math.max(1, e.indent || 2), this.noArrayIndent = e.noArrayIndent || !1, this.skipInvalid = e.skipInvalid || !1, this.flowLevel = ut.isNothing(e.flowLevel) ? -1 : e.flowLevel, this.styleMap = vf(this.schema, e.styles || null), this.sortKeys = e.sortKeys || !1, this.lineWidth = e.lineWidth || 80, this.noRefs = e.noRefs || !1, this.noCompatMode = e.noCompatMode || !1, this.condenseFlow = e.condenseFlow || !1, this.quotingType = e.quotingType === '"' ? gn : Rf, this.forceQuotes = e.forceQuotes || !1, this.replacer = typeof e.replacer == "function" ? e.replacer : null, this.implicitTypes = this.schema.compiledImplicit, this.explicitTypes = this.schema.compiledExplicit, this.tag = null, this.result = "", this.duplicates = [], this.usedDuplicates = null;
+}
+function Jo(e, t) {
+  for (var r = ut.repeat(" ", t), n = 0, i = -1, s = "", o, u = e.length; n < u; )
+    i = e.indexOf(`
+`, n), i === -1 ? (o = e.slice(n), n = u) : (o = e.slice(n, i + 1), n = i + 1), o.length && o !== `
+` && (s += r), s += o;
+  return s;
+}
+function Fi(e, t) {
+  return `
+` + ut.repeat(" ", e.indent * t);
+}
+function kf(e, t) {
+  var r, n, i;
+  for (r = 0, n = e.implicitTypes.length; r < n; r += 1)
+    if (i = e.implicitTypes[r], i.resolve(t))
+      return !0;
+  return !1;
+}
+function Gn(e) {
+  return e === df || e === ff;
+}
+function En(e) {
+  return 32 <= e && e <= 126 || 161 <= e && e <= 55295 && e !== 8232 && e !== 8233 || 57344 <= e && e <= 65533 && e !== zi || 65536 <= e && e <= 1114111;
+}
+function Vo(e) {
+  return En(e) && e !== zi && e !== hf && e !== mn;
+}
+function Zo(e, t, r) {
+  var n = Vo(e), i = n && !Gn(e);
+  return (
+    // ns-plain-safe
+    (r ? (
+      // c = flow-in
+      n
+    ) : n && e !== fu && e !== hu && e !== du && e !== pu && e !== mu) && e !== Ri && !(t === Qn && !i) || Vo(t) && !Gn(t) && e === Ri || t === Qn && i
+  );
+}
+function Pf(e) {
+  return En(e) && e !== zi && !Gn(e) && e !== bf && e !== _f && e !== Qn && e !== fu && e !== hu && e !== du && e !== pu && e !== mu && e !== Ri && e !== Ef && e !== yf && e !== pf && e !== Tf && e !== wf && e !== If && e !== Cf && e !== mf && e !== gf && e !== Df && e !== Sf;
+}
+function Lf(e) {
+  return !Gn(e) && e !== Qn;
+}
+function fn(e, t) {
+  var r = e.charCodeAt(t), n;
+  return r >= 55296 && r <= 56319 && t + 1 < e.length && (n = e.charCodeAt(t + 1), n >= 56320 && n <= 57343) ? (r - 55296) * 1024 + n - 56320 + 65536 : r;
+}
+function gu(e) {
+  var t = /^\n* /;
+  return t.test(e);
+}
+var Eu = 1, ki = 2, Cu = 3, yu = 4, Jr = 5;
+function xf(e, t, r, n, i, s, o, u) {
+  var a, c = 0, A = null, d = !1, p = !1, w = n !== -1, _ = -1, R = Pf(fn(e, 0)) && Lf(fn(e, e.length - 1));
+  if (t || o)
+    for (a = 0; a < e.length; c >= 65536 ? a += 2 : a++) {
+      if (c = fn(e, a), !En(c))
+        return Jr;
+      R = R && Zo(c, A, u), A = c;
+    }
+  else {
+    for (a = 0; a < e.length; c >= 65536 ? a += 2 : a++) {
+      if (c = fn(e, a), c === mn)
+        d = !0, w && (p = p || // Foldable line = too long, and not more-indented.
+        a - _ - 1 > n && e[_ + 1] !== " ", _ = a);
+      else if (!En(c))
+        return Jr;
+      R = R && Zo(c, A, u), A = c;
+    }
+    p = p || w && a - _ - 1 > n && e[_ + 1] !== " ";
+  }
+  return !d && !p ? R && !o && !i(e) ? Eu : s === gn ? Jr : ki : r > 9 && gu(e) ? Jr : o ? s === gn ? Jr : ki : p ? yu : Cu;
+}
+function Uf(e, t, r, n, i) {
+  e.dump = (function() {
+    if (t.length === 0)
+      return e.quotingType === gn ? '""' : "''";
+    if (!e.noCompatMode && (Nf.indexOf(t) !== -1 || Of.test(t)))
+      return e.quotingType === gn ? '"' + t + '"' : "'" + t + "'";
+    var s = e.indent * Math.max(1, r), o = e.lineWidth === -1 ? -1 : Math.max(Math.min(e.lineWidth, 40), e.lineWidth - s), u = n || e.flowLevel > -1 && r >= e.flowLevel;
+    function a(c) {
+      return kf(e, c);
+    }
+    switch (xf(
+      t,
+      u,
+      e.indent,
+      o,
+      a,
+      e.quotingType,
+      e.forceQuotes && !n,
+      i
+    )) {
+      case Eu:
+        return t;
+      case ki:
+        return "'" + t.replace(/'/g, "''") + "'";
+      case Cu:
+        return "|" + zo(t, e.indent) + qo(Jo(t, s));
+      case yu:
+        return ">" + zo(t, e.indent) + qo(Jo(Mf(t, o), s));
+      case Jr:
+        return '"' + Hf(t) + '"';
+      default:
+        throw new Tt("impossible error: invalid scalar style");
+    }
+  })();
+}
+function zo(e, t) {
+  var r = gu(e) ? String(t) : "", n = e[e.length - 1] === `
+`, i = n && (e[e.length - 2] === `
+` || e === `
+`), s = i ? "+" : n ? "" : "-";
+  return r + s + `
+`;
+}
+function qo(e) {
+  return e[e.length - 1] === `
+` ? e.slice(0, -1) : e;
+}
+function Mf(e, t) {
+  for (var r = /(\n+)([^\n]*)/g, n = (function() {
+    var c = e.indexOf(`
+`);
+    return c = c !== -1 ? c : e.length, r.lastIndex = c, Xo(e.slice(0, c), t);
+  })(), i = e[0] === `
+` || e[0] === " ", s, o; o = r.exec(e); ) {
+    var u = o[1], a = o[2];
+    s = a[0] === " ", n += u + (!i && !s && a !== "" ? `
+` : "") + Xo(a, t), i = s;
+  }
+  return n;
+}
+function Xo(e, t) {
+  if (e === "" || e[0] === " ") return e;
+  for (var r = / [^ ]/g, n, i = 0, s, o = 0, u = 0, a = ""; n = r.exec(e); )
+    u = n.index, u - i > t && (s = o > i ? o : u, a += `
+` + e.slice(i, s), i = s + 1), o = u;
+  return a += `
+`, e.length - i > t && o > i ? a += e.slice(i, o) + `
+` + e.slice(o + 1) : a += e.slice(i), a.slice(1);
+}
+function Hf(e) {
+  for (var t = "", r = 0, n, i = 0; i < e.length; r >= 65536 ? i += 2 : i++)
+    r = fn(e, i), n = wt[r], !n && En(r) ? (t += e[i], r >= 65536 && (t += e[i + 1])) : t += n || Bf(r);
+  return t;
+}
+function Yf(e, t, r) {
+  var n = "", i = e.tag, s, o, u;
+  for (s = 0, o = r.length; s < o; s += 1)
+    u = r[s], e.replacer && (u = e.replacer.call(r, String(s), u)), (fr(e, t, u, !1, !1) || typeof u > "u" && fr(e, t, null, !1, !1)) && (n !== "" && (n += "," + (e.condenseFlow ? "" : " ")), n += e.dump);
+  e.tag = i, e.dump = "[" + n + "]";
+}
+function es(e, t, r, n) {
+  var i = "", s = e.tag, o, u, a;
+  for (o = 0, u = r.length; o < u; o += 1)
+    a = r[o], e.replacer && (a = e.replacer.call(r, String(o), a)), (fr(e, t + 1, a, !0, !0, !1, !0) || typeof a > "u" && fr(e, t + 1, null, !0, !0, !1, !0)) && ((!n || i !== "") && (i += Fi(e, t)), e.dump && mn === e.dump.charCodeAt(0) ? i += "-" : i += "- ", i += e.dump);
+  e.tag = s, e.dump = i || "[]";
+}
+function $f(e, t, r) {
+  var n = "", i = e.tag, s = Object.keys(r), o, u, a, c, A;
+  for (o = 0, u = s.length; o < u; o += 1)
+    A = "", n !== "" && (A += ", "), e.condenseFlow && (A += '"'), a = s[o], c = r[a], e.replacer && (c = e.replacer.call(r, a, c)), fr(e, t, a, !1, !1) && (e.dump.length > 1024 && (A += "? "), A += e.dump + (e.condenseFlow ? '"' : "") + ":" + (e.condenseFlow ? "" : " "), fr(e, t, c, !1, !1) && (A += e.dump, n += A));
+  e.tag = i, e.dump = "{" + n + "}";
+}
+function Kf(e, t, r, n) {
+  var i = "", s = e.tag, o = Object.keys(r), u, a, c, A, d, p;
+  if (e.sortKeys === !0)
+    o.sort();
+  else if (typeof e.sortKeys == "function")
+    o.sort(e.sortKeys);
+  else if (e.sortKeys)
+    throw new Tt("sortKeys must be a boolean or a function");
+  for (u = 0, a = o.length; u < a; u += 1)
+    p = "", (!n || i !== "") && (p += Fi(e, t)), c = o[u], A = r[c], e.replacer && (A = e.replacer.call(r, c, A)), fr(e, t + 1, c, !0, !0, !0) && (d = e.tag !== null && e.tag !== "?" || e.dump && e.dump.length > 1024, d && (e.dump && mn === e.dump.charCodeAt(0) ? p += "?" : p += "? "), p += e.dump, d && (p += Fi(e, t)), fr(e, t + 1, A, !0, d) && (e.dump && mn === e.dump.charCodeAt(0) ? p += ":" : p += ": ", p += e.dump, i += p));
+  e.tag = s, e.dump = i || "{}";
+}
+function ts(e, t, r) {
+  var n, i, s, o, u, a;
+  for (i = r ? e.explicitTypes : e.implicitTypes, s = 0, o = i.length; s < o; s += 1)
+    if (u = i[s], (u.instanceOf || u.predicate) && (!u.instanceOf || typeof t == "object" && t instanceof u.instanceOf) && (!u.predicate || u.predicate(t))) {
+      if (r ? u.multi && u.representName ? e.tag = u.representName(t) : e.tag = u.tag : e.tag = "?", u.represent) {
+        if (a = e.styleMap[u.tag] || u.defaultStyle, Au.call(u.represent) === "[object Function]")
+          n = u.represent(t, a);
+        else if (lu.call(u.represent, a))
+          n = u.represent[a](t, a);
+        else
+          throw new Tt("!<" + u.tag + '> tag resolver accepts not "' + a + '" style');
+        e.dump = n;
+      }
+      return !0;
+    }
+  return !1;
+}
+function fr(e, t, r, n, i, s, o) {
+  e.tag = null, e.dump = r, ts(e, r, !1) || ts(e, r, !0);
+  var u = Au.call(e.dump), a = n, c;
+  n && (n = e.flowLevel < 0 || e.flowLevel > t);
+  var A = u === "[object Object]" || u === "[object Array]", d, p;
+  if (A && (d = e.duplicates.indexOf(r), p = d !== -1), (e.tag !== null && e.tag !== "?" || p || e.indent !== 2 && t > 0) && (i = !1), p && e.usedDuplicates[d])
+    e.dump = "*ref_" + d;
+  else {
+    if (A && p && !e.usedDuplicates[d] && (e.usedDuplicates[d] = !0), u === "[object Object]")
+      n && Object.keys(e.dump).length !== 0 ? (Kf(e, t, e.dump, i), p && (e.dump = "&ref_" + d + e.dump)) : ($f(e, t, e.dump), p && (e.dump = "&ref_" + d + " " + e.dump));
+    else if (u === "[object Array]")
+      n && e.dump.length !== 0 ? (e.noArrayIndent && !o && t > 0 ? es(e, t - 1, e.dump, i) : es(e, t, e.dump, i), p && (e.dump = "&ref_" + d + e.dump)) : (Yf(e, t, e.dump), p && (e.dump = "&ref_" + d + " " + e.dump));
+    else if (u === "[object String]")
+      e.tag !== "?" && Uf(e, e.dump, t, s, a);
+    else {
+      if (u === "[object Undefined]")
+        return !1;
+      if (e.skipInvalid) return !1;
+      throw new Tt("unacceptable kind of an object to dump " + u);
+    }
+    e.tag !== null && e.tag !== "?" && (c = encodeURI(
+      e.tag[0] === "!" ? e.tag.slice(1) : e.tag
+    ).replace(/!/g, "%21"), e.tag[0] === "!" ? c = "!" + c : c.slice(0, 18) === "tag:yaml.org,2002:" ? c = "!!" + c.slice(18) : c = "!<" + c + ">", e.dump = c + " " + e.dump);
+  }
+  return !0;
+}
+function Qf(e, t) {
+  var r = [], n = [], i, s;
+  for (Pi(e, r, n), i = 0, s = n.length; i < s; i += 1)
+    t.duplicates.push(r[n[i]]);
+  t.usedDuplicates = new Array(s);
+}
+function Pi(e, t, r) {
+  var n, i, s;
+  if (e !== null && typeof e == "object")
+    if (i = t.indexOf(e), i !== -1)
+      r.indexOf(i) === -1 && r.push(i);
+    else if (t.push(e), Array.isArray(e))
+      for (i = 0, s = e.length; i < s; i += 1)
+        Pi(e[i], t, r);
+    else
+      for (n = Object.keys(e), i = 0, s = n.length; i < s; i += 1)
+        Pi(e[n[i]], t, r);
+}
+function Gf(e, t) {
+  t = t || {};
+  var r = new Ff(t);
+  r.noRefs || Qf(e, r);
+  var n = e;
+  return r.replacer && (n = r.replacer.call({ "": n }, "", n)), fr(r, 0, n, !0, !0) ? r.dump + `
+` : "";
+}
+var Wf = Gf, jf = {
+  dump: Wf
+};
+function qi(e, t) {
+  return function() {
+    throw new Error("Function yaml." + e + " is removed in js-yaml 4. Use yaml." + t + " instead, which is now safe by default.");
+  };
+}
+var Jf = Et, Vf = Pa, Zf = Ma, zf = Qa, qf = Ga, Xf = Ji, eh = cu.load, th = cu.loadAll, rh = jf.dump, nh = Tt, ih = {
+  binary: Za,
+  float: Ka,
+  map: Ua,
+  null: Ha,
+  pairs: qa,
+  set: Xa,
+  timestamp: Ja,
+  bool: Ya,
+  int: $a,
+  merge: Va,
+  omap: za,
+  seq: xa,
+  str: La
+}, oh = qi("safeLoad", "load"), sh = qi("safeLoadAll", "loadAll"), ah = qi("safeDump", "dump"), bu = {
+  Type: Jf,
+  Schema: Vf,
+  FAILSAFE_SCHEMA: Zf,
+  JSON_SCHEMA: zf,
+  CORE_SCHEMA: qf,
+  DEFAULT_SCHEMA: Xf,
+  load: eh,
+  loadAll: th,
+  dump: rh,
+  YAMLException: nh,
+  types: ih,
+  safeLoad: oh,
+  safeLoadAll: sh,
+  safeDump: ah
+};
+process.platform;
+const uh = "app/input.status", ch = Object.freeze([
+  uh
+]);
+new Ac();
+const Ah = "app/input.panels", lh = Object.freeze([
+  Ah
+]), fh = "app/tasks.manage", hh = "app/tasks.read-all", dh = "app/tasks.manage-all", ph = Object.freeze([
+  fh,
+  hh,
+  dh
+]), mh = "app/session.switch-model", gh = "app/session.thinking-level", Eh = "app/session.permission-mode", Ch = "app/session.start-turn", yh = "app/session.tools.configure", bh = Object.freeze([
+  mh,
+  gh,
+  Eh,
+  Ch,
+  yh
+]), wh = Re.dirname(Ea(import.meta.url)), Ih = process.env.HANA_ROOT || Re.resolve(wh, "..");
+function _h(...e) {
+  return Re.join(Ih, ...e);
+}
+const Dh = Object.freeze([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/flac"
+]);
+Object.freeze([
+  ...Dh,
+  "audio/webm"
+]);
+Object.freeze(/* @__PURE__ */ new Set(["wav", "mp3"]));
+const Sh = [
+  "max_completion_tokens",
+  "max_tokens",
+  "max_output_tokens",
+  "maxOutputTokens"
+];
+new Set(Sh);
+const Th = "app/models.infer", Nh = "app/media.generate", Oh = "app/media.provide", vh = "app/media.tasks.manage", Bh = "app/media.tasks.read-all", Rh = "app/media.tasks.manage-all", Fh = "app/provider.models.manage", wu = Object.freeze([
+  "media:generate",
+  "media:generate-image",
+  "media:generate-video",
+  "media:transcribe-audio"
+]), kh = "provider:media-providers", Ph = Object.freeze([
+  ...wu,
+  kh
+]), Lh = Object.freeze([
+  Nh,
+  Oh,
+  vh,
+  Bh,
+  Rh,
+  Fh
+]);
+new Set(Ph);
+new Set(wu);
+const xh = "app/usage.read", Uh = "app/provider.credentials.read", Mh = "app/models.read", Hh = Object.freeze([
+  xh,
+  Uh,
+  Mh
+]), Yh = "app/resources.read", $h = "app/resources.write", Kh = Object.freeze([
+  Yh,
+  $h
+]);
+new TextEncoder();
+const Qh = /* @__PURE__ */ new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "proxy-connection"
+]);
+[...Qh];
+var ui, rs;
+function Gh() {
+  if (rs) return ui;
+  rs = 1;
+  var e = Object.defineProperty, t = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, n = Object.prototype.hasOwnProperty, i = (f, g) => {
+    for (var b in g)
+      e(f, b, { get: g[b], enumerable: !0 });
+  }, s = (f, g, b, D) => {
+    if (g && typeof g == "object" || typeof g == "function")
+      for (let L of r(g))
+        !n.call(f, L) && L !== b && e(f, L, { get: () => g[L], enumerable: !(D = t(g, L)) || D.enumerable });
+    return f;
+  }, o = (f) => s(e({}, "__esModule", { value: !0 }), f), u = {};
+  i(u, {
+    analyzeMetafile: () => Qr,
+    analyzeMetafileSync: () => Zt,
+    build: () => Kt,
+    buildSync: () => Gr,
+    context: () => Kr,
+    default: () => Ju,
+    formatMessages: () => xt,
+    formatMessagesSync: () => ir,
+    initialize: () => sn,
+    stop: () => or,
+    transform: () => Vt,
+    transformSync: () => nr,
+    version: () => It
+  }), ui = o(u);
+  function a(f) {
+    let g = (D) => {
+      if (D === null)
+        b.write8(0);
+      else if (typeof D == "boolean")
+        b.write8(1), b.write8(+D);
+      else if (typeof D == "number")
+        b.write8(2), b.write32(D | 0);
+      else if (typeof D == "string")
+        b.write8(3), b.write(d(D));
+      else if (D instanceof Uint8Array)
+        b.write8(4), b.write(D);
+      else if (D instanceof Array) {
+        b.write8(5), b.write32(D.length);
+        for (let L of D)
+          g(L);
+      } else {
+        let L = Object.keys(D);
+        b.write8(6), b.write32(L.length);
+        for (let U of L)
+          b.write(d(U)), g(D[U]);
+      }
+    }, b = new A();
+    return b.write32(0), b.write32(f.id << 1 | +!f.isRequest), g(f.value), R(b.buf, b.len - 4, 0), b.buf.subarray(0, b.len);
+  }
+  function c(f) {
+    let g = () => {
+      switch (b.read8()) {
+        case 0:
+          return null;
+        case 1:
+          return !!b.read8();
+        case 2:
+          return b.read32();
+        case 3:
+          return p(b.read());
+        case 4:
+          return b.read();
+        case 5: {
+          let P = b.read32(), Z = [];
+          for (let T = 0; T < P; T++)
+            Z.push(g());
+          return Z;
+        }
+        case 6: {
+          let P = b.read32(), Z = {};
+          for (let T = 0; T < P; T++)
+            Z[p(b.read())] = g();
+          return Z;
+        }
+        default:
+          throw new Error("Invalid packet");
+      }
+    }, b = new A(f), D = b.read32(), L = (D & 1) === 0;
+    D >>>= 1;
+    let U = g();
+    if (b.ptr !== f.length)
+      throw new Error("Invalid packet");
+    return { id: D, isRequest: L, value: U };
+  }
+  var A = class {
+    constructor(f = new Uint8Array(1024)) {
+      this.buf = f, this.len = 0, this.ptr = 0;
+    }
+    _write(f) {
+      if (this.len + f > this.buf.length) {
+        let g = new Uint8Array((this.len + f) * 2);
+        g.set(this.buf), this.buf = g;
+      }
+      return this.len += f, this.len - f;
+    }
+    write8(f) {
+      let g = this._write(1);
+      this.buf[g] = f;
+    }
+    write32(f) {
+      let g = this._write(4);
+      R(this.buf, f, g);
+    }
+    write(f) {
+      let g = this._write(4 + f.length);
+      R(this.buf, f.length, g), this.buf.set(f, g + 4);
+    }
+    _read(f) {
+      if (this.ptr + f > this.buf.length)
+        throw new Error("Invalid packet");
+      return this.ptr += f, this.ptr - f;
+    }
+    read8() {
+      return this.buf[this._read(1)];
+    }
+    read32() {
+      return _(this.buf, this._read(4));
+    }
+    read() {
+      let f = this.read32(), g = new Uint8Array(f), b = this._read(g.length);
+      return g.set(this.buf.subarray(b, b + f)), g;
+    }
+  }, d, p, w;
+  if (typeof TextEncoder < "u" && typeof TextDecoder < "u") {
+    let f = new TextEncoder(), g = new TextDecoder();
+    d = (b) => f.encode(b), p = (b) => g.decode(b), w = 'new TextEncoder().encode("")';
+  } else if (typeof Buffer < "u")
+    d = (f) => Buffer.from(f), p = (f) => {
+      let { buffer: g, byteOffset: b, byteLength: D } = f;
+      return Buffer.from(g, b, D).toString();
+    }, w = 'Buffer.from("")';
+  else
+    throw new Error("No UTF-8 codec found");
+  if (!(d("") instanceof Uint8Array))
+    throw new Error(`Invariant violation: "${w} instanceof Uint8Array" is incorrectly false
+
+This indicates that your JavaScript environment is broken. You cannot use
+esbuild in this environment because esbuild relies on this invariant. This
+is not a problem with esbuild. You need to fix your environment instead.
+`);
+  function _(f, g) {
+    return (f[g++] | f[g++] << 8 | f[g++] << 16 | f[g++] << 24) >>> 0;
+  }
+  function R(f, g, b) {
+    f[b++] = g, f[b++] = g >> 8, f[b++] = g >> 16, f[b++] = g >> 24;
+  }
+  var I = String.fromCharCode;
+  function k(f, g, b) {
+    const D = f[g];
+    let L = 1, U = 0;
+    for (let P = 0; P < g; P++)
+      f[P] === 10 ? (L++, U = 0) : U++;
+    throw new SyntaxError(
+      b || (g === f.length ? "Unexpected end of input while parsing JSON" : D >= 32 && D <= 126 ? `Unexpected character ${I(D)} in JSON at position ${g} (line ${L}, column ${U})` : `Unexpected byte 0x${D.toString(16)} in JSON at position ${g} (line ${L}, column ${U})`)
+    );
+  }
+  function x(f) {
+    if (!(f instanceof Uint8Array))
+      throw new Error("JSON input must be a Uint8Array");
+    const g = [], b = [], D = [], L = f.length;
+    let U = null, P = 0, Z, T = 0;
+    for (; T < L; ) {
+      let G = f[T++];
+      if (G <= 32)
+        continue;
+      let Q;
+      switch (P === 2 && U === null && G !== 34 && G !== 125 && k(f, --T), G) {
+        // True
+        case 116: {
+          (f[T++] !== 114 || f[T++] !== 117 || f[T++] !== 101) && k(f, --T), Q = !0;
+          break;
+        }
+        // False
+        case 102: {
+          (f[T++] !== 97 || f[T++] !== 108 || f[T++] !== 115 || f[T++] !== 101) && k(f, --T), Q = !1;
+          break;
+        }
+        // Null
+        case 110: {
+          (f[T++] !== 117 || f[T++] !== 108 || f[T++] !== 108) && k(f, --T), Q = null;
+          break;
+        }
+        // Number begin
+        case 45:
+        case 46:
+        case 48:
+        case 49:
+        case 50:
+        case 51:
+        case 52:
+        case 53:
+        case 54:
+        case 55:
+        case 56:
+        case 57: {
+          let ce = T;
+          for (Q = I(G), G = f[T]; ; ) {
+            switch (G) {
+              case 43:
+              case 45:
+              case 46:
+              case 48:
+              case 49:
+              case 50:
+              case 51:
+              case 52:
+              case 53:
+              case 54:
+              case 55:
+              case 56:
+              case 57:
+              case 101:
+              case 69: {
+                Q += I(G), G = f[++T];
+                continue;
+              }
+            }
+            break;
+          }
+          Q = +Q, isNaN(Q) && k(f, --ce, "Invalid number");
+          break;
+        }
+        // String begin
+        case 34: {
+          for (Q = ""; T >= L && k(f, L), G = f[T++], G !== 34; )
+            if (G === 92)
+              switch (f[T++]) {
+                // Normal escape sequence
+                case 34:
+                  Q += '"';
+                  break;
+                case 47:
+                  Q += "/";
+                  break;
+                case 92:
+                  Q += "\\";
+                  break;
+                case 98:
+                  Q += "\b";
+                  break;
+                case 102:
+                  Q += "\f";
+                  break;
+                case 110:
+                  Q += `
+`;
+                  break;
+                case 114:
+                  Q += "\r";
+                  break;
+                case 116:
+                  Q += "	";
+                  break;
+                // Unicode escape sequence
+                case 117: {
+                  let ce = 0;
+                  for (let xe = 0; xe < 4; xe++)
+                    G = f[T++], ce <<= 4, G >= 48 && G <= 57 ? ce |= G - 48 : G >= 97 && G <= 102 ? ce |= G + -87 : G >= 65 && G <= 70 ? ce |= G + -55 : k(f, --T);
+                  Q += I(ce);
+                  break;
+                }
+                // Invalid escape sequence
+                default:
+                  k(f, --T);
+                  break;
+              }
+            else if (G <= 127)
+              Q += I(G);
+            else if ((G & 224) === 192)
+              Q += I((G & 31) << 6 | f[T++] & 63);
+            else if ((G & 240) === 224)
+              Q += I((G & 15) << 12 | (f[T++] & 63) << 6 | f[T++] & 63);
+            else if ((G & 248) == 240) {
+              let ce = (G & 7) << 18 | (f[T++] & 63) << 12 | (f[T++] & 63) << 6 | f[T++] & 63;
+              ce > 65535 && (ce -= 65536, Q += I(ce >> 10 & 1023 | 55296), ce = 56320 | ce & 1023), Q += I(ce);
+            }
+          Q[0];
+          break;
+        }
+        // Array begin
+        case 91: {
+          Q = [], g.push(U), b.push(Z), D.push(P), U = null, Z = Q, P = 1;
+          continue;
+        }
+        // Object begin
+        case 123: {
+          Q = {}, g.push(U), b.push(Z), D.push(P), U = null, Z = Q, P = 2;
+          continue;
+        }
+        // Array end
+        case 93: {
+          P !== 1 && k(f, --T), Q = Z, U = g.pop(), Z = b.pop(), P = D.pop();
+          break;
+        }
+        // Object end
+        case 125: {
+          P !== 2 && k(f, --T), Q = Z, U = g.pop(), Z = b.pop(), P = D.pop();
+          break;
+        }
+        default:
+          k(f, --T);
+      }
+      for (G = f[T]; G <= 32; )
+        G = f[++T];
+      switch (P) {
+        case 0: {
+          if (T === L)
+            return Q;
+          break;
+        }
+        case 1: {
+          if (Z.push(Q), G === 44) {
+            T++;
+            continue;
+          }
+          if (G === 93)
+            continue;
+          break;
+        }
+        case 2: {
+          if (U === null) {
+            if (U = Q, G === 58) {
+              T++;
+              continue;
+            }
+          } else {
+            if (Z[U] = Q, U = null, G === 44) {
+              T++;
+              continue;
+            }
+            if (G === 125)
+              continue;
+          }
+          break;
+        }
+      }
+      break;
+    }
+    k(f, T);
+  }
+  var M = JSON.stringify, $ = "warning", ne = "silent";
+  function Y(f, g) {
+    const b = [];
+    for (const D of f) {
+      if (ze(D, g), D.indexOf(",") >= 0) throw new Error(`Invalid ${g}: ${D}`);
+      b.push(D);
+    }
+    return b.join(",");
+  }
+  var v = () => null, B = (f) => typeof f == "boolean" ? null : "a boolean", N = (f) => typeof f == "string" ? null : "a string", ee = (f) => f instanceof RegExp ? null : "a RegExp object", Ae = (f) => typeof f == "number" && f === (f | 0) ? null : "an integer", be = (f) => typeof f == "number" && f === (f | 0) && f >= 0 && f <= 65535 ? null : "a valid port number", X = (f) => typeof f == "function" ? null : "a function", le = (f) => Array.isArray(f) ? null : "an array", J = (f) => Array.isArray(f) && f.every((g) => typeof g == "string") ? null : "an array of strings", ie = (f) => typeof f == "object" && f !== null && !Array.isArray(f) ? null : "an object", ge = (f) => typeof f == "object" && f !== null ? null : "an array or an object", Ge = (f) => f instanceof WebAssembly.Module ? null : "a WebAssembly.Module", Ue = (f) => typeof f == "object" && !Array.isArray(f) ? null : "an object or null", mt = (f) => typeof f == "string" || typeof f == "boolean" ? null : "a string or a boolean", wr = (f) => typeof f == "string" || typeof f == "object" && f !== null && !Array.isArray(f) ? null : "a string or an object", ct = (f) => typeof f == "string" || Array.isArray(f) && f.every((g) => typeof g == "string") ? null : "a string or an array of strings", Ze = (f) => typeof f == "string" || f instanceof Uint8Array ? null : "a string or a Uint8Array", Ir = (f) => typeof f == "string" || f instanceof URL ? null : "a string or a URL";
+  function S(f, g, b, D) {
+    let L = f[b];
+    if (g[b + ""] = !0, L === void 0) return;
+    let U = D(L);
+    if (U !== null) throw new Error(`${M(b)} must be ${U}`);
+    return L;
+  }
+  function se(f, g, b) {
+    for (let D in f)
+      if (!(D in g))
+        throw new Error(`Invalid option ${b}: ${M(D)}`);
+  }
+  function Nt(f) {
+    let g = /* @__PURE__ */ Object.create(null), b = S(f, g, "wasmURL", Ir), D = S(f, g, "wasmModule", Ge), L = S(f, g, "worker", B);
+    return se(f, g, "in initialize() call"), {
+      wasmURL: b,
+      wasmModule: D,
+      worker: L
+    };
+  }
+  function $t(f) {
+    let g;
+    if (f !== void 0) {
+      g = /* @__PURE__ */ Object.create(null);
+      for (let b in f) {
+        let D = f[b];
+        if (typeof D == "string" || D === !1)
+          g[b] = D;
+        else
+          throw new Error(`Expected ${M(b)} in mangle cache to map to either a string or false`);
+      }
+    }
+    return g;
+  }
+  function He(f, g, b, D, L) {
+    let U = S(g, b, "color", B), P = S(g, b, "logLevel", N), Z = S(g, b, "logLimit", Ae);
+    U !== void 0 ? f.push(`--color=${U}`) : D && f.push("--color=true"), f.push(`--log-level=${P || L}`), f.push(`--log-limit=${Z || 0}`);
+  }
+  function ze(f, g, b) {
+    if (typeof f != "string")
+      throw new Error(`Expected value for ${g}${b !== void 0 ? " " + M(b) : ""} to be a string, got ${typeof f} instead`);
+    return f;
+  }
+  function _r(f, g, b) {
+    let D = S(g, b, "legalComments", N), L = S(g, b, "sourceRoot", N), U = S(g, b, "sourcesContent", B), P = S(g, b, "target", ct), Z = S(g, b, "format", N), T = S(g, b, "globalName", N), G = S(g, b, "mangleProps", ee), Q = S(g, b, "reserveProps", ee), ce = S(g, b, "mangleQuoted", B), xe = S(g, b, "minify", B), Pe = S(g, b, "minifySyntax", B), Me = S(g, b, "minifyWhitespace", B), $e = S(g, b, "minifyIdentifiers", B), Oe = S(g, b, "lineLimit", Ae), We = S(g, b, "drop", J), je = S(g, b, "dropLabels", J), pe = S(g, b, "charset", N), ue = S(g, b, "treeShaking", B), re = S(g, b, "ignoreAnnotations", B), V = S(g, b, "jsx", N), me = S(g, b, "jsxFactory", N), Ce = S(g, b, "jsxFragment", N), Se = S(g, b, "jsxImportSource", N), ye = S(g, b, "jsxDev", B), z = S(g, b, "jsxSideEffects", B), q = S(g, b, "define", ie), de = S(g, b, "logOverride", ie), Ie = S(g, b, "supported", ie), Te = S(g, b, "pure", J), we = S(g, b, "keepNames", B), Ee = S(g, b, "platform", N), _e = S(g, b, "tsconfigRaw", wr), Qe = S(g, b, "absPaths", J);
+    if (D && f.push(`--legal-comments=${D}`), L !== void 0 && f.push(`--source-root=${L}`), U !== void 0 && f.push(`--sources-content=${U}`), P && f.push(`--target=${Y(Array.isArray(P) ? P : [P], "target")}`), Z && f.push(`--format=${Z}`), T && f.push(`--global-name=${T}`), Ee && f.push(`--platform=${Ee}`), _e && f.push(`--tsconfig-raw=${typeof _e == "string" ? _e : JSON.stringify(_e)}`), xe && f.push("--minify"), Pe && f.push("--minify-syntax"), Me && f.push("--minify-whitespace"), $e && f.push("--minify-identifiers"), Oe && f.push(`--line-limit=${Oe}`), pe && f.push(`--charset=${pe}`), ue !== void 0 && f.push(`--tree-shaking=${ue}`), re && f.push("--ignore-annotations"), We) for (let oe of We) f.push(`--drop:${ze(oe, "drop")}`);
+    if (je && f.push(`--drop-labels=${Y(je, "drop label")}`), Qe && f.push(`--abs-paths=${Y(Qe, "abs paths")}`), G && f.push(`--mangle-props=${Lt(G)}`), Q && f.push(`--reserve-props=${Lt(Q)}`), ce !== void 0 && f.push(`--mangle-quoted=${ce}`), V && f.push(`--jsx=${V}`), me && f.push(`--jsx-factory=${me}`), Ce && f.push(`--jsx-fragment=${Ce}`), Se && f.push(`--jsx-import-source=${Se}`), ye && f.push("--jsx-dev"), z && f.push("--jsx-side-effects"), q)
+      for (let oe in q) {
+        if (oe.indexOf("=") >= 0) throw new Error(`Invalid define: ${oe}`);
+        f.push(`--define:${oe}=${ze(q[oe], "define", oe)}`);
+      }
+    if (de)
+      for (let oe in de) {
+        if (oe.indexOf("=") >= 0) throw new Error(`Invalid log override: ${oe}`);
+        f.push(`--log-override:${oe}=${ze(de[oe], "log override", oe)}`);
+      }
+    if (Ie)
+      for (let oe in Ie) {
+        if (oe.indexOf("=") >= 0) throw new Error(`Invalid supported: ${oe}`);
+        const Fe = Ie[oe];
+        if (typeof Fe != "boolean") throw new Error(`Expected value for supported ${M(oe)} to be a boolean, got ${typeof Fe} instead`);
+        f.push(`--supported:${oe}=${Fe}`);
+      }
+    if (Te) for (let oe of Te) f.push(`--pure:${ze(oe, "pure")}`);
+    we && f.push("--keep-names");
+  }
+  function At(f, g, b, D, L) {
+    var U;
+    let P = [], Z = [], T = /* @__PURE__ */ Object.create(null), G = null, Q = null;
+    He(P, g, T, b, D), _r(P, g, T);
+    let ce = S(g, T, "sourcemap", mt), xe = S(g, T, "bundle", B), Pe = S(g, T, "splitting", B), Me = S(g, T, "preserveSymlinks", B), $e = S(g, T, "metafile", B), Oe = S(g, T, "outfile", N), We = S(g, T, "outdir", N), je = S(g, T, "outbase", N), pe = S(g, T, "tsconfig", N), ue = S(g, T, "resolveExtensions", J), re = S(g, T, "nodePaths", J), V = S(g, T, "mainFields", J), me = S(g, T, "conditions", J), Ce = S(g, T, "external", J), Se = S(g, T, "packages", N), ye = S(g, T, "alias", ie), z = S(g, T, "loader", ie), q = S(g, T, "outExtension", ie), de = S(g, T, "publicPath", N), Ie = S(g, T, "entryNames", N), Te = S(g, T, "chunkNames", N), we = S(g, T, "assetNames", N), Ee = S(g, T, "inject", J), _e = S(g, T, "banner", ie), Qe = S(g, T, "footer", ie), oe = S(g, T, "entryPoints", ge), Fe = S(g, T, "absWorkingDir", N), ve = S(g, T, "stdin", ie), Ne = (U = S(g, T, "write", B)) != null ? U : L, vt = S(g, T, "allowOverwrite", B), tt = S(g, T, "mangleCache", ie);
+    if (T.plugins = !0, se(g, T, `in ${f}() call`), ce && P.push(`--sourcemap${ce === !0 ? "" : `=${ce}`}`), xe && P.push("--bundle"), vt && P.push("--allow-overwrite"), Pe && P.push("--splitting"), Me && P.push("--preserve-symlinks"), $e && P.push("--metafile"), Oe && P.push(`--outfile=${Oe}`), We && P.push(`--outdir=${We}`), je && P.push(`--outbase=${je}`), pe && P.push(`--tsconfig=${pe}`), Se && P.push(`--packages=${Se}`), ue && P.push(`--resolve-extensions=${Y(ue, "resolve extension")}`), de && P.push(`--public-path=${de}`), Ie && P.push(`--entry-names=${Ie}`), Te && P.push(`--chunk-names=${Te}`), we && P.push(`--asset-names=${we}`), V && P.push(`--main-fields=${Y(V, "main field")}`), me && P.push(`--conditions=${Y(me, "condition")}`), Ce) for (let fe of Ce) P.push(`--external:${ze(fe, "external")}`);
+    if (ye)
+      for (let fe in ye) {
+        if (fe.indexOf("=") >= 0) throw new Error(`Invalid package name in alias: ${fe}`);
+        P.push(`--alias:${fe}=${ze(ye[fe], "alias", fe)}`);
+      }
+    if (_e)
+      for (let fe in _e) {
+        if (fe.indexOf("=") >= 0) throw new Error(`Invalid banner file type: ${fe}`);
+        P.push(`--banner:${fe}=${ze(_e[fe], "banner", fe)}`);
+      }
+    if (Qe)
+      for (let fe in Qe) {
+        if (fe.indexOf("=") >= 0) throw new Error(`Invalid footer file type: ${fe}`);
+        P.push(`--footer:${fe}=${ze(Qe[fe], "footer", fe)}`);
+      }
+    if (Ee) for (let fe of Ee) P.push(`--inject:${ze(fe, "inject")}`);
+    if (z)
+      for (let fe in z) {
+        if (fe.indexOf("=") >= 0) throw new Error(`Invalid loader extension: ${fe}`);
+        P.push(`--loader:${fe}=${ze(z[fe], "loader", fe)}`);
+      }
+    if (q)
+      for (let fe in q) {
+        if (fe.indexOf("=") >= 0) throw new Error(`Invalid out extension: ${fe}`);
+        P.push(`--out-extension:${fe}=${ze(q[fe], "out extension", fe)}`);
+      }
+    if (oe)
+      if (Array.isArray(oe))
+        for (let fe = 0, ur = oe.length; fe < ur; fe++) {
+          let Ut = oe[fe];
+          if (typeof Ut == "object" && Ut !== null) {
+            let zt = /* @__PURE__ */ Object.create(null), cr = S(Ut, zt, "in", N), Mt = S(Ut, zt, "out", N);
+            if (se(Ut, zt, "in entry point at index " + fe), cr === void 0) throw new Error('Missing property "in" for entry point at index ' + fe);
+            if (Mt === void 0) throw new Error('Missing property "out" for entry point at index ' + fe);
+            Z.push([Mt, cr]);
+          } else
+            Z.push(["", ze(Ut, "entry point at index " + fe)]);
+        }
+      else
+        for (let fe in oe)
+          Z.push([fe, ze(oe[fe], "entry point", fe)]);
+    if (ve) {
+      let fe = /* @__PURE__ */ Object.create(null), ur = S(ve, fe, "contents", Ze), Ut = S(ve, fe, "resolveDir", N), zt = S(ve, fe, "sourcefile", N), cr = S(ve, fe, "loader", N);
+      se(ve, fe, 'in "stdin" object'), zt && P.push(`--sourcefile=${zt}`), cr && P.push(`--loader=${cr}`), Ut && (Q = Ut), typeof ur == "string" ? G = d(ur) : ur instanceof Uint8Array && (G = ur);
+    }
+    let ar = [];
+    if (re)
+      for (let fe of re)
+        fe += "", ar.push(fe);
+    return {
+      entries: Z,
+      flags: P,
+      write: Ne,
+      stdinContents: G,
+      stdinResolveDir: Q,
+      absWorkingDir: Fe,
+      nodePaths: ar,
+      mangleCache: $t(tt)
+    };
+  }
+  function Gt(f, g, b, D) {
+    let L = [], U = /* @__PURE__ */ Object.create(null);
+    He(L, g, U, b, D), _r(L, g, U);
+    let P = S(g, U, "sourcemap", mt), Z = S(g, U, "sourcefile", N), T = S(g, U, "loader", N), G = S(g, U, "banner", N), Q = S(g, U, "footer", N), ce = S(g, U, "mangleCache", ie);
+    return se(g, U, `in ${f}() call`), P && L.push(`--sourcemap=${P === !0 ? "external" : P}`), Z && L.push(`--sourcefile=${Z}`), T && L.push(`--loader=${T}`), G && L.push(`--banner=${G}`), Q && L.push(`--footer=${Q}`), {
+      flags: L,
+      mangleCache: $t(ce)
+    };
+  }
+  function et(f) {
+    const g = {}, b = { didClose: !1, reason: "" };
+    let D = {}, L = 0, U = 0, P = new Uint8Array(16 * 1024), Z = 0, T = (pe) => {
+      let ue = Z + pe.length;
+      if (ue > P.length) {
+        let V = new Uint8Array(ue * 2);
+        V.set(P), P = V;
+      }
+      P.set(pe, Z), Z += pe.length;
+      let re = 0;
+      for (; re + 4 <= Z; ) {
+        let V = _(P, re);
+        if (re + 4 + V > Z)
+          break;
+        re += 4, Me(P.subarray(re, re + V)), re += V;
+      }
+      re > 0 && (P.copyWithin(0, re, Z), Z -= re);
+    }, G = (pe) => {
+      b.didClose = !0, pe && (b.reason = ": " + (pe.message || pe));
+      const ue = "The service was stopped" + b.reason;
+      for (let re in D)
+        D[re](ue, null);
+      D = {};
+    }, Q = (pe, ue, re) => {
+      if (b.didClose) return re("The service is no longer running" + b.reason, null);
+      let V = L++;
+      D[V] = (me, Ce) => {
+        try {
+          re(me, Ce);
+        } finally {
+          pe && pe.unref();
+        }
+      }, pe && pe.ref(), f.writeToStdin(a({ id: V, isRequest: !0, value: ue }));
+    }, ce = (pe, ue) => {
+      if (b.didClose) throw new Error("The service is no longer running" + b.reason);
+      f.writeToStdin(a({ id: pe, isRequest: !1, value: ue }));
+    }, xe = async (pe, ue) => {
+      try {
+        if (ue.command === "ping") {
+          ce(pe, {});
+          return;
+        }
+        if (typeof ue.key == "number") {
+          const re = g[ue.key];
+          if (!re)
+            return;
+          const V = re[ue.command];
+          if (V) {
+            await V(pe, ue);
+            return;
+          }
+        }
+        throw new Error("Invalid command: " + ue.command);
+      } catch (re) {
+        const V = [ke(re, f, null, void 0, "")];
+        try {
+          ce(pe, { errors: V });
+        } catch {
+        }
+      }
+    }, Pe = !0, Me = (pe) => {
+      if (Pe) {
+        Pe = !1;
+        let re = String.fromCharCode(...pe);
+        if (re !== "0.27.4")
+          throw new Error(`Cannot start service: Host version "0.27.4" does not match binary version ${M(re)}`);
+        return;
+      }
+      let ue = c(pe);
+      if (ue.isRequest)
+        xe(ue.id, ue.value);
+      else {
+        let re = D[ue.id];
+        delete D[ue.id], ue.value.error ? re(ue.value.error, {}) : re(null, ue.value);
+      }
+    };
+    return {
+      readFromStdout: T,
+      afterClose: G,
+      service: {
+        buildOrContext: ({ callName: pe, refs: ue, options: re, isTTY: V, defaultWD: me, callback: Ce }) => {
+          let Se = 0;
+          const ye = U++, z = {}, q = {
+            ref() {
+              ++Se === 1 && ue && ue.ref();
+            },
+            unref() {
+              --Se === 0 && (delete g[ye], ue && ue.unref());
+            }
+          };
+          g[ye] = z, q.ref(), Pr(
+            pe,
+            ye,
+            Q,
+            ce,
+            q,
+            f,
+            z,
+            re,
+            V,
+            me,
+            (de, Ie) => {
+              try {
+                Ce(de, Ie);
+              } finally {
+                q.unref();
+              }
+            }
+          );
+        },
+        transform: ({ callName: pe, refs: ue, input: re, options: V, isTTY: me, fs: Ce, callback: Se }) => {
+          const ye = Ct();
+          let z = (q) => {
+            try {
+              if (typeof re != "string" && !(re instanceof Uint8Array))
+                throw new Error('The input to "transform" must be a string or a Uint8Array');
+              let {
+                flags: de,
+                mangleCache: Ie
+              } = Gt(pe, V, me, ne), Te = {
+                command: "transform",
+                flags: de,
+                inputFS: q !== null,
+                input: q !== null ? d(q) : typeof re == "string" ? d(re) : re
+              };
+              Ie && (Te.mangleCache = Ie), Q(ue, Te, (we, Ee) => {
+                if (we) return Se(new Error(we), null);
+                let _e = dr(Ee.errors, ye), Qe = dr(Ee.warnings, ye), oe = 1, Fe = () => {
+                  if (--oe === 0) {
+                    let ve = {
+                      warnings: Qe,
+                      code: Ee.code,
+                      map: Ee.map,
+                      mangleCache: void 0,
+                      legalComments: void 0
+                    };
+                    "legalComments" in Ee && (ve.legalComments = Ee?.legalComments), Ee.mangleCache && (ve.mangleCache = Ee?.mangleCache), Se(null, ve);
+                  }
+                };
+                if (_e.length > 0) return Se(Wt("Transform failed", _e, Qe), null);
+                Ee.codeFS && (oe++, Ce.readFile(Ee.code, (ve, Ne) => {
+                  ve !== null ? Se(ve, null) : (Ee.code = Ne, Fe());
+                })), Ee.mapFS && (oe++, Ce.readFile(Ee.map, (ve, Ne) => {
+                  ve !== null ? Se(ve, null) : (Ee.map = Ne, Fe());
+                })), Fe();
+              });
+            } catch (de) {
+              let Ie = [];
+              try {
+                He(Ie, V, {}, me, ne);
+              } catch {
+              }
+              const Te = ke(de, f, ye, void 0, "");
+              Q(ue, { command: "error", flags: Ie, error: Te }, () => {
+                Te.detail = ye.load(Te.detail), Se(Wt("Transform failed", [Te], []), null);
+              });
+            }
+          };
+          if ((typeof re == "string" || re instanceof Uint8Array) && re.length > 1024 * 1024) {
+            let q = z;
+            z = () => Ce.writeFile(re, q);
+          }
+          z(null);
+        },
+        formatMessages: ({ callName: pe, refs: ue, messages: re, options: V, callback: me }) => {
+          if (!V) throw new Error(`Missing second argument in ${pe}() call`);
+          let Ce = {}, Se = S(V, Ce, "kind", N), ye = S(V, Ce, "color", B), z = S(V, Ce, "terminalWidth", Ae);
+          if (se(V, Ce, `in ${pe}() call`), Se === void 0) throw new Error(`Missing "kind" in ${pe}() call`);
+          if (Se !== "error" && Se !== "warning") throw new Error(`Expected "kind" to be "error" or "warning" in ${pe}() call`);
+          let q = {
+            command: "format-msgs",
+            messages: Pt(re, "messages", null, "", z),
+            isWarning: Se === "warning"
+          };
+          ye !== void 0 && (q.color = ye), z !== void 0 && (q.terminalWidth = z), Q(ue, q, (de, Ie) => {
+            if (de) return me(new Error(de), null);
+            me(null, Ie.messages);
+          });
+        },
+        analyzeMetafile: ({ callName: pe, refs: ue, metafile: re, options: V, callback: me }) => {
+          V === void 0 && (V = {});
+          let Ce = {}, Se = S(V, Ce, "color", B), ye = S(V, Ce, "verbose", B);
+          se(V, Ce, `in ${pe}() call`);
+          let z = {
+            command: "analyze-metafile",
+            metafile: re
+          };
+          Se !== void 0 && (z.color = Se), ye !== void 0 && (z.verbose = ye), Q(ue, z, (q, de) => {
+            if (q) return me(new Error(q), null);
+            me(null, de.result);
+          });
+        }
+      }
+    };
+  }
+  function Pr(f, g, b, D, L, U, P, Z, T, G, Q) {
+    const ce = Ct(), xe = f === "context", Pe = (Oe, We) => {
+      const je = [];
+      try {
+        He(je, Z, {}, T, $);
+      } catch {
+      }
+      const pe = ke(Oe, U, ce, void 0, We);
+      b(L, { command: "error", flags: je, error: pe }, () => {
+        pe.detail = ce.load(pe.detail), Q(Wt(xe ? "Context failed" : "Build failed", [pe], []), null);
+      });
+    };
+    let Me;
+    if (typeof Z == "object") {
+      const Oe = Z.plugins;
+      if (Oe !== void 0) {
+        if (!Array.isArray(Oe)) return Pe(new Error('"plugins" must be an array'), "");
+        Me = Oe;
+      }
+    }
+    if (Me && Me.length > 0) {
+      if (U.isSync) return Pe(new Error("Cannot use plugins in synchronous API calls"), "");
+      rn(
+        g,
+        b,
+        D,
+        L,
+        U,
+        P,
+        Z,
+        Me,
+        ce
+      ).then(
+        (Oe) => {
+          if (!Oe.ok) return Pe(Oe.error, Oe.pluginName);
+          try {
+            $e(Oe.requestPlugins, Oe.runOnEndCallbacks, Oe.scheduleOnDisposeCallbacks);
+          } catch (We) {
+            Pe(We, "");
+          }
+        },
+        (Oe) => Pe(Oe, "")
+      );
+      return;
+    }
+    try {
+      $e(null, (Oe, We) => We([], []), () => {
+      });
+    } catch (Oe) {
+      Pe(Oe, "");
+    }
+    function $e(Oe, We, je) {
+      const pe = U.hasFS, {
+        entries: ue,
+        flags: re,
+        write: V,
+        stdinContents: me,
+        stdinResolveDir: Ce,
+        absWorkingDir: Se,
+        nodePaths: ye,
+        mangleCache: z
+      } = At(f, Z, T, $, pe);
+      if (V && !U.hasFS) throw new Error('The "write" option is unavailable in this environment');
+      const q = {
+        command: "build",
+        key: g,
+        entries: ue,
+        flags: re,
+        write: V,
+        stdinContents: me,
+        stdinResolveDir: Ce,
+        absWorkingDir: Se || G,
+        nodePaths: ye,
+        context: xe
+      };
+      Oe && (q.plugins = Oe), z && (q.mangleCache = z);
+      const de = (we, Ee) => {
+        const _e = {
+          errors: dr(we.errors, ce),
+          warnings: dr(we.warnings, ce),
+          outputFiles: void 0,
+          metafile: void 0,
+          mangleCache: void 0
+        }, Qe = _e.errors.slice(), oe = _e.warnings.slice();
+        we.outputFiles && (_e.outputFiles = we.outputFiles.map(Jn)), we.metafile && (_e.metafile = Lr(we.metafile)), we.mangleCache && (_e.mangleCache = we.mangleCache), we.writeToStdout !== void 0 && console.log(p(we.writeToStdout).replace(/\n$/, "")), We(_e, (Fe, ve) => {
+          if (Qe.length > 0 || Fe.length > 0) {
+            const Ne = Wt("Build failed", Qe.concat(Fe), oe.concat(ve));
+            return Ee(Ne, null, Fe, ve);
+          }
+          Ee(null, _e, Fe, ve);
+        });
+      };
+      let Ie, Te;
+      xe && (P["on-end"] = (we, Ee) => new Promise((_e) => {
+        de(Ee, (Qe, oe, Fe, ve) => {
+          const Ne = {
+            errors: Fe,
+            warnings: ve
+          };
+          Te && Te(Qe, oe), Ie = void 0, Te = void 0, D(we, Ne), _e();
+        });
+      })), b(L, q, (we, Ee) => {
+        if (we) return Q(new Error(we), null);
+        if (!xe)
+          return de(Ee, (oe, Fe) => (je(), Q(oe, Fe)));
+        if (Ee.errors.length > 0)
+          return Q(Wt("Context failed", Ee.errors, Ee.warnings), null);
+        let _e = !1;
+        const Qe = {
+          rebuild: () => (Ie || (Ie = new Promise((oe, Fe) => {
+            let ve;
+            Te = (vt, tt) => {
+              ve || (ve = () => vt ? Fe(vt) : oe(tt));
+            };
+            const Ne = () => {
+              b(L, {
+                command: "rebuild",
+                key: g
+              }, (tt, ar) => {
+                tt ? Fe(new Error(tt)) : ve ? ve() : Ne();
+              });
+            };
+            Ne();
+          })), Ie),
+          watch: (oe = {}) => new Promise((Fe, ve) => {
+            if (!U.hasFS) throw new Error('Cannot use the "watch" API in this environment');
+            const Ne = {}, vt = S(oe, Ne, "delay", Ae);
+            se(oe, Ne, "in watch() call");
+            const tt = {
+              command: "watch",
+              key: g
+            };
+            vt && (tt.delay = vt), b(L, tt, (ar) => {
+              ar ? ve(new Error(ar)) : Fe(void 0);
+            });
+          }),
+          serve: (oe = {}) => new Promise((Fe, ve) => {
+            if (!U.hasFS) throw new Error('Cannot use the "serve" API in this environment');
+            const Ne = {}, vt = S(oe, Ne, "port", be), tt = S(oe, Ne, "host", N), ar = S(oe, Ne, "servedir", N), fe = S(oe, Ne, "keyfile", N), ur = S(oe, Ne, "certfile", N), Ut = S(oe, Ne, "fallback", N), zt = S(oe, Ne, "cors", ie), cr = S(oe, Ne, "onRequest", X);
+            se(oe, Ne, "in serve() call");
+            const Mt = {
+              command: "serve",
+              key: g,
+              onRequest: !!cr
+            };
+            if (vt !== void 0 && (Mt.port = vt), tt !== void 0 && (Mt.host = tt), ar !== void 0 && (Mt.servedir = ar), fe !== void 0 && (Mt.keyfile = fe), ur !== void 0 && (Mt.certfile = ur), Ut !== void 0 && (Mt.fallback = Ut), zt) {
+              const an = {}, Wr = S(zt, an, "origin", ct);
+              se(zt, an, 'on "cors" object'), Array.isArray(Wr) ? Mt.corsOrigin = Wr : Wr !== void 0 && (Mt.corsOrigin = [Wr]);
+            }
+            b(L, Mt, (an, Wr) => {
+              if (an) return ve(new Error(an));
+              cr && (P["serve-request"] = (Vu, Zu) => {
+                cr(Zu.args), D(Vu, {});
+              }), Fe(Wr);
+            });
+          }),
+          cancel: () => new Promise((oe) => {
+            if (_e) return oe();
+            b(L, {
+              command: "cancel",
+              key: g
+            }, () => {
+              oe();
+            });
+          }),
+          dispose: () => new Promise((oe) => {
+            if (_e) return oe();
+            _e = !0, b(L, {
+              command: "dispose",
+              key: g
+            }, () => {
+              oe(), je(), L.unref();
+            });
+          })
+        };
+        L.ref(), Q(null, Qe);
+      });
+    }
+  }
+  var rn = async (f, g, b, D, L, U, P, Z, T) => {
+    let G = [], Q = [], ce = {}, xe = {}, Pe = [], Me = 0, $e = 0, Oe = [], We = !1;
+    Z = [...Z];
+    for (let ue of Z) {
+      let re = {};
+      if (typeof ue != "object") throw new Error(`Plugin at index ${$e} must be an object`);
+      const V = S(ue, re, "name", N);
+      if (typeof V != "string" || V === "") throw new Error(`Plugin at index ${$e} is missing a name`);
+      try {
+        let me = S(ue, re, "setup", X);
+        if (typeof me != "function") throw new Error("Plugin is missing a setup function");
+        se(ue, re, `on plugin ${M(V)}`);
+        let Ce = {
+          name: V,
+          onStart: !1,
+          onEnd: !1,
+          onResolve: [],
+          onLoad: []
+        };
+        $e++;
+        let ye = me({
+          initialOptions: P,
+          resolve: (z, q = {}) => {
+            if (!We) throw new Error('Cannot call "resolve" before plugin setup has completed');
+            if (typeof z != "string") throw new Error("The path to resolve must be a string");
+            let de = /* @__PURE__ */ Object.create(null), Ie = S(q, de, "pluginName", N), Te = S(q, de, "importer", N), we = S(q, de, "namespace", N), Ee = S(q, de, "resolveDir", N), _e = S(q, de, "kind", N), Qe = S(q, de, "pluginData", v), oe = S(q, de, "with", ie);
+            return se(q, de, "in resolve() call"), new Promise((Fe, ve) => {
+              const Ne = {
+                command: "resolve",
+                path: z,
+                key: f,
+                pluginName: V
+              };
+              if (Ie != null && (Ne.pluginName = Ie), Te != null && (Ne.importer = Te), we != null && (Ne.namespace = we), Ee != null && (Ne.resolveDir = Ee), _e != null) Ne.kind = _e;
+              else throw new Error('Must specify "kind" when calling "resolve"');
+              Qe != null && (Ne.pluginData = T.store(Qe)), oe != null && (Ne.with = Dr(oe, "with")), g(D, Ne, (vt, tt) => {
+                vt !== null ? ve(new Error(vt)) : Fe({
+                  errors: dr(tt.errors, T),
+                  warnings: dr(tt.warnings, T),
+                  path: tt.path,
+                  external: tt.external,
+                  sideEffects: tt.sideEffects,
+                  namespace: tt.namespace,
+                  suffix: tt.suffix,
+                  pluginData: T.load(tt.pluginData)
+                });
+              });
+            });
+          },
+          onStart(z) {
+            let q = 'This error came from the "onStart" callback registered here:', de = lt(new Error(q), L, "onStart");
+            G.push({ name: V, callback: z, note: de }), Ce.onStart = !0;
+          },
+          onEnd(z) {
+            let q = 'This error came from the "onEnd" callback registered here:', de = lt(new Error(q), L, "onEnd");
+            Q.push({ name: V, callback: z, note: de }), Ce.onEnd = !0;
+          },
+          onResolve(z, q) {
+            let de = 'This error came from the "onResolve" callback registered here:', Ie = lt(new Error(de), L, "onResolve"), Te = {}, we = S(z, Te, "filter", ee), Ee = S(z, Te, "namespace", N);
+            if (se(z, Te, `in onResolve() call for plugin ${M(V)}`), we == null) throw new Error("onResolve() call is missing a filter");
+            let _e = Me++;
+            ce[_e] = { name: V, callback: q, note: Ie }, Ce.onResolve.push({ id: _e, filter: Lt(we), namespace: Ee || "" });
+          },
+          onLoad(z, q) {
+            let de = 'This error came from the "onLoad" callback registered here:', Ie = lt(new Error(de), L, "onLoad"), Te = {}, we = S(z, Te, "filter", ee), Ee = S(z, Te, "namespace", N);
+            if (se(z, Te, `in onLoad() call for plugin ${M(V)}`), we == null) throw new Error("onLoad() call is missing a filter");
+            let _e = Me++;
+            xe[_e] = { name: V, callback: q, note: Ie }, Ce.onLoad.push({ id: _e, filter: Lt(we), namespace: Ee || "" });
+          },
+          onDispose(z) {
+            Pe.push(z);
+          },
+          esbuild: L.esbuild
+        });
+        ye && await ye, Oe.push(Ce);
+      } catch (me) {
+        return { ok: !1, error: me, pluginName: V };
+      }
+    }
+    U["on-start"] = async (ue, re) => {
+      T.clear();
+      let V = { errors: [], warnings: [] };
+      await Promise.all(G.map(async ({ name: me, callback: Ce, note: Se }) => {
+        try {
+          let ye = await Ce();
+          if (ye != null) {
+            if (typeof ye != "object") throw new Error(`Expected onStart() callback in plugin ${M(me)} to return an object`);
+            let z = {}, q = S(ye, z, "errors", le), de = S(ye, z, "warnings", le);
+            se(ye, z, `from onStart() callback in plugin ${M(me)}`), q != null && V.errors.push(...Pt(q, "errors", T, me, void 0)), de != null && V.warnings.push(...Pt(de, "warnings", T, me, void 0));
+          }
+        } catch (ye) {
+          V.errors.push(ke(ye, L, T, Se && Se(), me));
+        }
+      })), b(ue, V);
+    }, U["on-resolve"] = async (ue, re) => {
+      let V = {}, me = "", Ce, Se;
+      for (let ye of re.ids)
+        try {
+          ({ name: me, callback: Ce, note: Se } = ce[ye]);
+          let z = await Ce({
+            path: re.path,
+            importer: re.importer,
+            namespace: re.namespace,
+            resolveDir: re.resolveDir,
+            kind: re.kind,
+            pluginData: T.load(re.pluginData),
+            with: re.with
+          });
+          if (z != null) {
+            if (typeof z != "object") throw new Error(`Expected onResolve() callback in plugin ${M(me)} to return an object`);
+            let q = {}, de = S(z, q, "pluginName", N), Ie = S(z, q, "path", N), Te = S(z, q, "namespace", N), we = S(z, q, "suffix", N), Ee = S(z, q, "external", B), _e = S(z, q, "sideEffects", B), Qe = S(z, q, "pluginData", v), oe = S(z, q, "errors", le), Fe = S(z, q, "warnings", le), ve = S(z, q, "watchFiles", J), Ne = S(z, q, "watchDirs", J);
+            se(z, q, `from onResolve() callback in plugin ${M(me)}`), V.id = ye, de != null && (V.pluginName = de), Ie != null && (V.path = Ie), Te != null && (V.namespace = Te), we != null && (V.suffix = we), Ee != null && (V.external = Ee), _e != null && (V.sideEffects = _e), Qe != null && (V.pluginData = T.store(Qe)), oe != null && (V.errors = Pt(oe, "errors", T, me, void 0)), Fe != null && (V.warnings = Pt(Fe, "warnings", T, me, void 0)), ve != null && (V.watchFiles = tr(ve, "watchFiles")), Ne != null && (V.watchDirs = tr(Ne, "watchDirs"));
+            break;
+          }
+        } catch (z) {
+          V = { id: ye, errors: [ke(z, L, T, Se && Se(), me)] };
+          break;
+        }
+      b(ue, V);
+    }, U["on-load"] = async (ue, re) => {
+      let V = {}, me = "", Ce, Se;
+      for (let ye of re.ids)
+        try {
+          ({ name: me, callback: Ce, note: Se } = xe[ye]);
+          let z = await Ce({
+            path: re.path,
+            namespace: re.namespace,
+            suffix: re.suffix,
+            pluginData: T.load(re.pluginData),
+            with: re.with
+          });
+          if (z != null) {
+            if (typeof z != "object") throw new Error(`Expected onLoad() callback in plugin ${M(me)} to return an object`);
+            let q = {}, de = S(z, q, "pluginName", N), Ie = S(z, q, "contents", Ze), Te = S(z, q, "resolveDir", N), we = S(z, q, "pluginData", v), Ee = S(z, q, "loader", N), _e = S(z, q, "errors", le), Qe = S(z, q, "warnings", le), oe = S(z, q, "watchFiles", J), Fe = S(z, q, "watchDirs", J);
+            se(z, q, `from onLoad() callback in plugin ${M(me)}`), V.id = ye, de != null && (V.pluginName = de), Ie instanceof Uint8Array ? V.contents = Ie : Ie != null && (V.contents = d(Ie)), Te != null && (V.resolveDir = Te), we != null && (V.pluginData = T.store(we)), Ee != null && (V.loader = Ee), _e != null && (V.errors = Pt(_e, "errors", T, me, void 0)), Qe != null && (V.warnings = Pt(Qe, "warnings", T, me, void 0)), oe != null && (V.watchFiles = tr(oe, "watchFiles")), Fe != null && (V.watchDirs = tr(Fe, "watchDirs"));
+            break;
+          }
+        } catch (z) {
+          V = { id: ye, errors: [ke(z, L, T, Se && Se(), me)] };
+          break;
+        }
+      b(ue, V);
+    };
+    let je = (ue, re) => re([], []);
+    Q.length > 0 && (je = (ue, re) => {
+      (async () => {
+        const V = [], me = [];
+        for (const { name: Ce, callback: Se, note: ye } of Q) {
+          let z, q;
+          try {
+            const de = await Se(ue);
+            if (de != null) {
+              if (typeof de != "object") throw new Error(`Expected onEnd() callback in plugin ${M(Ce)} to return an object`);
+              let Ie = {}, Te = S(de, Ie, "errors", le), we = S(de, Ie, "warnings", le);
+              se(de, Ie, `from onEnd() callback in plugin ${M(Ce)}`), Te != null && (z = Pt(Te, "errors", T, Ce, void 0)), we != null && (q = Pt(we, "warnings", T, Ce, void 0));
+            }
+          } catch (de) {
+            z = [ke(de, L, T, ye && ye(), Ce)];
+          }
+          if (z) {
+            V.push(...z);
+            try {
+              ue.errors.push(...z);
+            } catch {
+            }
+          }
+          if (q) {
+            me.push(...q);
+            try {
+              ue.warnings.push(...q);
+            } catch {
+            }
+          }
+        }
+        re(V, me);
+      })();
+    });
+    let pe = () => {
+      for (const ue of Pe)
+        setTimeout(() => ue(), 0);
+    };
+    return We = !0, {
+      ok: !0,
+      requestPlugins: Oe,
+      runOnEndCallbacks: je,
+      scheduleOnDisposeCallbacks: pe
+    };
+  };
+  function Ct() {
+    const f = /* @__PURE__ */ new Map();
+    let g = 0;
+    return {
+      clear() {
+        f.clear();
+      },
+      load(b) {
+        return f.get(b);
+      },
+      store(b) {
+        if (b === void 0) return -1;
+        const D = g++;
+        return f.set(D, b), D;
+      }
+    };
+  }
+  function lt(f, g, b) {
+    let D, L = !1;
+    return () => {
+      if (L) return D;
+      L = !0;
+      try {
+        let U = (f.stack + "").split(`
+`);
+        U.splice(1, 1);
+        let P = ft(g, U, b);
+        if (P)
+          return D = { text: f.message, location: P }, D;
+      } catch {
+      }
+    };
+  }
+  function ke(f, g, b, D, L) {
+    let U = "Internal error", P = null;
+    try {
+      U = (f && f.message || f) + "";
+    } catch {
+    }
+    try {
+      P = ft(g, (f.stack + "").split(`
+`), "");
+    } catch {
+    }
+    return { id: "", pluginName: L, text: U, location: P, notes: D ? [D] : [], detail: b ? b.store(f) : -1 };
+  }
+  function ft(f, g, b) {
+    let D = "    at ";
+    if (f.readFileSync && !g[0].startsWith(D) && g[1].startsWith(D))
+      for (let L = 1; L < g.length; L++) {
+        let U = g[L];
+        if (U.startsWith(D))
+          for (U = U.slice(D.length); ; ) {
+            let P = /^(?:new |async )?\S+ \((.*)\)$/.exec(U);
+            if (P) {
+              U = P[1];
+              continue;
+            }
+            if (P = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(U), P) {
+              U = P[1];
+              continue;
+            }
+            if (P = /^(\S+):(\d+):(\d+)$/.exec(U), P) {
+              let Z;
+              try {
+                Z = f.readFileSync(P[1], "utf8");
+              } catch {
+                break;
+              }
+              let T = Z.split(/\r\n|\r|\n|\u2028|\u2029/)[+P[2] - 1] || "", G = +P[3] - 1, Q = T.slice(G, G + b.length) === b ? b.length : 0;
+              return {
+                file: P[1],
+                namespace: "file",
+                line: +P[2],
+                column: d(T.slice(0, G)).length,
+                length: d(T.slice(G, G + Q)).length,
+                lineText: T + `
+` + g.slice(1).join(`
+`),
+                suggestion: ""
+              };
+            }
+            break;
+          }
+      }
+    return null;
+  }
+  function Wt(f, g, b) {
+    let D = 5;
+    f += g.length < 1 ? "" : ` with ${g.length} error${g.length < 2 ? "" : "s"}:` + g.slice(0, D + 1).map((U, P) => {
+      if (P === D) return `
+...`;
+      if (!U.location) return `
+error: ${U.text}`;
+      let { file: Z, line: T, column: G } = U.location, Q = U.pluginName ? `[plugin: ${U.pluginName}] ` : "";
+      return `
+${Z}:${T}:${G}: ERROR: ${Q}${U.text}`;
+    }).join("");
+    let L = new Error(f);
+    for (const [U, P] of [["errors", g], ["warnings", b]])
+      Object.defineProperty(L, U, {
+        configurable: !0,
+        enumerable: !0,
+        get: () => P,
+        set: (Z) => Object.defineProperty(L, U, {
+          configurable: !0,
+          enumerable: !0,
+          value: Z
+        })
+      });
+    return L;
+  }
+  function dr(f, g) {
+    for (const b of f)
+      b.detail = g.load(b.detail);
+    return f;
+  }
+  function bn(f, g, b) {
+    if (f == null) return null;
+    let D = {}, L = S(f, D, "file", N), U = S(f, D, "namespace", N), P = S(f, D, "line", Ae), Z = S(f, D, "column", Ae), T = S(f, D, "length", Ae), G = S(f, D, "lineText", N), Q = S(f, D, "suggestion", N);
+    if (se(f, D, g), G) {
+      const ce = G.slice(
+        0,
+        (Z && Z > 0 ? Z : 0) + (T && T > 0 ? T : 0) + (b && b > 0 ? b : 80)
+      );
+      !/[\x7F-\uFFFF]/.test(ce) && !/\n/.test(G) && (G = ce);
+    }
+    return {
+      file: L || "",
+      namespace: U || "",
+      line: P || 0,
+      column: Z || 0,
+      length: T || 0,
+      lineText: G || "",
+      suggestion: Q || ""
+    };
+  }
+  function Pt(f, g, b, D, L) {
+    let U = [], P = 0;
+    for (const Z of f) {
+      let T = {}, G = S(Z, T, "id", N), Q = S(Z, T, "pluginName", N), ce = S(Z, T, "text", N), xe = S(Z, T, "location", Ue), Pe = S(Z, T, "notes", le), Me = S(Z, T, "detail", v), $e = `in element ${P} of "${g}"`;
+      se(Z, T, $e);
+      let Oe = [];
+      if (Pe)
+        for (const We of Pe) {
+          let je = {}, pe = S(We, je, "text", N), ue = S(We, je, "location", Ue);
+          se(We, je, $e), Oe.push({
+            text: pe || "",
+            location: bn(ue, $e, L)
+          });
+        }
+      U.push({
+        id: G || "",
+        pluginName: Q || D,
+        text: ce || "",
+        location: bn(xe, $e, L),
+        notes: Oe,
+        detail: b ? b.store(Me) : -1
+      }), P++;
+    }
+    return U;
+  }
+  function tr(f, g) {
+    const b = [];
+    for (const D of f) {
+      if (typeof D != "string") throw new Error(`${M(g)} must be an array of strings`);
+      b.push(D);
+    }
+    return b;
+  }
+  function Dr(f, g) {
+    const b = /* @__PURE__ */ Object.create(null);
+    for (const D in f) {
+      const L = f[D];
+      if (typeof L != "string") throw new Error(`key ${M(D)} in object ${M(g)} must be a string`);
+      b[D] = L;
+    }
+    return b;
+  }
+  function Jn({ path: f, contents: g, hash: b }) {
+    let D = null;
+    return {
+      path: f,
+      contents: g,
+      hash: b,
+      get text() {
+        const L = this.contents;
+        return (D === null || L !== g) && (g = L, D = p(L)), D;
+      }
+    };
+  }
+  function Lt(f) {
+    let g = f.source;
+    return f.flags && (g = `(?${f.flags})${g}`), g;
+  }
+  function Lr(f) {
+    let g;
+    try {
+      g = p(f);
+    } catch {
+      return x(f);
+    }
+    return JSON.parse(g);
+  }
+  var Ot = Xe, xr = uo, yt = Re, jt = process.env.ESBUILD_BINARY_PATH || jt, Ur = (f) => !!f && f !== "/usr/bin/esbuild", nn = "@esbuild/darwin-arm64", on = "@esbuild/darwin-x64", pr = {
+    "win32 arm64 LE": "@esbuild/win32-arm64",
+    "win32 ia32 LE": "@esbuild/win32-ia32",
+    "win32 x64 LE": "@esbuild/win32-x64"
+  }, rr = {
+    "aix ppc64 BE": "@esbuild/aix-ppc64",
+    "android arm64 LE": "@esbuild/android-arm64",
+    "darwin arm64 LE": "@esbuild/darwin-arm64",
+    "darwin x64 LE": "@esbuild/darwin-x64",
+    "freebsd arm64 LE": "@esbuild/freebsd-arm64",
+    "freebsd x64 LE": "@esbuild/freebsd-x64",
+    "linux arm LE": "@esbuild/linux-arm",
+    "linux arm64 LE": "@esbuild/linux-arm64",
+    "linux ia32 LE": "@esbuild/linux-ia32",
+    "linux mips64el LE": "@esbuild/linux-mips64el",
+    "linux ppc64 LE": "@esbuild/linux-ppc64",
+    "linux riscv64 LE": "@esbuild/linux-riscv64",
+    "linux s390x BE": "@esbuild/linux-s390x",
+    "linux x64 LE": "@esbuild/linux-x64",
+    "linux loong64 LE": "@esbuild/linux-loong64",
+    "netbsd arm64 LE": "@esbuild/netbsd-arm64",
+    "netbsd x64 LE": "@esbuild/netbsd-x64",
+    "openbsd arm64 LE": "@esbuild/openbsd-arm64",
+    "openbsd x64 LE": "@esbuild/openbsd-x64",
+    "sunos x64 LE": "@esbuild/sunos-x64"
+  }, Mr = {
+    "android arm LE": "@esbuild/android-arm",
+    "android x64 LE": "@esbuild/android-x64",
+    "openharmony arm64 LE": "@esbuild/openharmony-arm64"
+  };
+  function wn() {
+    let f, g, b = !1, D = `${process.platform} ${xr.arch()} ${xr.endianness()}`;
+    if (D in pr)
+      f = pr[D], g = "esbuild.exe";
+    else if (D in rr)
+      f = rr[D], g = "bin/esbuild";
+    else if (D in Mr)
+      f = Mr[D], g = "bin/esbuild", b = !0;
+    else
+      throw new Error(`Unsupported platform: ${D}`);
+    return { pkg: f, subpath: g, isWASM: b };
+  }
+  function In() {
+    const f = require.resolve("esbuild"), g = yt.dirname(yt.dirname(yt.dirname(f)));
+    if (yt.basename(g) === "node_modules") {
+      for (const b in rr)
+        try {
+          const D = rr[b];
+          if (Ot.existsSync(yt.join(g, D))) return D;
+        } catch {
+        }
+      for (const b in pr)
+        try {
+          const D = pr[b];
+          if (Ot.existsSync(yt.join(g, D))) return D;
+        } catch {
+        }
+    }
+    return null;
+  }
+  function _n(f, g) {
+    const b = yt.dirname(require.resolve("esbuild"));
+    return yt.join(b, `downloaded-${f.replace("/", "-")}-${yt.basename(g)}`);
+  }
+  function Hr() {
+    if (Ur(jt))
+      if (!Ot.existsSync(jt))
+        console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${jt}`);
+      else
+        return { binPath: jt, isWASM: !1 };
+    const { pkg: f, subpath: g, isWASM: b } = wn();
+    let D;
+    try {
+      D = require.resolve(`${f}/${g}`);
+    } catch (L) {
+      if (D = _n(f, g), !Ot.existsSync(D)) {
+        try {
+          require.resolve(f);
+        } catch {
+          const U = In();
+          if (U) {
+            let P = `
+Specifically the "${U}" package is present but this platform
+needs the "${f}" package instead. People often get into this
+situation by installing esbuild on Windows or macOS and copying "node_modules"
+into a Docker image that runs Linux, or by copying "node_modules" between
+Windows and WSL environments.
+
+If you are installing with npm, you can try not copying the "node_modules"
+directory when you copy the files over, and running "npm ci" or "npm install"
+on the destination platform after the copy. Or you could consider using yarn
+instead of npm which has built-in support for installing a package on multiple
+platforms simultaneously.
+
+If you are installing with yarn, you can try listing both this platform and the
+other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+feature: https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
+Keep in mind that this means multiple copies of esbuild will be present.
+`;
+            throw (f === on && U === nn || f === nn && U === on) && (P = `
+Specifically the "${U}" package is present but this platform
+needs the "${f}" package instead. People often get into this
+situation by installing esbuild with npm running inside of Rosetta 2 and then
+trying to use it with node running outside of Rosetta 2, or vice versa (Rosetta
+2 is Apple's on-the-fly x86_64-to-arm64 translation service).
+
+If you are installing with npm, you can try ensuring that both npm and node are
+not running under Rosetta 2 and then reinstalling esbuild. This likely involves
+changing how you installed npm and/or node. For example, installing node with
+the universal installer here should work: https://nodejs.org/en/download/. Or
+you could consider using yarn instead of npm which has built-in support for
+installing a package on multiple platforms simultaneously.
+
+If you are installing with yarn, you can try listing both "arm64" and "x64"
+in your ".yarnrc.yml" file using the "supportedArchitectures" feature:
+https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
+Keep in mind that this means multiple copies of esbuild will be present.
+`), new Error(`
+You installed esbuild for another platform than the one you're currently using.
+This won't work because esbuild is written with native code and needs to
+install a platform-specific binary executable.
+${P}
+Another alternative is to use the "esbuild-wasm" package instead, which works
+the same way on all platforms. But it comes with a heavy performance cost and
+can sometimes be 10x slower than the "esbuild" package, so you may also not
+want to do that.
+`);
+          }
+          throw new Error(`The package "${f}" could not be found, and is needed by esbuild.
+
+If you are installing esbuild with npm, make sure that you don't specify the
+"--no-optional" or "--omit=optional" flags. The "optionalDependencies" feature
+of "package.json" is used by esbuild to install the correct binary executable
+for your current platform.`);
+        }
+        throw L;
+      }
+    }
+    if (/\.zip\//.test(D)) {
+      let L;
+      try {
+        L = require("pnpapi");
+      } catch {
+      }
+      if (L) {
+        const U = L.getPackageInformation(L.topLevel).packageLocation, P = yt.join(
+          U,
+          "node_modules",
+          ".cache",
+          "esbuild",
+          `pnpapi-${f.replace("/", "-")}-0.27.4-${yt.basename(g)}`
+        );
+        return Ot.existsSync(P) || (Ot.mkdirSync(yt.dirname(P), { recursive: !0 }), Ot.copyFileSync(D, P), Ot.chmodSync(P, 493)), { binPath: P, isWASM: b };
+      }
+    }
+    return { binPath: D, isWASM: b };
+  }
+  var Yr = Ca, Vn = lc, $r = Re, Jt = Xe, l = uo, h = hc, y;
+  if (process.env.ESBUILD_WORKER_THREADS !== "0") {
+    try {
+      y = require("worker_threads");
+    } catch {
+    }
+    let [f, g] = process.versions.node.split(".");
+    // <v12.17.0 does not work
+    (+f < 12 || +f == 12 && +g < 17 || +f == 13 && +g < 13) && (y = void 0);
+  }
+  var F, W = ((F = y?.workerData) == null ? void 0 : F.esbuildVersion) === "0.27.4", te = () => {
+    if (!jt && ($r.basename(__filename) !== "main.js" || $r.basename(__dirname) !== "lib"))
+      throw new Error(
+        `The esbuild JavaScript API cannot be bundled. Please mark the "esbuild" package as external so it's not included in the bundle.
+
+	More information: The file containing the code for esbuild's JavaScript API (${__filename}) does not appear to be inside the esbuild package on the file system, which usually means that the esbuild package was bundled into another file. This is problematic because the API needs to run a binary executable inside the esbuild package which is located using a relative path from the API code to the executable. If the esbuild package is bundled, the relative path will be incorrect and the executable won't be found.`
+      );
+    {
+      const { binPath: f, isWASM: g } = Hr();
+      return g ? ["node", [f]] : [f, []];
+    }
+  }, K = () => h.isatty(2), Ye = {
+    readFile(f, g) {
+      try {
+        let b = Jt.readFileSync(f, "utf8");
+        try {
+          Jt.unlinkSync(f);
+        } catch {
+        }
+        g(null, b);
+      } catch (b) {
+        g(b, null);
+      }
+    },
+    writeFile(f, g) {
+      try {
+        let b = sr();
+        Jt.writeFileSync(b, f), g(b);
+      } catch {
+        g(null);
+      }
+    }
+  }, it = {
+    readFile(f, g) {
+      try {
+        Jt.readFile(f, "utf8", (b, D) => {
+          try {
+            Jt.unlink(f, () => g(b, D));
+          } catch {
+            g(b, D);
+          }
+        });
+      } catch (b) {
+        g(b, null);
+      }
+    },
+    writeFile(f, g) {
+      try {
+        let b = sr();
+        Jt.writeFile(b, f, (D) => g(D !== null ? null : b));
+      } catch {
+        g(null);
+      }
+    }
+  }, It = "0.27.4", Kt = (f) => Dt().build(f), Kr = (f) => Dt().context(f), Vt = (f, g) => Dt().transform(f, g), xt = (f, g) => Dt().formatMessages(f, g), Qr = (f, g) => Dt().analyzeMetafile(f, g), Gr = (f) => {
+    if (y && !W)
+      return ht || (ht = Dn(y)), ht.buildSync(f);
+    let g;
+    return Sr((b) => b.buildOrContext({
+      callName: "buildSync",
+      refs: null,
+      options: f,
+      isTTY: K(),
+      defaultWD: Ft,
+      callback: (D, L) => {
+        if (D) throw D;
+        g = L;
+      }
+    })), g;
+  }, nr = (f, g) => {
+    if (y && !W)
+      return ht || (ht = Dn(y)), ht.transformSync(f, g);
+    let b;
+    return Sr((D) => D.transform({
+      callName: "transformSync",
+      refs: null,
+      input: f,
+      options: g || {},
+      isTTY: K(),
+      fs: Ye,
+      callback: (L, U) => {
+        if (L) throw L;
+        b = U;
+      }
+    })), b;
+  }, ir = (f, g) => {
+    if (y && !W)
+      return ht || (ht = Dn(y)), ht.formatMessagesSync(f, g);
+    let b;
+    return Sr((D) => D.formatMessages({
+      callName: "formatMessagesSync",
+      refs: null,
+      messages: f,
+      options: g,
+      callback: (L, U) => {
+        if (L) throw L;
+        b = U;
+      }
+    })), b;
+  }, Zt = (f, g) => {
+    if (y && !W)
+      return ht || (ht = Dn(y)), ht.analyzeMetafileSync(f, g);
+    let b;
+    return Sr((D) => D.analyzeMetafile({
+      callName: "analyzeMetafileSync",
+      refs: null,
+      metafile: typeof f == "string" ? f : JSON.stringify(f),
+      options: g,
+      callback: (L, U) => {
+        if (L) throw L;
+        b = U;
+      }
+    })), b;
+  }, or = () => (mr && mr(), ht && ht.stop(), Promise.resolve()), _t = !1, sn = (f) => {
+    if (f = Nt(f || {}), f.wasmURL) throw new Error('The "wasmURL" option only works in the browser');
+    if (f.wasmModule) throw new Error('The "wasmModule" option only works in the browser');
+    if (f.worker) throw new Error('The "worker" option only works in the browser');
+    if (_t) throw new Error('Cannot call "initialize" more than once');
+    return Dt(), _t = !0, Promise.resolve();
+  }, Ft = process.cwd(), Qt, mr, Dt = () => {
+    if (Qt) return Qt;
+    let [f, g] = te(), b = Yr.spawn(f, g.concat("--service=0.27.4", "--ping"), {
+      windowsHide: !0,
+      stdio: ["pipe", "pipe", "inherit"],
+      cwd: Ft
+    }), { readFromStdout: D, afterClose: L, service: U } = et({
+      writeToStdin(Q) {
+        b.stdin.write(Q, (ce) => {
+          ce && L(ce);
+        });
+      },
+      readFileSync: Jt.readFileSync,
+      isSync: !1,
+      hasFS: !0,
+      esbuild: u
+    });
+    b.stdin.on("error", L), b.on("error", L);
+    const P = b.stdin, Z = b.stdout;
+    Z.on("data", D), Z.on("end", L), mr = () => {
+      P.destroy(), Z.destroy(), b.kill(), _t = !1, Qt = void 0, mr = void 0;
+    };
+    let T = 0;
+    b.unref(), P.unref && P.unref(), Z.unref && Z.unref();
+    const G = {
+      ref() {
+        ++T === 1 && b.ref();
+      },
+      unref() {
+        --T === 0 && b.unref();
+      }
+    };
+    return Qt = {
+      build: (Q) => new Promise((ce, xe) => {
+        U.buildOrContext({
+          callName: "build",
+          refs: G,
+          options: Q,
+          isTTY: K(),
+          defaultWD: Ft,
+          callback: (Pe, Me) => Pe ? xe(Pe) : ce(Me)
+        });
+      }),
+      context: (Q) => new Promise((ce, xe) => U.buildOrContext({
+        callName: "context",
+        refs: G,
+        options: Q,
+        isTTY: K(),
+        defaultWD: Ft,
+        callback: (Pe, Me) => Pe ? xe(Pe) : ce(Me)
+      })),
+      transform: (Q, ce) => new Promise((xe, Pe) => U.transform({
+        callName: "transform",
+        refs: G,
+        input: Q,
+        options: ce || {},
+        isTTY: K(),
+        fs: it,
+        callback: (Me, $e) => Me ? Pe(Me) : xe($e)
+      })),
+      formatMessages: (Q, ce) => new Promise((xe, Pe) => U.formatMessages({
+        callName: "formatMessages",
+        refs: G,
+        messages: Q,
+        options: ce,
+        callback: (Me, $e) => Me ? Pe(Me) : xe($e)
+      })),
+      analyzeMetafile: (Q, ce) => new Promise((xe, Pe) => U.analyzeMetafile({
+        callName: "analyzeMetafile",
+        refs: G,
+        metafile: typeof Q == "string" ? Q : JSON.stringify(Q),
+        options: ce,
+        callback: (Me, $e) => Me ? Pe(Me) : xe($e)
+      }))
+    }, Qt;
+  }, Sr = (f) => {
+    let [g, b] = te(), D = new Uint8Array(), { readFromStdout: L, afterClose: U, service: P } = et({
+      writeToStdin(T) {
+        if (D.length !== 0) throw new Error("Must run at most one command");
+        D = T;
+      },
+      isSync: !0,
+      hasFS: !0,
+      esbuild: u
+    });
+    f(P);
+    let Z = Yr.execFileSync(g, b.concat("--service=0.27.4"), {
+      cwd: Ft,
+      windowsHide: !0,
+      input: D,
+      // We don't know how large the output could be. If it's too large, the
+      // command will fail with ENOBUFS. Reserve 16mb for now since that feels
+      // like it should be enough. Also allow overriding this with an environment
+      // variable.
+      maxBuffer: +process.env.ESBUILD_MAX_BUFFER || 16 * 1024 * 1024
+    });
+    L(Z), U(null);
+  }, sr = () => $r.join(l.tmpdir(), `esbuild-${Vn.randomBytes(32).toString("hex")}`), ht = null, Dn = (f) => {
+    let { port1: g, port2: b } = new f.MessageChannel(), D = new f.Worker(__filename, {
+      workerData: { workerPort: b, defaultWD: Ft, esbuildVersion: "0.27.4" },
+      transferList: [b],
+      // From node's documentation: https://nodejs.org/api/worker_threads.html
+      //
+      //   Take care when launching worker threads from preload scripts (scripts loaded
+      //   and run using the `-r` command line flag). Unless the `execArgv` option is
+      //   explicitly set, new Worker threads automatically inherit the command line flags
+      //   from the running process and will preload the same preload scripts as the main
+      //   thread. If the preload script unconditionally launches a worker thread, every
+      //   thread spawned will spawn another until the application crashes.
+      //
+      execArgv: []
+    }), L = 0, U = (G) => {
+      let Q = new Error(`Build failed with 1 error:
+error: ${G}`), ce = [{ id: "", pluginName: "", text: G, location: null, notes: [], detail: void 0 }];
+      return Q.errors = ce, Q.warnings = [], Q;
+    }, P = (G) => {
+      if (!G) return;
+      let Q = G.plugins;
+      if (Q && Q.length > 0) throw U("Cannot use plugins in synchronous API calls");
+    }, Z = (G, Q) => {
+      for (let ce in Q)
+        G[ce] = Q[ce];
+    }, T = (G, Q) => {
+      let ce = L++, xe = new SharedArrayBuffer(8), Pe = new Int32Array(xe), Me = { sharedBuffer: xe, id: ce, command: G, args: Q };
+      D.postMessage(Me);
+      let $e = Atomics.wait(Pe, 0, 0);
+      if ($e !== "ok" && $e !== "not-equal") throw new Error("Internal error: Atomics.wait() failed: " + $e);
+      let { message: { id: Oe, resolve: We, reject: je, properties: pe } } = f.receiveMessageOnPort(g);
+      if (ce !== Oe) throw new Error(`Internal error: Expected id ${ce} but got id ${Oe}`);
+      if (je)
+        throw Z(je, pe), je;
+      return We;
+    };
+    return D.unref(), {
+      buildSync(G) {
+        return P(G), T("build", [G]);
+      },
+      transformSync(G, Q) {
+        return T("transform", [G, Q]);
+      },
+      formatMessagesSync(G, Q) {
+        return T("formatMessages", [G, Q]);
+      },
+      analyzeMetafileSync(G, Q) {
+        return T("analyzeMetafile", [G, Q]);
+      },
+      stop() {
+        D.terminate(), ht = null;
+      }
+    };
+  }, ju = () => {
+    let f = y.workerData.workerPort, g = y.parentPort, b = (D) => {
+      let L = {};
+      if (D && typeof D == "object")
+        for (let U in D)
+          L[U] = D[U];
+      return L;
+    };
+    try {
+      let D = Dt();
+      Ft = y.workerData.defaultWD, g.on("message", (L) => {
+        (async () => {
+          let { sharedBuffer: U, id: P, command: Z, args: T } = L, G = new Int32Array(U);
+          try {
+            switch (Z) {
+              case "build":
+                f.postMessage({ id: P, resolve: await D.build(T[0]) });
+                break;
+              case "transform":
+                f.postMessage({ id: P, resolve: await D.transform(T[0], T[1]) });
+                break;
+              case "formatMessages":
+                f.postMessage({ id: P, resolve: await D.formatMessages(T[0], T[1]) });
+                break;
+              case "analyzeMetafile":
+                f.postMessage({ id: P, resolve: await D.analyzeMetafile(T[0], T[1]) });
+                break;
+              default:
+                throw new Error(`Invalid command: ${Z}`);
+            }
+          } catch (Q) {
+            f.postMessage({ id: P, reject: Q, properties: b(Q) });
+          }
+          Atomics.add(G, 0, 1), Atomics.notify(G, 0, 1 / 0);
+        })();
+      });
+    } catch (D) {
+      g.on("message", (L) => {
+        let { sharedBuffer: U, id: P } = L, Z = new Int32Array(U);
+        f.postMessage({ id: P, reject: D, properties: b(D) }), Atomics.add(Z, 0, 1), Atomics.notify(Z, 0, 1 / 0);
+      });
+    }
+  };
+  W && ju();
+  var Ju = u;
+  return ui;
+}
+Gh();
+ae.dirname(Gi(import.meta.url));
+const Wh = /^[A-Za-z0-9_.-]{1,128}$/, jh = /* @__PURE__ */ new Set(["headers", "apikey", "access", "refresh", "env"]), ns = 1e4, is = 8 * 1024 * 1024;
+function lr(e) {
+  return !!e && typeof e == "object" && !Array.isArray(e) && (Object.getPrototypeOf(e) === Object.prototype || Object.getPrototypeOf(e) === null);
+}
+function Li(e, t, r = /* @__PURE__ */ new Set(), n = 0) {
+  if (n > 64 || r.has(e)) throw new Error(t + " must be acyclic JSON within 64 levels");
+  if (!(e === null || typeof e == "string" || typeof e == "boolean")) {
+    if (typeof e == "number") {
+      if (Number.isFinite(e)) return;
+      throw new Error(`${t} must contain finite JSON numbers`);
+    }
+    if (Array.isArray(e)) {
+      r.add(e);
+      for (let i = 0; i < e.length; i += 1) Li(e[i], `${t}[${i}]`, r, n + 1);
+      r.delete(e);
+      return;
+    }
+    if (!lr(e)) throw new Error(`${t} must be JSON data`);
+    r.add(e);
+    for (const [i, s] of Object.entries(e)) {
+      if (jh.has(i.toLowerCase()))
+        throw new Error(`${t}.${i} may not contain credentials or request headers`);
+      Li(s, `${t}.${i}`, r, n + 1);
+    }
+    r.delete(e);
+  }
+}
+function ci(e, t) {
+  if (typeof e != "string" || !e.trim()) throw new Error(`${t} is required`);
+  return e;
+}
+function Jh(e, t) {
+  if (!lr(e) || typeof e.id != "string" || !e.id.trim()) throw new Error("Every App provider model requires an id");
+  if (e.provider !== void 0 && e.provider !== t) throw new Error(`App provider model "${e.id}" belongs to a different provider`);
+  for (const n of ["name", "api", "baseUrl"]) if (typeof e[n] != "string") throw new Error(`App provider model "${e.id}" requires ${n}`);
+  if (typeof e.reasoning != "boolean" || !Array.isArray(e.input) || e.input.length === 0 || e.input.some((n) => n !== "text" && n !== "image")) throw new Error(`App provider model "${e.id}" has invalid execution capabilities`);
+  if (!Number.isInteger(e.contextWindow) || e.contextWindow <= 0 || !Number.isInteger(e.maxTokens) || e.maxTokens <= 0) throw new Error(`App provider model "${e.id}" requires positive token limits`);
+  if (!lr(e.cost)) throw new Error(`App provider model "${e.id}" has invalid cost`);
+  const r = e.cost;
+  if (["input", "output", "cacheRead", "cacheWrite"].some((n) => typeof r[n] != "number" || !Number.isFinite(r[n]) || r[n] < 0)) throw new Error(`App provider model "${e.id}" has invalid cost`);
+  if (r.tiers !== void 0 && (!Array.isArray(r.tiers) || r.tiers.some((n) => !lr(n) || ["input", "output", "cacheRead", "cacheWrite", "inputTokensAbove"].some((i) => typeof n[i] != "number" || !Number.isFinite(n[i]) || n[i] < 0)))) throw new Error("App provider model has invalid pricing tiers");
+  if (!e.name.trim() || !e.api.trim()) throw new Error("App provider model name and api must be non-empty");
+  if (e.baseUrl) {
+    let n;
+    try {
+      n = new URL(e.baseUrl);
+    } catch {
+      throw new Error(`App provider model "${e.id}" has an invalid baseUrl`);
+    }
+    if (n.protocol !== "http:" && n.protocol !== "https:" || n.username || n.password) throw new Error(`App provider model "${e.id}" baseUrl must be safe http or https`);
+  }
+}
+function Vh(e, t) {
+  if (!lr(e)) throw new Error("App provider descriptor must be an object");
+  const r = /* @__PURE__ */ new Set(["id", "name", "models", "auth", "refreshModels", "filterModels", "fetchDeferred", "cancelDeferred"]);
+  for (const o of Object.keys(e)) if (!r.has(o)) throw new Error("Unknown App provider descriptor field: " + o);
+  for (const o of ["refreshModels", "filterModels", "fetchDeferred", "cancelDeferred"]) if (e[o] !== void 0 && typeof e[o] != "boolean") throw new Error("App provider descriptor " + o + " must be boolean");
+  const n = ci(e.id, "App provider descriptor id");
+  if (!Wh.test(n)) throw new Error("App provider descriptor id must contain 1-128 letters, numbers, dots, dashes, or underscores");
+  if (ci(e.name, "App provider descriptor name"), !Array.isArray(e.models) || e.models.length > ns)
+    throw new Error(`App provider descriptor models must contain at most ${ns} entries`);
+  if (!lr(e.auth) || !lr(e.auth.apiKey) && !lr(e.auth.oauth))
+    throw new Error("App provider descriptor requires apiKey or oauth auth metadata");
+  Li(e.models, "App provider descriptor.models");
+  for (const [o, u] of Object.entries(e.auth)) {
+    if (o !== "apiKey" && o !== "oauth" || !lr(u)) throw new Error("App provider descriptor auth is invalid");
+    const a = o === "apiKey" ? /* @__PURE__ */ new Set(["name", "login", "check", "optional"]) : /* @__PURE__ */ new Set(["name", "isSubscription", "loginLabel"]);
+    for (const c of Object.keys(u)) if (!a.has(c)) throw new Error(`App provider descriptor auth.${o}.${c} is not allowed`);
+    ci(u.name, `App provider descriptor auth.${o}.name`);
+    for (const c of ["login", "check", "optional", "isSubscription"]) if (u[c] !== void 0 && typeof u[c] != "boolean") throw new Error("App provider auth flag must be boolean");
+    if (u.loginLabel !== void 0 && typeof u.loginLabel != "string") throw new Error("App provider OAuth loginLabel must be a string");
+  }
+  const i = JSON.parse(JSON.stringify(e));
+  if (new TextEncoder().encode(JSON.stringify(i)).byteLength > is)
+    throw new Error(`App provider descriptor exceeds ${is} bytes`);
+  const s = /* @__PURE__ */ new Set();
+  for (const o of i.models) {
+    if (s.has(o.id)) throw new Error("App provider declares a duplicate model id");
+    s.add(o.id), Jh(o, t), o.provider = t;
+  }
+  return i;
+}
+const Zh = /^[A-Za-z0-9_.-]{1,128}$/;
+function os(e, t) {
+  if (typeof e != "string" || !Zh.test(e))
+    throw new Error(`App native provider ${t} must contain 1-128 letters, numbers, dots, dashes, or underscores`);
+  return e;
+}
+function zh(e, t) {
+  return `app:${os(e, "appId")}:${os(t, "localId")}`;
+}
+const qh = "app/process.spawn", Xh = Object.freeze([
+  qh
+]), ed = "v26.8.1";
+function td(e, t, r) {
+  return {
+    "darwin-arm64": `node-${e}-darwin-arm64`,
+    "darwin-x64": `node-${e}-darwin-x64`,
+    "linux-arm64": `node-${e}-linux-arm64`,
+    "linux-x64": `node-${e}-linux-x64`,
+    "win32-x64": `node-${e}-win-x64`
+  }[`${t}-${r}`] ?? null;
+}
+function rd(e, t, r) {
+  const n = td(ed, t, r);
+  return n ? t === "win32" ? ae.join(e, ".cache", "node-runtime", n, "node.exe") : ae.join(e, ".cache", "node-runtime", n, "bin", "node") : null;
+}
+function nd(e = {}) {
+  const t = e.env ?? process.env, r = typeof t.HANA_NODE_RUNTIME == "string" ? t.HANA_NODE_RUNTIME.trim() : "";
+  if (r) return r;
+  const n = e.cwd ?? process.cwd(), i = e.platform ?? process.platform, s = e.arch ?? process.arch, o = e.exists ?? ((a) => Yt.existsSync(a)), u = rd(n, i, s);
+  return u && o(u) ? u : e.execPath ?? process.execPath;
+}
+const id = /* @__PURE__ */ new Set([
+  "apikey",
+  "accesstoken",
+  "refreshtoken",
+  "token",
+  "secret",
+  "password",
+  "clientsecret",
+  "oauthclientsecret",
+  "authorizationtoken",
+  "authorization",
+  "proxyauthorization",
+  "cookie",
+  "setcookie",
+  "xapikey",
+  "xauthtoken",
+  "privatekey"
+]);
+function ss(e) {
+  const t = e.replace(/[-_.]/g, "").toLowerCase();
+  if (id.has(t)) return !0;
+  const r = e.replace(/[-.]/g, "_").toUpperCase();
+  return /(?:^|_)(?:API_KEY|ACCESS_KEY|TOKEN|SECRET|PASSWORD)$/.test(r);
+}
+function Ai(e, t) {
+  if (!t.trim()) return !1;
+  if (ss(e)) return !0;
+  if (/^https?:\/\//i.test(t.trim()))
+    try {
+      const r = new URL(t);
+      if (r.username || r.password) return !0;
+      for (const [n, i] of r.searchParams)
+        if (i && (ss(n) || /^(sig|signature|x-amz-signature|x-goog-signature)$/i.test(n))) return !0;
+    } catch {
+    }
+  return /^(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|gh[pousr]_[a-z0-9]{12,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i.test(t.trim()) || /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(t.trim());
+}
+const od = "app/mcp.provide", sd = "app/mcp.read", ad = "app/mcp.manage", ud = Object.freeze([
+  od,
+  sd,
+  ad
+]), cd = "app/services.provide", Ad = "app/services.call", ld = [
+  cd,
+  Ad
+], fd = "studio.owner", hd = Object.freeze([
+  "chat",
+  "resources.read",
+  "files.read",
+  "files.write",
+  fd,
+  "settings.read",
+  "settings.write",
+  "providers.manage",
+  "secrets.write",
+  "bridge.manage"
+]);
+Object.freeze([
+  ...hd,
+  "tools.run",
+  "plugins.use"
+]);
+Object.freeze(/* @__PURE__ */ new Set([
+  "iframe-ticket",
+  "ui-contributions",
+  "input-banners",
+  "input-panels",
+  "cards",
+  "agent-types",
+  "theme.css"
+]));
+Object.freeze(/* @__PURE__ */ new Set([
+  "config-schemas",
+  "event-bus",
+  "diagnostics",
+  "dev",
+  "install",
+  "settings",
+  "pages",
+  "widgets",
+  "ui-host-capabilities",
+  "settings-tabs",
+  "iframe-ticket",
+  "theme.css",
+  // ── Added by v2a ε6, after a sweep for host-owned ids missing from this set ──
+  //
+  // 这份名单的契约是「宿主自有的一级命名空间」，membership 必须由「宿主是否
+  // 拥有该 id」决定，不能由「今天是否碰巧有插件占用」决定 —— 后者是数据，
+  // 前者才是结构。default-deny：宿主拥有的 id 一律保留。
+  //
+  // "mcp" 是唯一一个当时正在漏的：/api/plugins/mcp/* 下有 39 条真实宿主子路径，
+  // 它们本该判为 studio_owner，却因为这个 id 不在名单里而落到
+  // classifyPluginRouteProxyPath，判成较松的 plugin_route。挡住利用的只是
+  // “MCP 早已不是注册插件、注册表查不到”这一条数据事实；manifest 侧没有任何
+  // 保留字校验，所以一个声明 "id": "mcp" 的插件就能把查不到变成查得到。
+  //
+  // 其余三个当时没有分类分歧 —— 代理匹配器要求 id 后面还有子路径，而这三条
+  // 都是单段端点（/api/plugins/interfaces 等），够不着。列入是为了让名单与它
+  // 自己的契约一致：它们和已在名单里的 pages / widgets / config-schemas 是同一
+  // 种东西（plugins.ts 里宿主自己的插件管理端点），漏在外面是疏忽而非设计。
+  // 一并保留后，将来给它们加子路径不会静默继承松档。
+  //
+  // 四个 id 都不与任何随附插件冲突（jimeng-cli / markdown / media /
+  // office），所以保留不改变任何现有插件的行为。
+  "mcp",
+  "interfaces",
+  "cards",
+  "agent-types"
+]));
+const dd = 64, pd = /^[A-Za-z0-9_-]+$/, md = /* @__PURE__ */ new Set([
+  "con",
+  "prn",
+  "aux",
+  "nul",
+  ...Array.from({ length: 9 }, (e, t) => `com${t + 1}`),
+  ...Array.from({ length: 9 }, (e, t) => `lpt${t + 1}`)
+]);
+function gd(e) {
+  return typeof e != "string" || e.length < 1 || e.length > dd || !pd.test(e) || !/[A-Za-z0-9]/.test(e) ? !1 : !md.has(e.toLowerCase());
+}
+const Ed = "app/sessions.search", Cd = "app/agents.read", yd = "app/agents.manage", bd = "app/sessions.read", wd = "app/sessions.manage", Id = Object.freeze([
+  Cd,
+  yd,
+  bd,
+  wd,
+  Ed
+]), _d = [
+  "local-file",
+  "session-file",
+  "resource",
+  "url",
+  "mount",
+  "skill",
+  "recipe",
+  "agent",
+  "card-document"
+];
+new Set(_d);
+const Dd = "app/session.stage-file", Sd = Object.freeze([
+  Dd
+]), Td = "app/render.pdf", Nd = Object.freeze([
+  Td
+]), Od = "app/tools.read", vd = "app/commands.read", Bd = Object.freeze([
+  Od,
+  vd
+]), Rd = "app/tools.expose-to-model", li = Object.freeze({
+  read: "all",
+  write: "scoped",
+  network: "on"
+});
+`${li.read}${li.write}${li.network}`;
+const Fd = "app/runtime.execute", kd = "app/runtime.network", Pd = "app/runtime.native", Ld = "app/runtime.local-machine", xd = Object.freeze([
+  Fd,
+  kd,
+  Pd,
+  Ld
+]), Ud = Object.freeze([
+  "agent/before-start",
+  "agent/pre-step",
+  "tools/pre-execute",
+  "tools/post-execute",
+  "messages/post-assistant",
+  "session.beforeCompact",
+  "provider/before-request",
+  "provider/before-headers",
+  "messages/post-message",
+  "session/input"
+]), Md = Object.freeze({
+  "agent/before-start": "app/hooks.agent-before-start",
+  "agent/pre-step": "app/hooks.agent-pre-step",
+  "tools/pre-execute": "app/hooks.tools-pre-execute",
+  "tools/post-execute": "app/hooks.tools-post-execute",
+  "provider/before-request": "app/hooks.provider-before-request",
+  "messages/post-assistant": "app/hooks.messages-post-assistant",
+  "session.beforeCompact": "app/hooks.session-before-compact",
+  "session/input": "app/hooks.session-input",
+  "provider/before-headers": "app/hooks.provider-before-headers",
+  "messages/post-message": "app/hooks.messages-post-message"
+}), Hd = "app/hooks.observe", Yd = "app/hooks.session-input-images", $d = Object.freeze(
+  [
+    ...Ud.map((e) => Md[e]),
+    Hd,
+    Yd
+  ]
+), Kd = "app/ui.open-external", Qd = "app/ui.clipboard-write", Gd = Object.freeze([
+  Kd,
+  Qd
+]), Wd = "app/provider.provide", jd = "app/provider.auth", Jd = "app/provider.auth.environment", Vd = [
+  Wd,
+  jd,
+  Jd
+], Zd = "app/ui.keybindings", zd = "app/ui.message-renderers", qd = [
+  Zd,
+  zd
+], Xd = "app/windows.manage", ep = "app/instances.manage", tp = "app/public-data.publish", rp = "app/public-data.read", np = Object.freeze([
+  tp,
+  rp
+]), ip = "app/events.emit";
+[
+  ...ph,
+  ...xd,
+  ...Bd,
+  ...$d,
+  ...bh,
+  ...Sd,
+  ...Kh,
+  ...Lh,
+  ...Nd,
+  ...Xh,
+  ...Gd,
+  ...Hh,
+  ...Id,
+  ...ud,
+  ...Vd,
+  ...ld,
+  ...qd,
+  ...ch,
+  ...np,
+  ...lh
+];
+const op = Object.freeze([
+  "session:create",
+  "session:get",
+  "session:send",
+  "session:update",
+  "session:abort",
+  "session:history",
+  "session:tools",
+  "session:tool-selection",
+  "session:set-active-tools",
+  "session:list",
+  "session:search",
+  "session:send-custom",
+  "session:append-entry",
+  "session:set-entry-label",
+  "session:get-entry-label",
+  "session:switch-model",
+  "session:stage-file",
+  "session:register-file",
+  "agent:create-from-type",
+  "role:list",
+  "role:get",
+  "agent:create-from-role",
+  "agent:list",
+  "agent:update",
+  "agent:update-config",
+  "model:list",
+  "app:capabilities",
+  "media:generate",
+  "media:generate-image",
+  "media:generate-video",
+  "media:transcribe-audio",
+  "provider:media-providers",
+  "render:html-to-pdf",
+  "usage:list",
+  "provider:credentials",
+  "provider:models-by-type",
+  "provider:resolve-media-model",
+  "agent:create",
+  "agent:profile",
+  "agent:config",
+  "agent:retire",
+  "agent:purge",
+  "session:archive",
+  "session:restore",
+  "session:delete",
+  "session:fork",
+  "session:compact",
+  "session:context",
+  "session:entries"
+]);
+new Set(op);
+const sp = [
+  "agent_start",
+  "turn_start",
+  "turn_end",
+  "message_start",
+  "message_update",
+  "message_end",
+  "tool_execution_start",
+  "tool_execution_update",
+  "tool_execution_end",
+  "agent_end",
+  "queue_update",
+  "compaction_start",
+  "compaction_end",
+  "session_info_changed",
+  "thinking_level_changed",
+  "auto_retry_start",
+  "auto_retry_end"
+], ap = [
+  "session_created",
+  "session_closed",
+  "session_forked",
+  "session_metadata_updated",
+  "session_deleted",
+  "input_status_changed"
+], up = [
+  "permission_mode",
+  "access_mode",
+  "plan_mode",
+  "app_event",
+  "browser_bg_status",
+  "confirmation_resolved",
+  "devlog",
+  "llm_usage"
+], cp = [
+  // hub/scheduler.ts, lib/conversations/agent-phone-activity.ts
+  "activity_update",
+  "cron_job_done",
+  "conversation_agent_activity",
+  // lib/tools/subagent-tool.ts, lib/tools/workflow-tool.ts
+  "block_update",
+  "workflow_progress",
+  // lib/bridge/bridge-manager.ts, hub/dm-router.ts, hub/channel-router.ts, hub/index.ts,
+  // core/slash-commands/bridge-commands.ts, core/slash-commands/rc-pending-handler.ts
+  "bridge_message",
+  "bridge_status",
+  "bridge_rc_attached",
+  "bridge_rc_detached",
+  "dm_new_message",
+  "channel_new_message",
+  "channel_created",
+  "channel_cycle_start",
+  "channel_cycle_done",
+  "channel_delivery_guard",
+  // core/session-coordinator.ts
+  "cache_contract_violation",
+  "session-authorized-folders-updated",
+  "session_branch_persistence_warning",
+  "session_unhealthy_warning",
+  // core/session-turn-actions.ts, core/desktop-session-submit.ts, lib/agent-review/turn-coordinator.ts
+  "session_branch_reset",
+  "session_status",
+  "session_user_message",
+  // server/card-host/permissions.ts, lib/tools/computer-use-tool.ts
+  "card_host_confirmation",
+  "computer_overlay",
+  // core/agent-manager.ts, core/engine.ts (desktop notifications)
+  "notification",
+  // core/plugin-manager.ts, server/routes/plugins-v2.ts
+  "plugin_ui_changed",
+  "plugin_config_changed",
+  // server/composition/plugin-context-v2.ts's own inputBanner door
+  "input_banner_set",
+  "input_banner_dismissed",
+  // server/app-host/app-input-panel-events.ts
+  "app_input_panels_changed",
+  // lib/user-interaction.ts
+  "session_confirmation",
+  // lib/deferred-result-store.ts
+  "deferred_result",
+  // core/media/poller.ts
+  "media-gen:task-done",
+  // lib/resource-io/resource-event-bus.ts
+  "resource.changed",
+  "resource.deleted",
+  "resource.renamed",
+  // server/routes/chat.ts, server/routes/sessions.ts
+  "token_usage",
+  "todo_update",
+  // core/speech-recognition-service.ts
+  "voice_transcription_update",
+  // lib/wait/wait-registration-store.ts
+  "wait_started",
+  "wait_finished",
+  "wait_task_settled",
+  "wait_cancelled",
+  // hub/index.ts's session:send failure path
+  "error"
+], Ap = Object.freeze([
+  ...sp,
+  ...ap,
+  ...up,
+  ...cp
+]);
+new Set(Ap);
+const as = ["Mod", "Ctrl", "Alt", "Shift"], lp = {
+  mod: "Mod",
+  ctrl: "Ctrl",
+  alt: "Alt",
+  shift: "Shift"
+}, fp = /* @__PURE__ */ new Set([
+  "Enter",
+  "Space",
+  "Escape",
+  "Tab",
+  "Backspace",
+  "Delete",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F5",
+  "F6",
+  "F7",
+  "F8",
+  "F9",
+  "F10",
+  "F11",
+  "F12"
+]), hp = /* @__PURE__ */ new Set([
+  ",",
+  ".",
+  "/",
+  ";",
+  "'",
+  "[",
+  "]",
+  "-",
+  "=",
+  "`"
+]), dp = new Map(
+  [...fp].map((e) => [e.toLowerCase(), e])
+), pp = "modifiers Mod/Ctrl/Alt/Shift (each at most once) joined by +, then one primary key (A-Z, 0-9, F1-F12, Enter, Space, Escape, Tab, Backspace, Delete, ArrowUp/ArrowDown/ArrowLeft/ArrowRight, or , . / ; ' [ ] - = `); at least one modifier other than Shift is required", mp = [
+  { key: "Mod+Shift+M", owner: "voice recording" },
+  { key: "Mod+,", owner: "settings" },
+  { key: "Mod+Shift+S", owner: "sidebar toggle" },
+  { key: "Mod+N", owner: "new session" },
+  { key: "Mod+B", owner: "chalkboard function panel" },
+  { key: "Mod+F", owner: "find" },
+  { key: "Mod+C", owner: "copy" },
+  { key: "Mod+V", owner: "paste" },
+  { key: "Mod+X", owner: "cut" },
+  { key: "Mod+A", owner: "select all" },
+  { key: "Mod+Z", owner: "undo" },
+  { key: "Mod+Shift+Z", owner: "redo" },
+  { key: "Mod+Q", owner: "quit" },
+  { key: "Mod+W", owner: "close window" },
+  { key: "Mod+R", owner: "reload" }
+];
+function gp(e) {
+  return e.length === 1 ? /^[a-zA-Z]$/.test(e) ? e.toUpperCase() : /^[0-9]$/.test(e) || hp.has(e) ? e : null : dp.get(e.toLowerCase()) ?? null;
+}
+function Ep(e) {
+  if (typeof e != "string") return null;
+  const t = e.split("+").map((i) => i.trim());
+  if (t.length < 2 || t.some((i) => i === "")) return null;
+  const r = [];
+  let n = null;
+  for (const i of t) {
+    const s = lp[i.toLowerCase()];
+    if (s) {
+      if (r.includes(s)) return null;
+      r.push(s);
+      continue;
+    }
+    const o = gp(i);
+    if (!o || n !== null) return null;
+    n = o;
+  }
+  return n === null || !r.some((i) => i !== "Shift") ? null : (r.sort((i, s) => as.indexOf(i) - as.indexOf(s)), [...r, n].join("+"));
+}
+const us = ["id", "key", "toolName", "args", "title"], Cp = new Map(mp.map((e) => [e.key, e.owner]));
+function Iu(e) {
+  return typeof e == "object" && e !== null && !Array.isArray(e);
+}
+function yp(e, t) {
+  if (e !== void 0) {
+    if (!Iu(e)) throw new Error(`${t()}.args must be an object when present, got ${JSON.stringify(e)}`);
+    return e;
+  }
+}
+function bp(e, t, r) {
+  if (!Iu(e)) throw new Error(`${r}[${t}] must be an object, got ${JSON.stringify(e)}`);
+  for (const p of Object.keys(e))
+    if (!us.includes(p))
+      throw new Error(
+        `${r}[${t}].${p} is not a field a manifestVersion 2 keybinding contribution has; this version knows ${us.join(", ")}`
+      );
+  const n = e.id;
+  if (typeof n != "string" || n.trim() === "") throw new Error(`${r}[${t}].id must be a non-empty string, got ${JSON.stringify(n)}`);
+  const i = () => `${r}[${t}] (${JSON.stringify(n)})`, s = e.key;
+  if (typeof s != "string" || s.trim() === "") throw new Error(`${i()}.key must be a non-empty string, got ${JSON.stringify(s)}`);
+  const o = e.toolName;
+  if (typeof o != "string" || o.trim() === "") throw new Error(`${i()}.toolName must be a non-empty string, got ${JSON.stringify(o)}`);
+  const u = yp(e.args, i), a = e.title;
+  if (a !== void 0 && typeof a != "string") throw new Error(`${i()}.title must be a string when present, got ${JSON.stringify(a)}`);
+  const c = typeof a == "string" ? a : void 0, A = Ep(s);
+  if (A === null)
+    return { dropped: !0, id: n, warning: `${i()} key ${JSON.stringify(s)} is not a legal keybinding (${pp})` };
+  const d = Cp.get(A);
+  return d !== void 0 ? { dropped: !0, id: n, warning: `${i()} key ${JSON.stringify(A)} is reserved by the host (${d})` } : {
+    id: n,
+    key: A,
+    toolName: o,
+    ...u === void 0 ? {} : { args: u },
+    ...c === void 0 ? {} : { title: c }
+  };
+}
+function wp(e, t) {
+  const r = "contributes.ui.keybindings";
+  if (e === void 0) return [];
+  if (!Array.isArray(e)) throw new Error(`${r} must be an array when present, got ${JSON.stringify(e)}`);
+  const n = /* @__PURE__ */ new Set(), i = [];
+  return e.forEach((s, o) => {
+    const u = bp(s, o, r);
+    if (n.has(u.id)) throw new Error(`${r} declares id ${JSON.stringify(u.id)} more than once; an id must be unique within keybindings`);
+    if (n.add(u.id), "dropped" in u) {
+      t.warn(`plugin "${t.pluginId}" ${u.warning}; dropping that contribution`);
+      return;
+    }
+    i.push(u);
+  }), i;
+}
+function Ip() {
+  let e = new URL("./", import.meta.resolve("@earendil-works/pi-coding-agent"));
+  for (; e.href !== new URL("../", e).href; ) {
+    const t = new URL("package.json", e);
+    if (Yt.existsSync(t)) {
+      const r = JSON.parse(Yt.readFileSync(t, "utf8"));
+      if (r.name === "@earendil-works/pi-coding-agent" && typeof r.version == "string")
+        return r.version;
+    }
+    e = new URL("../", e);
+  }
+  throw new Error("Unable to resolve @earendil-works/pi-coding-agent package version");
+}
+Ip();
+const _p = Object.freeze([
+  "tool_calls",
+  "tool_call",
+  "function_calls",
+  "function_call",
+  "tool_use",
+  "invoke",
+  "parameter"
+]);
+new Set(_p);
+var Nr = { exports: {} }, fi, cs;
+function Dp() {
+  if (cs) return fi;
+  cs = 1, fi = n, n.sync = i;
+  var e = Xe;
+  function t(s, o) {
+    var u = o.pathExt !== void 0 ? o.pathExt : process.env.PATHEXT;
+    if (!u || (u = u.split(";"), u.indexOf("") !== -1))
+      return !0;
+    for (var a = 0; a < u.length; a++) {
+      var c = u[a].toLowerCase();
+      if (c && s.substr(-c.length).toLowerCase() === c)
+        return !0;
+    }
+    return !1;
+  }
+  function r(s, o, u) {
+    return !s.isSymbolicLink() && !s.isFile() ? !1 : t(o, u);
+  }
+  function n(s, o, u) {
+    e.stat(s, function(a, c) {
+      u(a, a ? !1 : r(c, s, o));
+    });
+  }
+  function i(s, o) {
+    return r(e.statSync(s), s, o);
+  }
+  return fi;
+}
+var hi, As;
+function Sp() {
+  if (As) return hi;
+  As = 1, hi = t, t.sync = r;
+  var e = Xe;
+  function t(s, o, u) {
+    e.stat(s, function(a, c) {
+      u(a, a ? !1 : n(c, o));
+    });
+  }
+  function r(s, o) {
+    return n(e.statSync(s), o);
+  }
+  function n(s, o) {
+    return s.isFile() && i(s, o);
+  }
+  function i(s, o) {
+    var u = s.mode, a = s.uid, c = s.gid, A = o.uid !== void 0 ? o.uid : process.getuid && process.getuid(), d = o.gid !== void 0 ? o.gid : process.getgid && process.getgid(), p = parseInt("100", 8), w = parseInt("010", 8), _ = parseInt("001", 8), R = p | w, I = u & _ || u & w && c === d || u & p && a === A || u & R && A === 0;
+    return I;
+  }
+  return hi;
+}
+var di, ls;
+function Tp() {
+  if (ls) return di;
+  ls = 1;
+  var e;
+  process.platform === "win32" || Sa.TESTING_WINDOWS ? e = Dp() : e = Sp(), di = t, t.sync = r;
+  function t(n, i, s) {
+    if (typeof i == "function" && (s = i, i = {}), !s) {
+      if (typeof Promise != "function")
+        throw new TypeError("callback not provided");
+      return new Promise(function(o, u) {
+        t(n, i || {}, function(a, c) {
+          a ? u(a) : o(c);
+        });
+      });
+    }
+    e(n, i || {}, function(o, u) {
+      o && (o.code === "EACCES" || i && i.ignoreErrors) && (o = null, u = !1), s(o, u);
+    });
+  }
+  function r(n, i) {
+    try {
+      return e.sync(n, i || {});
+    } catch (s) {
+      if (i && i.ignoreErrors || s.code === "EACCES")
+        return !1;
+      throw s;
+    }
+  }
+  return di;
+}
+var pi, fs;
+function Np() {
+  if (fs) return pi;
+  fs = 1;
+  const e = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys", t = Re, r = e ? ";" : ":", n = Tp(), i = (a) => Object.assign(new Error(`not found: ${a}`), { code: "ENOENT" }), s = (a, c) => {
+    const A = c.colon || r, d = a.match(/\//) || e && a.match(/\\/) ? [""] : [
+      // windows always checks the cwd first
+      ...e ? [process.cwd()] : [],
+      ...(c.path || process.env.PATH || /* istanbul ignore next: very unusual */
+      "").split(A)
+    ], p = e ? c.pathExt || process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM" : "", w = e ? p.split(A) : [""];
+    return e && a.indexOf(".") !== -1 && w[0] !== "" && w.unshift(""), {
+      pathEnv: d,
+      pathExt: w,
+      pathExtExe: p
+    };
+  }, o = (a, c, A) => {
+    typeof c == "function" && (A = c, c = {}), c || (c = {});
+    const { pathEnv: d, pathExt: p, pathExtExe: w } = s(a, c), _ = [], R = (k) => new Promise((x, M) => {
+      if (k === d.length)
+        return c.all && _.length ? x(_) : M(i(a));
+      const $ = d[k], ne = /^".*"$/.test($) ? $.slice(1, -1) : $, Y = t.join(ne, a), v = !ne && /^\.[\\\/]/.test(a) ? a.slice(0, 2) + Y : Y;
+      x(I(v, k, 0));
+    }), I = (k, x, M) => new Promise(($, ne) => {
+      if (M === p.length)
+        return $(R(x + 1));
+      const Y = p[M];
+      n(k + Y, { pathExt: w }, (v, B) => {
+        if (!v && B)
+          if (c.all)
+            _.push(k + Y);
+          else
+            return $(k + Y);
+        return $(I(k, x, M + 1));
+      });
+    });
+    return A ? R(0).then((k) => A(null, k), A) : R(0);
+  }, u = (a, c) => {
+    c = c || {};
+    const { pathEnv: A, pathExt: d, pathExtExe: p } = s(a, c), w = [];
+    for (let _ = 0; _ < A.length; _++) {
+      const R = A[_], I = /^".*"$/.test(R) ? R.slice(1, -1) : R, k = t.join(I, a), x = !I && /^\.[\\\/]/.test(a) ? a.slice(0, 2) + k : k;
+      for (let M = 0; M < d.length; M++) {
+        const $ = x + d[M];
+        try {
+          if (n.sync($, { pathExt: p }))
+            if (c.all)
+              w.push($);
+            else
+              return $;
+        } catch {
+        }
+      }
+    }
+    if (c.all && w.length)
+      return w;
+    if (c.nothrow)
+      return null;
+    throw i(a);
+  };
+  return pi = o, o.sync = u, pi;
+}
+var Rn = { exports: {} }, hs;
+function Op() {
+  if (hs) return Rn.exports;
+  hs = 1;
+  const e = (t = {}) => {
+    const r = t.env || process.env;
+    return (t.platform || process.platform) !== "win32" ? "PATH" : Object.keys(r).reverse().find((i) => i.toUpperCase() === "PATH") || "Path";
+  };
+  return Rn.exports = e, Rn.exports.default = e, Rn.exports;
+}
+var mi, ds;
+function vp() {
+  if (ds) return mi;
+  ds = 1;
+  const e = Re, t = Np(), r = Op();
+  function n(s, o) {
+    const u = s.options.env || process.env, a = process.cwd(), c = s.options.cwd != null, A = c && process.chdir !== void 0 && !process.chdir.disabled;
+    if (A)
+      try {
+        process.chdir(s.options.cwd);
+      } catch {
+      }
+    let d;
+    try {
+      d = t.sync(s.command, {
+        path: u[r({ env: u })],
+        pathExt: o ? e.delimiter : void 0
+      });
+    } catch {
+    } finally {
+      A && process.chdir(a);
+    }
+    return d && (d = e.resolve(c ? s.options.cwd : "", d)), d;
+  }
+  function i(s) {
+    return n(s) || n(s, !0);
+  }
+  return mi = i, mi;
+}
+var Fn = {}, ps;
+function Bp() {
+  if (ps) return Fn;
+  ps = 1;
+  const e = /([()\][%!^"`<>&|;, *?])/g;
+  function t(n) {
+    return n = n.replace(e, "^$1"), n;
+  }
+  function r(n, i) {
+    return n = `${n}`, n = n.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"'), n = n.replace(/(?=(\\+?)?)\1$/, "$1$1"), n = `"${n}"`, n = n.replace(e, "^$1"), i && (n = n.replace(e, "^$1")), n;
+  }
+  return Fn.command = t, Fn.argument = r, Fn;
+}
+var gi, ms;
+function Rp() {
+  return ms || (ms = 1, gi = /^#!(.*)/), gi;
+}
+var Ei, gs;
+function Fp() {
+  if (gs) return Ei;
+  gs = 1;
+  const e = Rp();
+  return Ei = (t = "") => {
+    const r = t.match(e);
+    if (!r)
+      return null;
+    const [n, i] = r[0].replace(/#! ?/, "").split(" "), s = n.split("/").pop();
+    return s === "env" ? i : i ? `${s} ${i}` : s;
+  }, Ei;
+}
+var Ci, Es;
+function kp() {
+  if (Es) return Ci;
+  Es = 1;
+  const e = Xe, t = Fp();
+  function r(n) {
+    const s = Buffer.alloc(150);
+    let o;
+    try {
+      o = e.openSync(n, "r"), e.readSync(o, s, 0, 150, 0), e.closeSync(o);
+    } catch {
+    }
+    return t(s.toString());
+  }
+  return Ci = r, Ci;
+}
+var yi, Cs;
+function Pp() {
+  if (Cs) return yi;
+  Cs = 1;
+  const e = Re, t = vp(), r = Bp(), n = kp(), i = process.platform === "win32", s = /\.(?:com|exe)$/i, o = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
+  function u(A) {
+    A.file = t(A);
+    const d = A.file && n(A.file);
+    return d ? (A.args.unshift(A.file), A.command = d, t(A)) : A.file;
+  }
+  function a(A) {
+    if (!i)
+      return A;
+    const d = u(A), p = !s.test(d);
+    if (A.options.forceShell || p) {
+      const w = o.test(d);
+      A.command = e.normalize(A.command), A.command = r.command(A.command), A.args = A.args.map((R) => r.argument(R, w));
+      const _ = [A.command].concat(A.args).join(" ");
+      A.args = ["/d", "/s", "/c", `"${_}"`], A.command = process.env.comspec || "cmd.exe", A.options.windowsVerbatimArguments = !0;
+    }
+    return A;
+  }
+  function c(A, d, p) {
+    d && !Array.isArray(d) && (p = d, d = null), d = d ? d.slice(0) : [], p = Object.assign({}, p);
+    const w = {
+      command: A,
+      args: d,
+      options: p,
+      file: void 0,
+      original: {
+        command: A,
+        args: d
+      }
+    };
+    return p.shell ? w : a(w);
+  }
+  return yi = c, yi;
+}
+var bi, ys;
+function Lp() {
+  if (ys) return bi;
+  ys = 1;
+  const e = process.platform === "win32";
+  function t(s, o) {
+    return Object.assign(new Error(`${o} ${s.command} ENOENT`), {
+      code: "ENOENT",
+      errno: "ENOENT",
+      syscall: `${o} ${s.command}`,
+      path: s.command,
+      spawnargs: s.args
+    });
+  }
+  function r(s, o) {
+    if (!e)
+      return;
+    const u = s.emit;
+    s.emit = function(a, c) {
+      if (a === "exit") {
+        const A = n(c, o);
+        if (A)
+          return u.call(s, "error", A);
+      }
+      return u.apply(s, arguments);
+    };
+  }
+  function n(s, o) {
+    return e && s === 1 && !o.file ? t(o.original, "spawn") : null;
+  }
+  function i(s, o) {
+    return e && s === 1 && !o.file ? t(o.original, "spawnSync") : null;
+  }
+  return bi = {
+    hookChildProcess: r,
+    verifyENOENT: n,
+    verifyENOENTSync: i,
+    notFoundError: t
+  }, bi;
+}
+var bs;
+function xp() {
+  if (bs) return Nr.exports;
+  bs = 1;
+  const e = Ca, t = Pp(), r = Lp();
+  function n(s, o, u) {
+    const a = t(s, o, u), c = e.spawn(a.command, a.args, a.options);
+    return r.hookChildProcess(c, a), c;
+  }
+  function i(s, o, u) {
+    const a = t(s, o, u), c = e.spawnSync(a.command, a.args, a.options);
+    return c.error = c.error || r.verifyENOENTSync(c.status, a), c;
+  }
+  return Nr.exports = n, Nr.exports.spawn = n, Nr.exports.sync = i, Nr.exports._parse = t, Nr.exports._enoent = r, Nr.exports;
+}
+xp();
+const Up = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+function Mp(e) {
+  if (!e.startsWith("/") || e.startsWith("//") || e.includes("\\"))
+    return e;
+  const t = e.match(/^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i);
+  if (!t)
+    return e;
+  const r = t[2]?.replaceAll("/", "\\");
+  return `${t[1].toUpperCase()}:\\${r ?? ""}`;
+}
+function Hp(e, t = {}) {
+  let r = t.trim ? e.trim() : e;
+  if (t.normalizeUnicodeSpaces && (r = r.replace(Up, " ")), t.stripAtPrefix && r.startsWith("@") && (r = r.slice(1)), process.platform === "win32" && (r = Mp(r)), t.expandTilde ?? !0) {
+    const n = t.homeDir ?? tc();
+    if (r === "~")
+      return n;
+    if (r.startsWith("~/") || process.platform === "win32" && r.startsWith("~\\"))
+      return zu(n, r.slice(2));
+  }
+  return /^file:\/\//.test(r) ? Gi(r) : r;
+}
+function Yp(e) {
+  return e.startsWith("\uFEFF") ? { bom: "\uFEFF", text: e.slice(1) } : { bom: "", text: e };
+}
+function $p(e) {
+  return Yp(e).text;
+}
+const Kp = Ea(import.meta.url), Qp = hn(Kp), Gp = import.meta.url.includes("$bunfs") || import.meta.url.includes("~BUN") || import.meta.url.includes("%7EBUN");
+process.versions.bun;
+function Wp(e) {
+  let t = e;
+  for (; t !== hn(t); ) {
+    if (so(Ti(t, "package.json"))) {
+      const r = hn(t);
+      return ac(t) === "dist" && so(Ti(r, "package.json")) ? r : t;
+    }
+    t = hn(t);
+  }
+  return e;
+}
+function jp() {
+  const e = process.env.PI_PACKAGE_DIR;
+  return e ? Hp(e) : Gp ? hn(process.execPath) : Wp(Qp);
+}
+function Jp() {
+  return Ti(jp(), "package.json");
+}
+let Cn = {};
+try {
+  Cn = JSON.parse($p(oc(Jp(), "utf-8")));
+} catch (e) {
+  if (e.code !== "ENOENT")
+    throw e;
+}
+const Vp = Cn.piConfig?.name;
+Cn.name;
+const _u = Vp || "pi";
+Cn.piConfig?.configDir;
+Cn.version;
+`${_u.toUpperCase()}`;
+`${_u.toUpperCase()}`;
+function Zp(e) {
+  return yr(typeof e, "bigint");
+}
+function zp(e) {
+  return yr(typeof e, "boolean");
+}
+function qp(e) {
+  return yr(e, null);
+}
+function Xp(e) {
+  return Number.isFinite(e);
+}
+function em(e) {
+  return yr(typeof e, "object") && !qp(e);
+}
+function tm(e) {
+  return yr(typeof e, "string");
+}
+function yr(e, t) {
+  return e === t;
+}
+function rm(e) {
+  return yr(e, "__proto__") || yr(e, "constructor") || yr(e, "prototype");
+}
+function nm(e, t) {
+  return rm(t) ? Object.prototype.hasOwnProperty.call(e, t) : t in e;
+}
+function im(e) {
+  return Object.getOwnPropertyNames(e);
+}
+function om(e, t) {
+  for (const r of Object.keys(t))
+    Object.defineProperty(e, r, {
+      configurable: !0,
+      writable: !0,
+      enumerable: !1,
+      value: t[r]
+    });
+  return e;
+}
+function sm(e, t) {
+  return { ...e, ...t };
+}
+function yn(e, t, r = {}) {
+  const n = sm(t, r);
+  return om(n, e);
+}
+function am(e) {
+  return em(e);
+}
+function um(e) {
+  return am(e) && nm(e, "~optional");
+}
+function cm(e) {
+  return im(e).filter((t) => !um(e[t]));
+}
+function Du(e, t = {}) {
+  const r = cm(e), n = r.length > 0 ? { required: r } : {};
+  return yn({ "~kind": "Object" }, { type: "object", ...n, properties: e }, t);
+}
+function Su(e) {
+  return yn({ "~kind": "Unknown" }, {}, e);
+}
+function Tu() {
+  throw new Error("Unreachable");
+}
+var ws;
+(function(e) {
+  e[e.Array = 0] = "Array", e[e.BigInt = 1] = "BigInt", e[e.Boolean = 2] = "Boolean", e[e.Date = 3] = "Date", e[e.Constructor = 4] = "Constructor", e[e.Function = 5] = "Function", e[e.Null = 6] = "Null", e[e.Number = 7] = "Number", e[e.Object = 8] = "Object", e[e.RegExp = 9] = "RegExp", e[e.String = 10] = "String", e[e.Symbol = 11] = "Symbol", e[e.TypeArray = 12] = "TypeArray", e[e.Undefined = 13] = "Undefined";
+})(ws || (ws = {}));
+BigInt("14695981039346656037");
+BigInt("1099511628211"), BigInt(
+  "18446744073709551616"
+  /* 2 ^ 64 */
+);
+Array.from({ length: 256 }).map((e, t) => BigInt(t));
+const Nu = new Float64Array(1);
+new DataView(Nu.buffer);
+new Uint8Array(Nu.buffer);
+new TextEncoder();
+class Am extends Error {
+  constructor(t) {
+    super("Invalid Literal value"), Object.defineProperty(this, "cause", {
+      value: { value: t },
+      writable: !1,
+      configurable: !1,
+      enumerable: !1
+    });
+  }
+}
+function lm(e) {
+  return Zp(e) ? "bigint" : zp(e) ? "boolean" : Xp(e) ? "number" : tm(e) ? "string" : (() => {
+    throw new Am(e);
+  })();
+}
+function Xi(e, t) {
+  return yn({ "~kind": "Literal" }, { type: lm(e), const: e }, t);
+}
+function eo(e) {
+  return yn({ "~kind": "String" }, { type: "string" }, e);
+}
+function fm(e, t = {}) {
+  return yn({ "~kind": "Union" }, { anyOf: e }, t);
+}
+function xi(e, t) {
+  return Array.from({ length: t - e + 1 }, (r, n) => String.fromCharCode(e + n));
+}
+[
+  ...xi(97, 122),
+  // Lowercase
+  ...xi(65, 90)
+  // Uppercase
+];
+const hm = "0", dm = xi(49, 57);
+[...dm];
+const pm = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], mm = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
+function gm(e) {
+  return e % 4 === 0 && (e % 100 !== 0 || e % 400 === 0);
+}
+function Ou(e) {
+  const t = mm.exec(e);
+  if (!t)
+    return !1;
+  const r = +t[1], n = +t[2], i = +t[3];
+  return n >= 1 && n <= 12 && i >= 1 && i <= (n === 2 && gm(r) ? 29 : pm[n]);
+}
+const Em = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(?:Z|([+-])(\d\d):(\d\d))?$/i;
+function vu(e, t = !0) {
+  const r = Em.exec(e);
+  if (!r)
+    return !1;
+  const n = +r[1], i = +r[2], s = +r[3], o = r[4] === "-" ? -1 : 1, u = +(r[5] || 0), a = +(r[6] || 0);
+  if (u > 23 || a > 59 || t && !r[4] && e.toLowerCase().indexOf("z") === -1)
+    return !1;
+  if (n <= 23 && i <= 59 && s < 60)
+    return !0;
+  const c = i - a * o, A = n - u * o - (c < 0 ? 1 : 0);
+  return (A === 23 || A === -1) && (c === 59 || c === -1) && s < 61;
+}
+function Cm(e, t = !0) {
+  const r = e.split(/T/i);
+  return r.length === 2 && Ou(r[0]) && vu(r[1], t);
+}
+const ym = /^P((\d+Y(\d+M(\d+D)?)?|\d+M(\d+D)?|\d+D)(T(\d+H(\d+M(\d+S)?)?|\d+M(\d+S)?|\d+S))?|T(\d+H(\d+M(\d+S)?)?|\d+M(\d+S)?|\d+S)|\d+W)$/;
+function bm(e) {
+  return ym.test(e);
+}
+const wm = /^(?!.*\.\.)[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+function Im(e) {
+  return wm.test(e);
+}
+const vr = 36, Mn = 1, Ui = 26, _m = 38, Dm = 700, Sm = 72, Tm = 128;
+function Nm(e, t, r) {
+  e = r ? Math.floor(e / Dm) : e >> 1, e += Math.floor(e / t);
+  let n = 0;
+  for (; e > (vr - Mn) * Ui >> 1; )
+    e = Math.floor(e / (vr - Mn)), n += vr;
+  return n + Math.floor((vr - Mn + 1) * e / (e + _m));
+}
+function Om(e) {
+  const t = [];
+  let r = Tm, n = 0, i = Sm;
+  const s = e.lastIndexOf("-");
+  if (s > 0)
+    for (let u = 0; u < s; u++) {
+      const a = e.charCodeAt(u);
+      if (a >= 128)
+        throw new Error("Invalid punycode: non-basic before delimiter");
+      t.push(a);
+    }
+  let o = s < 0 ? 0 : s + 1;
+  for (; o < e.length; ) {
+    const u = n;
+    let a = 1, c = vr;
+    for (; ; ) {
+      if (o >= e.length)
+        throw new Error("Invalid punycode: unexpected end of input");
+      const d = e.charCodeAt(o++);
+      let p;
+      if (d >= 97 && d <= 122)
+        p = d - 97;
+      else if (d >= 48 && d <= 57)
+        p = d - 48 + 26;
+      else if (d >= 65 && d <= 90)
+        Tu();
+      else
+        throw new Error("Invalid punycode: bad digit character");
+      n += p * a;
+      const w = c <= i ? Mn : c >= i + Ui ? Ui : c - i;
+      if (p < w)
+        break;
+      a *= vr - w, c += vr;
+    }
+    const A = t.length + 1;
+    i = Nm(n - u, A, u === 0), r += Math.floor(n / A), n %= A, t.splice(n, 0, r), n++;
+  }
+  return globalThis.String.fromCodePoint(...t);
+}
+function vm(e) {
+  return new RegExp("\\p{Mn}", "u").test(String.fromCodePoint(e));
+}
+function Bm(e) {
+  return new RegExp("\\p{Mc}", "u").test(String.fromCodePoint(e));
+}
+function Rm(e) {
+  return new RegExp("\\p{Me}", "u").test(String.fromCodePoint(e));
+}
+function Fm(e) {
+  return vm(e) || Bm(e) || Rm(e);
+}
+const km = /* @__PURE__ */ new Set([
+  1600,
+  // ARABIC TATWEEL
+  2042,
+  // NKO LAJANYALAN
+  12334,
+  // HANGUL SINGLE DOT TONE MARK
+  12335,
+  // HANGUL DOUBLE DOT TONE MARK
+  12337,
+  // VERTICAL KANA REPEAT MARK
+  12338,
+  // VERTICAL KANA REPEAT WITH VOICED ITERATION MARK
+  12339,
+  // VERTICAL KANA REPEAT MARK UPPER HALF
+  12340,
+  // VERTICAL KANA REPEAT WITH VOICED ITERATION MARK UPPER HALF
+  12341,
+  // VERTICAL KANA REPEAT MARK LOWER HALF
+  12347
+  // VERTICAL IDEOGRAPHIC ITERATION MARK
+]), Pm = /* @__PURE__ */ new Set([
+  2381,
+  2509,
+  2637,
+  2765,
+  2893,
+  3021,
+  3149,
+  3277,
+  3387,
+  3388,
+  3405,
+  3530,
+  6980,
+  7082,
+  7083,
+  43456,
+  69702,
+  69759,
+  69817,
+  69939,
+  69940,
+  70080,
+  70197,
+  70477,
+  70722,
+  70850,
+  71103,
+  71231,
+  71350,
+  72767,
+  73028,
+  73029
+]);
+function Lm(e) {
+  return new RegExp("\\p{Script=Greek}", "u").test(String.fromCodePoint(e));
+}
+function xm(e) {
+  return new RegExp("\\p{Script=Hebrew}", "u").test(String.fromCodePoint(e));
+}
+function Um(e) {
+  return new RegExp("\\p{Script=Hiragana}", "u").test(String.fromCodePoint(e));
+}
+function Mm(e) {
+  return new RegExp("\\p{Script=Katakana}", "u").test(String.fromCodePoint(e));
+}
+function Hm(e) {
+  return new RegExp("\\p{Script=Han}", "u").test(String.fromCodePoint(e));
+}
+function Ym(e) {
+  return e >= 1632 && e <= 1641;
+}
+function $m(e) {
+  return e >= 1776 && e <= 1785;
+}
+function Is(e) {
+  return Pm.has(e);
+}
+function Bu(e) {
+  if (e.length === 0)
+    return Tu();
+  const t = [...e].map((o) => o.codePointAt(0)), r = t.length;
+  if (t[0] === 45 || t[r - 1] === 45 || r >= 4 && t[2] === 45 && t[3] === 45 || Fm(t[0]))
+    return !1;
+  let n = !1, i = !1, s = !1;
+  for (let o = 0; o < r; o++) {
+    const u = t[o];
+    if (km.has(u))
+      return !1;
+    (Um(u) || Mm(u) || Hm(u)) && (n = !0), Ym(u) && (i = !0), $m(u) && (s = !0);
+    const a = t[o - 1], c = t[o + 1];
+    switch (u) {
+      case 183:
+        if (a !== 108 || c !== 108)
+          return !1;
+        break;
+      // MIDDLE DOT (Catalan)
+      case 885:
+        if (c === void 0 || !Lm(c))
+          return !1;
+        break;
+      // Greek KERAIA
+      case 1523:
+      case 1524:
+        if (a === void 0 || !xm(a))
+          return !1;
+        break;
+      // Hebrew GERESH
+      case 8204:
+        if (a === void 0 || a < 128 && !Is(a))
+          return !1;
+        break;
+      case 8205:
+        if (a === void 0 || !Is(a))
+          return !1;
+        break;
+    }
+  }
+  return !(e.includes("・") && !n || i && s);
+}
+function Km(e) {
+  if (e.charCodeAt(0) === 45 || e.charCodeAt(e.length - 1) === 45 || e.length >= 4 && e.charCodeAt(2) === 45 && e.charCodeAt(3) === 45)
+    return !1;
+  for (let t = 0; t < e.length; t++) {
+    const r = e.charCodeAt(t);
+    if (!(r >= 97 && r <= 122 || // a-z
+    r >= 65 && r <= 90 || // A-Z
+    r >= 48 && r <= 57 || // 0-9
+    r === 45))
+      return !1;
+  }
+  return !0;
+}
+function Ru(e) {
+  return e.toLowerCase().startsWith("xn--");
+}
+function Fu(e) {
+  try {
+    const t = e.slice(4).toLowerCase();
+    if (t.lastIndexOf("-") === 0)
+      return !1;
+    const n = Om(t);
+    return n ? Bu(n) : !1;
+  } catch {
+    return !1;
+  }
+}
+function Qm(e) {
+  return e.length === 0 || e.length > 63 ? !1 : Ru(e) ? Fu(e) : Bu(e);
+}
+function Gm(e) {
+  return e.length === 0 || e.length > 63 ? !1 : Ru(e) ? Fu(e) : Km(e);
+}
+function Wm(e) {
+  if (e.length === 0 || e.length > 253 || e.charCodeAt(e.length - 1) === 46)
+    return !1;
+  for (const t of e.split("."))
+    if (!Gm(t))
+      return !1;
+  return !0;
+}
+const jm = /^(?!.*\.\.)[\p{L}\p{N}!#$%&'*+/=?^_`{|}~-]+(?:\.[\p{L}\p{N}!#$%&'*+/=?^_`{|}~-]+)*@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)*$/iu;
+function Jm(e) {
+  return jm.test(e);
+}
+function Vm(e) {
+  if (e.length === 0 || e.includes(" "))
+    return !1;
+  const t = e.normalize("NFC").replace(/[\u002E\u3002\uFF0E\uFF61]/g, ".");
+  if (t.length > 253)
+    return !1;
+  for (const r of t.split("."))
+    if (!Qm(r))
+      return !1;
+  return !0;
+}
+function ku(e, t, r) {
+  let n = 0, i = 0, s = 0, o = 0;
+  for (let u = t; u < r; u++) {
+    const a = e.charCodeAt(u);
+    if (a === 46) {
+      if (s === 0 || i > 255 || o === 48 && s > 1)
+        return !1;
+      n++, i = 0, s = 0, o = 0;
+    } else if (a >= 48 && a <= 57)
+      s === 0 && (o = a), i = i * 10 + (a - 48), s++;
+    else
+      return !1;
+  }
+  return n === 3 && s > 0 && i <= 255 && !(o === 48 && s > 1);
+}
+function Zm(e) {
+  return ku(e, 0, e.length);
+}
+function zm(e) {
+  return e >= 48 && e <= 57 || // 0-9
+  e >= 65 && e <= 70 || // A-F
+  e >= 97 && e <= 102;
+}
+function qm(e) {
+  const t = e.length;
+  if (t === 0)
+    return !1;
+  let r = 0, n = !1, i = 0;
+  if (e.charCodeAt(0) === 58 && e.charCodeAt(1) === 58) {
+    if (t === 2)
+      return !0;
+    n = !0, i = 2;
+  }
+  for (; i < t; ) {
+    let s = 0;
+    const o = i;
+    for (; i < t && zm(e.charCodeAt(i)); )
+      i++, s++;
+    if (s === 0)
+      return !1;
+    const u = e.charCodeAt(i);
+    if (u === 46) {
+      if (!ku(e, o, t))
+        return !1;
+      r += 2, i = t;
+      break;
+    }
+    if (s > 4)
+      return !1;
+    if (r++, i === t)
+      break;
+    if (u !== 58)
+      return !1;
+    if (i++, e.charCodeAt(i) === 58) {
+      if (n || e.charCodeAt(i + 1) === 58)
+        return !1;
+      if (n = !0, i++, i === t)
+        break;
+    }
+  }
+  return n ? r <= 7 : r === 8;
+}
+function _s(e) {
+  try {
+    return new URL(e, "http://example.com"), !0;
+  } catch {
+    return !1;
+  }
+}
+function Xm(e) {
+  if (e.includes(" ") || e.includes("\\") || /[\x00-\x1F\x7F]/.test(e) || /%(?![0-9a-fA-F]{2})/.test(e))
+    return !1;
+  if (e === "")
+    return !0;
+  const t = e.indexOf(":");
+  return t > 0 && // Colon must not be at the very beginning (e.g., ":foo")
+  /^[a-zA-Z][a-zA-Z0-9+\-.]*$/.test(e.substring(0, t)) ? _s(e) : e.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*)(\/\/)/) && t === -1 ? !1 : _s(e);
+}
+function eg(e) {
+  try {
+    return new URL(e), !0;
+  } catch {
+    return !1;
+  }
+}
+const tg = /^#(?:\/(?:[a-z0-9_\-.!$&'()*+,;:=@]|%[0-9a-f]{2}|~0|~1)*)*$/i;
+function rg(e) {
+  return tg.test(e);
+}
+const ng = /^(?:\/(?:[^~/]|~0|~1)*)*$/;
+function ig(e) {
+  return ng.test(e);
+}
+function og(e) {
+  if (e.length === 0)
+    return !1;
+  try {
+    return new RegExp(e), !0;
+  } catch {
+    return !1;
+  }
+}
+const sg = /^(?:0|[1-9][0-9]*)(?:#|(?:\/(?:[^~/]|~0|~1)*)*)$/;
+function ag(e) {
+  return sg.test(e);
+}
+const ug = /^(?!.*[^\x00-\x7F])(?!.*\\)(?:(?:[a-z][a-z0-9+\-.]*:)?(?:\/\/[^\s[\]{}<>^`|]*)?|[^\s[\]{}<>^`|]*)(?:\?[^\s[\]{}<>^`|]*)?(?:#[^\s[\]{}<>^`|]*)?$/i;
+function cg(e) {
+  return ug.test(e);
+}
+const Ag = /^(?:(?:[^\x00-\x20"'<>%\\^`{|}]|%[0-9a-f]{2})|\{[+#./;?&=,!@|]?(?:[a-z0-9_]|%[0-9a-f]{2})+(?::[1-9][0-9]{0,3}|\*)?(?:,(?:[a-z0-9_]|%[0-9a-f]{2})+(?::[1-9][0-9]{0,3}|\*)?)*\})*$/i;
+function lg(e) {
+  return Ag.test(e);
+}
+function Pu(e) {
+  return e >= 97 && e <= 122 || e >= 65 && e <= 90;
+}
+function Lu(e) {
+  return Pu(e) || e >= 48 && e <= 57;
+}
+function kn(e) {
+  return e >= 48 && e <= 57 || // 0-9
+  e >= 65 && e <= 70 || // A-F
+  e >= 97 && e <= 102;
+}
+function fg(e) {
+  return Lu(e) || e === 43 || e === 45 || e === 46;
+}
+function Mi(e) {
+  return Lu(e) || e === 45 || e === 46 || // '-', '.'
+  e === 95 || e === 126;
+}
+function Hi(e) {
+  return e === 33 || e === 36 || e === 38 || e === 39 || e === 40 || e === 41 || e === 42 || e === 43 || e === 44 || e === 59 || e === 61;
+}
+function hg(e) {
+  return Mi(e) || Hi(e) || e === 58 || e === 64;
+}
+function dg(e) {
+  const t = e.length;
+  if (t === 0 || !Pu(e.charCodeAt(0)))
+    return !1;
+  let r = 1;
+  for (; r < t; ) {
+    const n = e.charCodeAt(r);
+    if (n === 58)
+      break;
+    if (!fg(n))
+      return !1;
+    r++;
+  }
+  if (e.charCodeAt(r) !== 58)
+    return !1;
+  if (r++, e.charCodeAt(r) === 47 && e.charCodeAt(r + 1) === 47) {
+    r += 2;
+    const n = r;
+    let i = -1;
+    for (let s = r; s < t; s++) {
+      const o = e.charCodeAt(s);
+      if (o === 64) {
+        i = s;
+        break;
+      }
+      if (o === 47 || o === 63 || o === 35)
+        break;
+    }
+    if (i !== -1) {
+      for (let s = n; s < i; s++) {
+        const o = e.charCodeAt(s);
+        if (o === 91 || o === 93)
+          return !1;
+        if (o === 37) {
+          if (s + 2 >= i || !kn(e.charCodeAt(s + 1)) || !kn(e.charCodeAt(s + 2)))
+            return !1;
+          s += 2;
+        } else if (!Mi(o) && !Hi(o) && o !== 58)
+          return !1;
+      }
+      r = i + 1;
+    }
+    if (e.charCodeAt(r) === 91) {
+      for (r++; r < t && e.charCodeAt(r) !== 93; )
+        r++;
+      if (e.charCodeAt(r) !== 93)
+        return !1;
+      r++;
+    } else
+      for (; r < t; ) {
+        const s = e.charCodeAt(r);
+        if (s === 47 || s === 63 || s === 35 || s === 58)
+          break;
+        if (s < 128 && !Mi(s) && !Hi(s))
+          return !1;
+        r++;
+      }
+    if (e.charCodeAt(r) === 58)
+      for (r++; r < t; ) {
+        const s = e.charCodeAt(r);
+        if (s === 47 || s === 63 || s === 35)
+          break;
+        if (s < 48 || s > 57)
+          return !1;
+        r++;
+      }
+  }
+  for (; r < t; ) {
+    const n = e.charCodeAt(r);
+    if (n === 37) {
+      if (r + 2 >= t || !kn(e.charCodeAt(r + 1)) || !kn(e.charCodeAt(r + 2)))
+        return !1;
+      r += 2;
+    } else {
+      if (n > 127)
+        return !1;
+      if (!(hg(n) || n === 47 || n === 63 || n === 35))
+        return !1;
+    }
+    r++;
+  }
+  return !0;
+}
+const pg = /^(?:https?|ftp):\/\/(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z0-9\u{00a1}-\u{ffff}]+-)*[a-z0-9\u{00a1}-\u{ffff}]+)(?:\.(?:[a-z0-9\u{00a1}-\u{ffff}]+-)*[a-z0-9\u{00a1}-\u{ffff}]+)*(?:\.(?:[a-z\u{00a1}-\u{ffff}]{2,})))(?::\d{2,5})?(?:\/[^\s]*)?$/iu;
+function mg(e) {
+  return pg.test(e);
+}
+const gg = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+function Eg(e) {
+  return gg.test(e);
+}
+const qe = /* @__PURE__ */ new Map();
+function Cg() {
+  qe.clear();
+}
+function yg() {
+  Cg(), qe.set("date-time", Cm), qe.set("date", Ou), qe.set("duration", bm), qe.set("email", Im), qe.set("hostname", Wm), qe.set("idn-email", Jm), qe.set("idn-hostname", Vm), qe.set("ipv4", Zm), qe.set("ipv6", qm), qe.set("iri-reference", Xm), qe.set("iri", eg), qe.set("json-pointer-uri-fragment", rg), qe.set("json-pointer", ig), qe.set("regex", og), qe.set("relative-json-pointer", ag), qe.set("time", vu), qe.set("uri-reference", cg), qe.set("uri-template", lg), qe.set("uri", dg), qe.set("url", mg), qe.set("uuid", Eg);
+}
+yg();
+BigInt(Number.MAX_SAFE_INTEGER);
+BigInt(Number.MIN_SAFE_INTEGER);
+const bg = Du({
+  type: Xi("insert"),
+  path: eo(),
+  value: Su()
+}), wg = Object({
+  type: Xi("update"),
+  path: eo(),
+  value: Su()
+}), Ig = Du({
+  type: Xi("delete"),
+  path: eo()
+});
+fm([bg, wg, Ig]);
+const _g = "io.modelcontextprotocol/ui", Dg = "text/html;profile=mcp-app", Sg = Object.freeze({
+  extensions: Object.freeze({
+    [_g]: Object.freeze({
+      mimeTypes: Object.freeze([Dg])
+    })
+  })
+}), Tg = ["system", "manual", "direct"], to = "localhost, 127.0.0.1, ::1", Hn = Object.freeze({
+  mode: "system",
+  httpProxy: "",
+  httpsProxy: "",
+  wsProxy: "",
+  wssProxy: "",
+  noProxy: to
+}), Ng = /* @__PURE__ */ new Set(["http:", "https:", "socks:", "socks5:"]);
+function Og(e, t) {
+  return !!e && typeof e == "object" && Object.prototype.hasOwnProperty.call(e, t);
+}
+function vg(e, t) {
+  if (Tg.includes(e)) return e;
+  if (t && e !== void 0)
+    throw new Error("network proxy mode must be system, manual, or direct");
+  return Hn.mode;
+}
+function Pn(e, t, r) {
+  const n = String(e || "").trim();
+  if (!n) return "";
+  let i;
+  try {
+    i = new URL(n);
+  } catch {
+    if (r) throw new Error(`${t} must be a valid proxy URL`);
+    return "";
+  }
+  if (!Ng.has(i.protocol)) {
+    if (r) throw new Error(`${t} must use http, https, socks, or socks5`);
+    return "";
+  }
+  if (!i.hostname) {
+    if (r) throw new Error(`${t} must include a host`);
+    return "";
+  }
+  if (i.pathname && i.pathname !== "/") {
+    if (r) throw new Error(`${t} must not include a path`);
+    i.pathname = "/";
+  }
+  return i.search = "", i.hash = "", i.href.replace(/\/$/, "");
+}
+function Bg(e) {
+  return Array.isArray(e) ? e.map((t) => String(t || "").trim()).filter(Boolean).join(", ") : String(e ?? to).split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).join(", ");
+}
+function Rg(e, t = {}) {
+  const r = t.strict === !0, n = {}, i = vg(n.mode, r), s = Og(n, "noProxy") ? Bg(n.noProxy) : to;
+  if (i !== "manual")
+    return {
+      ...Hn,
+      mode: i,
+      noProxy: s
+    };
+  const o = {
+    ...Hn,
+    mode: i,
+    httpProxy: Pn(n.httpProxy, "httpProxy", r),
+    httpsProxy: Pn(n.httpsProxy, "httpsProxy", r),
+    wsProxy: Pn(n.wsProxy, "wsProxy", r),
+    wssProxy: Pn(n.wssProxy, "wssProxy", r),
+    noProxy: s
+  };
+  if (!(o.httpProxy || o.httpsProxy || o.wsProxy || o.wssProxy)) {
+    if (!r) return { ...Hn };
+    throw new Error("manual network proxy requires at least one proxy URL");
+  }
+  return o;
+}
+dc();
+Rg();
+({
+  ...Sg
+});
+const Fg = ["tool_search", "tool_call"], kg = "tool_describe", Pg = /* @__PURE__ */ new Map([
+  ["mcp_search_tools", "tool_search"],
+  ["mcp_describe_tool", "tool_help"],
+  ["mcp_call", "tool_call"],
+  [kg, "tool_help"]
+]);
+[
+  ...Fg,
+  ...Pg.keys()
+];
+const Lg = /* @__PURE__ */ new Set(["stdio", "remote", "streamable-http", "sse"]), xg = /* @__PURE__ */ new Set(["none", "bearer", "oauth"]), Ds = Object.freeze([
+  "name",
+  "description",
+  "transport",
+  "url",
+  "command",
+  "args",
+  "cwd",
+  "env",
+  "headers",
+  "registryUrl",
+  "timeout"
+]);
+function Ug(e) {
+  if (!hr(e) || e.kind !== "app") return null;
+  const t = rt(e.appId), r = rt(e.childId);
+  return t && r ? { kind: "app", appId: t, childId: r } : null;
+}
+function ro(e, { allowEnabled: t = !1, context: r = "App MCP defaults" } = {}) {
+  if (!hr(e)) throw new Error(`${r} must be an object`);
+  const n = /* @__PURE__ */ new Set([...Ds, ...t ? ["enabled"] : []]);
+  for (const o of Object.keys(e))
+    if (!n.has(o)) throw new Error(`${r} has unsupported field "${o}"`);
+  const i = Mu({ ...e, id: "app-default" }, "app-default"), s = {};
+  for (const o of Ds)
+    Object.hasOwn(e, o) && (s[o] = i[o]);
+  if (t && Object.hasOwn(e, "enabled")) {
+    if (typeof e.enabled != "boolean") throw new Error(`${r}.enabled must be a boolean`);
+    s.enabled = e.enabled;
+  }
+  return s;
+}
+function Mg(e, t) {
+  if (!hr(e)) throw new Error(`App MCP connector "${t.appId}/${t.childId}" requires appPackage state`);
+  return {
+    defaults: ro(e.defaults || {}, { allowEnabled: !0, context: "App MCP defaults" }),
+    overrides: Hg(e.overrides || {})
+  };
+}
+function Hg(e) {
+  if (!hr(e)) throw new Error("App MCP overrides must be an object");
+  const t = Object.fromEntries(Object.entries(e).filter(([n]) => n !== "env" && n !== "headers")), r = ro(t, { context: "App MCP overrides" });
+  for (const n of ["env", "headers"]) {
+    if (!Object.hasOwn(e, n)) continue;
+    if (!hr(e[n])) throw new Error(`App MCP overrides.${n} must be an object`);
+    const i = {};
+    for (const [s, o] of Object.entries(e[n])) {
+      if (typeof o != "string" && o !== null)
+        throw new Error(`App MCP overrides.${n}.${s} must be a string or null`);
+      i[s] = o;
+    }
+    r[n] = i;
+  }
+  return r;
+}
+function Yg(e) {
+  if (!e || typeof e.name != "string" || !e.name || !no(e.name)) return null;
+  const t = {
+    name: e.name,
+    title: typeof e.title == "string" ? e.title : e.name,
+    description: typeof e.description == "string" ? e.description : "",
+    inputSchema: e.inputSchema && typeof e.inputSchema == "object" ? e.inputSchema : { type: "object", properties: {} }
+  };
+  return e.outputSchema && typeof e.outputSchema == "object" && (t.outputSchema = e.outputSchema), hr(e._meta) && (t._meta = e._meta), t;
+}
+function $g(e) {
+  const t = /* @__PURE__ */ new Set();
+  return e.filter((r) => t.has(r.name) ? !1 : (t.add(r.name), !0));
+}
+const Kg = /* @__PURE__ */ new Set(["review-all", "allowlist"]), Qg = /* @__PURE__ */ new Set(["allow", "review"]);
+function Gg(e) {
+  return Kg.has(e) ? e : "review-all";
+}
+function Wg(e) {
+  if (!hr(e)) return {};
+  const t = {};
+  for (const [r, n] of Object.entries(e))
+    r && Qg.has(n) && (t[r] = n);
+  return t;
+}
+function Ss(e, t) {
+  return !!e && Object.prototype.hasOwnProperty.call(e, t);
+}
+function xu(e, t) {
+  return no(`${e}_${t}`);
+}
+const Ts = "mcp";
+function Uu(e, t, r) {
+  const n = Zg(e, t), i = xu(e, t);
+  return [.../* @__PURE__ */ new Set([
+    n,
+    `${Ts}_${n}`,
+    i,
+    `${Ts}_${i}`
+  ])].filter((s) => s && s !== t && !r?.has(s));
+}
+function jg(e) {
+  return new Set(
+    (Array.isArray(e) ? e : []).map((t) => typeof t == "string" ? t : t?.name).filter((t) => typeof t == "string" && t)
+  );
+}
+function Jg(e, t, r, n) {
+  if (!hr(e)) return;
+  if (Ss(e, r)) return e[r];
+  const i = Uu(t, r, n).filter((s) => Ss(e, s)).map((s) => e[s]);
+  if (i.length !== 0)
+    return i.every((s) => s === i[0]) ? i[0] : void 0;
+}
+function Ns(e, t, r) {
+  const n = { ...e }, i = jg(r);
+  for (const s of r) {
+    const o = Jg(n, t, s.name, i);
+    if (o !== void 0) {
+      n[s.name] = o;
+      for (const u of Uu(t, s.name, i))
+        delete n[u];
+    }
+  }
+  return n;
+}
+function Vg(e) {
+  if (!hr(e)) return {};
+  const t = {};
+  for (const [r, n] of Object.entries(e))
+    r && n === !0 && (t[r] = !0);
+  return t;
+}
+function Mu(e, t = "") {
+  if (!e || typeof e != "object") return null;
+  const r = no(e.id || t);
+  if (!r) return null;
+  const n = Os(e.env), i = Os(e.headers), s = $g(
+    (Array.isArray(e.tools) ? e.tools : []).map(Yg).filter(Boolean)
+  ), o = Ns(
+    Wg(e.toolPermissions),
+    r,
+    s
+  ), u = Ns(
+    Vg(e.pinnedTools),
+    r,
+    s
+  ), a = zg(e), c = rt(e.authorizationToken || e.authorization_token), A = eE(e.oauth), d = qg(e.authType, { authorizationToken: c, oauth: A, connector: e }), p = e.owner, w = p === void 0 ? null : Ug(p);
+  if (p !== void 0 && !w) throw new Error(`MCP connector "${r}" has an invalid App owner`);
+  if (!w && e.appPackage !== void 0) throw new Error(`MCP connector "${r}" has appPackage state without an App owner`);
+  const _ = w ? Mg(e.appPackage, w) : null;
+  return {
+    id: r,
+    name: rt(e.name) || r,
+    description: rt(e.description),
+    transport: a,
+    url: rt(e.url || e.baseUrl),
+    command: rt(e.command),
+    args: Array.isArray(e.args) ? e.args.filter((R) => typeof R == "string") : [],
+    cwd: rt(e.cwd),
+    env: n,
+    headers: i,
+    registryUrl: rt(e.registryUrl),
+    timeout: rE(e.timeout),
+    authType: d,
+    authorizationToken: c,
+    oauthClientId: rt(e.oauthClientId || e.clientId),
+    oauthClientSecret: rt(e.oauthClientSecret || e.clientSecret),
+    // Provenance of the OAuth client id, including read-time compatibility:
+    // "manual" = user-entered, "dcr" = obtained via RFC 7591 dynamic client
+    // registration. Old connectors predate this field — default to "manual"
+    // when a client id is already present, otherwise "" (unknown/unregistered).
+    clientIdSource: Xg(e),
+    oauth: A,
+    // Single persisted switch, aligned with every major MCP client: present
+    // means enabled unless the user explicitly opted out. Legacy autoStart /
+    // isActive are not read as gates (they never had a runtime writer, so
+    // almost every real config says false while the user expects the connector
+    // to work); enabled is mirrored onto autoStart on write so a downgraded
+    // build keeps behaving like the user's current intent.
+    enabled: e.enabled !== !1,
+    autoStart: e.enabled !== !1,
+    // Read-time compatibility: connectors saved before auto-reconnect
+    // existed have no `autoReconnect` field; default them to true so existing
+    // users get keepalive without a migration script. Only an explicit `false`
+    // opts out of automatic reconnection.
+    autoReconnect: e.autoReconnect !== !1,
+    // Read-time compatibility: connectors saved before the permission policy
+    // model existed carry none of these three fields. They default to the
+    // pre-existing behaviour (every invocation reviewed), so no write-time
+    // migration is needed and an untouched config keeps its old semantics.
+    permissionMode: Gg(e.permissionMode),
+    toolPermissions: o,
+    // Only an explicit `true` opts in; a truthy non-boolean must not be
+    // coerced into an implicit grant.
+    trustReadOnlyHint: e.trustReadOnlyHint === !0,
+    // Read-time compatibility: connectors saved before deferred loading existed
+    // have no pins, which is exactly the default.
+    pinnedTools: u,
+    tools: s,
+    ...w ? { owner: w, appPackage: _ } : {}
+  };
+}
+function no(e) {
+  return String(e || "").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64);
+}
+function Zg(e, t) {
+  const r = xu(e, t).toLowerCase();
+  return r ? /^[a-z]/.test(r) ? r : `tool_${r}` : "tool";
+}
+function hr(e) {
+  if (e === null || typeof e != "object" || Array.isArray(e)) return !1;
+  const t = Object.getPrototypeOf(e);
+  return t === Object.prototype || t === null;
+}
+function zg(e) {
+  const t = rt(e.transport || e.type);
+  return t === "http" ? "remote" : t === "streamableHttp" || t === "streamable-http" ? "streamable-http" : Lg.has(t) ? t : rt(e.url || e.baseUrl) ? "remote" : "stdio";
+}
+function qg(e, { authorizationToken: t, oauth: r, connector: n }) {
+  const i = rt(e);
+  return xg.has(i) ? i : t ? "bearer" : r.accessToken || n.oauthClientId || n.clientId ? "oauth" : "none";
+}
+function Xg(e) {
+  const t = rt(e.clientIdSource);
+  return t === "manual" || t === "dcr" ? t : rt(e.oauthClientId || e.clientId) ? "manual" : "";
+}
+function eE(e) {
+  return !e || typeof e != "object" ? {} : {
+    accessToken: rt(e.accessToken),
+    refreshToken: rt(e.refreshToken),
+    tokenType: rt(e.tokenType) || (e.accessToken ? "Bearer" : ""),
+    tokenEndpoint: rt(e.tokenEndpoint),
+    scope: rt(e.scope),
+    expiresIn: Number(e.expiresIn || 0) || 0,
+    expiresAt: Number(e.expiresAt || 0) || 0,
+    obtainedAt: Number(e.obtainedAt || 0) || 0
+  };
+}
+function tE(e) {
+  if (!e) throw new Error("connector is required");
+  if (e.transport === "stdio") {
+    if (!e.command) throw new Error("command is required");
+    if (e.cwd && !ae.isAbsolute(e.cwd))
+      throw new Error("cwd must be an absolute path");
+    return;
+  }
+  if (!e.url) throw new Error("url is required");
+  let t;
+  try {
+    t = new URL(e.url);
+  } catch {
+    throw new Error(`url "${e.url}" is not a valid URL — include the scheme, e.g. https://example.com/mcp`);
+  }
+  if (t.protocol !== "http:" && t.protocol !== "https:")
+    throw new Error("url must use http or https");
+}
+function rt(e) {
+  return typeof e == "string" ? e.trim() : "";
+}
+function Os(e) {
+  return !e || typeof e != "object" || Array.isArray(e) ? {} : Object.fromEntries(
+    Object.entries(e).filter(([t, r]) => typeof t == "string" && typeof r == "string")
+  );
+}
+function rE(e) {
+  if (e === "" || e == null) return 0;
+  const t = Number(e);
+  return Number.isFinite(t) && t > 0 ? t : 0;
+}
+const nE = Object.freeze([
+  "app",
+  "skill",
+  "recipe",
+  "connector",
+  "role",
+  "bundle"
+]);
+new Set(nE);
+function Hu(e) {
+  return !(typeof e != "string" || !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(e) || e.endsWith(".") || e.endsWith("-") || e.includes("..") || e.includes("--"));
+}
+const vs = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+class Br extends Error {
+  constructor(t, r) {
+    super(t), this.name = "McpPackageError", this.code = r;
+  }
+}
+function kr(e) {
+  return !!e && typeof e == "object" && !Array.isArray(e);
+}
+function iE(e) {
+  if (!kr(e))
+    throw new Br("mcp.json must be an object.", "BUNDLE_MCP_INVALID");
+  if (e.$schema !== vs)
+    throw new Br(`mcp.json $schema must be ${vs}`, "BUNDLE_MCP_SCHEMA");
+  if (!kr(e.mcpServers))
+    throw new Br("mcp.json requires an mcpServers object.", "BUNDLE_MCP_INVALID");
+  for (const [t, r] of Object.entries(e.mcpServers))
+    if (!kr(r))
+      throw new Br(`mcp.json mcpServers.${t} must be an object.`, "BUNDLE_MCP_INVALID");
+  return e.mcpServers;
+}
+function oE(e) {
+  const t = e.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
+  if (!Hu(t))
+    throw new Br(
+      `mcp.json server key ${JSON.stringify(e)} cannot be turned into a safe connector id.`,
+      "BUNDLE_CONNECTOR_ID_INVALID"
+    );
+  return t;
+}
+function Yi(e, t, r) {
+  return typeof e == "string" ? e.split("${PLUGIN_ROOT}").join(t).split("${PLUGIN_DATA}").join(r) : Array.isArray(e) ? e.map((n) => Yi(n, t, r)) : kr(e) ? Object.fromEntries(Object.entries(e).map(([n, i]) => [n, Yi(i, t, r)])) : e;
+}
+class st extends Error {
+  constructor(t, r = "APP_MCP_PACKAGE_INVALID") {
+    super(t), this.name = "AppMcpPackageError", this.code = r;
+  }
+}
+function sE(e) {
+  if (!ae.isAbsolute(e)) throw new st("App MCP package root must be an absolute directory.");
+  try {
+    const t = Yt.realpathSync(e);
+    if (!Yt.statSync(t).isDirectory()) throw new Error("not a directory");
+    return t;
+  } catch {
+    throw new st("App MCP package root is not an existing directory.");
+  }
+}
+function aE(e) {
+  if (!ae.isAbsolute(e)) throw new st("App MCP data directory must be an absolute path.");
+  return ae.resolve(e);
+}
+function uE(e) {
+  const t = ae.join(e, "mcp.json");
+  try {
+    const r = Yt.lstatSync(t);
+    if (r.isSymbolicLink()) throw new st("mcp.json must not be a symbolic link.");
+    if (!r.isFile()) throw new st("mcp.json must be a regular file.");
+  } catch (r) {
+    if (r.code === "ENOENT") return null;
+    throw r instanceof st ? r : new st("mcp.json could not be inspected.");
+  }
+  try {
+    return JSON.parse(Yt.readFileSync(t, "utf8"));
+  } catch {
+    throw new st("mcp.json contains invalid JSON.");
+  }
+}
+function cE(e, t) {
+  for (const r of ["authorizationToken", "authorization_token", "oauthClientSecret"])
+    if (typeof t[r] == "string" && t[r].trim())
+      throw new st(`mcp.json server ${JSON.stringify(e)}.${r} must be configured through the host, not shipped in the App package.`);
+  if (kr(t.oauth)) {
+    for (const [r, n] of Object.entries(t.oauth))
+      if (typeof n == "string" && n.trim() && Ai(r, n))
+        throw new st(`mcp.json server ${JSON.stringify(e)}.oauth.${r} must be configured through the host, not shipped in the App package.`);
+  }
+  for (const r of ["url", "registryUrl"])
+    if (typeof t[r] == "string" && Ai(r, t[r]))
+      throw new st(`mcp.json server ${JSON.stringify(e)}.${r} must be configured through the host, not shipped in the App package.`);
+  for (const r of ["env", "headers"])
+    if (t[r] !== void 0) {
+      if (!kr(t[r]))
+        throw new st(`mcp.json server ${JSON.stringify(e)}.${r} must be an object of strings.`);
+      for (const [n, i] of Object.entries(t[r])) {
+        if (typeof i != "string")
+          throw new st(`mcp.json server ${JSON.stringify(e)}.${r}.${n} must be a string.`);
+        if (Ai(n, i))
+          throw new st(`mcp.json server ${JSON.stringify(e)}.${r}.${n} must be configured through the host, not shipped in the App package.`);
+      }
+    }
+}
+function AE(e, t, r, n) {
+  cE(e, t);
+  const i = Yi(t, r, n), s = { ...i };
+  delete s.authorizationToken, delete s.authorization_token, delete s.oauthClientSecret, delete s.oauth;
+  const o = {
+    ...s,
+    name: typeof t.name == "string" ? i.name : e
+  };
+  let u;
+  try {
+    u = ro(o, { allowEnabled: !0, context: `mcp.json server ${JSON.stringify(e)}` });
+    const a = Mu({ ...u, id: "app-default" }, "app-default");
+    tE(a);
+  } catch (a) {
+    const c = a instanceof Error ? a.message : String(a);
+    throw new st(`mcp.json server ${JSON.stringify(e)} is invalid: ${c}`);
+  }
+  return u;
+}
+function lE({ appDir: e, dataDir: t }) {
+  const r = sE(e), n = aE(t), i = uE(r);
+  if (!i) return {};
+  let s;
+  try {
+    s = iE(i);
+  } catch (u) {
+    const a = u instanceof Br ? u.message : "mcp.json is invalid.";
+    throw new st(a);
+  }
+  const o = {};
+  for (const [u, a] of Object.entries(s)) {
+    let c;
+    try {
+      c = oE(u);
+    } catch (A) {
+      const d = A instanceof Br ? A.message : "server id is invalid.";
+      throw new st(d);
+    }
+    if (Object.hasOwn(o, c))
+      throw new st(`mcp.json server keys ${JSON.stringify(u)} and another key normalize to the same child id "${c}".`);
+    if (!kr(a)) throw new st(`mcp.json server ${JSON.stringify(u)} must be an object.`);
+    o[c] = AE(u, a, r, n);
+  }
+  return o;
+}
+const fE = /^[A-Za-z0-9_-]+$/;
+function hE(e) {
+  return typeof e == "string" && fE.test(e.trim());
+}
+_h("lib", "extension-platform", "package-file-worker.mjs");
+const dE = "hana/chat.message.actions", pE = "hana/card.chrome", mE = "hana/session.contextMenu", gE = "hana/chat.selection.contextMenu", EE = "hana/card.contextMenu", CE = "hana/commands.keybindings", yE = "hana/input.controls", bE = "hana/home.actions", wE = [
+  {
+    id: dE,
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "desktop/src/react/contributions/use-contributed-message-actions.ts（AssistantMessage.tsx / UserMessage.tsx 两处接入，渲染进 MessageFooterActions.tsx 的通用操作行）"
+  },
+  {
+    id: pE,
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "desktop/src/react/chalkboard/card-action-registry.tsx 的 useContributedCardChrome + plugin-chrome-action.tsx 的 PluginChromeActionButton"
+  },
+  {
+    id: "hana/input.attention",
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "desktop/src/react/components/InputArea.tsx 的 .input-stack：input/SessionConfirmationPrompt.tsx（ask 弹层）+ input/PluginBannerStrip.tsx（banner）"
+  },
+  {
+    id: "hana/chat.stream.card",
+    render: "iframe",
+    access: "plugin",
+    implementedAt: "desktop/src/react/components/chat/PluginStreamCard.tsx（BLOCK_RENDERERS['plugin_card']，流内真身渲染；契约=工具返回值 details.card，不经本 registry）"
+  },
+  {
+    id: "hana/settings.page",
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "server/composition/plugins/settings-contributions.ts（v2 contributes.settings schema 表单或 ui 自定义页面）"
+  },
+  {
+    id: "hana/fp.full",
+    render: "iframe",
+    access: "closed",
+    implementedAt: "v2 整页卡 fpFullPanel + functionPanel.route（认证 App UI）或 embedUrl（loopback iframe），不经 contributes.ui 座位"
+  },
+  {
+    id: "hana/cardcenter.entry",
+    render: "react",
+    access: "builtin",
+    implementedAt: "08-18 裁定的卡片中心同级一方位"
+  },
+  {
+    id: "hana/sidebar.fp",
+    render: "react",
+    access: "closed",
+    implementedAt: "ChatSidebar 的 afterXxxSlot React 插口"
+  },
+  {
+    id: "hana/sidebar.notice",
+    render: "react",
+    access: "closed",
+    implementedAt: "SidebarNoticeSlot"
+  },
+  {
+    id: bE,
+    render: "host-primitive",
+    access: "builtin",
+    implementedAt: "components/app/AppHomeActionButtons.tsx"
+  },
+  {
+    id: yE,
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "InputControlBar.tsx / InputStatusItems.tsx：contributes.ui.inputStatus 与按 sessionId 的动态覆盖"
+  },
+  {
+    id: "hana/commands.slash",
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "插件斜杠命令 → /api/commands → SlashCommandMenu（既有机制，登记备案）；v2 应用经 ctx.commands.register 写入同一个 SlashCommandRegistry，走同一条 dispatcher/菜单链路"
+  },
+  {
+    id: CE,
+    render: "host-primitive",
+    access: "plugin",
+    implementedAt: "desktop/src/react/contributions/contributed-keybindings.ts 的 useContributedKeybindings：全局键盘分发器，声明式，执行走 ui-actions 链"
+  },
+  {
+    id: "hana/channel.topbar",
+    render: "react",
+    access: "closed",
+    implementedAt: "ChannelTabBar.tsx 嵌插件页"
+  },
+  {
+    id: "hana/chat.block-renderers",
+    render: "react",
+    access: "builtin",
+    implementedAt: "AssistantMessage.tsx 的 BLOCK_RENDERERS 表"
+  },
+  // ---- context-menu seats. Host renders ContextMenuItem; plugins have no UI
+  // of their own in the menu. UI wiring is a later batch; ids are stable.
+  {
+    // 会话列表·会话条目右键。上下文契约：sessionPath + sessionId + title；messageId 恒 null。
+    id: mE,
+    render: "context-menu",
+    access: "plugin",
+    implementedAt: "目录具名；右键菜单 UI 接线在后续批次"
+  },
+  {
+    // 聊天区选中文字右键。上下文契约：sessionPath + selectionText；不提供 messageId（选区可跨消息，message 级身份先天不成立）。invoke 通道上 selectionText 须经选区面贡献登记、16KB UTF-8 上限、C0 剥离，以及权限账本 `app/session.read-selection` 首用授权后才并入工具 context。
+    id: gE,
+    render: "context-menu",
+    access: "plugin",
+    implementedAt: "目录具名；右键菜单 UI 接线在后续批次"
+  },
+  {
+    // 黑板卡（卡中心条目）右键。上下文契约：当前交付 sessionPath（messageId 恒 null）；owner appId 仅用于显示过滤；cardId 待通道扩展。
+    id: EE,
+    render: "context-menu",
+    access: "plugin",
+    implementedAt: "目录具名；右键菜单 UI 接线在后续批次"
+  },
+  {
+    // 消息内链接右键（Markdown 正文/工具行/折叠行共用）。上下文契约草案：{href, origin}。
+    id: "hana/chat.link.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 黑板页签右键。上下文契约草案：{pageId}。
+    id: "hana/chalkboard.page.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 频道列表条目右键。上下文契约草案：{channelId}。
+    id: "hana/channels.list.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 频道页签右键。上下文契约草案：{tabId}。
+    id: "hana/channels.tab.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 工作区文件右键。上下文契约草案：{fileRef}。路径外流敏感，开放前需授权设计。
+    id: "hana/workspace.files.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 工作区子会话右键。上下文契约草案：{subSessionId}。
+    id: "hana/workspace.subconversation.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 插件页签右键。上下文契约草案：{appId, tabId}。
+    id: "hana/plugin.tab.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 书桌目录树节点右键。上下文契约草案：{nodePath}。路径外流敏感，开放前需授权设计。
+    id: "hana/desk.tree.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 书桌技能条目右键。上下文契约草案：{skillId}。
+    id: "hana/desk.skills.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 预览编辑器右键。上下文契约草案：{filePath, selection}。路径外流敏感，开放前需授权设计。
+    id: "hana/preview.editor.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  },
+  {
+    // 会话浏览器条目右键。上下文契约草案：{sessionPath}。
+    id: "hana/session.browser.contextMenu",
+    render: "context-menu",
+    access: "closed",
+    implementedAt: "预留占位；后批开放不改 id"
+  }
+], IE = ["check", "pin", "sync"];
+function _E(e) {
+  return typeof e == "string" && IE.includes(e);
+}
+const Le = NA("plugin-loader-v2"), Ln = "manifest.json", pt = 2, DE = [
+  "settings",
+  "ui",
+  "cards",
+  "agentTypes",
+  "messageRenderers",
+  "providers",
+  "nativeProviders",
+  "previewers",
+  "cliFlags",
+  "homeActions"
+], Bs = DE, SE = [
+  "allowedHosts",
+  "allowLocalhost",
+  "defaultTimeoutMs",
+  "maxResponseBytes",
+  "methods"
+], Rs = SE, Fs = ["title", "schema", "ui"], TE = ["messageActions", "cardChrome", "slots", "slotContributions", "contextMenus", "keybindings", "inputStatus"], ks = TE, Ps = ["id", "title", "icon", "messages", "toolName", "args"], Ls = ["id", "title", "icon", "targetCardDefinitionId", "targetCard", "toolName", "args"], xs = ["appId", "cardId"], NE = ["name", "title", "render"], Us = NE, OE = ["slot", "id", "title", "icon", "toolName", "args", "route"], Ms = OE, Hs = ["id", "title", "icon", "surface", "toolName", "args"], Ys = ["id", "title", "icon", "text", "tooltip", "toolName", "args"], vE = [
+  "id",
+  "title",
+  "description",
+  "route",
+  "embedUrl",
+  "cardForm",
+  "titlebar",
+  "realization",
+  "pageOf",
+  "closable",
+  "siteNavEntry",
+  "fpFullPanel",
+  "functionPanel",
+  "detached",
+  "detachedDefaultSize",
+  "face",
+  "formFactors"
+], $s = vE, BE = [
+  "customType",
+  "cardId"
+], Ks = BE, Qs = ["assistant", "user", "all"], Wn = /^[a-z0-9][a-z0-9-]*$/, Gs = 2, Ws = 4, js = 8, Js = 16, Vs = 8;
+function Zs(e) {
+  return e instanceof Error && e.message || String(e);
+}
+function De(e) {
+  return typeof e == "object" && e !== null && !Array.isArray(e);
+}
+function en(e) {
+  if (!e || typeof e != "object" || Object.isFrozen(e)) return e;
+  for (const t of Object.values(e)) en(t);
+  return Object.freeze(e);
+}
+function RE(e) {
+  if (e === void 0) return;
+  if (!De(e))
+    throw new Error(`contributes.settings must be an object when present, got ${JSON.stringify(e)}`);
+  for (const i of Object.keys(e))
+    if (!Fs.includes(i))
+      throw new Error(
+        `contributes.settings.${i} is not a field a manifestVersion ${pt} settings contribution has; this version knows ${Fs.join(", ")}`
+      );
+  let t;
+  if (e.title !== void 0) {
+    if (typeof e.title != "string" || e.title.length === 0)
+      throw new Error(
+        "contributes.settings.title must be a non-empty string when present, got " + JSON.stringify(e.title)
+      );
+    t = e.title;
+  }
+  let r;
+  if (e.schema !== void 0) {
+    if (!De(e.schema))
+      throw new Error(
+        `contributes.settings.schema must be an object describing the settings group's fields, got ${JSON.stringify(e.schema)}`
+      );
+    if (!De(e.schema.properties))
+      throw new Error(
+        `contributes.settings.schema.properties must be an object mapping field names to their declarations, got ${JSON.stringify(e.schema.properties)}`
+      );
+    FE(e.schema.properties), r = e.schema;
+  }
+  let n;
+  if (e.ui !== void 0) {
+    if (!De(e.ui))
+      throw new Error(`contributes.settings.ui must be an object when present, got ${JSON.stringify(e.ui)}`);
+    for (const s of Object.keys(e.ui))
+      if (s !== "route")
+        throw new Error(
+          `contributes.settings.ui.${s} is not a field a manifestVersion ${pt} settings UI has; this version knows route`
+        );
+    const i = Rr(e.ui.route);
+    if (i.ok === !1)
+      throw new Error(`contributes.settings.ui.route is not a legal App ui/ path (${i.reason})`);
+    n = Object.freeze({ route: i.route });
+  }
+  if (!r && !n)
+    throw new Error(
+      `contributes.settings.schema must be an object describing the settings group's fields, got ${JSON.stringify(e.schema)}`
+    );
+  return {
+    ...t === void 0 ? {} : { title: t },
+    ...r === void 0 ? {} : { schema: r },
+    ...n === void 0 ? {} : { ui: n }
+  };
+}
+function FE(e) {
+  for (const [t, r] of Object.entries(e)) {
+    if (!De(r) || !De(r.ui) || r.ui.enumLabels === void 0) continue;
+    const n = `contributes.settings.schema.properties.${t}.ui.enumLabels`, i = r.ui.enumLabels;
+    if (!Array.isArray(i) || !Array.isArray(r.enum) || i.length === 0 || i.length !== r.enum.length)
+      throw new Error(`${n} must be a non-empty string array with exactly one label for each enum value`);
+    if (i.some((o) => typeof o != "string" || o.trim() === "" || o.length > 160))
+      throw new Error(`${n} entries must be non-empty strings of at most 160 characters`);
+    const s = r.type === void 0 ? "string" : r.type;
+    if (s !== "string" && s !== "number" && s !== "integer")
+      throw new Error(`${n} is only valid for string, number, or integer enum fields`);
+    if (!r.enum.every((o) => s === "integer" ? Number.isInteger(o) : typeof o === s))
+      throw new Error(`${n} requires enum values matching the declared ${s} type`);
+  }
+}
+function kE(e, t, r) {
+  if (e === void 0) return "assistant";
+  if (typeof e != "string" || !Qs.includes(e))
+    throw new Error(
+      `contributes.ui.messageActions[${r}] ("${t}").messages must be one of ${Qs.join(", ")} when present, got ${JSON.stringify(e)}`
+    );
+  return e;
+}
+function tn(e, t) {
+  if (e !== void 0) {
+    if (!De(e))
+      throw new Error(`${t()}.args must be an object when present, got ${JSON.stringify(e)}`);
+    return e;
+  }
+}
+function PE(e) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e))
+    throw new Error(
+      `contributes.ui.messageActions must be an array when present, got ${JSON.stringify(e)}`
+    );
+  if (e.length > Gs)
+    throw new Error(
+      `contributes.ui.messageActions declares ${e.length} entries; a plugin may contribute at most ${Gs}`
+    );
+  const t = /* @__PURE__ */ new Set();
+  return e.map((r, n) => {
+    if (!De(r))
+      throw new Error(
+        `contributes.ui.messageActions[${n}] must be an object, got ${JSON.stringify(r)}`
+      );
+    for (const d of Object.keys(r))
+      if (!Ps.includes(d))
+        throw new Error(
+          `contributes.ui.messageActions[${n}].${d} is not a field a manifestVersion ${pt} message action contribution has; this version knows ${Ps.join(", ")}`
+        );
+    const i = r.id;
+    if (typeof i != "string" || i.trim() === "")
+      throw new Error(
+        `contributes.ui.messageActions[${n}].id must be a non-empty string, got ${JSON.stringify(i)}`
+      );
+    if (t.has(i))
+      throw new Error(
+        `contributes.ui.messageActions declares id "${i}" more than once; an id must be unique within messageActions`
+      );
+    t.add(i);
+    const s = () => `contributes.ui.messageActions[${n}] ("${i}")`, o = r.title;
+    if (typeof o != "string" || o.length === 0)
+      throw new Error(`${s()}.title must be a non-empty string, got ${JSON.stringify(o)}`);
+    let u;
+    if (r.icon !== void 0) {
+      if (typeof r.icon != "string")
+        throw new Error(`${s()}.icon must be a string when present, got ${JSON.stringify(r.icon)}`);
+      u = r.icon;
+    }
+    const a = kE(r.messages, i, n), c = r.toolName;
+    if (typeof c != "string" || c.trim() === "")
+      throw new Error(`${s()}.toolName must be a non-empty string, got ${JSON.stringify(c)}`);
+    const A = tn(r.args, s);
+    return {
+      id: i,
+      title: o,
+      ...u === void 0 ? {} : { icon: u },
+      messages: a,
+      toolName: c,
+      ...A === void 0 ? {} : { args: A }
+    };
+  });
+}
+function LE(e) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e))
+    throw new Error(`contributes.ui.cardChrome must be an array when present, got ${JSON.stringify(e)}`);
+  if (e.length > Ws)
+    throw new Error(
+      `contributes.ui.cardChrome declares ${e.length} entries; a plugin may contribute at most ${Ws}`
+    );
+  const t = /* @__PURE__ */ new Set();
+  return e.map((r, n) => {
+    if (!De(r))
+      throw new Error(`contributes.ui.cardChrome[${n}] must be an object, got ${JSON.stringify(r)}`);
+    for (const _ of Object.keys(r))
+      if (!Ls.includes(_))
+        throw new Error(
+          `contributes.ui.cardChrome[${n}].${_} is not a field a manifestVersion ${pt} card chrome contribution has; this version knows ${Ls.join(", ")}`
+        );
+    const i = r.id;
+    if (typeof i != "string" || i.trim() === "")
+      throw new Error(
+        `contributes.ui.cardChrome[${n}].id must be a non-empty string, got ${JSON.stringify(i)}`
+      );
+    if (t.has(i))
+      throw new Error(
+        `contributes.ui.cardChrome declares id "${i}" more than once; an id must be unique within cardChrome`
+      );
+    t.add(i);
+    const s = () => `contributes.ui.cardChrome[${n}] ("${i}")`, o = r.title;
+    if (typeof o != "string" || o.length === 0)
+      throw new Error(`${s()}.title must be a non-empty string, got ${JSON.stringify(o)}`);
+    let u;
+    if (r.icon !== void 0) {
+      if (typeof r.icon != "string")
+        throw new Error(`${s()}.icon must be a string when present, got ${JSON.stringify(r.icon)}`);
+      u = r.icon;
+    }
+    const a = r.targetCardDefinitionId !== void 0, c = r.targetCard !== void 0;
+    if (a && c)
+      throw new Error(
+        `${s()} declares both targetCardDefinitionId and targetCard; a card chrome contribution must target a card definition or a card owner, not both`
+      );
+    if (!a && !c)
+      throw new Error(`${s()} must declare either targetCardDefinitionId or targetCard`);
+    let A;
+    if (a) {
+      const _ = r.targetCardDefinitionId;
+      if (typeof _ != "string" || _.trim() === "")
+        throw new Error(
+          `${s()}.targetCardDefinitionId must be a non-empty string, got ${JSON.stringify(_)}`
+        );
+      A = _;
+    }
+    let d;
+    if (c) {
+      const _ = r.targetCard;
+      if (!De(_))
+        throw new Error(`${s()}.targetCard must be an object, got ${JSON.stringify(_)}`);
+      for (const k of Object.keys(_))
+        if (!xs.includes(k))
+          throw new Error(
+            `${s()}.targetCard.${k} is not a field a manifestVersion ${pt} card chrome target card has; this version knows ${xs.join(", ")}`
+          );
+      const R = _.appId;
+      if (typeof R != "string" || R.trim() === "")
+        throw new Error(
+          `${s()}.targetCard.appId must be a non-empty string, got ${JSON.stringify(R)}`
+        );
+      let I;
+      if (_.cardId !== void 0) {
+        const k = _.cardId;
+        if (typeof k != "string" || k.trim() === "")
+          throw new Error(
+            `${s()}.targetCard.cardId must be a non-empty string when present, got ` + JSON.stringify(k)
+          );
+        I = k;
+      }
+      d = { appId: R, ...I === void 0 ? {} : { cardId: I } };
+    }
+    const p = r.toolName;
+    if (typeof p != "string" || p.trim() === "")
+      throw new Error(`${s()}.toolName must be a non-empty string, got ${JSON.stringify(p)}`);
+    const w = tn(r.args, s);
+    return {
+      id: i,
+      title: o,
+      ...u === void 0 ? {} : { icon: u },
+      ...A === void 0 ? {} : { targetCardDefinitionId: A },
+      ...d === void 0 ? {} : { targetCard: d },
+      toolName: p,
+      ...w === void 0 ? {} : { args: w }
+    };
+  });
+}
+function xE(e) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e))
+    throw new Error(`contributes.ui.slots must be an array when present, got ${JSON.stringify(e)}`);
+  if (e.length > js)
+    throw new Error(
+      `contributes.ui.slots declares ${e.length} entries; a plugin may contribute at most ${js}`
+    );
+  const t = /* @__PURE__ */ new Set();
+  return e.map((r, n) => {
+    if (!De(r))
+      throw new Error(`contributes.ui.slots[${n}] must be an object, got ${JSON.stringify(r)}`);
+    for (const a of Object.keys(r))
+      if (!Us.includes(a))
+        throw new Error(
+          `contributes.ui.slots[${n}].${a} is not a field a manifestVersion ${pt} slot declaration has; this version knows ${Us.join(", ")}`
+        );
+    const i = r.name;
+    if (typeof i != "string" || !Wn.test(i))
+      throw new Error(
+        `contributes.ui.slots[${n}].name must be a non-empty string matching ${Wn}, got ${JSON.stringify(i)}`
+      );
+    if (t.has(i))
+      throw new Error(
+        `contributes.ui.slots declares name "${i}" more than once; a name must be unique within slots`
+      );
+    t.add(i);
+    const s = () => `contributes.ui.slots[${n}] ("${i}")`;
+    let o;
+    if (r.title !== void 0) {
+      if (typeof r.title != "string" || r.title.length === 0)
+        throw new Error(
+          `${s()}.title must be a non-empty string when present, got ${JSON.stringify(r.title)}`
+        );
+      o = r.title;
+    }
+    let u;
+    if (r.render !== void 0) {
+      if (r.render !== "iframe")
+        throw new Error(
+          `${s()}.render must be "iframe" when present, got ${JSON.stringify(r.render)}`
+        );
+      u = "iframe";
+    }
+    return {
+      name: i,
+      ...o === void 0 ? {} : { title: o },
+      ...u === void 0 ? {} : { render: u }
+    };
+  });
+}
+function UE(e, t) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e))
+    throw new Error(
+      `contributes.ui.slotContributions must be an array when present, got ${JSON.stringify(e)}`
+    );
+  if (e.length > Js)
+    throw new Error(
+      `contributes.ui.slotContributions declares ${e.length} entries; a plugin may contribute at most ${Js}`
+    );
+  const r = /* @__PURE__ */ new Set(), n = [];
+  return e.forEach((i, s) => {
+    if (!De(i))
+      throw new Error(
+        `contributes.ui.slotContributions[${s}] must be an object, got ${JSON.stringify(i)}`
+      );
+    for (const x of Object.keys(i))
+      if (!Ms.includes(x))
+        throw new Error(
+          `contributes.ui.slotContributions[${s}].${x} is not a field a manifestVersion ${pt} slot contribution has; this version knows ${Ms.join(", ")}`
+        );
+    const o = i.slot;
+    if (typeof o != "string" || o.trim() === "")
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].slot must be a non-empty string, got ${JSON.stringify(o)}`
+      );
+    const u = o.indexOf("/");
+    if (u === -1 || o.indexOf("/", u + 1) !== -1)
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].slot must contain exactly one "/" (appId/slotName), got ${JSON.stringify(o)}`
+      );
+    const a = o.slice(0, u), c = o.slice(u + 1);
+    if (a === "" || c === "")
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].slot must have a non-empty appId and slot name on either side of "/", got ${JSON.stringify(o)}`
+      );
+    if (!Wn.test(c))
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].slot's slot name half must match ${Wn}, got ${JSON.stringify(c)}`
+      );
+    if (o.startsWith("hana/"))
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].slot "${o}" names one of the host's own slots; a host slot takes contributions through its own key (messageActions, cardChrome), not slotContributions`
+      );
+    const A = i.id;
+    if (typeof A != "string" || A.trim() === "")
+      throw new Error(
+        `contributes.ui.slotContributions[${s}].id must be a non-empty string, got ${JSON.stringify(A)}`
+      );
+    if (r.has(A))
+      throw new Error(
+        `contributes.ui.slotContributions declares id "${A}" more than once; an id must be unique within slotContributions`
+      );
+    const d = () => `contributes.ui.slotContributions[${s}] ("${A}")`, p = i.route !== void 0, w = i.toolName !== void 0;
+    if (p && w)
+      throw new Error(
+        `${d()} cannot declare both route and toolName; an iframe contribution uses {slot, id, route}, a host-primitive contribution uses toolName`
+      );
+    if (p) {
+      const x = Rr(i.route);
+      if (x.ok === !1) {
+        Le.warn(
+          `plugin "${t}" contributes.ui.slotContributions[${s}] ("${A}") route is not a legal ui/ path (${x.reason}); dropping that contribution`
+        );
+        return;
+      }
+      if (i.args !== void 0)
+        throw new Error(`${d()}.args is only valid with toolName, not with route`);
+      let M;
+      if (i.title !== void 0) {
+        if (typeof i.title != "string" || i.title.length === 0)
+          throw new Error(
+            `${d()}.title must be a non-empty string when present, got ${JSON.stringify(i.title)}`
+          );
+        M = i.title;
+      }
+      let $;
+      if (i.icon !== void 0) {
+        if (typeof i.icon != "string")
+          throw new Error(`${d()}.icon must be a string when present, got ${JSON.stringify(i.icon)}`);
+        $ = i.icon;
+      }
+      r.add(A), n.push({
+        slot: o,
+        id: A,
+        ...M === void 0 ? {} : { title: M },
+        ...$ === void 0 ? {} : { icon: $ },
+        route: x.route
+      });
+      return;
+    }
+    const _ = i.title;
+    if (typeof _ != "string" || _.length === 0)
+      throw new Error(`${d()}.title must be a non-empty string, got ${JSON.stringify(_)}`);
+    let R;
+    if (i.icon !== void 0) {
+      if (typeof i.icon != "string")
+        throw new Error(`${d()}.icon must be a string when present, got ${JSON.stringify(i.icon)}`);
+      R = i.icon;
+    }
+    const I = i.toolName;
+    if (typeof I != "string" || I.trim() === "")
+      throw new Error(`${d()}.toolName must be a non-empty string, got ${JSON.stringify(I)}`);
+    const k = tn(i.args, d);
+    r.add(A), n.push({
+      slot: o,
+      id: A,
+      title: _,
+      ...R === void 0 ? {} : { icon: R },
+      toolName: I,
+      ...k === void 0 ? {} : { args: k }
+    });
+  }), n;
+}
+function ME(e) {
+  return wE.some(
+    (t) => t.id === e && t.access === "plugin" && t.render === "context-menu"
+  );
+}
+function HE(e, t) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e))
+    throw new Error(
+      `contributes.ui.contextMenus must be an array when present, got ${JSON.stringify(e)}`
+    );
+  if (e.length > Vs)
+    throw new Error(
+      `contributes.ui.contextMenus declares ${e.length} entries; a plugin may contribute at most ${Vs}`
+    );
+  const r = /* @__PURE__ */ new Set(), n = [];
+  return e.forEach((i, s) => {
+    if (!De(i))
+      throw new Error(
+        `contributes.ui.contextMenus[${s}] must be an object, got ${JSON.stringify(i)}`
+      );
+    for (const w of Object.keys(i))
+      if (!Hs.includes(w))
+        throw new Error(
+          `contributes.ui.contextMenus[${s}].${w} is not a field a manifestVersion ${pt} context menu contribution has; this version knows ${Hs.join(", ")}`
+        );
+    const o = i.id;
+    if (typeof o != "string" || o.trim() === "")
+      throw new Error(
+        `contributes.ui.contextMenus[${s}].id must be a non-empty string, got ${JSON.stringify(o)}`
+      );
+    if (r.has(o))
+      throw new Error(
+        `contributes.ui.contextMenus declares id "${o}" more than once; an id must be unique within contextMenus`
+      );
+    const u = () => `contributes.ui.contextMenus[${s}] ("${o}")`, a = i.title;
+    if (typeof a != "string" || a.length === 0)
+      throw new Error(`${u()}.title must be a non-empty string, got ${JSON.stringify(a)}`);
+    let c;
+    if (i.icon !== void 0) {
+      if (typeof i.icon != "string")
+        throw new Error(`${u()}.icon must be a string when present, got ${JSON.stringify(i.icon)}`);
+      c = i.icon;
+    }
+    const A = i.surface;
+    if (typeof A != "string" || A.trim() === "")
+      throw new Error(
+        `${u()}.surface must be a non-empty string, got ${JSON.stringify(A)}`
+      );
+    const d = i.toolName;
+    if (typeof d != "string" || d.trim() === "")
+      throw new Error(`${u()}.toolName must be a non-empty string, got ${JSON.stringify(d)}`);
+    const p = tn(i.args, u);
+    if (!ME(A)) {
+      Le.warn(
+        `plugin "${t}" contributes.ui.contextMenus[${s}] ("${o}") surface ${JSON.stringify(A)} is not an open context-menu slot; dropping that contribution`
+      );
+      return;
+    }
+    r.add(o), n.push({
+      id: o,
+      title: a,
+      ...c === void 0 ? {} : { icon: c },
+      surface: A,
+      toolName: d,
+      ...p === void 0 ? {} : { args: p }
+    });
+  }), n;
+}
+function YE(e) {
+  if (e === void 0) return [];
+  if (!Array.isArray(e)) throw new Error(`contributes.ui.inputStatus must be an array when present, got ${JSON.stringify(e)}`);
+  const t = /* @__PURE__ */ new Set();
+  return e.map((r, n) => {
+    if (!De(r)) throw new Error(`contributes.ui.inputStatus[${n}] must be an object, got ${JSON.stringify(r)}`);
+    for (const w of Object.keys(r))
+      if (!Ys.includes(w))
+        throw new Error(`contributes.ui.inputStatus[${n}].${w} is not a recognized input status field; this version knows ${Ys.join(", ")}`);
+    const i = typeof r.id == "string" ? r.id.trim() : "", s = typeof r.title == "string" ? r.title.trim() : "";
+    if (!i) throw new Error(`contributes.ui.inputStatus[${n}].id must be a non-empty string`);
+    if (t.has(i)) throw new Error(`contributes.ui.inputStatus declares id ${JSON.stringify(i)} more than once; an id must be unique within inputStatus`);
+    if (!s || s.length > 80) throw new Error(`contributes.ui.inputStatus[${n}] ("${i}").title must be a non-empty string of at most 80 characters`);
+    t.add(i);
+    const o = (w, _) => {
+      const R = r[w];
+      if (R !== void 0) {
+        if (typeof R != "string" || R.trim() === "" || _ !== void 0 && R.length > _)
+          throw new Error(`contributes.ui.inputStatus[${n}] ("${i}").${w} must be a non-empty string${_ === void 0 ? "" : ` of at most ${_} characters`} when present`);
+        return R;
+      }
+    }, u = o("icon");
+    if (u !== void 0 && !_E(u))
+      throw new Error(`contributes.ui.inputStatus[${n}] ("${i}").icon must be one of check, pin, sync when present`);
+    const a = u === void 0 ? void 0 : u, c = o("text", 80), A = o("tooltip", 500), d = o("toolName"), p = tn(r.args, () => `contributes.ui.inputStatus[${n}] ("${i}")`);
+    if (p !== void 0 && d === void 0) throw new Error(`contributes.ui.inputStatus[${n}] ("${i}").args requires toolName`);
+    return { id: i, title: s, ...a === void 0 ? {} : { icon: a }, ...c === void 0 ? {} : { text: c }, ...A === void 0 ? {} : { tooltip: A }, ...d === void 0 ? {} : { toolName: d }, ...p === void 0 ? {} : { args: p } };
+  });
+}
+function $E(e, t) {
+  return wp(e, { pluginId: t, warn: (r) => Le.warn(r) });
+}
+function KE(e, t) {
+  if (e !== void 0) {
+    if (!De(e))
+      throw new Error(`contributes.ui must be an object when present, got ${JSON.stringify(e)}`);
+    for (const r of Object.keys(e))
+      if (!ks.includes(r))
+        throw new Error(
+          `contributes.ui.${r} is not something a manifestVersion ${pt} plugin can contribute to the UI; this version knows ${ks.join(", ")}`
+        );
+    return {
+      messageActions: PE(e.messageActions),
+      cardChrome: LE(e.cardChrome),
+      slots: xE(e.slots),
+      slotContributions: UE(e.slotContributions, t),
+      contextMenus: HE(e.contextMenus, t),
+      ...e.inputStatus !== void 0 ? { inputStatus: YE(e.inputStatus) } : {},
+      ...e.keybindings !== void 0 ? { keybindings: $E(e.keybindings, t) } : {}
+    };
+  }
+}
+function QE(e) {
+  if (e === void 0) return;
+  if (!Array.isArray(e) || e.length > 4) throw new Error("contributes.homeActions must contain at most four actions.");
+  const t = /* @__PURE__ */ new Set();
+  return e.map((r, n) => {
+    if (!De(r)) throw new Error(`contributes.homeActions[${n}] must be an object.`);
+    if (Object.keys(r).some((a) => !["id", "title", "toolName", "args", "icon"].includes(a))) throw new Error(`contributes.homeActions[${n}] has an unknown field.`);
+    const i = typeof r.id == "string" ? r.id.trim() : "", s = typeof r.title == "string" ? r.title.trim() : "", o = typeof r.toolName == "string" ? r.toolName.trim() : "";
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(i) || i.length > 80 || t.has(i)) throw new Error(`contributes.homeActions[${n}].id must be a unique simple id of at most 80 characters.`);
+    if (!s || s.length > 80 || !o || o.length > 128) throw new Error(`contributes.homeActions[${n}] requires title and toolName within their length limits.`);
+    t.add(i);
+    const u = tn(r.args, () => `contributes.homeActions[${n}]`);
+    if (u && (JSON.stringify(u).length > 16 * 1024 || Object.prototype.hasOwnProperty.call(u, "context") || Object.prototype.hasOwnProperty.call(u, "callToken") || Object.prototype.hasOwnProperty.call(u, "agentId"))) throw new Error(`contributes.homeActions[${n}].args is invalid.`);
+    if (r.icon !== void 0 && r.icon !== "app" && r.icon !== "wrench") throw new Error(`contributes.homeActions[${n}].icon must be app or wrench.`);
+    return { id: i, title: s, toolName: o, ...u ? { args: u } : {}, ...r.icon ? { icon: r.icon } : {} };
+  });
+}
+const GE = /* @__PURE__ */ new Set([".png", ".webp", ".svg"]);
+function WE(e, t, r, n, i, s) {
+  const o = ($, ne) => {
+    throw new Error(
+      `plugin "${t}" contributes.cards[${n}] ("${r}").${$} ${ne}; bundle a non-empty png, webp, or svg under ui/ and reference it with a relative path`
+    );
+  }, u = ($, ne) => {
+    if (s) return o($, ne);
+    Le.warn(
+      `plugin "${t}" contributes.cards[${n}] ("${r}").${$} ${ne}; reading the card as if face were undeclared`
+    );
+  };
+  if (e == null)
+    return s ? o("face", "is required") : void 0;
+  if (!De(e))
+    return o("face", `must be an object with an image string, got ${JSON.stringify(e)}`);
+  const a = e;
+  if (a.image === void 0)
+    return o("face.image", "is required");
+  if (typeof a.image != "string")
+    return o("face.image", `must be a string, got ${JSON.stringify(a.image)}`);
+  const c = a.image.trim();
+  if (!c) return u("face.image", "must not be empty");
+  if (c.includes("\\") || c.includes("\0"))
+    return u("face.image", "contains illegal characters");
+  if (c.startsWith("/"))
+    return u("face.image", "must be relative to the app ui directory");
+  const A = c.split("/");
+  if (A.some(($) => !$ || $ === "." || $ === ".." || $.startsWith(".")))
+    return u("face.image", "escapes the app ui directory");
+  const d = Re.extname(A[A.length - 1]).toLowerCase();
+  if (!GE.has(d))
+    return u("face.image", `extension "${d || "none"}" is not one of png/webp/svg`);
+  const p = Re.join(i, "ui"), w = Re.join(p, ...A);
+  let _, R, I, k;
+  try {
+    _ = Xe.realpathSync(i), R = Xe.realpathSync(p), I = Xe.realpathSync(w), k = Xe.statSync(w);
+  } catch {
+    return u("face.image", `must name an existing regular file at ui/${A.join("/")}`);
+  }
+  const x = Re.relative(_, R);
+  if (x === ".." || !x || x.startsWith(`..${Re.sep}`) || Re.isAbsolute(x))
+    return u("face.image", "resolves outside the app directory");
+  const M = Re.relative(R, I);
+  return M === ".." || !M || M.startsWith(`..${Re.sep}`) || Re.isAbsolute(M) ? u("face.image", "resolves outside the app ui directory") : k.isFile() ? k.size === 0 ? u("face.image", `must name a non-empty file at ui/${A.join("/")}`) : A.join("/") : u("face.image", `must name a regular file at ui/${A.join("/")}`);
+}
+function wi(e, t, r, n) {
+  if (e != null) {
+    if (typeof e != "boolean")
+      throw new Error(
+        `contributes.cards[${n}] ("${r}").${t} must be a boolean when present, got ` + JSON.stringify(e)
+      );
+    return e;
+  }
+}
+function Yu(e, t, r) {
+  if (e == null) return;
+  const n = FA(e);
+  if (n === void 0) {
+    Le.warn(
+      `plugin "${t}" ${r} is empty or not an array of strings; treating as undeclared`
+    );
+    return;
+  }
+  return n;
+}
+function jE(e, t, r, n, i = !1) {
+  if (e === void 0) return;
+  if (!Array.isArray(e))
+    throw new Error(`contributes.cards must be an array when present, got ${JSON.stringify(e)}`);
+  const s = /* @__PURE__ */ new Set(), o = [];
+  e.forEach((a, c) => {
+    if (!De(a))
+      throw new Error(`contributes.cards[${c}] must be an object, got ${JSON.stringify(a)}`);
+    for (const X of Object.keys(a))
+      if (!$s.includes(X))
+        throw new Error(
+          `contributes.cards[${c}].${X} is not a field a manifestVersion ${pt} plugin can contribute; this version knows ${$s.join(", ")}`
+        );
+    const A = a.id;
+    if (typeof A != "string" || A.trim() === "")
+      throw new Error(
+        `contributes.cards[${c}].id must be a non-empty string, got ${JSON.stringify(A)}`
+      );
+    if (s.has(A))
+      throw new Error(
+        `contributes.cards declares id ${JSON.stringify(A)} more than once; an id must be unique within cards`
+      );
+    const d = a.title;
+    let p;
+    if (d !== void 0) {
+      if (typeof d != "string" || d.trim() === "")
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").title must be a non-empty string when present, got ` + JSON.stringify(d)
+        );
+      p = d;
+    }
+    let w;
+    a.description !== void 0 && (typeof a.description == "string" && a.description.trim() ? w = a.description.trim() : Le.warn(
+      `plugin "${t}" contributes.cards[${c}] ("${A}") description is not a non-empty string; reading the card as if it were undeclared`
+    ));
+    const _ = WE(a.face, t, A, c, r, i), R = _ === void 0 ? void 0 : { image: _ };
+    if (a.route !== void 0 && a.embedUrl !== void 0)
+      throw new Error(
+        `contributes.cards[${c}] ("${A}") cannot declare both route and embedUrl`
+      );
+    let I;
+    if (a.route !== void 0) {
+      const X = Rr(a.route);
+      if (X.ok === !1) {
+        Le.warn(
+          `plugin "${t}" contributes.cards[${c}] ("${A}") route is not a legal ui/ path (${X.reason}); dropping that card`
+        );
+        return;
+      }
+      I = X.route;
+    }
+    let k;
+    if (a.detached !== void 0) {
+      if (!De(a.detached) || Object.keys(a.detached).some((le) => le !== "route"))
+        throw new Error(`contributes.cards[${c}] ("${A}").detached must be an object containing only route`);
+      if (!I) throw new Error(`contributes.cards[${c}] ("${A}").detached requires a host-served card route`);
+      const X = Rr(a.detached.route);
+      if (X.ok === !1)
+        throw new Error(`contributes.cards[${c}] ("${A}").detached.route is not a legal ui/ path (${X.reason})`);
+      k = { route: X.route };
+    }
+    let x;
+    if (a.detachedDefaultSize !== void 0) {
+      const X = a.detachedDefaultSize;
+      if (!De(X) || Object.keys(X).some((le) => le !== "width" && le !== "height"))
+        throw new Error(`contributes.cards[${c}] ("${A}").detachedDefaultSize must contain only width and height`);
+      if (typeof X.width != "number" || !Number.isInteger(X.width) || X.width < 240 || X.width > 4096)
+        throw new Error(`contributes.cards[${c}] ("${A}").detachedDefaultSize.width must be an integer from 240 through 4096`);
+      if (typeof X.height != "number" || !Number.isInteger(X.height) || X.height < 160 || X.height > 4096)
+        throw new Error(`contributes.cards[${c}] ("${A}").detachedDefaultSize.height must be an integer from 160 through 4096`);
+      x = { width: X.width, height: X.height };
+    }
+    let M;
+    if (a.embedUrl !== void 0) {
+      const X = Ho(a.embedUrl);
+      if (X.ok === !1) {
+        Le.warn(
+          `plugin "${t}" contributes.cards[${c}] ("${A}") embedUrl is not a legal loopback URL (${X.reason}); dropping that card`
+        );
+        return;
+      }
+      M = X.url;
+    }
+    let $;
+    if (a.cardForm !== void 0) {
+      if (typeof a.cardForm != "string")
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").cardForm must be a string when present, got ` + JSON.stringify(a.cardForm)
+        );
+      HA(a.cardForm).invalid ? Le.warn(
+        `plugin "${t}" contributes.cards[${c}] ("${A}") cardForm ${JSON.stringify(a.cardForm)} is invalid (allowed: ${Ba.join(", ")}); reading the card as if it were undeclared`
+      ) : $ = a.cardForm;
+    }
+    let ne;
+    if (a.titlebar !== void 0) {
+      if (typeof a.titlebar != "string")
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").titlebar must be a string when present, got ` + JSON.stringify(a.titlebar)
+        );
+      a.titlebar === "solid" || a.titlebar === "translucent" ? ne = a.titlebar : Le.warn(
+        `plugin "${t}" contributes.cards[${c}] ("${A}") titlebar ${JSON.stringify(a.titlebar)} is invalid (allowed: solid, translucent); reading the card as if it were undeclared`
+      );
+    }
+    let Y;
+    if (a.realization !== void 0 && a.realization !== null) {
+      if (typeof a.realization != "string")
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").realization must be a string when present, got ` + JSON.stringify(a.realization)
+        );
+      UA(a.realization) ? Y = a.realization : Le.warn(
+        `plugin "${t}" contributes.cards[${c}] ("${A}") realization ${JSON.stringify(a.realization)} is invalid (allowed: ${Ra.join(", ")}); reading the card as if it were undeclared`
+      );
+    }
+    let v;
+    if (a.pageOf !== void 0 && a.pageOf !== null) {
+      if (typeof a.pageOf != "string")
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").pageOf must be a string when present, got ` + JSON.stringify(a.pageOf)
+        );
+      const X = a.pageOf.trim();
+      X ? v = X : Le.warn(
+        `plugin "${t}" contributes.cards[${c}] ("${A}") pageOf is empty; reading the card as if pageOf were undeclared`
+      );
+    }
+    const B = wi(a.siteNavEntry, "siteNavEntry", A, c), N = wi(a.fpFullPanel, "fpFullPanel", A, c), ee = wi(a.closable, "closable", A, c);
+    let Ae;
+    if (a.functionPanel !== void 0 && a.functionPanel !== null) {
+      if (!De(a.functionPanel))
+        throw new Error(
+          `contributes.cards[${c}] ("${A}").functionPanel must be an object when present, got ` + JSON.stringify(a.functionPanel)
+        );
+      const X = MA(a.functionPanel);
+      if (!X)
+        Le.warn(
+          `plugin "${t}" contributes.cards[${c}] ("${A}") functionPanel needs a non-empty id; reading the card as if the panel were undeclared`
+        );
+      else {
+        if (a.functionPanel.embedUrl !== void 0 && a.functionPanel.route !== void 0)
+          throw new Error(
+            `contributes.cards[${c}] ("${A}").functionPanel cannot declare both route and embedUrl`
+          );
+        let le;
+        if (a.functionPanel.embedUrl !== void 0) {
+          const ie = Ho(a.functionPanel.embedUrl);
+          ie.ok === !1 ? Le.warn(
+            `plugin "${t}" contributes.cards[${c}] ("${A}") functionPanel.embedUrl is not a legal loopback URL (${ie.reason}); reading the panel as if embedUrl were undeclared`
+          ) : le = ie.url;
+        }
+        let J;
+        if (a.functionPanel.route !== void 0) {
+          if (typeof a.functionPanel.route != "string")
+            throw new Error(
+              `contributes.cards[${c}] ("${A}").functionPanel.route must be a string when present, got ` + JSON.stringify(a.functionPanel.route)
+            );
+          const ie = Rr(a.functionPanel.route);
+          if (ie.ok === !1)
+            throw new Error(
+              `contributes.cards[${c}] ("${A}").functionPanel.route is not a legal ui/ path (${ie.reason})`
+            );
+          J = ie.route;
+        }
+        Ae = {
+          id: X.id,
+          ...typeof X.label == "string" ? { label: X.label } : {},
+          ...le === void 0 ? {} : { embedUrl: le },
+          ...J === void 0 ? {} : { route: J }
+        };
+      }
+    }
+    const be = Yu(
+      a.formFactors,
+      t,
+      `contributes.cards[${c}] ("${A}") formFactors`
+    ) ?? n;
+    s.add(A), o.push({
+      id: A,
+      index: c,
+      ...p === void 0 ? {} : { title: p },
+      ...w === void 0 ? {} : { description: w },
+      ...I === void 0 ? {} : { route: I },
+      ...k === void 0 ? {} : { detached: k },
+      ...x === void 0 ? {} : { detachedDefaultSize: x },
+      ...M === void 0 ? {} : { embedUrl: M },
+      ...$ === void 0 ? {} : { cardForm: $ },
+      ...ne === void 0 ? {} : { titlebar: ne },
+      ...Y === void 0 ? {} : { realization: Y },
+      ...v === void 0 ? {} : { pageOf: v },
+      ...ee === void 0 ? {} : { closable: ee },
+      ...B === void 0 ? {} : { siteNavEntry: B },
+      ...N === void 0 ? {} : { fpFullPanel: N },
+      ...Ae === void 0 ? {} : { functionPanel: Ae },
+      ...R === void 0 ? {} : { face: R },
+      ...be === void 0 ? {} : { formFactors: be }
+    });
+  });
+  const u = new Map(o.map((a) => [a.id, a]));
+  for (const a of o) {
+    if (a.pageOf === void 0) continue;
+    if (a.pageOf === a.id) {
+      Le.warn(
+        `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") pageOf names this card; reading the card as if pageOf were undeclared`
+      ), delete a.pageOf;
+      continue;
+    }
+    const c = u.get(a.pageOf);
+    (!c || c.realization !== "page") && (Le.warn(
+      `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") pageOf ${JSON.stringify(a.pageOf)} does not name a realization:"page" card in this app; reading the card as if pageOf were undeclared`
+    ), delete a.pageOf);
+  }
+  for (const a of o)
+    a.pageOf !== void 0 && a.realization === "page" && (Le.warn(
+      `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") declares both realization:"page" and pageOf; keeping pageOf and reading the card as if realization were undeclared`
+    ), delete a.realization), a.realization !== "page" && (a.closable !== void 0 && (Le.warn(
+      `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") closable is only meaningful on a realization:"page" card; treating as undeclared`
+    ), delete a.closable), a.siteNavEntry !== void 0 && (Le.warn(
+      `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") siteNavEntry is only meaningful on a realization:"page" card; treating as undeclared`
+    ), delete a.siteNavEntry), a.fpFullPanel !== void 0 && (Le.warn(
+      `plugin "${t}" contributes.cards[${a.index}] ("${a.id}") fpFullPanel is only meaningful on a realization:"page" card; treating as undeclared`
+    ), delete a.fpFullPanel));
+  return o.map((a) => en({
+    id: a.id,
+    ...a.title === void 0 ? {} : { title: a.title },
+    ...a.description === void 0 ? {} : { description: a.description },
+    ...a.route === void 0 ? {} : { route: a.route },
+    ...a.detached === void 0 ? {} : { detached: a.detached },
+    ...a.detachedDefaultSize === void 0 ? {} : { detachedDefaultSize: a.detachedDefaultSize },
+    ...a.embedUrl === void 0 ? {} : { embedUrl: a.embedUrl },
+    ...a.cardForm === void 0 ? {} : { cardForm: a.cardForm },
+    ...a.titlebar === void 0 ? {} : { titlebar: a.titlebar },
+    ...a.realization === void 0 ? {} : { realization: a.realization },
+    ...a.pageOf === void 0 ? {} : { pageOf: a.pageOf },
+    ...a.closable === void 0 ? {} : { closable: a.closable },
+    ...a.siteNavEntry === void 0 ? {} : { siteNavEntry: a.siteNavEntry },
+    ...a.fpFullPanel === void 0 ? {} : { fpFullPanel: a.fpFullPanel },
+    ...a.functionPanel === void 0 ? {} : { functionPanel: a.functionPanel },
+    ...a.face === void 0 ? {} : { face: a.face },
+    ...a.formFactors === void 0 ? {} : { formFactors: Object.freeze([...a.formFactors]) }
+  }));
+}
+const JE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, VE = [
+  "id",
+  "title",
+  "description",
+  "yuan",
+  "tools",
+  "cards",
+  "capabilities",
+  "privateSession"
+], ZE = /* @__PURE__ */ new Set(["plugin-private", "none"]);
+function Ii(e) {
+  return [...new Set(e.map((t) => typeof t == "string" ? t.trim() : "").filter(Boolean))];
+}
+function zE(e, t, r) {
+  if (!De(e))
+    return Le.warn(`plugin "${t}" contributes.agentTypes declares a non-object entry, skipping`), null;
+  for (const p of Object.keys(e))
+    if (!VE.includes(p))
+      return Le.warn(
+        `plugin "${t}" contributes.agentTypes entry declares unknown field "${p}", skipping that entry`
+      ), null;
+  const n = e.id;
+  if (typeof n != "string" || !JE.test(n.trim()))
+    return Le.warn(`plugin "${t}" contributes.agentTypes declares an invalid id ${JSON.stringify(n)}, skipping`), null;
+  const i = n.trim();
+  if (r.has(i))
+    return Le.warn(`plugin "${t}" declares duplicate contributes.agentTypes id "${i}", skipping`), null;
+  const s = typeof e.title == "string" ? e.title.trim() : "";
+  if (!s)
+    return Le.warn(`plugin "${t}" contributes.agentTypes entry "${i}" is missing a required title, skipping`), null;
+  const o = typeof e.description == "string" && e.description.trim() ? e.description.trim() : null;
+  let u = null;
+  if (e.yuan !== void 0 && e.yuan !== null) {
+    if (!hE(e.yuan))
+      return Le.warn(
+        `plugin "${t}" contributes.agentTypes entry "${i}" declares invalid yuan ${JSON.stringify(e.yuan)}, skipping`
+      ), null;
+    u = String(e.yuan).trim();
+  }
+  if (e.tools !== void 0 && !Array.isArray(e.tools))
+    return Le.warn(`plugin "${t}" contributes.agentTypes entry "${i}" declares non-array tools, skipping`), null;
+  const a = Array.isArray(e.tools) ? Ii(e.tools) : [];
+  if (e.cards !== void 0 && !Array.isArray(e.cards))
+    return Le.warn(`plugin "${t}" contributes.agentTypes entry "${i}" declares non-array cards, skipping`), null;
+  const c = Array.isArray(e.cards) ? Ii(e.cards) : [];
+  if (e.capabilities !== void 0 && !Array.isArray(e.capabilities))
+    return Le.warn(
+      `plugin "${t}" contributes.agentTypes entry "${i}" declares non-array capabilities, skipping`
+    ), null;
+  const A = Array.isArray(e.capabilities) ? Ii(e.capabilities) : [];
+  let d = null;
+  if (e.privateSession !== void 0 && e.privateSession !== null) {
+    if (!De(e.privateSession))
+      return Le.warn(
+        `plugin "${t}" contributes.agentTypes entry "${i}" declares invalid privateSession (not an object), skipping`
+      ), null;
+    if (typeof e.privateSession.enabled != "boolean")
+      return Le.warn(
+        `plugin "${t}" contributes.agentTypes entry "${i}" declares privateSession.enabled that is not a boolean, skipping`
+      ), null;
+    const p = e.privateSession.memory;
+    if (typeof p != "string" || !ZE.has(p))
+      return Le.warn(
+        `plugin "${t}" contributes.agentTypes entry "${i}" declares invalid privateSession.memory ${JSON.stringify(p)}, skipping`
+      ), null;
+    d = { enabled: e.privateSession.enabled, memory: p };
+  }
+  return r.add(i), { id: i, title: s, description: o, yuan: u, tools: a, cards: c, capabilities: A, privateSession: d };
+}
+function qE(e, t) {
+  if (e === void 0) return;
+  if (!Array.isArray(e))
+    throw new Error(`contributes.agentTypes must be an array when present, got ${JSON.stringify(e)}`);
+  const r = /* @__PURE__ */ new Set(), n = [];
+  for (const i of e) {
+    const s = zE(i, t, r);
+    s && n.push(s);
+  }
+  return n;
+}
+function XE(e) {
+  const t = e.trim();
+  return !(!t || t.includes("/") || t.startsWith(`${vi}:`));
+}
+function eC(e, t, r) {
+  if (e === void 0) return;
+  if (!Array.isArray(e))
+    throw new Error(
+      `contributes.messageRenderers must be an array when present, got ${JSON.stringify(e)}`
+    );
+  const n = new Set(
+    (r ?? []).filter((o) => typeof o.route == "string" && o.route).map((o) => o.id)
+  ), i = /* @__PURE__ */ new Set(), s = [];
+  return e.forEach((o, u) => {
+    if (!De(o))
+      throw new Error(
+        `contributes.messageRenderers[${u}] must be an object, got ${JSON.stringify(o)}`
+      );
+    for (const d of Object.keys(o))
+      if (!Ks.includes(d))
+        throw new Error(
+          `contributes.messageRenderers[${u}].${d} is not a field a manifestVersion ${pt} plugin can contribute; this version knows ` + Ks.join(", ")
+        );
+    const a = o.customType;
+    if (typeof a != "string")
+      throw new Error(
+        `contributes.messageRenderers[${u}].customType must be a string, got ` + JSON.stringify(a)
+      );
+    const c = a.trim();
+    if (!XE(a))
+      throw new Error(
+        `contributes.messageRenderers[${u}].customType must be a short name: a non-empty string with no "/" and no "${vi}:" namespace prefix (the host stamps it as ${vi}:<appId>/<name>), got ` + JSON.stringify(a)
+      );
+    if (i.has(c))
+      throw new Error(
+        `contributes.messageRenderers declares customType ${JSON.stringify(c)} more than once; a customType must be unique within messageRenderers`
+      );
+    i.add(c);
+    const A = o.cardId;
+    if (typeof A != "string" || A.trim() === "")
+      throw new Error(
+        `contributes.messageRenderers[${u}].cardId must be a non-empty string, got ` + JSON.stringify(A)
+      );
+    if (!n.has(A)) {
+      Le.warn(
+        `plugin "${t}" contributes.messageRenderers[${u}] ("${c}") cardId ${JSON.stringify(A)} does not name a card in this app's contributes.cards that has a route; dropping that mapping`
+      );
+      return;
+    }
+    s.push(en({ customType: c, cardId: A }));
+  }), s;
+}
+const tC = ["id", "displayName", "authType", "capabilities"], zs = tC, rC = [
+  "id",
+  "title",
+  "selectors",
+  "route",
+  "mode",
+  "icon",
+  "formFactors"
+], qs = rC, Xs = ["extensions", "mimeTypes"], ea = ["api-key", "oauth", "none", "optional"], ta = ["chat", "media"], ra = ["imageGeneration", "videoGeneration"], na = ["models"];
+function ia(e, t) {
+  if (e === void 0) return;
+  if (!De(e))
+    throw new Error(`${t()} must be an object when present, got ${JSON.stringify(e)}`);
+  for (const n of Object.keys(e))
+    if (!na.includes(n))
+      throw new Error(
+        `${t()}.${n} is not a field a static provider contribution can declare; this version knows ${na.join(", ")}`
+      );
+  let r = [];
+  if (e.models !== void 0) {
+    if (!Array.isArray(e.models))
+      throw new Error(`${t()}.models must be an array when present, got ${JSON.stringify(e.models)}`);
+    r = [...e.models];
+  }
+  return Object.freeze({ models: Object.freeze(r) });
+}
+function nC(e, t) {
+  if (!De(e))
+    throw new Error(`${t()}.capabilities must be an object, got ${JSON.stringify(e)}`);
+  for (const i of Object.keys(e))
+    if (!ta.includes(i))
+      throw new Error(
+        `${t()}.capabilities.${i} is not a field a static provider contribution can declare; this version knows ${ta.join(", ")}`
+      );
+  let r;
+  if (e.chat !== void 0) {
+    if (!De(e.chat))
+      throw new Error(
+        `${t()}.capabilities.chat must be an object when present, got ${JSON.stringify(e.chat)}`
+      );
+    r = en({ ...e.chat });
+  }
+  let n;
+  if (e.media !== void 0) {
+    if (!De(e.media))
+      throw new Error(
+        `${t()}.capabilities.media must be an object when present, got ${JSON.stringify(e.media)}`
+      );
+    for (const o of Object.keys(e.media))
+      if (!ra.includes(o))
+        throw new Error(
+          `${t()}.capabilities.media.${o} is not a field a static provider contribution can declare; this version knows ${ra.join(", ")}`
+        );
+    const i = ia(
+      e.media.imageGeneration,
+      () => `${t()}.capabilities.media.imageGeneration`
+    ), s = ia(
+      e.media.videoGeneration,
+      () => `${t()}.capabilities.media.videoGeneration`
+    );
+    n = Object.freeze({
+      ...i === void 0 ? {} : { imageGeneration: i },
+      ...s === void 0 ? {} : { videoGeneration: s }
+    });
+  }
+  return Object.freeze({
+    ...r === void 0 ? {} : { chat: r },
+    ...n === void 0 ? {} : { media: n }
+  });
+}
+function iC(e) {
+  if (e === void 0) return;
+  if (!Array.isArray(e))
+    throw new Error(`contributes.providers must be an array when present, got ${JSON.stringify(e)}`);
+  const t = /* @__PURE__ */ new Set(), r = [];
+  return e.forEach((n, i) => {
+    const s = () => `contributes.providers[${i}]`;
+    if (!De(n))
+      throw new Error(`${s()} must be an object, got ${JSON.stringify(n)}`);
+    for (const d of Object.keys(n))
+      if (!zs.includes(d))
+        throw new Error(
+          `${s()}.${d} is not a field a manifestVersion ${pt} plugin can contribute; this version knows ${zs.join(", ")}`
+        );
+    const o = n.id;
+    if (typeof o != "string" || o.trim() === "")
+      throw new Error(`${s()}.id must be a non-empty string, got ${JSON.stringify(o)}`);
+    if (t.has(o))
+      throw new Error(
+        `contributes.providers declares id ${JSON.stringify(o)} more than once; an id must be unique within this app's own contributes.providers`
+      );
+    t.add(o);
+    const u = () => `${s()} (${JSON.stringify(o)})`, a = n.displayName;
+    if (typeof a != "string" || a.trim() === "")
+      throw new Error(
+        `${u()}.displayName must be a non-empty string, got ${JSON.stringify(a)}`
+      );
+    const c = n.authType;
+    if (typeof c != "string" || !ea.includes(c))
+      throw new Error(
+        `${u()}.authType must be one of ${ea.join(", ")}, got ${JSON.stringify(c)}`
+      );
+    const A = nC(n.capabilities, u);
+    r.push(en({
+      id: o,
+      displayName: a,
+      authType: c,
+      capabilities: A
+    }));
+  }), Object.freeze(r);
+}
+function oC(e, t) {
+  if (e === void 0) return;
+  if (!Array.isArray(e)) throw new Error("contributes.nativeProviders must be an array when present");
+  const r = /* @__PURE__ */ new Set(), n = e.map((i, s) => {
+    if (!De(i) || typeof i.id != "string")
+      throw new Error(`contributes.nativeProviders[${s}] requires an id`);
+    if (r.has(i.id)) throw new Error(`contributes.nativeProviders declares id ${JSON.stringify(i.id)} more than once`);
+    return r.add(i.id), Vh(i, zh(t, i.id));
+  });
+  return Object.freeze(n);
+}
+function _i(e, t) {
+  if (e !== void 0) {
+    if (!Array.isArray(e) || e.length === 0 || e.some((r) => typeof r != "string" || r.trim() === ""))
+      throw new Error(`${t} must be a non-empty array of non-empty strings when present, got ${JSON.stringify(e)}`);
+    return Object.freeze(e.map((r) => r.trim()));
+  }
+}
+function sC(e) {
+  if (e === void 0) return;
+  if (!Array.isArray(e))
+    throw new Error(`contributes.previewers must be an array when present, got ${JSON.stringify(e)}`);
+  const t = /* @__PURE__ */ new Set(), r = [];
+  return e.forEach((n, i) => {
+    if (!De(n))
+      throw new Error(`contributes.previewers[${i}] must be an object, got ${JSON.stringify(n)}`);
+    for (const R of Object.keys(n))
+      if (!qs.includes(R))
+        throw new Error(
+          `contributes.previewers[${i}].${R} is not a field a manifestVersion ${pt} previewer contribution has; this version knows ${qs.join(", ")}`
+        );
+    const s = n.id;
+    if (typeof s != "string" || s.trim() === "")
+      throw new Error(`contributes.previewers[${i}].id must be a non-empty string, got ${JSON.stringify(s)}`);
+    const o = s.trim();
+    if (t.has(o))
+      throw new Error(`contributes.previewers declares id ${JSON.stringify(o)} more than once; an id must be unique within previewers`);
+    t.add(o);
+    const u = `contributes.previewers[${i}] (${JSON.stringify(o)})`, a = n.title;
+    if (typeof a != "string" || a.trim() === "")
+      throw new Error(`${u}.title must be a non-empty string, got ${JSON.stringify(a)}`);
+    const c = n.selectors;
+    if (!Array.isArray(c) || c.length === 0)
+      throw new Error(`${u}.selectors must be a non-empty array, got ${JSON.stringify(c)}`);
+    const A = c.map((R, I) => {
+      if (!De(R))
+        throw new Error(`${u}.selectors[${I}] must be an object, got ${JSON.stringify(R)}`);
+      for (const M of Object.keys(R))
+        if (!Xs.includes(M))
+          throw new Error(`${u}.selectors[${I}].${M} is not a selector field; this version knows ${Xs.join(", ")}`);
+      const k = _i(R.extensions, `${u}.selectors[${I}].extensions`), x = _i(R.mimeTypes, `${u}.selectors[${I}].mimeTypes`);
+      if (!k && !x)
+        throw new Error(`${u}.selectors[${I}] must declare extensions, mimeTypes, or both`);
+      return Object.freeze({
+        ...k === void 0 ? {} : { extensions: k },
+        ...x === void 0 ? {} : { mimeTypes: x }
+      });
+    }), d = Rr(n.route);
+    if (d.ok === !1)
+      throw new Error(`${u}.route is not a legal App ui/ path (${d.reason})`);
+    const p = n.mode;
+    if (p !== "read" && p !== "edit")
+      throw new Error(`${u}.mode must be "read" or "edit", got ${JSON.stringify(p)}`);
+    let w;
+    if (n.icon !== void 0) {
+      if (typeof n.icon != "string" || n.icon.trim() === "")
+        throw new Error(`${u}.icon must be a non-empty string when present, got ${JSON.stringify(n.icon)}`);
+      w = n.icon.trim();
+    }
+    const _ = _i(n.formFactors, `${u}.formFactors`);
+    r.push(Object.freeze({
+      id: o,
+      title: a.trim(),
+      selectors: Object.freeze(A),
+      route: d.route,
+      mode: p,
+      ...w === void 0 ? {} : { icon: w },
+      ..._ === void 0 ? {} : { formFactors: _ }
+    }));
+  }), Object.freeze(r);
+}
+const oa = /^[a-z0-9][a-z0-9-]*$/, aC = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]), uC = ["name", "type", "description", "default"];
+function cC(e) {
+  if (e === void 0) return;
+  if (!Array.isArray(e)) throw new Error(`contributes.cliFlags must be an array when present, got ${JSON.stringify(e)}`);
+  const t = /* @__PURE__ */ new Set(), r = e.map((n, i) => {
+    if (!De(n)) throw new Error(`contributes.cliFlags[${i}] must be an object`);
+    for (const c of Object.keys(n))
+      if (!uC.includes(c))
+        throw new Error(`contributes.cliFlags[${i}].${c} is not a supported field`);
+    const s = n.name;
+    if (typeof s != "string" || !oa.test(s) || aC.has(s))
+      throw new Error(`contributes.cliFlags[${i}].name must match ${oa} and cannot be a prototype key`);
+    if (t.has(s)) throw new Error(`contributes.cliFlags declares name ${JSON.stringify(s)} more than once`);
+    t.add(s);
+    const o = n.type;
+    if (o !== "boolean" && o !== "string")
+      throw new Error(`contributes.cliFlags[${i}].type must be "boolean" or "string"`);
+    const u = n.description;
+    if (u !== void 0 && (typeof u != "string" || !u.trim()))
+      throw new Error(`contributes.cliFlags[${i}].description must be a non-empty string when present`);
+    const a = n.default;
+    if (a !== void 0 && typeof a !== o)
+      throw new Error(`contributes.cliFlags[${i}].default must match declared type "${o}"`);
+    return Object.freeze({
+      name: s,
+      type: o,
+      ...u === void 0 ? {} : { description: u.trim() },
+      ...a === void 0 ? {} : { default: a }
+    });
+  });
+  return Object.freeze(r);
+}
+function AC(e, t, r, n, i) {
+  if (e === void 0) return null;
+  if (!De(e))
+    throw new Error(`contributes must be an object when present, got ${JSON.stringify(e)}`);
+  for (const R of Object.keys(e))
+    if (!Bs.includes(R))
+      throw new Error(
+        `contributes.${R} is not something a manifestVersion ${pt} plugin can contribute; this version knows ${Bs.join(", ")}`
+      );
+  const s = RE(e.settings), o = KE(e.ui, t), u = jE(e.cards, t, r, n, i?.requireCardCovers === !0), a = qE(e.agentTypes, t), c = eC(e.messageRenderers, t, u), A = iC(e.providers), d = oC(e.nativeProviders, t), p = sC(e.previewers), w = cC(e.cliFlags), _ = QE(e.homeActions);
+  return en({
+    ...s === void 0 ? {} : { settings: s },
+    ...o === void 0 ? {} : { ui: o },
+    ...u === void 0 ? {} : { cards: u },
+    ...a === void 0 ? {} : { agentTypes: a },
+    ...c === void 0 ? {} : { messageRenderers: c },
+    ...A === void 0 ? {} : { providers: A },
+    ...d === void 0 ? {} : { nativeProviders: d },
+    ...p === void 0 ? {} : { previewers: p },
+    ...w === void 0 ? {} : { cliFlags: w },
+    ..._ === void 0 ? {} : { homeActions: _ }
+  });
+}
+function sa(e, t) {
+  if (!Array.isArray(e) || e.some((r) => typeof r != "string" || r.trim() === ""))
+    throw new Error(`${t} must be an array of non-empty strings when present, got ${JSON.stringify(e)}`);
+  return [...e];
+}
+function aa(e, t) {
+  if (!Number.isInteger(e) || e <= 0)
+    throw new Error(`${t} must be a positive integer when present, got ${JSON.stringify(e)}`);
+  return e;
+}
+function $i(e) {
+  if (e === null || typeof e != "object") {
+    const r = JSON.stringify(e);
+    if (r === void 0) throw new Error("activation tool metadata must be JSON serializable");
+    return r;
+  }
+  if (Array.isArray(e)) return `[${e.map($i).join(",")}]`;
+  const t = e;
+  return `{${Object.keys(t).sort().map((r) => `${JSON.stringify(r)}:${$i(t[r])}`).join(",")}}`;
+}
+function lC(e, t) {
+  if (e === void 0) return;
+  if (!De(e)) throw new Error(`activation must be an object when present (plugin ${JSON.stringify(t)})`);
+  for (const o of Object.keys(e))
+    if (o !== "mode" && o !== "tools" && o !== "idleTimeoutMs") throw new Error(`activation.${o} is not supported`);
+  if (e.mode !== "on-demand") throw new Error('activation.mode must be "on-demand"');
+  if (!Array.isArray(e.tools) || e.tools.length === 0 || e.tools.length > 32)
+    throw new Error("activation.tools must contain 1 to 32 declared tools");
+  const r = /* @__PURE__ */ new Set(), n = e.tools.map((o, u) => {
+    if (!De(o)) throw new Error(`activation.tools[${u}] must be an object`);
+    for (const A of Object.keys(o))
+      if (A !== "name" && A !== "description" && A !== "parameters" && A !== "sessionPermission" && A !== "documentAccess" && A !== "view")
+        throw new Error(`activation.tools[${u}].${A} is not supported`);
+    if (typeof o.name != "string" || !o.name.trim()) throw new Error(`activation.tools[${u}].name must be a non-empty string`);
+    if (r.has(o.name)) throw new Error(`activation.tools names must be unique; duplicate ${JSON.stringify(o.name)}`);
+    if (r.add(o.name), typeof o.description != "string") throw new Error(`activation.tools[${u}].description must be a string`);
+    if (!De(o.parameters)) throw new Error(`activation.tools[${u}].parameters must be a JSON Schema object`);
+    if (o.sessionPermission !== void 0 && !De(o.sessionPermission))
+      throw new Error(`activation.tools[${u}].sessionPermission must be an object`);
+    let a;
+    if (o.documentAccess !== void 0) {
+      if (o.documentAccess !== "read" && o.documentAccess !== "write")
+        throw new Error(`activation.tools[${u}].documentAccess must be "read" or "write" when present`);
+      a = o.documentAccess;
+    }
+    let c;
+    if (o.view !== void 0) {
+      if (!De(o.view) || Object.keys(o.view).length !== 1 || typeof o.view.providerId != "string" || !o.view.providerId)
+        throw new Error(`activation.tools[${u}].view must be { providerId: string } when present`);
+      if (!a)
+        throw new Error(`activation.tools[${u}].view requires documentAccess`);
+      if (!o.view.providerId.startsWith(`app:${t}/`))
+        throw new Error(`activation.tools[${u}].view provider must belong to this App`);
+      c = Object.freeze({ providerId: o.view.providerId });
+    }
+    if (Buffer.byteLength($i(o.parameters), "utf8") > 64 * 1024) throw new Error(`activation.tools[${u}].parameters exceeds 65536 bytes`);
+    return Object.freeze({
+      name: o.name,
+      description: o.description,
+      parameters: JSON.parse(JSON.stringify(o.parameters)),
+      ...o.sessionPermission === void 0 ? {} : { sessionPermission: JSON.parse(JSON.stringify(o.sessionPermission)) },
+      ...a === void 0 ? {} : { documentAccess: a },
+      ...c === void 0 ? {} : { view: c }
+    });
+  });
+  let i = 0;
+  const s = e.idleTimeoutMs;
+  if (s !== void 0) {
+    if (typeof s != "number" || !Number.isInteger(s) || s < 0 || s > 0 && s < 1e3)
+      throw new Error("activation.idleTimeoutMs must be 0 or an integer of at least 1000");
+    i = s;
+  }
+  return Object.freeze({ mode: "on-demand", tools: Object.freeze(n), idleTimeoutMs: i });
+}
+function fC(e, t) {
+  if (e === void 0) return null;
+  if (!De(e))
+    throw new Error(
+      `network must be an object when present, got ${JSON.stringify(e)} (plugin ${JSON.stringify(t)})`
+    );
+  for (const u of Object.keys(e))
+    if (!Rs.includes(u))
+      throw new Error(
+        `network.${u} is not a field a manifestVersion ${pt} plugin can declare; this version knows ${Rs.join(", ")}`
+      );
+  let r = [];
+  e.allowedHosts !== void 0 && (r = sa(e.allowedHosts, "network.allowedHosts"));
+  let n;
+  e.methods !== void 0 && (n = sa(e.methods, "network.methods"));
+  let i;
+  if (e.allowLocalhost !== void 0) {
+    if (typeof e.allowLocalhost != "boolean")
+      throw new Error(
+        `network.allowLocalhost must be a boolean when present, got ${JSON.stringify(e.allowLocalhost)}`
+      );
+    i = e.allowLocalhost;
+  }
+  let s;
+  e.defaultTimeoutMs !== void 0 && (s = aa(e.defaultTimeoutMs, "network.defaultTimeoutMs"));
+  let o;
+  return e.maxResponseBytes !== void 0 && (o = aa(e.maxResponseBytes, "network.maxResponseBytes")), Object.freeze({
+    allowedHosts: Object.freeze(r),
+    ...n === void 0 ? {} : { methods: Object.freeze(n) },
+    ...i === void 0 ? {} : { allowLocalhost: i },
+    ...s === void 0 ? {} : { defaultTimeoutMs: s },
+    ...o === void 0 ? {} : { maxResponseBytes: o }
+  });
+}
+function hC(e, t, r = {}) {
+  const n = Re.join(e, Ln);
+  let i;
+  try {
+    i = Xe.readFileSync(n, "utf-8");
+  } catch (Y) {
+    throw new Error(`cannot read ${Ln}: ${Zs(Y)}`);
+  }
+  let s;
+  try {
+    s = JSON.parse(i);
+  } catch (Y) {
+    throw new Error(`${Ln} is not valid JSON: ${Zs(Y)}`);
+  }
+  if (typeof s != "object" || s === null || Array.isArray(s))
+    throw new Error(`${Ln} must contain a JSON object`);
+  const o = s;
+  if (o.manifestVersion !== pt)
+    throw new Error(
+      `manifestVersion must be exactly ${pt}, got ${JSON.stringify(o.manifestVersion)}`
+    );
+  const u = o.id;
+  if (typeof u != "string" || u.length === 0)
+    throw new Error(`id must be a non-empty string, got ${JSON.stringify(u)}`);
+  if (u !== t)
+    throw new Error(`id ${JSON.stringify(u)} does not match its directory name ${JSON.stringify(t)}`);
+  if (u.includes("/") || u.includes("\\"))
+    throw new Error(`id ${JSON.stringify(u)} contains a path separator`);
+  if (u.includes(ao.sep))
+    throw new Error(
+      `id ${JSON.stringify(u)} contains ${JSON.stringify(ao.sep)}, which the loader's entry tree reads as a path separator`
+    );
+  const a = o.name;
+  if (typeof a != "string" || a.length === 0)
+    throw new Error(`name must be a non-empty string, got ${JSON.stringify(a)}`);
+  const c = o.version;
+  if (typeof c != "string" || c.length === 0)
+    throw new Error(`version must be a non-empty string, got ${JSON.stringify(c)}`);
+  const A = o.entry;
+  if (typeof A != "string" || A.length === 0)
+    throw new Error(`entry must be a non-empty string, got ${JSON.stringify(A)}`);
+  const d = Re.resolve(e, A), p = d === e ? !1 : d.startsWith(e + Re.sep);
+  if (Re.isAbsolute(A) || !p)
+    throw new Error(`entry ${JSON.stringify(A)} must be a path inside the plugin's own directory`);
+  let w;
+  if (o.icon !== void 0 && o.icon !== null) {
+    if (typeof o.icon != "string" || !o.icon.trim())
+      throw new Error(`icon must be a non-empty string when present, got ${JSON.stringify(o.icon)}`);
+    w = o.icon.trim();
+  }
+  const _ = o.capabilities;
+  if (_ !== void 0 && (!Array.isArray(_) || _.some((Y) => typeof Y != "string")))
+    throw new Error("capabilities must be an array of strings when present");
+  const R = fC(o.network, u);
+  let I;
+  if (o.minAppVersion !== void 0 && o.minAppVersion !== null) {
+    if (typeof o.minAppVersion != "string")
+      throw new Error(
+        `minAppVersion must be a string when present, got ${JSON.stringify(o.minAppVersion)}`
+      );
+    if (vA(o.minAppVersion) === null)
+      throw new Error(
+        `minAppVersion must be MAJOR.MINOR.PATCH, got ${JSON.stringify(o.minAppVersion)}`
+      );
+    I = o.minAppVersion;
+  }
+  let k;
+  if (o.description !== void 0 && o.description !== null) {
+    if (typeof o.description != "string")
+      throw new Error(
+        `description must be a string when present, got ${JSON.stringify(o.description)}`
+      );
+    k = o.description;
+  }
+  let x;
+  if (o.hidden !== void 0 && o.hidden !== null) {
+    if (typeof o.hidden != "boolean")
+      throw new Error(
+        `hidden must be a boolean when present, got ${JSON.stringify(o.hidden)}`
+      );
+    x = o.hidden;
+  }
+  const M = Yu(o.formFactors, u, "formFactors"), $ = AC(o.contributes, u, e, M, r), ne = lC(o.activation, u);
+  return Object.freeze({
+    manifestVersion: pt,
+    id: u,
+    name: a,
+    version: c,
+    entry: A,
+    ...w === void 0 ? {} : { icon: w },
+    capabilities: Object.freeze(_ === void 0 ? [] : [..._]),
+    contributes: $,
+    network: R,
+    ...I === void 0 ? {} : { minAppVersion: I },
+    ...M === void 0 ? {} : { formFactors: Object.freeze([...M]) },
+    ...k === void 0 ? {} : { description: k },
+    ...x === void 0 ? {} : { hidden: x },
+    ...ne === void 0 ? {} : { activation: ne }
+  });
+}
+pc(import.meta.url);
+function dC(e) {
+  const t = pC(String(e || "")).trim();
+  if (!t) return "";
+  const r = mC(t);
+  return (r ? r.map((i) => `- ${i.trim()}`).join(`
+`) : t).split(/\r?\n/).filter((i) => !/^#{1,6}\s+\S/.test(i.trim())).join(`
+`).replace(/\n{3,}/g, `
+
+`).trim();
+}
+function pC(e) {
+  return String(e || "").replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>\s*/gi, "").replace(/^\s*<think(?:ing)?>[\s\S]*$/i, "").replace(/<\/think(?:ing)?>\s*/gi, "");
+}
+function mC(e) {
+  try {
+    const t = JSON.parse(e);
+    return !Array.isArray(t) || !t.every((r) => typeof r == "string") ? null : t.filter((r) => r.trim());
+  } catch {
+    return null;
+  }
+}
+const gC = Object.freeze({
+  SESSION_SNAPSHOT: "session_snapshot",
+  UTILITY_TEMPLATE: "utility_template",
+  CACHE_RECOVERY: "cache_recovery"
+});
+new Set(Object.values(gC));
+const EC = [
+  { key: "facts", fileName: "facts.md", label: "重要事实" },
+  { key: "today", fileName: "today.md", label: "今天" },
+  { key: "week", fileName: "week.md", label: "本周早些时候" },
+  { key: "longterm", fileName: "longterm.md", label: "长期情况" }
+];
+function CC(e = {}) {
+  const t = e && typeof e == "object" ? e : {};
+  return Object.fromEntries(EC.map(({ key: r }) => [
+    r,
+    dC(typeof t[r] == "string" ? t[r] : "")
+  ]));
+}
+const ua = 1024;
+function yC(e, t) {
+  return typeof e != "string" ? t : e.trim() || t;
+}
+function bC(e) {
+  if (typeof e != "string") return "";
+  const t = e.replace(/\s+/g, " ").trim();
+  return t ? t.length > ua ? t.slice(0, ua) : t : "";
+}
+function wC(e) {
+  return !e || typeof e.metadata != "object" || Array.isArray(e.metadata) ? {} : e.metadata;
+}
+function IC(e) {
+  const t = wC(e);
+  return !(e?.["default-enabled"] === !1 || e?.defaultEnabled === !1 || t["default-enabled"] === !1 || t.defaultEnabled === !1);
+}
+function _C(e) {
+  return typeof e != "string" ? "" : e.trim().toLowerCase();
+}
+const DC = /* @__PURE__ */ new Set(["card-skill", "recipe"]);
+function SC(e, t = "") {
+  const r = {
+    name: t,
+    description: "",
+    disableModelInvocation: !1,
+    defaultEnabled: !0,
+    profile: ""
+  };
+  if (typeof e != "string" || !e.startsWith("---")) return r;
+  const n = e.match(/^---\s*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!n) return r;
+  try {
+    const i = bu.load(n[1]);
+    return !i || typeof i != "object" ? r : {
+      name: yC(i.name, t),
+      description: bC(i.description),
+      disableModelInvocation: i["disable-model-invocation"] === !0,
+      defaultEnabled: IC(i),
+      profile: _C(i.profile)
+    };
+  } catch {
+    return r;
+  }
+}
+const TC = 512, NC = 32 * 1024 * 1024;
+class io {
+  maxEntries;
+  maxBytes;
+  entries = /* @__PURE__ */ new Map();
+  retainedBytes = 0;
+  constructor(t = {}) {
+    this.maxEntries = t.maxEntries ?? TC, this.maxBytes = t.maxBytes ?? NC;
+  }
+  /** How many conclusions are held. */
+  get size() {
+    return this.entries.size;
+  }
+  /** How many bytes of stored conclusions are held. */
+  get bytes() {
+    return this.retainedBytes;
+  }
+  read(t) {
+    const r = ca(t), n = this.entries.get(r);
+    if (n)
+      return this.entries.delete(r), this.entries.set(r, n), n.value;
+  }
+  write(t, r, n) {
+    if (!Number.isFinite(n) || n < 0)
+      throw new TypeError("ContentHashCache entry size must be a finite, non-negative byte count.");
+    if (n > this.maxBytes) return;
+    const i = ca(t);
+    for (this.evict(i), this.entries.set(i, { value: r, bytes: n }), this.retainedBytes += n; this.entries.size > this.maxEntries || this.retainedBytes > this.maxBytes; ) {
+      const s = this.entries.keys().next().value;
+      if (s === void 0) break;
+      this.evict(s);
+    }
+  }
+  clear() {
+    this.entries.clear(), this.retainedBytes = 0;
+  }
+  evict(t) {
+    const r = this.entries.get(t);
+    r && (this.entries.delete(t), this.retainedBytes -= r.bytes);
+  }
+}
+function ca(e) {
+  return fc("sha256").update(e, "utf-8").digest("hex");
+}
+new io();
+new io();
+new io();
+const OC = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+function vC(e) {
+  if (!e) return null;
+  const t = e.trim();
+  return OC.test(t) ? t : null;
+}
+(() => {
+  const e = new Uint32Array(256);
+  for (let t = 0; t < 256; t++) {
+    let r = t;
+    for (let n = 0; n < 8; n++)
+      r = r & 1 ? 3988292384 ^ r >>> 1 : r >>> 1;
+    e[t] = r >>> 0;
+  }
+  return e;
+})();
+function BC(e, t) {
+  if (typeof e != "string" || typeof t != "string" || !e || !t) return null;
+  const r = Re.resolve(e), n = Re.resolve(t), i = Re.relative(n, r);
+  return i === "" ? "" : !i || i.startsWith("..") || Re.isAbsolute(i) ? null : i;
+}
+const RC = /* @__PURE__ */ new Set(["hanako", "butter", "ming", "kong"]), FC = [
+  "manifest.json",
+  "manifest.yaml",
+  "manifest.yml",
+  "character-card.json",
+  "character-card.yaml",
+  "character-card.yml",
+  "card.json",
+  "card.yaml",
+  "card.yml"
+], Aa = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp"
+};
+class kt extends Error {
+  constructor(t, r = 400) {
+    super(t), this.name = "CharacterCardError", this.status = r;
+  }
+}
+function la(e) {
+  const t = Xe.readFileSync(e, "utf-8");
+  return Re.extname(e).toLowerCase() === ".json" ? JSON.parse(t) : bu.load(t);
+}
+function oo(e, t, r = "file") {
+  if (typeof t != "string" || !t.trim())
+    throw new kt(`${r} path is required`);
+  if (Re.isAbsolute(t))
+    throw new kt(`${r} must be a package-relative path`);
+  const n = Re.resolve(e, t), i = BC(n, e);
+  if (i === null)
+    throw new kt(`${r} escapes the package`);
+  return { resolved: n, rel: i };
+}
+function $u(e) {
+  const t = [e];
+  for (; t.length > 0; ) {
+    const r = t.pop();
+    for (const n of Xe.readdirSync(r, { withFileTypes: !0 })) {
+      const i = Re.join(r, n.name), s = Xe.lstatSync(i);
+      if (s.isSymbolicLink())
+        throw new kt("symlink is not allowed in character-card packages");
+      s.isDirectory() && t.push(i);
+    }
+  }
+}
+function kC(e) {
+  for (const t of FC) {
+    const r = Re.join(e, t);
+    if (Xe.existsSync(r)) {
+      const n = la(r);
+      if (n?.card && typeof n.card == "string") {
+        const { resolved: i } = oo(e, n.card, "card");
+        if (!Xe.existsSync(i)) throw new kt("declared card file not found");
+        return { data: la(i), manifest: n, cardPath: i };
+      }
+      return { data: n, manifest: n, cardPath: r };
+    }
+  }
+  throw new kt("character-card manifest not found");
+}
+function PC(e, { sourceName: t = null } = {}) {
+  if (!e || !Re.isAbsolute(e) || !Xe.existsSync(e) || Xe.lstatSync(e).isSymbolicLink() || !Xe.lstatSync(e).isDirectory())
+    throw new kt("character-card package root must be an existing absolute directory");
+  $u(e);
+  const { data: r, manifest: n } = kC(e), i = t || Re.basename(e);
+  return {
+    packageRoot: e,
+    sourceName: i,
+    packageName: HC(r, n, i),
+    agent: MC(r),
+    prompts: UC(r),
+    memoryFacts: LC(r),
+    memoryCompiled: xC(r),
+    assets: YC(r, e),
+    skills: $C(r, e)
+  };
+}
+function Ht(e) {
+  return typeof e == "string" ? e.trim() : "";
+}
+function LC(e) {
+  const t = e?.memory?.facts || e?.facts || e?.memories || [];
+  return Array.isArray(t) ? t.map((r) => ({
+    fact: Ht(r?.fact || r?.content || r?.text),
+    tags: Array.isArray(r?.tags) ? r.tags.filter((n) => typeof n == "string") : [],
+    time: r?.time || r?.date || null,
+    session_id: r?.session_id || "character-card-import"
+  })).filter((r) => r.fact) : [];
+}
+function xn(...e) {
+  return e.find((t) => typeof t == "string" && t.trim()) || "";
+}
+function xC(e) {
+  const t = e?.memory?.compiled && typeof e.memory.compiled == "object" ? e.memory.compiled : {};
+  return CC({
+    facts: xn(
+      t.facts,
+      e?.memory?.compiledFacts,
+      e?.memory?.factsText
+    ),
+    today: xn(
+      t.today,
+      e?.memory?.today,
+      e?.memory?.todayPreview,
+      e?.todayMemory
+    ),
+    week: xn(
+      t.week,
+      e?.memory?.week,
+      e?.memory?.weekPreview,
+      e?.weekMemory
+    ),
+    longterm: xn(
+      t.longterm,
+      t.longTerm,
+      e?.memory?.longterm,
+      e?.memory?.longTerm,
+      e?.longtermMemory
+    )
+  });
+}
+function UC(e) {
+  const t = e?.identity, r = e?.prompts || {};
+  return {
+    identity: Ht(r.identity || t?.content || t?.prompt || (typeof t == "string" ? t : "")) || null,
+    agents: Ht(r.agents || r.ishiki || r.yuan || e?.agents || e?.ishiki) || null,
+    publicAgents: Ht(
+      r.publicAgents || r.publicIshiki || r.public_ishiki || e?.publicAgents || e?.publicIshiki
+    ) || null
+  };
+}
+function MC(e) {
+  const t = e?.agent || e?.character || {}, r = Ht(t.name || e?.name);
+  if (!r) throw new kt("agent.name is required");
+  const n = Ht(t.id || e?.id) || null;
+  if (n && !gd(n))
+    throw new kt(
+      "agent.id is invalid: use ASCII letters, digits, underscores, or hyphens and include a letter or digit",
+      400
+    );
+  const i = RC.has(t.yuan || e?.yuan) ? t.yuan || e?.yuan : "hanako", s = Ht(t.description || e?.agentDescription || e?.description), o = Ht(
+    e?.identity?.summary || t.identity || e?.summary || e?.description
+  );
+  return { name: r, id: n, yuan: i, description: s, identitySummary: o };
+}
+function HC(e, t, r) {
+  return Ht(e?.package?.name || t?.name || e?.name) || r || "Character Card";
+}
+function YC(e, t) {
+  const r = e?.assets || {}, n = {
+    avatar: r.avatar || r.portrait,
+    cardFront: r.cardFront || r.card_front || r.front,
+    cardBack: r.cardBack || r.card_back || r.back,
+    yuanIcon: r.yuanIcon || r.yuan_icon
+  }, i = {};
+  for (const [s, o] of Object.entries(n)) {
+    if (!o) continue;
+    const { resolved: u, rel: a } = oo(t, o, `asset.${s}`);
+    if (!Xe.existsSync(u)) throw new kt(`asset.${s} not found`);
+    const c = Re.extname(u).toLowerCase();
+    if (!Aa[c]) throw new kt(`asset.${s} has unsupported image type`);
+    i[s] = { rel: a, mime: Aa[c], fileName: Re.basename(u) };
+  }
+  return i;
+}
+function $C(e, t) {
+  const r = [], n = e?.skills;
+  if (n && Array.isArray(n.bundles))
+    for (const s of n.bundles)
+      r.push({
+        name: Ht(s?.name) || "Skill Bundle",
+        skills: Array.isArray(s?.skills) ? s.skills : []
+      });
+  else if (Array.isArray(e?.skillBundles))
+    for (const s of e.skillBundles)
+      r.push({
+        name: Ht(s?.name) || "Skill Bundle",
+        skills: Array.isArray(s?.skills) ? s.skills : []
+      });
+  Array.isArray(n) ? r.push({ name: "Imported Skills", skills: n }) : n && Array.isArray(n.items) && r.push({ name: Ht(n.name) || "Imported Skills", skills: n.items });
+  const i = [];
+  for (const s of r)
+    for (const o of s.skills) {
+      const u = typeof o == "string" ? o : o?.path, { resolved: a, rel: c } = oo(t, u, "skill"), A = Re.join(a, "SKILL.md");
+      if (!Xe.existsSync(A)) throw new kt(`skill missing SKILL.md: ${c}`);
+      const d = KC(Xe.readFileSync(A, "utf-8")), p = vC(d);
+      if (!p) throw new kt(`skill name is invalid: ${d || "(missing)"}`);
+      i.push({
+        name: p,
+        path: c,
+        bundle: s.name
+      });
+    }
+  return i;
+}
+function KC(e) {
+  const t = e.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (t) {
+    const i = t[1].match(/^name:\s*(.+)$/m);
+    if (i) return i[1].trim().replace(/^["']|["']$/g, "");
+  }
+  const r = e.match(/<!--\s*name:\s*(.+?)\s*-->/);
+  if (r) return r[1].trim();
+  const n = e.match(/^#\s+(.+?)$/m);
+  return n ? n[1].trim() : null;
+}
+function Ki(e, t) {
+  const r = Yt.lstatSync(e);
+  if (r.isSymbolicLink() || !r.isDirectory())
+    throw new Error(`${t} must be a non-symlink directory`);
+}
+function fa(e) {
+  try {
+    Ki(e, "package contribution container");
+  } catch (t) {
+    if (t.code === "ENOENT") return [];
+    throw t;
+  }
+  return $u(e), Yt.readdirSync(e, { withFileTypes: !0 }).filter((t) => t.isDirectory() && !t.name.startsWith(".")).sort((t, r) => t.name < r.name ? -1 : t.name > r.name ? 1 : 0);
+}
+function Di(e, t, r) {
+  const n = t.normalize("NFC").toLowerCase();
+  if (e.has(n)) throw new Error(`duplicate ${r} ${t}`);
+  e.add(n);
+}
+function ha(e, t, r = !1) {
+  const n = ae.relative(e, t);
+  if (!n && !r || n === ".." || n.startsWith(`..${ae.sep}`) || ae.isAbsolute(n))
+    throw new Error("package contribution escapes its owning directory");
+}
+class QC {
+  apps = /* @__PURE__ */ new Map();
+  register({ appId: t, appDir: r }) {
+    if (!t || t !== t.trim() || !ae.isAbsolute(r))
+      throw new Error("invalid app package contribution root");
+    Ki(r, "app package contribution root");
+    const n = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Map(), s = /* @__PURE__ */ new Set();
+    for (const u of fa(ae.join(r, "roles"))) {
+      const a = u.name;
+      Di(s, a, "role id");
+      const c = ae.join(r, "roles", a);
+      ha(r, c);
+      const A = PC(c, { sourceName: a }), d = /* @__PURE__ */ new Set(), p = A.skills.map((w) => {
+        Di(d, w.name, "role skill");
+        const _ = ae.resolve(c, w.path);
+        ha(c, _, !0), Ki(_, "role skill");
+        const R = ae.join(_, "SKILL.md");
+        return {
+          appId: t,
+          roleId: a,
+          skillId: w.name,
+          bundle: w.bundle,
+          displayName: w.name,
+          baseDir: _,
+          filePath: R,
+          sourceIdentity: {
+            kind: "skill_source",
+            owner: "app-role",
+            appId: t,
+            roleId: a,
+            skillId: w.name,
+            skillName: w.name,
+            filePath: R,
+            baseDir: _,
+            editable: !1,
+            readonly: !0
+          }
+        };
+      });
+      n.set(a, { appId: t, roleId: a, packageRoot: c, plan: A, roleSkills: p });
+    }
+    const o = /* @__PURE__ */ new Set();
+    for (const u of fa(ae.join(r, "recipes"))) {
+      const a = u.name;
+      Di(o, a, "recipe id");
+      const c = ae.join(r, "recipes", a), A = ae.join(c, "SKILL.md");
+      if (!Yt.existsSync(A) || !Yt.lstatSync(A).isFile())
+        throw new Error(`recipe ${a} missing SKILL.md`);
+      const d = SC(Yt.readFileSync(A, "utf8"), a);
+      if (!DC.has(d.profile))
+        throw new Error(`recipe ${a} has invalid profile`);
+      i.set(a, {
+        appId: t,
+        recipeId: a,
+        name: d.name || a,
+        description: d.description || "",
+        dir: c,
+        skillFilePath: A,
+        sourceIdentity: { appId: t, recipeId: a }
+      });
+    }
+    return this.apps.set(t, { appId: t, appDir: r, roles: n, recipes: i }), { appId: t, appDir: r, roles: this.listRoles(t), recipes: this.listRecipes(t) };
+  }
+  clear(t) {
+    this.apps.delete(t);
+  }
+  listRoles(t) {
+    return structuredClone([...this.apps.get(t)?.roles.values() ?? []]);
+  }
+  getRole(t, r) {
+    return structuredClone(this.apps.get(t)?.roles.get(r) ?? null);
+  }
+  listRecipes(t) {
+    return structuredClone([...this.apps.get(t)?.recipes.values() ?? []]);
+  }
+  getRoleSkillSources(t, r) {
+    return structuredClone(this.apps.get(t)?.roles.get(r)?.roleSkills ?? []);
+  }
+  isRoleSkillAvailable(t, r, n) {
+    return this.apps.get(t)?.roles.get(r)?.roleSkills.some((i) => i.skillId === n) ?? !1;
+  }
+}
+const da = 256 * 1024 * 1024, GC = 3e4, WC = 512 * 1024 * 1024;
+function jC(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+function Or(e, t) {
+  let r = jC(e);
+  if (t) {
+    const n = ae.resolve(t);
+    r = r.replaceAll(n, "<app>");
+  }
+  return r;
+}
+function Er(e, t, r, n) {
+  const i = e.filter((s) => s.severity === "error").length;
+  return {
+    ok: i === 0,
+    issues: e,
+    ...t === void 0 ? {} : { manifest: t },
+    ...r === void 0 ? {} : { normalizedIcon: r },
+    ...n === void 0 ? {} : { uiRoutes: n },
+    summary: { errors: i, warnings: e.length - i }
+  };
+}
+function gt(e, t) {
+  e.push(t);
+}
+function Xr(e, t) {
+  const r = ae.relative(e, t);
+  return r !== "" && r !== ".." && !r.startsWith(`..${ae.sep}`) && !ae.isAbsolute(r);
+}
+function JC(e) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(e) || e.startsWith("//");
+}
+function VC(e) {
+  const t = e.search(/[?#]/);
+  return t === -1 ? e : e.slice(0, t);
+}
+function Ku(e) {
+  const t = e.trim();
+  if (!t || t.startsWith("#") || JC(t)) return { value: null };
+  const r = VC(t);
+  try {
+    const n = r.split("/").map((i) => ({ raw: i, decoded: decodeURIComponent(i) }));
+    for (const i of n) {
+      if (!i.decoded || i.decoded.includes("/") || i.decoded.includes("\\") || i.decoded.includes("\0"))
+        return { value: null, reason: "contains an encoded path separator or NUL byte" };
+      if ((i.decoded === "." || i.decoded === "..") && i.raw !== i.decoded)
+        return { value: null, reason: "contains an encoded traversal segment" };
+    }
+    return { value: n.map((i) => i.decoded).join("/") };
+  } catch {
+    return { value: null, reason: "contains invalid URL encoding" };
+  }
+}
+async function Qu(e) {
+  try {
+    const t = await at.realpath(e);
+    return (await at.stat(t)).isDirectory() ? t : null;
+  } catch {
+    return null;
+  }
+}
+async function ZC(e, t, r) {
+  const n = Ku(r);
+  if (n.reason) return { reason: n.reason };
+  const i = n.value;
+  if (i === null) return {};
+  if (i.startsWith("/") || i.startsWith("\\") || ae.win32.isAbsolute(i))
+    return { reason: "must be a package-relative URL; browser-root paths are not scoped to this App" };
+  const s = ae.resolve(ae.dirname(t), i);
+  if (!Xr(e, s)) return { reason: "must stay inside the App package" };
+  try {
+    const o = await at.realpath(s);
+    return Xr(e, o) ? (await at.stat(o)).isFile() ? { file: o } : { reason: "does not name a file" } : { reason: "resolves outside the App package" };
+  } catch {
+    return { reason: "does not exist" };
+  }
+}
+async function zC(e, t) {
+  if (t.includes("\0") || ae.isAbsolute(t) || ae.win32.isAbsolute(t) || /^[a-z][a-z0-9+.-]*:/i.test(t))
+    return { reason: "must be a package-relative filesystem path" };
+  const r = ae.resolve(e, t);
+  if (!Xr(e, r)) return { reason: "must stay inside the App package" };
+  try {
+    const n = await at.realpath(r);
+    return Xr(e, n) ? (await at.stat(n)).isFile() ? { file: n } : { reason: "does not name a file" } : { reason: "resolves outside the App package" };
+  } catch {
+    return { reason: "does not exist" };
+  }
+}
+function qC(e) {
+  const t = [];
+  for (const [n, i] of (e.contributes?.cards ?? []).entries())
+    i.route && t.push({ route: i.route, file: ae.posix.join("ui", i.route), field: `contributes.cards[${n}].route` }), i.detached && t.push({ route: i.detached.route, file: ae.posix.join("ui", i.detached.route), field: `contributes.cards[${n}].detached.route` }), i.functionPanel?.route && t.push({ route: i.functionPanel.route, file: ae.posix.join("ui", i.functionPanel.route), field: `contributes.cards[${n}].functionPanel.route` });
+  for (const [n, i] of (e.contributes?.ui?.slotContributions ?? []).entries())
+    "route" in i && i.route && t.push({ route: i.route, file: ae.posix.join("ui", i.route), field: `contributes.ui.slotContributions[${n}].route` });
+  for (const [n, i] of (e.contributes?.previewers ?? []).entries())
+    t.push({ route: i.route, file: ae.posix.join("ui", i.route), field: `contributes.previewers[${n}].route` });
+  const r = e.contributes?.settings?.ui?.route;
+  return r && t.push({ route: r, file: ae.posix.join("ui", r), field: "contributes.settings.ui.route" }), t;
+}
+function XC(e) {
+  if (typeof e != "object" || e === null || Array.isArray(e)) return [];
+  const r = e.contributes;
+  if (typeof r != "object" || r === null || Array.isArray(r)) return [];
+  const n = r, i = [], s = n.cards;
+  Array.isArray(s) && s.forEach((c, A) => {
+    if (typeof c != "object" || c === null || Array.isArray(c)) return;
+    "route" in c && i.push({ route: c.route, field: `contributes.cards[${A}].route` });
+    const d = c.detached;
+    typeof d == "object" && d !== null && !Array.isArray(d) && "route" in d && i.push({ route: d.route, field: `contributes.cards[${A}].detached.route` });
+    const p = c.functionPanel;
+    typeof p == "object" && p !== null && !Array.isArray(p) && "route" in p && i.push({ route: p.route, field: `contributes.cards[${A}].functionPanel.route` });
+  });
+  const o = n.settings;
+  if (typeof o == "object" && o !== null && !Array.isArray(o)) {
+    const c = o.ui;
+    typeof c == "object" && c !== null && !Array.isArray(c) && "route" in c && i.push({ route: c.route, field: "contributes.settings.ui.route" });
+  }
+  const u = n.ui;
+  if (typeof u == "object" && u !== null && !Array.isArray(u)) {
+    const c = u.slotContributions;
+    Array.isArray(c) && c.forEach((A, d) => {
+      typeof A == "object" && A !== null && !Array.isArray(A) && "route" in A && i.push({ route: A.route, field: `contributes.ui.slotContributions[${d}].route` });
+    });
+  }
+  const a = n.previewers;
+  return Array.isArray(a) && a.forEach((c, A) => {
+    typeof c == "object" && c !== null && !Array.isArray(c) && "route" in c && i.push({ route: c.route, field: `contributes.previewers[${A}].route` });
+  }), i;
+}
+function Qi(e, t) {
+  const r = [];
+  for (const n of e.matchAll(/@import\s+(?:url\(\s*)?(["']?)([^"'\s)]+)\1\s*\)?/gi))
+    r.push({ value: n[2], field: t });
+  for (const n of e.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/gi))
+    r.push({ value: n[2], field: t });
+  return r;
+}
+function e0(e, t) {
+  return e.split(",").map((r) => r.trim().split(/\s+/, 1)[0]).filter(Boolean).map((r) => ({ value: r, field: t }));
+}
+async function t0(e) {
+  const t = [];
+  let r = null;
+  const n = new qc({ sourceCodeLocationInfo: !1 });
+  return n.on("startTag", (i) => {
+    const s = String(i.tagName ?? "").toLowerCase(), o = new Map(i.attrs.map((c) => [c.name.toLowerCase(), c.value])), u = (c) => {
+      const A = o.get(c);
+      A !== void 0 && t.push({ value: A, field: `<${s} ${c}>` });
+    };
+    if (s === "script" && u("src"), s === "img" || s === "source") {
+      u("src");
+      const c = o.get("srcset");
+      c && t.push(...e0(c, `<${s} srcset>`));
+    }
+    s === "link" && (o.get("rel") ?? "").toLowerCase().split(/\s+/).some((A) => ["stylesheet", "icon", "modulepreload", "preload"].includes(A)) && u("href"), ["video", "audio", "track", "iframe", "embed"].includes(s) && u("src"), s === "video" && u("poster"), s === "object" && u("data"), s === "image" && (u("href"), u("xlink:href"));
+    const a = o.get("style");
+    a && t.push(...Qi(a, `<${s} style>`)), s === "style" && !i.selfClosing && (r = s);
+  }), n.on("endTag", (i) => {
+    String(i.tagName ?? "").toLowerCase() === r && (r = null);
+  }), n.on("text", (i) => {
+    r === "style" && t.push(...Qi(i.text, "<style>"));
+  }), n.end(e), await rc(n), t;
+}
+async function r0(e, t, r) {
+  const n = [], i = /* @__PURE__ */ new Set(), s = await Qu(ae.join(e, "ui"));
+  for (const o of t) {
+    const u = ae.resolve(e, o.file);
+    if (!s || !Xr(s, u)) {
+      gt(r, { code: "INVALID_UI_ROUTE", severity: "error", field: o.field, message: `${o.route} does not map inside ui/`, suggestion: "Use a route beginning with / and without traversal segments." });
+      continue;
+    }
+    try {
+      const a = await at.realpath(u), c = await at.stat(a);
+      if (!Xr(s, a) || !c.isFile()) throw new Error("not a UI file");
+      n.push(a);
+    } catch {
+      gt(r, { code: "MISSING_UI_ROUTE_FILE", severity: "error", file: o.file, field: o.field, message: `Declared UI route ${JSON.stringify(o.route)} has no file at ${o.file}.`, suggestion: "Build the UI and include this file under ui/." });
+    }
+  }
+  for (; n.length > 0; ) {
+    const o = n.pop();
+    if (i.has(o)) continue;
+    i.add(o);
+    const u = ae.extname(o).toLowerCase();
+    if (u !== ".html" && u !== ".htm" && u !== ".css") continue;
+    let a;
+    try {
+      const c = await at.readFile(o, "utf8");
+      a = u === ".css" ? Qi(c, "CSS url()") : await t0(c);
+    } catch (c) {
+      gt(r, { code: "UNREADABLE_UI_RESOURCE", severity: "error", file: ae.relative(e, o), message: `Could not read UI resource: ${Or(c, e)}` });
+      continue;
+    }
+    for (const c of a) {
+      const A = await ZC(s, o, c.value);
+      if (!A.reason) {
+        A.file && [".html", ".htm", ".css"].includes(ae.extname(A.file).toLowerCase()) && n.push(A.file);
+        continue;
+      }
+      const d = Ku(c.value);
+      d.value === null && !d.reason || gt(r, { code: "MISSING_UI_RESOURCE", severity: "error", file: ae.relative(e, o), field: c.field, message: `UI resource ${JSON.stringify(c.value)} ${A.reason}.`, suggestion: "Use a relative URL to a file included in this App package." });
+    }
+  }
+  t.length > 0 && gt(r, { code: "DYNAMIC_DEPENDENCIES_NOT_PROVEN", severity: "warning", message: "Static checking follows declared UI HTML and CSS resources only; dynamic imports, runtime-generated URLs, and network responses are not proven.", suggestion: "Run the isolated --smoke check for runtime loading evidence." });
+}
+async function Gu(e, t) {
+  const r = [], n = await Qu(e);
+  if (!n)
+    return gt(r, { code: "INVALID_APP_DIRECTORY", severity: "error", file: ae.basename(e), message: "App package directory does not exist or is not a directory." }), Er(r);
+  let i;
+  try {
+    i = JSON.parse(await at.readFile(ae.join(n, "manifest.json"), "utf8"));
+  } catch (c) {
+    return gt(r, { code: "INVALID_MANIFEST", severity: "error", file: "manifest.json", message: `Cannot read manifest.json: ${Or(c, n)}` }), Er(r);
+  }
+  let s;
+  try {
+    s = hC(n, t ?? ae.basename(n), { requireCardCovers: !0 });
+  } catch (c) {
+    return gt(r, { code: "INVALID_MANIFEST", severity: "error", file: "manifest.json", message: Or(c, n), suggestion: "Correct manifest.json so the production App loader accepts it." }), Er(r);
+  }
+  Hu(s.id) || gt(r, { code: "INVALID_APP_ID", severity: "error", field: "id", message: "App id is not a legal extension id.", suggestion: "Use lowercase letters, digits, periods, underscores, and single hyphens; do not end with a period or hyphen." });
+  try {
+    new QC().register({ appId: s.id, appDir: n });
+  } catch (c) {
+    gt(r, {
+      code: "INVALID_PACKAGE_CONTRIBUTION",
+      severity: "error",
+      message: Or(c, n),
+      suggestion: "Check roles/ character cards, their bundled skills, and recipes/ SKILL.md declarations."
+    });
+  }
+  try {
+    lE({ appDir: n, dataDir: ae.join(n, ".app-validation-data") });
+  } catch (c) {
+    gt(r, {
+      code: "INVALID_MCP_PACKAGE",
+      severity: "error",
+      file: "mcp.json",
+      message: Or(c, n),
+      suggestion: "Correct mcp.json and configure credentials through the host or ctx.mcp.update."
+    });
+  }
+  for (const c of XC(i)) {
+    const A = Rr(c.route);
+    A.ok === !1 && gt(r, { code: "INVALID_UI_ROUTE", severity: "error", field: c.field, message: `Declared UI route is invalid: ${A.reason}.`, suggestion: "Use a literal ui-relative route beginning with /." });
+  }
+  let o;
+  try {
+    o = await lA(n, s.icon, { required: !0 });
+    for (const c of o.warnings)
+      gt(r, { code: "ICON_RECOMMENDATION", severity: "warning", file: s.icon, field: "icon", message: c });
+  } catch (c) {
+    gt(r, { code: "INVALID_ICON", severity: "error", file: typeof s.icon == "string" ? s.icon : void 0, field: "icon", message: Or(c, n), suggestion: "Include a decodable PNG, JPEG, WebP, or safe SVG identity image." });
+  }
+  (s.entry.toLowerCase().endsWith(".ts") || s.entry.toLowerCase().endsWith(".tsx")) && gt(r, { code: "UNCOMPILED_ENTRY", severity: "error", file: s.entry, field: "entry", message: "App entry is TypeScript source; a distributable App must ship compiled output.", suggestion: "Bundle the entry and point manifest.entry at the compiled JavaScript file." }), /[.](?:cjs|js|mjs)$/i.test(s.entry) || gt(r, { code: "INVALID_ENTRY_EXTENSION", severity: "error", file: s.entry, field: "entry", message: "App entry must name compiled JavaScript.", suggestion: "Bundle the App entry as .js, .mjs, or .cjs and update manifest.entry." });
+  const u = await zC(n, s.entry);
+  u.reason && gt(r, { code: "MISSING_ENTRY", severity: "error", file: s.entry, field: "entry", message: `App entry ${JSON.stringify(s.entry)} ${u.reason}.`, suggestion: "Point entry at a compiled file inside the App package." });
+  const a = qC(s);
+  return await r0(n, a, r), Er(r, s, o, a);
+}
+async function n0(e) {
+  return Gu(e);
+}
+async function i0({ directory: e, archive: t, onValidatedDirectory: r }) {
+  if ((e ? 1 : 0) + (t ? 1 : 0) != 1)
+    return Er([{ code: "INVALID_VALIDATION_INPUT", severity: "error", message: "Provide exactly one of directory or archive." }]);
+  if (e) {
+    const o = await n0(e);
+    return o.ok && r && await r(await at.realpath(e), o), o;
+  }
+  const n = ae.resolve(t);
+  let i;
+  try {
+    i = await at.stat(n);
+  } catch {
+    return Er([{ code: "INVALID_ARCHIVE", severity: "error", file: ae.basename(n), message: "App archive does not exist." }]);
+  }
+  if (!i.isFile() || i.size > da)
+    return Er([{ code: "INVALID_ARCHIVE", severity: "error", file: ae.basename(n), message: `App archive must be a file no larger than ${da / (1024 * 1024)} MiB.` }]);
+  const s = await at.mkdtemp(ae.join(ec.tmpdir(), "hana-app-validation-"));
+  try {
+    try {
+      await TA(n, s, { maxEntries: GC, maxUncompressedBytes: WC });
+    } catch (a) {
+      return Er([{ code: "INVALID_ARCHIVE", severity: "error", file: ae.basename(n), message: `Archive could not be safely extracted: ${Or(a, s)}`, suggestion: "Use a normal ZIP with package files at its root and no symlinks." }]);
+    }
+    let o;
+    try {
+      const a = JSON.parse(await at.readFile(ae.join(s, "manifest.json"), "utf8"));
+      typeof a?.id == "string" && a.id && !a.id.includes("/") && !a.id.includes("\\") && (o = a.id);
+    } catch {
+    }
+    const u = await Gu(s, o);
+    return u.ok && r && await r(s, u), u;
+  } finally {
+    await at.rm(s, { recursive: !0, force: !0 });
+  }
+}
+var Un = { exports: {} }, pa;
+function o0() {
+  if (pa) return Un.exports;
+  pa = 1;
+  const e = "[redacted]", t = "api[_-]?key|apikey|api-key|secret[_-]?key|secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|password|passwd|client[_-]?secret|bot[_-]?token|server[_-]?token", r = new RegExp(`\\b(${t})\\b\\s*[:=]\\s*(?:"[^"]*"|'[^']*'|[^\\s,"'\\]}]+)`, "gi"), n = /^(api[_-]?key|apikey|api-key|authorization|cookie|set-cookie|secret[_-]?key|secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|password|passwd|client[_-]?secret|bot[_-]?token|server[_-]?token|private[_-]?key|credential|credentials|session[_-]?key|session[_-]?id|user[_-]?id|chat[_-]?id|sender[_-]?name|avatar[_-]?url|owner|download[_-]?param|filekey)$/i, i = /([?&](?:token|access_token|refresh_token|auth|authorization|api_key|apikey|api-key|key|secret|password|client_secret|code|appSurfaceSession|appIframeTicket)=)([^&#\s]+)/gi, s = /(\/api\/apps\/[^/\s?#]+\/(?:ui|routes\/_runtime\/[^/\s?#]+)\/_surface\/)([^/\s?#]+)(?=\/)/gi, o = /(%2Fapi%2Fapps%2F[^%&\s]+%2F(?:ui|routes%2F_runtime%2F[^%&\s]+)%2F_surface%2F)([^%&\s]+)(?=%2F)/gi, u = /\b(sk-[a-zA-Z0-9_-]{20,}|AKIA[A-Z0-9]{16}|gsk_[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]{20,}|xox[abpors]-[a-zA-Z0-9-]+)\b/g, a = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, c = /\b(?:\d{4}[- ]?){3}\d{4}\b/g, A = /\b\d{6}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b/g, d = /\b\d{3}-\d{2}-\d{4}\b/g, p = /(^|[^\w/.-])([A-Za-z0-9+/_=-]{40,})(?=$|[^\w/.-])/g;
+  function w($, ne = {}) {
+    if ($ == null) return "";
+    let Y = String($);
+    return Y = _(Y, ne), Y = Y.replace(/data:([^;,]+);base64,[A-Za-z0-9+/=]+/gi, "data:$1;base64,[redacted]"), Y = Y.replace(/(https?:\/\/)([^:@\s/?#]+):([^@\s/?#]+)@/gi, "$1[credentials]@"), Y = Y.replace(i, "$1[redacted]"), Y = Y.replace(s, "$1[redacted]"), Y = Y.replace(o, "$1[redacted]"), Y = Y.replace(/\b(Authorization\s*[:=]\s*Bearer\s+)[^\s,;]+/gi, "$1[redacted]"), Y = Y.replace(/\b(Bearer\s+)[A-Za-z0-9\-._~+/]+=*/gi, "$1[redacted]"), Y = Y.replace(/\b(Cookie|Set-Cookie)\s*[:=]\s*[^\r\n]+/gi, "$1=[redacted]"), Y = Y.replace(r, (v, B) => `${B}=[redacted]`), Y = Y.replace(u, e), Y = Y.replace(c, "[credit_card]"), Y = Y.replace(A, "[id_card]"), Y = Y.replace(d, "[ssn]"), Y = Y.replace(a, "[email]"), Y = Y.replace(p, "$1[token]"), Y;
+  }
+  function _($, ne) {
+    let Y = $;
+    const v = [];
+    if (ne.homeDir && v.push([ne.homeDir, "~"]), Array.isArray(ne.extraPaths))
+      for (const B of ne.extraPaths) v.push([B, "[path]"]);
+    for (const [B, N] of v) {
+      if (!B || typeof B != "string") continue;
+      const ee = R(B);
+      for (const Ae of ee)
+        Y = Y.split(Ae).join(N), Ae.startsWith("/") && (Y = Y.split(`file://${Ae}`).join(`file://${N}`));
+    }
+    return Y = Y.replace(/file:\/\/\/Users\/[^/\s]+/g, "file:///Users/[user]"), Y = Y.replace(/\/Users\/[^/\s]+/g, "/Users/[user]"), Y = Y.replace(/file:\/\/\/home\/[^/\s]+/g, "file:///home/[user]"), Y = Y.replace(/\/home\/[^/\s]+/g, "/home/[user]"), Y = Y.replace(/\b([A-Za-z]:\\Users\\)[^\\/\s]+/g, "$1[user]"), Y = Y.replace(/\b([A-Za-z]:\/Users\/)[^\\/\s]+/g, "$1[user]"), Y;
+  }
+  function R($) {
+    const ne = /* @__PURE__ */ new Set([$]);
+    return $.includes("\\") && ne.add($.replace(/\\/g, "/")), $.includes("/") && ne.add($.replace(/\//g, "\\")), ne;
+  }
+  function I($, ne = {}, Y = {}) {
+    const v = Y.depth || 0, B = Y.seen || /* @__PURE__ */ new WeakSet();
+    if ($ == null) return $;
+    if (typeof $ == "string") return w($, ne);
+    if (typeof $ == "number" || typeof $ == "boolean" || typeof $ == "bigint") return $;
+    if (typeof $ == "symbol" || typeof $ == "function") return w(String($), ne);
+    if ($ instanceof Error)
+      return {
+        name: $.name,
+        message: w($.message, ne),
+        stack: $.stack ? w($.stack, ne) : void 0,
+        code: $.code ? w(String($.code), ne) : void 0
+      };
+    if (typeof $ != "object") return w(String($), ne);
+    if (B.has($)) return "[Circular]";
+    if (v >= 8) return "[MaxDepth]";
+    if (B.add($), Array.isArray($))
+      return $.map((ee) => I(ee, ne, { depth: v + 1, seen: B }));
+    const N = {};
+    for (const [ee, Ae] of Object.entries($)) {
+      const be = k(ee);
+      n.test(ee) ? N[be] = e : N[be] = I(Ae, ne, { depth: v + 1, seen: B });
+    }
+    return N;
+  }
+  function k($) {
+    return w($ == null ? "unknown" : String($)).replace(/[^a-zA-Z0-9_.:-]+/g, "_").slice(0, 80) || "unknown";
+  }
+  function x($, ne = {}) {
+    return Array.from($ || []).map((Y) => {
+      if (typeof Y == "string") return w(Y, ne);
+      const v = I(Y, ne);
+      try {
+        return JSON.stringify(v);
+      } catch {
+        return w(String(v), ne);
+      }
+    }).join(" ");
+  }
+  const M = {
+    redactLogText: w,
+    redactLogValue: I,
+    redactLogLabel: k,
+    formatLogArgs: x
+  };
+  return Un.exports = M, Un.exports.default = M, Un.exports;
+}
+var s0 = o0();
+const a0 = /* @__PURE__ */ Ta(s0);
+function u0(e) {
+  const t = String(e || "").replace(/\/[^\s"']*hana-app-validation-[^/\s"']+(?:\/[^\s"']*)?/g, "<temporary-profile>");
+  return a0.redactLogText(t).replace(/([?&]hana-asset-base=)[^&#\s]+/gi, "$1<redacted>");
+}
+function c0(e) {
+  const t = u0(e).trim().slice(0, 2e3);
+  return t ? ` Diagnostics: ${t}` : "";
+}
+function ma(e, t) {
+  return {
+    ok: !1,
+    issues: [{
+      code: "SMOKE_RUNNER_INVALID_OUTPUT",
+      severity: "error",
+      message: `Runtime smoke runner did not return valid JSON${t === 0 ? "" : ` after exit status ${t ?? "unknown"}`}.${c0(e)}`
+    }]
+  };
+}
+function A0({ stdout: e, stderr: t = "", exitCode: r }) {
+  let n;
+  try {
+    n = JSON.parse(String(e || ""));
+  } catch {
+    return ma(t, r);
+  }
+  return !n || typeof n != "object" || Array.isArray(n) || !Array.isArray(n.issues) ? ma(t, r) : r === 0 ? n : {
+    ...n,
+    ok: !1,
+    issues: [...n.issues, {
+      code: "SMOKE_RUNNER_NONZERO_EXIT",
+      severity: "error",
+      message: `Runtime smoke runner exited with status ${r ?? "unknown"}.`
+    }]
+  };
+}
+const l0 = Gi(import.meta.url), Si = ae.resolve(ae.dirname(l0), ".."), f0 = 1024 * 1024, h0 = 12e4;
+function An() {
+  return "Usage: node scripts/validate-app.mjs (--dir <directory> | --archive <zip>) [--json] [--smoke] [--document <file>] [--app-arg <name=value>]";
+}
+function d0(e) {
+  const t = { directory: void 0, archive: void 0, document: void 0, appArgs: [], json: !1, smoke: !1 };
+  for (let r = 0; r < e.length; r += 1) {
+    const n = e[r];
+    if (n === "--dir") t.directory = e[++r];
+    else if (n === "--archive") t.archive = e[++r];
+    else if (n === "--document") t.document = e[++r];
+    else if (n === "--app-arg") t.appArgs.push(e[++r]);
+    else if (n === "--json") t.json = !0;
+    else if (n === "--smoke") t.smoke = !0;
+    else throw new Error(`Unknown argument ${JSON.stringify(n)}. ${An()}`);
+  }
+  if ((t.directory ? 1 : 0) + (t.archive ? 1 : 0) != 1) throw new Error(An());
+  if (t.document && !t.smoke) throw new Error("--document requires --smoke. " + An());
+  if (t.appArgs.length && !t.smoke) throw new Error("--app-arg requires --smoke. " + An());
+  for (const r of t.appArgs)
+    if (typeof r != "string" || !/^[a-z0-9][a-z0-9-]*=.*$/.test(r) || /^(?:__proto__|prototype|constructor)=/i.test(r))
+      throw new Error("--app-arg must be name=value using a declared, non-prototype flag name. " + An());
+  return t;
+}
+function p0(e, t, r = []) {
+  const n = ae.join(Si, "scripts", "app-validation-smoke.mjs");
+  return new Promise((i) => {
+    const s = nd({ cwd: Si });
+    let o = "";
+    try {
+      o = qu(s, ["--version"], { encoding: "utf8", timeout: 5e3, stdio: ["ignore", "pipe", "pipe"] }).trim();
+    } catch {
+      i({ ok: !1, issues: [{ code: "SMOKE_NODE_RUNTIME_UNAVAILABLE", severity: "error", message: "Cannot run the AppHost Node runtime. Prepare the platform's cached runtime or set HANA_NODE_RUNTIME to Node.js 26 or newer." }] });
+      return;
+    }
+    if (!/^v\d+\./.test(o) || Number.parseInt(o.slice(1), 10) < 26) {
+      i({ ok: !1, issues: [{ code: "SMOKE_NODE_RUNTIME_UNAVAILABLE", severity: "error", message: "Runtime smoke requires Node.js 26 or newer. Prepare the platform's cached runtime or set HANA_NODE_RUNTIME." }] });
+      return;
+    }
+    let u = !1;
+    const a = (R) => {
+      u || (u = !0, clearTimeout(_), i(R));
+    }, c = [n, "--dir", ae.resolve(e), "--json"];
+    t && c.push("--document", ae.resolve(t));
+    for (const R of r) c.push("--app-arg", R);
+    const A = Xu(s, c, {
+      cwd: Si,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let d = "", p = "";
+    const w = (R, I) => R === null || R.length + Buffer.byteLength(I) > f0 ? null : R + String(I);
+    A.stdout.on("data", (R) => {
+      d = w(d, R), d === null && A.kill();
+    }), A.stderr.on("data", (R) => {
+      p = w(p, R), p === null && A.kill();
+    });
+    const _ = setTimeout(() => {
+      A.kill(), a({ ok: !1, issues: [{ code: "SMOKE_RUNNER_TIMEOUT", severity: "error", message: "Runtime smoke check exceeded its time limit." }] });
+    }, h0);
+    A.once("error", () => a({ ok: !1, issues: [{ code: "SMOKE_RUNNER_FAILED", severity: "error", message: "Runtime smoke runner could not start." }] })), A.once("close", (R) => {
+      if (d === null || p === null) {
+        a({ ok: !1, issues: [{ code: "SMOKE_RUNNER_OUTPUT_LIMIT", severity: "error", message: "Runtime smoke runner exceeded the diagnostic output limit." }] });
+        return;
+      }
+      a(A0({ stdout: d, stderr: p, exitCode: R }));
+    });
+  });
+}
+function Wu(e) {
+  for (const t of e.issues) {
+    const r = [t.file, t.field].filter(Boolean).join(" ");
+    console.error(`${t.severity}: ${t.code}${r ? ` (${r})` : ""}: ${t.message}`), t.suggestion && console.error(`  ${t.suggestion}`);
+  }
+  console.error(`validate-app: ${e.summary.errors} error(s), ${e.summary.warnings} warning(s)`);
+}
+async function m0() {
+  const e = d0(process.argv.slice(2)), t = await i0({
+    directory: e.directory && ae.resolve(e.directory),
+    archive: e.archive && ae.resolve(e.archive),
+    onValidatedDirectory: e.smoke ? async (n, i) => {
+      const s = await p0(n, e.document && ae.resolve(e.document), e.appArgs);
+      i.smoke = s, s.ok !== !0 && (i.ok = !1, i.issues.push(...Array.isArray(s.issues) ? s.issues : [{ code: "SMOKE_FAILED", severity: "error", message: "Runtime smoke check failed." }]), i.summary.errors = i.issues.filter((o) => o.severity === "error").length, i.summary.warnings = i.issues.length - i.summary.errors);
+    } : void 0
+  }), r = t.normalizedIcon ? { ...t, normalizedIcon: { warnings: t.normalizedIcon.warnings } } : t;
+  e.json ? console.log(JSON.stringify(r)) : Wu(t), t.ok || (process.exitCode = 1);
+}
+m0().catch((e) => {
+  const t = { ok: !1, issues: [{ code: "VALIDATOR_FAILED", severity: "error", message: e instanceof Error ? e.message : String(e) }], summary: { errors: 1, warnings: 0 } };
+  process.argv.includes("--json") ? console.log(JSON.stringify(t)) : Wu(t), process.exitCode = 1;
+});

@@ -1,0 +1,54 @@
+# CI — 三平台矩阵：重建内嵌运行时 + 检查链（不出包；出包与发版见 release.yml）
+#
+# 设计原则：CI 只是执行者，链在本仓库里（scripts/*.mjs），本地同一条命令：
+#   pnpm install --ignore-scripts && pnpm run check
+# vendor/ 不入 git，且内嵌内容本来就与平台相关（Windows 吃宿主 git + 内嵌 gh/gnupg；
+# macOS/Linux 只有 gh 有官方单文件产物）。
+#
+# 诚实边界：官方 creator（validate_app / pack_app）不在本仓库。没配仓库变量
+# HANA_APP_TOOLS_ROOT 时，release.yml 会明确说明"没有官方校验"，而不是静默成功。
+name: app
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32-x64
+          - os: macos-14
+            platform: darwin-arm64
+          - os: ubuntu-latest
+            platform: linux-x64
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # esbuild 的 postinstall 只做自检（二进制由可选依赖提供），跳过可避免
+      # ERR_PNPM_IGNORED_BUILDS 让整条链退出 1。
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts --frozen-lockfile
+
+      - name: Rebuild vendored runtimes
+        run: |
+          node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }}
+          node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }} --check
+
+      # 与本地同一条链：构建设置页 UI + 结构自检（manifest / 全部服务端 JS 语法 / vendor 就绪性）
+      - name: Check chain
+        run: pnpm run check

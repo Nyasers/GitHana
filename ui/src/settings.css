@@ -1,0 +1,73 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+/* Copyright (c) 2026 Nyasers */
+
+/**
+ * ui/src/settings.css — GitHana 设置页的少量自有样式。
+ *
+ * 只做两件事：
+ *   1) 给页面铺背景（宿主的设置容器不负责画 App 的纸面，透明会让内容浮空）；
+ *   2) 给状态短语 / 等宽值 / 提示文案几个小类，颜色全部取宿主主题变量。
+ * 不复制桌面样式，不覆盖宿主组件的内部类名。
+ */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* 纸面色：宿主注入主题变量时跟随主题；未注入时用 Hana 的暖纸默认值兜底。 */
+  background: var(--bg, #f5efe4);
+  color: var(--text, #2a2622);
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+/* AppUiProvider 的宿主容器：撑满高度，让背景铺到底。 */
+.gh-root {
+  min-height: 100%;
+  background: var(--bg, #f5efe4);
+}
+
+.gh-val {
+  font-size: 13px;
+  color: var(--text-light, #4a433c);
+  white-space: nowrap;
+}
+
+.gh-mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gh-ok {
+  color: var(--success, #3f8f5f);
+}
+
+.gh-off {
+  color: var(--danger, #b0453e);
+}
+
+.gh-msg {
+  font-size: 12.5px;
+  color: var(--text-muted, #6b6158);
+}
+
+/* 手动档的输出块（工具原文，保留换行与等宽） */
+.gh-out {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-light, #4a433c);
+  background: var(--bg, #f5efe4);
+  border: 1px solid var(--border, #d8cfbe);
+  border-radius: 8px;
+}
