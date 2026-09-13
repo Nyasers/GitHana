@@ -6,8 +6,7 @@
 - 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
 - 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌 git/gh/gnupg 随包分发 · 版本见 `manifest.json`（单一事实源）
 
-> 与 dshana 同级：本项目是**源码**，落在 `E:\Hanako\workspace\Projects\apps\githana`；
-> 宿主实际加载的是部署副本 `E:\Hanako\.hanako\apps\githana`（见「部署」）。
+> 与 dshana 同级：本仓库是**源码**，宿主实际加载的是安装位 `<HANA_HOME>/apps/<id>/`（见「安装与更新」）。
 
 ## 工具清单
 
@@ -105,7 +104,7 @@ pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（本�
 node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui/settings.bundle.css
 ```
 
-产物 `ui/settings.bundle.*` 随包分发；`ui/src/` 只是源。改完 UI 源码要重新构建、再 deploy。
+产物 `ui/settings.bundle.*` 随包分发；`ui/src/` 只是源。改完 UI 源码要重新构建，bundle 变了才算改完。
 
 ## 内嵌运行时（平台通用）
 
@@ -161,17 +160,19 @@ pnpm run index                            # → index.v2.json（市场清单）
 - `.entry.json` 不能漏：索引构建器只吃这种文件。它的 `archive.url` 写 `{{BASE_URL}}` 占位，由 `build-index.mjs` 换成真实下载基址。
 - **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
 
-## 部署（源码 → 宿主加载位）
+## 安装与更新（走发行包）
 
-```powershell
-node scripts/deploy.mjs          # robocopy 源码 → E:\Hanako\.hanako\apps\githana
+```bash
+pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zip（+ .sha256 / .entry.json）
 ```
 
-首次部署后需在宿主里批准：**设置 / 扩展市场「已安装」→ 待批准 → 批准 GitHana**
-（审阅卡会列出申请的能力）。之后本地改动点该 App 详情页的「重新加载」即可生效。
+安装：把 zip 交给宿主的安装入口（与 `.skill`、插件目录同一条安装路由），或从市场装对应的 release。
+宿主会弹确认卡逐条列出申请的能力（APPS.md：安装来源 → `stageInstall` 管线），批准后落到
+`<HANA_HOME>/apps/<id>/`。
 
-打包：**从部署副本打包**（`--dir <HANA_HOME>/apps/githana`）。源码目录含 pnpm 的符号链接，
-官方包工具会以 `zip source cannot contain symlinks` 拒收；部署副本本来就不含 `node_modules`。
+没有源码镜像那一步：`pack.mjs` 自己暂存净包（末级目录名 = `manifest.id`），直接从源码目录出包；
+`node_modules` 是构建期的东西，不进包。手把目录塞进 `apps/` 只是兜底，会以「未登记」出现在
+市场「已安装」→「待批准」，需要在那里批准。
 
 ## 目录
 
@@ -187,7 +188,7 @@ ui/settings.html         # 设置页（contributes.settings.ui.route）：认证
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌 git（MinGit）/ gh / gnupg（随包分发，不入 git 仓库）
 skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
-scripts/deploy.mjs       # 源码 → 宿主加载位
+scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / index / selfcheck
 ```
 
 ## GPG 隔离机制（沿用 v1）
