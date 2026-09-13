@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "githana",
   "name": "GitHana",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "把 git / gh / gpg 三条 CLI 接进 Hana：仓库状态与提交、GitHub PR、隔离 GPG 签名身份",
   "entry": "index.js",
   "icon": "assets/icon.svg",
