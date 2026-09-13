@@ -201,16 +201,24 @@ function GitHanaSettings() {
     refresh();
   }, [refresh]);
 
-  /** 保存令牌：服务端用平台加密后端写进 App 数据目录，并清掉旧版明文配置。 */
+  /** 保存令牌：服务端用平台加密后端写进 App 数据目录，并清掉旧版明文配置。
+   *  空值**不**清空已有令牌：输入框永远不回显旧值，误按保存（或回车）就会静默清掉凭据。
+   *  清除是显式动作，走「清除」按钮（传 { clear: true }）。 */
   const submit = useCallback(
-    async (value) => {
+    async (value, opts = {}) => {
+      const text = String(value || "").trim();
+      if (!text && !opts.clear) {
+        setSaveStatus("idle");
+        setMessage("请输入令牌；要清除已有令牌请点「清除」。");
+        return;
+      }
       setSaveStatus("saving");
       setMessage(null);
       try {
-        const res = await postJson("settings/token", { token: value });
+        const res = await postJson("settings/token", { token: text });
         setToken("");
         setSaveStatus("saved");
-        setMessage(value ? "已加密保存" : "已清除");
+        setMessage(text ? "已加密保存" : "已清除");
         setState((prev) => (prev ? { ...prev, tokenConfigured: Boolean(res.tokenConfigured) } : prev));
         setAuth({ known: false, authed: false, source: null });
         setIdentity({ loading: false, data: null, text: null });
@@ -376,7 +384,7 @@ function GitHanaSettings() {
         <SettingRow
           label="个人访问令牌"
           layout="stacked"
-          hint="留空并保存 = 清除。已存值不回显。"
+          hint="已存值不回显；换新令牌 = 粘贴后保存（输入框为空时不会清空已有令牌）。"
           control={
             <TextInput
               type="password"
@@ -392,19 +400,28 @@ function GitHanaSettings() {
             />
           }
         />
-        <Inline gap="sm">
-          <SaveButton
-            status={saveStatus}
-            labels={{ idle: "保存", saving: "保存中", saved: "已保存" }}
-            onSavedFeedbackEnd={() => setSaveStatus("idle")}
-            disabled={saveStatus === "saving" || secret.backendAvailable === false}
-            onClick={() => submit(token.trim())}
-          />
-          <Button variant="secondary" disabled={saveStatus === "saving"} onClick={() => submit("")}>
-            清除
-          </Button>
-          {message ? <span className="gh-msg">{message}</span> : null}
-        </Inline>
+        <SettingRow
+          label="令牌操作"
+          control={
+            <Inline gap="sm" align="center">
+              <SaveButton
+                status={saveStatus}
+                labels={{ idle: "保存", saving: "保存中", saved: "已保存" }}
+                onSavedFeedbackEnd={() => setSaveStatus("idle")}
+                disabled={saveStatus === "saving" || secret.backendAvailable === false}
+                onClick={() => submit(token)}
+              />
+              <Button
+                variant="secondary"
+                disabled={saveStatus === "saving" || secret.tokenConfigured !== true}
+                onClick={() => submit("", { clear: true })}
+              >
+                清除
+              </Button>
+              {message ? <span className="gh-msg">{message}</span> : null}
+            </Inline>
+          }
+        />
         <SettingRow
           label="GitHub 身份"
           hint="用已配置的令牌调 gh api user 读取；提交邮箱取 GitHub noreply 格式。不隐式轮询，点按钮才跑。"
