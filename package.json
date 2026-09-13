@@ -1,6 +1,6 @@
 {
   "name": "githana",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.25.0",
