@@ -7,6 +7,7 @@
  * 用 @hana/app-sdk/components 里的宿主组件搭页面，而不是手抄样式：
  *   AppUiProvider（主题 / reduced-motion）+ SettingsPage / SettingsSection / SettingRow /
  *   SaveButton / Button / TextInput，与宿主设置页同一套原语。
+ *   注意：**报到（hana.ready()）不在这套组件里**，得本页自己发，见文件末尾。
  *
  * 数据仍然走 App 自己的已认证路由（页面拿不到 ctx.config）：
  *   GET  /api/apps/githana/routes/settings/state   → 认证状态 + 环境状态 + 令牌保护信息
@@ -20,6 +21,7 @@ import { createRoot } from "react-dom/client";
 import {
   AppUiProvider,
   Button,
+  Grid,
   Inline,
   SaveButton,
   SettingRow,
@@ -28,6 +30,7 @@ import {
   TextInput,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
+import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
 
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
@@ -89,13 +92,26 @@ async function postJson(path, body) {
   return data;
 }
 
-/** 从 gh 的输出里读认证态（gh 会把凭据来源写在括号里，如 "(keyring)" / "GH_TOKEN"）。 */
+/** 凭据来源的人类可读名（来源由 gh 输出里的括号标注推断）。 */
+const AUTH_SOURCE_LABEL = { env: "本 App 注入的 token", keyring: "系统 keyring", file: "配置文件明文" };
+
+/** 从 gh 的输出里读认证态（gh 会把凭据来源写在括号里，如 "(keyring)" / "GH_TOKEN"）。
+ *  gh 可能同时列出多条账号（本 App 注入的 GH_TOKEN + 用户自己的 keyring），所以要取
+ *  「Active account: true」那一段来判来源，否则会把不生效的那条当成来源。 */
 function parseAuthOutput(text, okFlag) {
   const t = String(text || "");
+  const blocks = t.split(/^\s*✓/m);
+  const active = blocks.find((b) => /Active account:\s*true/i.test(b)) || t;
   return {
     known: true,
     authed: okFlag === true && /logged in to/i.test(t),
-    source: /\(keyring\)/i.test(t) ? "keyring" : /GH_TOKEN/i.test(t) ? "env" : /hosts\.yml|plaintext/i.test(t) ? "file" : null,
+    source: /GH_TOKEN/i.test(active)
+      ? "env"
+      : /\(keyring\)/i.test(active)
+        ? "keyring"
+        : /hosts\.yml|plaintext/i.test(active)
+          ? "file"
+          : null,
   };
 }
 
@@ -185,16 +201,24 @@ function GitHanaSettings() {
     refresh();
   }, [refresh]);
 
-  /** 保存令牌：服务端用平台加密后端写进 App 数据目录，并清掉旧版明文配置。 */
+  /** 保存令牌：服务端用平台加密后端写进 App 数据目录，并清掉旧版明文配置。
+   *  空值**不**清空已有令牌：输入框永远不回显旧值，误按保存（或回车）就会静默清掉凭据。
+   *  清除是显式动作，走「清除」按钮（传 { clear: true }）。 */
   const submit = useCallback(
-    async (value) => {
+    async (value, opts = {}) => {
+      const text = String(value || "").trim();
+      if (!text && !opts.clear) {
+        setSaveStatus("idle");
+        setMessage("请输入令牌；要清除已有令牌请点「清除」。");
+        return;
+      }
       setSaveStatus("saving");
       setMessage(null);
       try {
-        const res = await postJson("settings/token", { token: value });
+        const res = await postJson("settings/token", { token: text });
         setToken("");
         setSaveStatus("saved");
-        setMessage(value ? "已加密保存" : "已清除");
+        setMessage(text ? "已加密保存" : "已清除");
         setState((prev) => (prev ? { ...prev, tokenConfigured: Boolean(res.tokenConfigured) } : prev));
         setAuth({ known: false, authed: false, source: null });
         setIdentity({ loading: false, data: null, text: null });
@@ -228,7 +252,9 @@ function GitHanaSettings() {
       const data = await getJson("actions/identity");
       if (data && data.authenticated) {
         setIdentity({ loading: false, data, text: null });
-        setAuth((prev) => (prev.authed ? prev : { known: true, authed: true, source: prev.source }));
+        // 身份读取成功 = gh 确实在认证状态下；而本 App 的认证途径就是按次注入 GH_TOKEN，
+        // 所以这里宁可报「注入的 token」，也不留一个「来源：未知」让人怀疑令牌没生效。
+        setAuth((prev) => (prev.source ? prev : { known: true, authed: true, source: "env" }));
       } else {
         setIdentity({ loading: false, data: null, text: (data && data.text) || "未取得身份" });
       }
@@ -358,7 +384,7 @@ function GitHanaSettings() {
         <SettingRow
           label="个人访问令牌"
           layout="stacked"
-          hint="留空并保存 = 清除。已存值不回显。"
+          hint="已存值不回显；换新令牌 = 粘贴后保存（输入框为空时不会清空已有令牌）。"
           control={
             <TextInput
               type="password"
@@ -374,24 +400,33 @@ function GitHanaSettings() {
             />
           }
         />
-        <Inline gap="sm">
-          <SaveButton
-            status={saveStatus}
-            labels={{ idle: "保存", saving: "保存中", saved: "已保存" }}
-            onSavedFeedbackEnd={() => setSaveStatus("idle")}
-            disabled={saveStatus === "saving" || secret.backendAvailable === false}
-            onClick={() => submit(token.trim())}
-          />
-          <Button variant="secondary" disabled={saveStatus === "saving"} onClick={() => submit("")}>
-            清除
-          </Button>
-          {message ? <span className="gh-msg">{message}</span> : null}
-        </Inline>
+        <SettingRow
+          label="令牌操作"
+          control={
+            <Inline gap="sm" align="center">
+              <SaveButton
+                status={saveStatus}
+                labels={{ idle: "保存", saving: "保存中", saved: "已保存" }}
+                onSavedFeedbackEnd={() => setSaveStatus("idle")}
+                disabled={saveStatus === "saving" || secret.backendAvailable === false}
+                onClick={() => submit(token)}
+              />
+              <Button
+                variant="secondary"
+                disabled={saveStatus === "saving" || secret.tokenConfigured !== true}
+                onClick={() => submit("", { clear: true })}
+              >
+                清除
+              </Button>
+              {message ? <span className="gh-msg">{message}</span> : null}
+            </Inline>
+          }
+        />
         <SettingRow
           label="GitHub 身份"
           hint="用已配置的令牌调 gh api user 读取；提交邮箱取 GitHub noreply 格式。不隐式轮询，点按钮才跑。"
           control={
-            <Inline gap="sm">
+            <Inline gap="sm" align="center">
               <Button variant="secondary" disabled={identity.loading} onClick={loadIdentity}>
                 {identity.loading ? "读取中…" : identity.data ? "刷新身份" : "读取身份"}
               </Button>
@@ -412,14 +447,22 @@ function GitHanaSettings() {
         {identity.data ? (
           <SettingRow label="账号 ID" control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>} />
         ) : null}
-        <Inline gap="sm">
-          <Button variant="secondary" disabled={ghBusy} onClick={runGhStatus}>
-            {ghBusy ? "检测中…" : "检测 gh 认证"}
-          </Button>
-          {auth.known ? (
-            <MonoText>{auth.authed ? `gh 已登录（来源：${auth.source || "未知"}）` : "gh 未登录"}</MonoText>
-          ) : null}
-        </Inline>
+        <SettingRow
+          label="gh 认证"
+          hint="跑一次 gh auth status；认证靠本 App 按次注入的 GH_TOKEN，不改你的全局 gh 配置。"
+          control={
+            <Inline gap="sm" align="center">
+              <Button variant="secondary" disabled={ghBusy} onClick={runGhStatus}>
+                {ghBusy ? "检测中…" : "检测认证"}
+              </Button>
+              {auth.known ? (
+                <MonoText>
+                  {auth.authed ? `已登录（${AUTH_SOURCE_LABEL[auth.source] || "来源未识别"}）` : "未登录"}
+                </MonoText>
+              ) : null}
+            </Inline>
+          }
+        />
         {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
         {ghText ? <pre className="gh-out">{ghText}</pre> : null}
       </SettingsSection>
@@ -447,7 +490,7 @@ function GitHanaSettings() {
           layout="stacked"
           hint="不可逆：轮换后 GitHub 上已上传的旧公钥立即失效，需重新上传。身份不填时用已配置的 token 自动推导。"
           control={
-            <Inline gap="sm">
+            <Grid columns={2} gap="sm">
               <TextInput
                 value={kgName}
                 autoComplete="off"
@@ -462,33 +505,38 @@ function GitHanaSettings() {
                 aria-label="提交者邮箱"
                 onChange={(e) => setKgEmail(e.target.value)}
               />
+            </Grid>
+          }
+        />
+        <SettingRow
+          label="密钥操作"
+          control={
+            <Inline gap="sm" align="center" wrap>
+              {kgConfirm ? (
+                <>
+                  <span className="gh-msg">确认生成 / 轮换？旧密钥将被清空</span>
+                  <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
+                    {kgBusy ? "执行中…" : "确认执行"}
+                  </Button>
+                  <Button variant="secondary" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
+                    取消
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" disabled={kgBusy} onClick={() => setKgConfirm(true)}>
+                  生成 / 轮换密钥
+                </Button>
+              )}
+              <Button variant="secondary" disabled={!pk.present} onClick={toggleKeyText}>
+                {showKey ? "收起公钥" : "查看公钥"}
+              </Button>
+              <Button variant="secondary" disabled={!pk.present} onClick={copyPubkey}>
+                复制公钥
+              </Button>
+              {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
             </Inline>
           }
         />
-        <Inline gap="sm">
-          {kgConfirm ? (
-            <>
-              <span className="gh-msg">确认生成 / 轮换？旧密钥将被清空</span>
-              <Button variant="primary" disabled={kgBusy} onClick={runKeygen}>
-                {kgBusy ? "执行中…" : "确认执行"}
-              </Button>
-              <Button variant="secondary" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
-                取消
-              </Button>
-            </>
-          ) : (
-            <Button variant="primary" disabled={kgBusy} onClick={() => setKgConfirm(true)}>
-              生成 / 轮换密钥
-            </Button>
-          )}
-          <Button variant="secondary" disabled={!pk.present} onClick={toggleKeyText}>
-            {showKey ? "收起公钥" : "查看公钥"}
-          </Button>
-          <Button variant="secondary" disabled={!pk.present} onClick={copyPubkey}>
-            复制公钥
-          </Button>
-          {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
-        </Inline>
         {showKey ? <pre className="gh-out">{keyText || "读取中…"}</pre> : null}
         {kgText ? <pre className="gh-out">{kgText}</pre> : null}
       </SettingsSection>
@@ -507,6 +555,17 @@ function Root() {
       <GitHanaSettings />
     </AppUiProvider>
   );
+}
+
+// 页面报到：宿主靠这条消息把 iframe 从「加载中」切到「就绪」。设置页这类表面用的是
+// readyOnTimeout=false —— 5 秒内没收到就判失败，界面上就是一句「应用加载失败」。
+// @hana/app-sdk/components 的 AppUiProvider 只管主题与 reduced-motion，不负责这次报到，
+// 所以必须本页自己喊（与官方脚手架 ui/assets/panel.js 里的 hana.ready() 同理）。
+// 不在 App iframe 里（比如直接开文件）时 SDK 会拒绝，忽略即可，不影响页面其余逻辑。
+try {
+  Promise.resolve(hana.ready()).catch(() => {});
+} catch {
+  /* 非 App 路由：跳过报到 */
 }
 
 createRoot(document.getElementById("root")).render(<Root />);
