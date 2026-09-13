@@ -9,6 +9,7 @@
     "check": "node scripts/build-ui.mjs && node scripts/selfcheck.mjs",
     "deploy": "node scripts/deploy.mjs",
     "pack": "node scripts/pack.mjs",
+    "index": "node scripts/build-index.mjs",
     "vendor": "node scripts/fetch-vendor.mjs"
   },
   "devDependencies": {

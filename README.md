@@ -129,6 +129,34 @@ node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui
   官方 creator 不在本仓，所以用一个零依赖的 `scripts/selfcheck.mjs` 兜住结构门槛
   （manifest 字段与 route 文件存在性、全部服务端 JS 语法、vendor 就绪性）。
 
+## 跨平台与市场包（只有一个包）
+
+**App 是 Web 应用，跨平台靠运行时解析，不逐平台出包**：
+
+```
+宿主内嵌 git（<HANA_ROOT>/resources/git，spawn 探活）
+  → 本平台 vendor/<platform>-<arch>/（若随包带了）
+    → 系统 PATH（gh / gpg）
+```
+
+- CI 的 release 流水线**只出一个 `universal` 包**（不随任何平台的 vendor），**进市场的也只有它**。
+- `node scripts/pack.mjs --target <platform>` 是点名才用的自包含单平台构建（带该平台的 vendor），
+  不进 CI、不进市场。
+- 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
+  宿主侧的包限制偏紧时，抬限制比裁包合理。
+
+## 出包与市场清单
+
+```bash
+pnpm run pack  --target universal         # → releases/<id>-v<ver>-universal.zip
+                                          #   + .sha256 + .entry.json（索引构建器的输入）
+pnpm run index                            # → index.v2.json（市场清单）
+```
+
+- `pack.mjs` 自带最小 ZIP 写入器，**不依赖官方包工具**；官方静态校验器可用时会作为额外关卡（不可用则标 `unverified`，不假装通过）。
+- `.entry.json` 不能漏：索引构建器只吃这种文件。它的 `archive.url` 写 `{{BASE_URL}}` 占位，由 `build-index.mjs` 换成真实下载基址。
+- **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
+
 ## 部署（源码 → 宿主加载位）
 
 ```powershell

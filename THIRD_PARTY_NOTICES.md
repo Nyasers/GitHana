@@ -79,12 +79,15 @@ The project's own license is in `NOTICE` (MPL-2.0). 许可正文放在 `licenses
 - Purpose: 打设置页产物（构建工具），**不进任何分发产物**
 - License: MIT —— 同 `licenses/MIT.txt`
 
-## 官方校验（需要宿主）
+## 官方作者工具（哪些能自足、哪些不能）
 
-出包前的官方静态校验由 `scripts/pack.mjs` 调用**宿主自带**的 `validate-app.mjs`。它是宿主作者工具
-的一部分，依赖闭包里含 Hana 内部包（如 `@earendil-works/pi-coding-agent`），**不能**被拷进本仓库
-独立运行；因此：本机装了 Hana（或设了 `HANA_APP_TOOLS_ROOT`）就过这道关，否则出包照常，但输出会
-写明 `officialValidation: unavailable` —— 不假装通过。
+| 工具 | 位置 | 说明 |
+|------|------|------|
+| `extension-index-build.mjs` | **仓库内拷贝**（`scripts/hana-app-tools/`） | 只依赖 node 内建，可独立运行 → 已在仓库，使市场清单在任何 runner 上都能出 |
+| `validate-app.mjs`（静态校验） | 只在宿主 | import 了 Hana 内部包（`@earendil-works/pi-coding-agent` 等），**不能**拷进仓库独立运行；有就用、没有就标 `unverified` |
+| `extension-pack.mjs` | 不用 | 需要 jsdom + sharp（原生）；包由本仓库 `scripts/pack.mjs` 自己出 |
+
+具体收录判定与升级方式：见 `scripts/hana-app-tools/README.md`。
 
 ## 未内联的许可文本
 

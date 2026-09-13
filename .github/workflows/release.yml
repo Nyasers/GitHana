@@ -1,17 +1,16 @@
-# Release — 矩阵出包（4 平台 + universal 兜底）+ 单点发布
+# Release — 单包（universal）+ 发布 + 市场清单
 #
 # 触发：push tag v*（发版）／ workflow_dispatch（手动，只出 artifact 不建 release）
 #
-# 三段式（对齐 dshana 的 release 骨架）：
-#   create-release：先建 draft pre-release（已存在则跳过）——保证后续上传目标必然存在
-#   package：矩阵并发，每目标一个 job；每 job 自包含（装依赖 + 重建该平台 vendor + 构建 UI +
-#            自检 + 出包 + sha256），产物命名 <id>-v<version>-<target>.zip
-#   publish：needs package。下载全部 artifact → 单点上传（--clobber，避免并发写同一 release）
-#            → 硬校验必需资产（缺一即 fail，release 留 draft）→ 全部齐备才去掉 draft
+# 为什么只有一个包、不做平台矩阵：App 是 Web 应用，跨平台靠运行时解析
+# （宿主 git → 本平台 vendor（若有）→ 系统 PATH），本来就不需要逐平台出包；
+# 逐平台包是"非目标平台原生模块怎么裁剪"那类问题，本仓库没有原生模块，不引入这份复杂度。
+# 进市场的也只有这一个 universal 包。
 #
-# 为什么能在 ubuntu 上出全平台包：本项目是纯 JS；内嵌运行时按 target 从
-# vendor/sources.json 重建（win32 的 gnupg 是 NSIS/7z 容器，所以先装 p7zip）。
-# 与 dshana 的关键差异：我们没有需编译的原生 helper，所以不需要跨 OS runner。
+# 三段式：
+#   create-release：先建 draft pre-release（已存在则跳过）——保证后续上传目标必然存在
+#   package：单包。构建 UI → 自检 → 出包（ZIP + .sha256 + .entry.json）→ 拼 index.v2.json
+#   publish：单点上传（--clobber）→ 硬校验必需资产（缺一即 fail，release 留 draft）→ 去 draft
 name: Release
 
 on:
@@ -49,10 +48,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [win32-x64, darwin-arm64, darwin-x64, linux-x64, universal]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -65,37 +60,44 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # esbuild 的 postinstall 只做自检（二进制由可选依赖提供），跳过它可避免
+      # esbuild 的 postinstall 只做自检（二进制由可选依赖提供），跳过可避免
       # ERR_PNPM_IGNORED_BUILDS 把整条链退出 1。
       - name: Install dependencies
         run: pnpm install --ignore-scripts --frozen-lockfile
-
-      # win32 的 gnupg 是 NSIS/7z 容器，需要 7z 才能只取 bin/
-      - name: Install 7z (for the win32 gnupg container)
-        if: matrix.target == 'win32-x64'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
-
-      - name: Rebuild vendored runtimes for ${{ matrix.target }}
-        if: matrix.target != 'universal'
-        run: node scripts/fetch-vendor.mjs --platform ${{ matrix.target }}
 
       - name: Build settings UI
         run: node scripts/build-ui.mjs
 
       - name: Self check
-        run: node scripts/selfcheck.mjs --platform ${{ matrix.target }}
+        run: node scripts/selfcheck.mjs --platform universal
 
-      # 官方 creator 可用时会被 pack 内部调用作为额外校验；不可用时照常出包（产物标注 unverified）
-      - name: Package ${{ matrix.target }}
-        run: node scripts/pack.mjs --target ${{ matrix.target }} --publisher "${{ github.repository_owner }}" --out releases
+      # 出包：ZIP + .sha256 + 市场条目 .entry.json
+      # （官方校验器在本 runner 上没有时会在输出里标 unverified，不假装通过）
+      - name: Package (universal)
+        run: node scripts/pack.mjs --target universal --publisher "${{ github.repository_owner }}" --out releases
+
+      # 市场清单：归档地址指向本次 tag 的 release 下载路径
+      - name: Build market index
+        run: |
+          set -e
+          node scripts/build-index.mjs \
+            --entries releases \
+            --include universal \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}" \
+            --source-id "${{ github.event.repository.name || 'githana' }}" \
+            --name "GitHana" \
+            --out releases/index.v2.json
+          head -c 400 releases/index.v2.json
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.target }}
+          name: pkg-universal
           retention-days: 3
           path: |
             releases/*.zip
             releases/*.zip.sha256
+            releases/*.entry.json
+            releases/index.v2.json
           if-no-files-found: error
 
   publish:
@@ -106,14 +108,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      # 单点上传（--clobber 幂等）：多 job 并发写同一 release 有互相覆盖的窗口，故收在一处
+      # 单点上传（--clobber 幂等）
       - name: Upload release assets (single writer)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -124,10 +124,10 @@ jobs:
             echo "  uploading $f"
             gh release upload "${{ github.ref_name }}" "$f" --clobber
             found=$((found+1))
-          done < <(find artifacts -type f \( -name '*.zip' -o -name '*.zip.sha256' \) -print0)
-          [ "$found" -gt 0 ] || { echo "::error::artifacts/ 里没有任何包"; exit 1; }
+          done < <(find artifacts -type f \( -name '*.zip' -o -name '*.zip.sha256' -o -name 'index.v2.json' \) -print0)
+          [ "$found" -gt 0 ] || { echo "::error::artifacts/ 里没有任何可发布文件"; exit 1; }
 
-      # 硬校验：四个平台包 + universal 兜底，各带 sha256；缺一即 fail，release 留 draft
+      # 硬校验：universal 包 + sha256 + 市场清单。缺一即 fail，release 留 draft
       - name: Verify required assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -140,17 +140,15 @@ jobs:
           echo "=== release assets ==="; echo "$ASSETS"
 
           MISSING=()
-          for t in win32-x64 darwin-arm64 darwin-x64 linux-x64 universal; do
-            for f in "${ID}-v${VER}-${t}.zip" "${ID}-v${VER}-${t}.zip.sha256"; do
-              echo "$ASSETS" | grep -qx "$f" || MISSING+=("$f")
-            done
+          for f in "${ID}-v${VER}-universal.zip" "${ID}-v${VER}-universal.zip.sha256" "index.v2.json"; do
+            echo "$ASSETS" | grep -qx "$f" || MISSING+=("$f")
           done
 
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "::error::缺少必需资产：${MISSING[*]}（release 保持 draft 供人工检查）"
             exit 1
           fi
-          echo "✓ 全部必需资产齐备（4 平台 + universal，各带 sha256）"
+          echo "✓ 必需资产齐备（universal 包 + sha256 + 市场清单）"
 
       - name: Un-draft (keep prerelease)
         env:

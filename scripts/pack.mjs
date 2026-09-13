@@ -23,14 +23,17 @@
  *
  * ## 逐目标出包
  *
- * `--target <platform|universal>`：决定随包的 vendor 目录（universal = 不随包，全靠宿主/系统）。
- * 产物落 `releases/<id>-v<version>-<target>.zip` + 同名 `.sha256`；版本单一事实源是 manifest.json，
- * 并与 package.json 对齐（不一致直接拒包）。
+ * `--target <platform|universal>`：决定随包的 vendor 目录。
+ *   · `universal`：不随任何平台的 vendor（只留 `sources.json`）——运行时靠宿主 git /
+ *     系统 PATH，这正是“App 是 Web 应用、天然跨平台”的那条路。**进市场的就只有它。**
+ *   · `--target <platform>`：点名才用，只留该平台 vendor（自包含单平台构建），不进 CI、不进市场。
+ * 产物落 `releases/<id>-v<version>-<target>.zip` + 同名 `.sha256` + `.entry.json`；
+ * 版本单一事实源是 manifest.json，并与 package.json 对齐（不一致直接拒包）。
  *
  * 用法：
- *   node scripts/pack.mjs --target win32-x64
- *   node scripts/pack.mjs --target universal --out ./releases
- *   node scripts/pack.mjs                      # 默认当前平台
+ *   node scripts/pack.mjs --target universal          # 无平台 vendor（release 流水线只出这个）
+ *   node scripts/pack.mjs --target win32-x64            # 自包含单平台（点名用，不进 CI）
+ *   不带 --target 时默认当前平台。
  */
 import { createHash } from "node:crypto";
 import { deflateRawSync } from "node:zlib";
@@ -241,6 +244,40 @@ function findOfficialValidator() {
   return cands.find((c) => existsSync(c)) || null;
 }
 
+/**
+ * 市场条目（`.entry.json`）——索引构建器的输入。
+ * 字段对齐官方包工具的产物；`archive.url` 用 `{{BASE_URL}}` 占位，由索引构建器替换成
+ * 实际的 `--base-url`（加发布基址）。图标用 data URI：官方用 sharp 生成 PNG，我们直接嵌
+ * manifest 里声明的 SVG（合法图片，不必为了图标引入原生依赖）。
+ */
+function buildEntry({ manifest, pkg, publisher, zipName, digest, size }) {
+  const capabilities = Array.isArray(manifest.capabilities) ? manifest.capabilities : [];
+  const entry = {
+    kind: "app",
+    id: manifest.id,
+    name: manifest.name || manifest.id,
+    publisher: publisher || pkg.name,
+    description: typeof manifest.description === "string" ? manifest.description : "",
+    version: manifest.version,
+    permissions: capabilities.map((capability) => ({ capability })),
+    ...(manifest.minAppVersion ? { compatibility: { minAppVersion: manifest.minAppVersion } } : {}),
+    ...(manifest.formFactors ? { compatibility: { ...(manifest.minAppVersion ? { minAppVersion: manifest.minAppVersion } : {}), formFactors: manifest.formFactors } } : {}),
+    archive: { url: `{{BASE_URL}}/${zipName}`, sha256: digest, size, format: "zip" },
+  };
+  try {
+    const iconPath = join(ROOT, manifest.icon);
+    if (manifest.icon && existsSync(iconPath)) {
+      const ext = manifest.icon.toLowerCase().endsWith(".svg") ? "image/svg+xml" : "image/png";
+      entry.icon = `data:${ext};base64,${readFileSync(iconPath).toString("base64")}`;
+    }
+  } catch {
+    /* 图标只是加性字段，读不到就不带 */
+  }
+  if (manifest.repository) entry.repository = manifest.repository;
+  if (manifest.homepage) entry.homepage = manifest.homepage;
+  return entry;
+}
+
 function main() {
   const manifest = readJson(join(ROOT, "manifest.json"));
   const pkg = readJson(join(ROOT, "package.json"));
@@ -311,9 +348,15 @@ function main() {
   const digest = sha256File(zipPath);
   writeFileSync(`${zipPath}.sha256`, `${digest}  ${baseName}.zip\n`, "utf8");
 
+  // 4) 市场条目（.entry.json）：extension-index-build.mjs 只吃这种文件来拼 index.v2.json。
+  //    官方包工具同样同时产出 ZIP + entry；自己出包也不能漏这一步，否则市场清单拼不出来。
+  const entryPath = join(outDir, `${baseName}.entry.json`);
+  writeFileSync(entryPath, JSON.stringify(buildEntry({ manifest, pkg, publisher: arg("--publisher"), zipName: `${baseName}.zip`, digest, size: zipSize }), null, 2) + "\n", "utf8");
+
   console.log(
     `[pack] 完成 ${relative(ROOT, zipPath)}  ${(zipSize / 1048576).toFixed(1)} MiB  ${filesInStage.length} 条` +
       `\n        sha256 ${digest}` +
+      `\n        entry  ${relative(ROOT, entryPath)}` +
       `\n        官方静态校验：${officialResult}`,
   );
 }
