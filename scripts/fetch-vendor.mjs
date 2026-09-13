@@ -57,13 +57,18 @@ async function download(spec, cacheFile) {
   await new Promise((resolve, reject) => {
     const ws = createWriteStream(cacheFile);
     const reader = res.body.getReader();
+    ws.on("error", reject);
+    // 等 close，不等 end()：end() 只表示写入队列排空，文件句柄要到 close 才释放。紧随其后的解压
+    // 走 execFileSync，会阻塞事件循环——句柄没释放时 7z 打不开这个文件（Windows 实测
+    // "being used by another process"，CI win32 每次红在这一步）。等 close 还顺带保证落盘
+    // 字节与已校验的哈希一致（此前哈希取自流，文件可能仍是短的）。
+    ws.on("close", resolve);
     (function pump() {
       reader
         .read()
         .then(({ done, value }) => {
           if (done) {
             ws.end();
-            resolve();
             return;
           }
           hash.update(value);

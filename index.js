@@ -11,7 +11,7 @@
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
  *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
  *   因此本文件把 tools/ 下 9 个模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
- *   并把 App 运行上下文（dataDir / 安装目录 / 设置通道）以第二个参数喂给既有的 v1 工具实现，
+ *   并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给既有的 v1 工具实现，
  *   让 tools/ 与 lib/ 的代码基本零改动复用（见 tools/lib/context.js 的契约）。
  *
  * v2 隔离进程的硬约束（APPS.md「执行模型与文件边界」）：
@@ -24,7 +24,7 @@
  *
  * 数据与配置：
  *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / GNUPGHOME / 公钥落盘）。
- *   - token 走清单 contributes.settings 的 schema，运行期经 ctx.config 读（v2 唯一通道）。
+ *   - token 不走宿主设置表：加密落 dataDir（lib/secret.js），经进程缓存供工具同步读。
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,34 +107,17 @@ export function apply(ctx) {
     try { console.error(`[githana] [${level}]`, ...args); } catch { /* 忽略 */ }
   };
 
-  // 喂给既有工具实现的运行上下文（tools/lib/context.js 认 ctx.dataDir / ctx.pluginDir /
-  // ctx.config.getAll）。settings 在 apply 完成后才登记，故这里只包一层惰性转发，不预取。
+  // 喂给既有工具实现的运行上下文（tools/lib/context.js 认 ctx.dataDir / ctx.pluginDir）。
+  // 宿主设置表不参与本 App 的配置：令牌与其它设置都由 App 自己持有（见 lib/secret.js）。
   const appCtx = {
     dataDir,
     pluginDir: INSTALL_DIR,
     logger,
-    config: {
-      getAll: () => {
-        try {
-          const all = ctx.config && typeof ctx.config.getAll === "function" ? ctx.config.getAll() : null;
-          return all && typeof all === "object" && !Array.isArray(all) ? all : {};
-        } catch {
-          return {};
-        }
-      },
-      get: (key) => {
-        try {
-          return ctx.config && typeof ctx.config.get === "function" ? ctx.config.get(key) : undefined;
-        } catch {
-          return undefined;
-        }
-      },
-    },
   };
 
   // 令牌不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
-  // 解密是异步的，而 buildBinEnv 必须同步拿到 GH_TOKEN；挂在 initToolContext 首次拉完
-  // 配置之后（那时 ctx.config 已可读，旧版明文也能读出并迁移），只跑一次。
+  // 解密是异步的，而 buildBinEnv 必须同步拿到 GH_TOKEN；挂在 initToolContext 首次调用
+  // 之后，只跑一次。
   setSecretLoader(() => loadSecretIntoContext(dataDir));
 
   const disposers = TOOLS.map((mod) =>
@@ -154,15 +137,9 @@ export function apply(ctx) {
   if (ctx.routes && typeof ctx.routes.register === "function") {
     unregisterRoutes = ctx.routes.register((app) => {
       registerStatusRoutes(app, { dataDir, appCtx });
-      // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰 ctx.config，
-      // 经 App 自己的已认证路由转发。令牌的写入口在这里（会走加密存储并迁移旧明文）。
-      registerSettingsRoutes(app, {
-        appCtx,
-        dataDir,
-        config: {
-          set: (key, value) => ctx.config.set(key, value),
-        },
-      });
+      // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰宿主状态，
+      // 经 App 自己的已认证路由转发。令牌的写入口在这里（加密落盘，见 lib/secret.js）。
+      registerSettingsRoutes(app, { appCtx, dataDir });
       // 设置页「手动档」：复用 Agent 工具本体，一套实现两个入口。
       registerActionRoutes(app, { appCtx, dataDir });
     });
