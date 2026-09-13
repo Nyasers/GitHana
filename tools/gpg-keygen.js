@@ -200,8 +200,8 @@ async function deleteOldKeyPair(fpr, gpgDir) {
  * 否则残留 <vendor>/gnupg/bin/gpg-agent.exe --homedir <插件环> --daemon + scdaemon.exe。
  * 清理机制：gpgconf --kill gpg-agent scdaemon 可杀指定 homedir 的 daemon——gpgconf 不支持
  * --homedir 参数、靠 GNUPGHOME env 定位；runCli（exec.js applyPluginIsolation）已注入
- * GNUPGHOME=<dataDir>/gnupg，且 gpgconf 走插件 vendor/gnupg（bin.js candidatesFor 已纳入：
- * 无 gpgconf.ctl → 认 env；系统 scoop gpgconf 带 gpgconf.ctl 不认 env、杀不到插件环）→
+ * GNUPGHOME=<dataDir>/gnupg，且 gpgconf 走插件 vendor/gnupg（bin.js vendorRoots 按组件目录名
+ * gnupg 已纳入：无 gpgconf.ctl → 认 env；系统 scoop gpgconf 带 gpgconf.ctl 不认 env、杀不到插件环）→
  * 本调用精准命中插件环 daemon，不影响用户个人 scoop home 的 gpg/agent。
  * 幂等无副作用：失败/无 daemon 均静默；清理失败不覆盖主结果（execute 的 finally 收尾，
  * 任何返回路径都不会被清理结果打断——runCli 本身不抛，此处仍兜底 catch）。
