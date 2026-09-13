@@ -1,2 +1,5 @@
+# pnpm 11 把「允许哪些依赖跑构建脚本」放在这里（package.json 里的 pnpm 字段已让位，单一事实源）。
+# esbuild 的 postinstall 只做自检（平台二进制由可选依赖提供），允许它是为了不再让
+# `pnpm install` 以 ERR_PNPM_IGNORED_BUILDS 退出 1。
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
