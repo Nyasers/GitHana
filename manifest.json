@@ -15,18 +15,6 @@
   "contributes": {
     "settings": {
       "title": "GitHana",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "title": "GitHub 个人访问令牌（PAT）",
-            "description": "用于注入 GH_TOKEN（gh CLI 认证）与 gpg_keygen 的身份推导（gh api user → noreply 邮箱）。不填时 gpg_keygen 可显式传 email/name 参数。",
-            "default": "",
-            "sensitive": true
-          }
-        }
-      },
       "ui": {
         "route": "/settings.html"
       }

@@ -63,7 +63,6 @@ import { resolveBin } from "./lib/bin.js";
 import {
   initToolContext,
   getToolDataDir,
-  getToolConfigValue,
   getToolSecretToken,
 } from "./lib/context.js";
 
@@ -262,8 +261,8 @@ async function runKeygen(input) {
   } else {
     // b. 否则 token 自动推导：gh api user（GH_TOKEN 由 exec.js 注入）→ {id, login}
     //    email = noreplyEmailFromUser(id, login)，name = name 参数或 deriveNameFromLogin(login)
-    // 令牌不再走宿主设置表：进程缓存（DPAPI 解密结果）优先，回退旧版明文配置。
-    const token = String(getToolSecretToken() || getToolConfigValue("token") || "").trim();
+    // 令牌只在进程缓存里（DPAPI 解密结果，见 lib/secret.js）。
+    const token = String(getToolSecretToken() || "").trim();
     if (!token) {
       return (
         "gpg_keygen：未配置 GitHub token（插件设置）。提交者邮箱依赖 token 自动推导" +
