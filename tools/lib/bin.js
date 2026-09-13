@@ -31,7 +31,7 @@
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
  *
  * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，让 git 经 gpg.program 解析到的
- * 「PATH 里的 gpg」必然是插件环那把（认 GNUPGHOME env）。gpg_keygen 接线写的是 vendor 绝对路径，
+ * 「PATH 里的 gpg」必然是插件环那把（认 GNUPGHOME env）。密钥生成接线写的是 vendor 绝对路径，
  * 而更早版本留下过裸名 "gpg.exe"——两种写法都命中隔离环，签名不会落系统 gpg。
  *
  * 平台注记：vendor 里的 gpg 必须是"认 GNUPGHOME env"的原生模式（Windows 上表现为删除

@@ -358,7 +358,7 @@ function GitHanaSettings() {
         <SettingRow
           label="认证状态"
           control={<StatusText ok={state.tokenConfigured} on="已配置" off="未配置" />}
-          hint={state.tokenConfigured ? "gh 调用时会带上 GH_TOKEN" : "留空则 gpg_keygen 需显式传 email"}
+          hint={state.tokenConfigured ? "gh 调用时会带上 GH_TOKEN" : "留空则生成密钥时需显式传邮箱"}
         />
         <SettingRow
           label="令牌保护"
