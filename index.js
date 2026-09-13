@@ -41,7 +41,6 @@ import * as gpgPubkey from "./tools/gpg-pubkey.js";
 
 // 路由模块放 lib/routes/：顶层 routes/ 是 v2 保留目录（形态互斥的另一种路由源），
 // 本项目统一用 ctx.routes.register 单 bundle 形态，故顶层不放 routes/。
-import { registerPubkeyRoutes } from "./lib/routes/pubkey.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
@@ -75,7 +74,7 @@ function plainPermission(perm) {
  * v1 工具的 execute 返回纯字符串（成功报告或可读错误都走同一个字符串通道）；
  * v2 宿主的 ui-actions 与模型循环都把返回值当普通对象，只取 .content / .details——
  * 字符串会被当成空对象吞成 `{}`。所以在这里统一升格：
- *   - 已经是带 content 的对象（如 gpg_pubkey 的 { content, details.card }）→ 原样透传；
+ *   - 已经是带 content 的对象（如 { content: [{ type: "text", … }], details: {…} }）→ 原样透传；
  *   - 字符串 → { content: [{ type: "text", text }] }；
  *   - 其他可序列化值 → JSON 文本；null/undefined → 空文本。
  * 这样 tools/ 与 lib/ 的实现可以保持 v1 时的零改动。
@@ -154,7 +153,6 @@ export function apply(ctx) {
   let unregisterRoutes = null;
   if (ctx.routes && typeof ctx.routes.register === "function") {
     unregisterRoutes = ctx.routes.register((app) => {
-      registerPubkeyRoutes(app, { dataDir });
       registerStatusRoutes(app, { dataDir, appCtx });
       // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰 ctx.config，
       // 经 App 自己的已认证路由转发。令牌的写入口在这里（会走加密存储并迁移旧明文）。
@@ -168,9 +166,9 @@ export function apply(ctx) {
       // 设置页「手动档」：复用 Agent 工具本体，一套实现两个入口。
       registerActionRoutes(app, { appCtx, dataDir });
     });
-    log("info", "路由注册：/routes/pubkey · /routes/status · /routes/settings/* · /routes/actions/*");
+    log("info", "路由注册：/routes/status · /routes/settings/* · /routes/actions/*");
   } else {
-    log("warn", "ctx.routes.register 缺失：公钥卡与状态页的数据端点不可用");
+    log("warn", "ctx.routes.register 缺失：设置页与状态端点的数据不可用");
   }
 
   let disposed = false;
