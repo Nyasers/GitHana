@@ -37,7 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { getToolDataDir, getToolSecretToken, getToolConfigValue } from "./context.js";
+import { getToolDataDir, getToolSecretToken } from "./context.js";
 
 /** 插件根目录（bin.js 位于 <root>/tools/lib/，上两级即根） */
 export const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -269,7 +269,7 @@ export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
     env.GNUPGHOME = path.join(dataDir, "gnupg");
     if (!omitToken) {
-      const token = getToolSecretToken() || getToolConfigValue("token");
+      const token = getToolSecretToken();
       if (token) env.GH_TOKEN = token;
     }
   }
