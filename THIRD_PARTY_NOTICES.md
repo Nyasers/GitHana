@@ -39,7 +39,7 @@ The project's own license is in `NOTICE` (MPL-2.0). 许可正文放在 `licenses
 ### GnuPG
 
 - Version: 2.5.21（官方 Windows 构建 `gnupg-w32-2.5.21_20260702.exe`）
-- Purpose: 隔离环内的 GPG 签名与验签（`gpg_keygen` 生成密钥、`git_commit` 签名、`gpgconf` 收尾）
+- Purpose: 隔离环内的 GPG 签名与验签（设置页的密钥生成、`git_commit` 签名、`gpgconf` 收尾）
 - Form: 取自官方 Windows 安装器（NSIS/7z 容器）的 `bin/`，**未修改**；置备时删除 `gpgconf.ctl`
   （使其认 `GNUPGHOME` env —— 隔离签名的前提）
 - Source: https://gnupg.org/download/ （ftp 归档 `binary/gnupg-w32-2.5.21_20260702.exe`）

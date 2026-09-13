@@ -2,15 +2,18 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * gpg_keygen：为隔离环境初始化 git 身份 + 生成 GPG 密钥（GitHana 的隔离 gpg 工具，命名与文件名对齐）。
+ * gpg-keygen.js — 隔离 GPG 身份的实现：初始化隔离 git 身份 + 生成/轮换签名密钥。
  *
- * 为什么是工具而不是脚本/Agent 手跑（对齐「密钥不进上下文」决策）：
- * 密钥生成、指纹提取、gitconfig 写入全在工具内部完成，Agent/对话只接触
- * 结果报告与公钥（公钥非敏感，需展示给用户上传 GitHub）。
+ * 调用方只有设置页的「生成 / 轮换密钥」动作（lib/routes/actions.js）。GPG 的生成与公钥查看
+ * 都不在 Agent 工具面：生成不可逆（轮换会让 GitHub 上已上传的旧公钥立即失效），要用户点按钮
+ * 二次确认；公钥的查看与复制也只在设置页。
+ *
+ * 为什么不把这段塞进路由：密钥生成、指纹提取、gitconfig 写入都在本地完成，报告与公钥可展示，
+ * 私钥材料不进对话。路由只负责鉴权与传参，实现留在这里（export execute({ name?, email? }, ctx)）。
  *
  * 行为（全部落在插件数据目录 dataDir，不读不污染用户 ~/.gitconfig / ~/.gnupg）：
  * 1. 提交者身份：邮箱经 token 自动推导（gh api user → noreply 邮箱 {id}+{login}@users.noreply.github.com），
- *    或本工具 email 参数显式覆盖；名字由 login/邮箱自动推导（…+ProjectNyaser@… → ProjectNyaser），
+ *    或 email 参数显式覆盖；名字由 login/邮箱自动推导（…+ProjectNyaser@… → ProjectNyaser），
  *    可传 name 参数覆盖；身份写入隔离 gitconfig（<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。
  *    推导失败（token 未配 / gh api 失败 / 解析失败）→ 中止并提示「配置 token 或传 email 参数」，
  *    不生成不删除不写身份。
@@ -37,7 +40,7 @@
  *    忽略 GNUPGHOME env），不可用于此接线。
  * 4. 返回报告 + 新公钥（armored）——首次使用把公钥贴到 GitHub（Settings →
  *    SSH and GPG keys → New GPG key）后，签名提交即 verified；轮换后旧公钥失效，
- *    需删除旧公钥并上传新公钥（本工具会提示）。
+ *    需删除旧公钥并上传新公钥（本动作会提示）。
  *
  * email 语义：密钥 UID 邮箱必须等于提交作者邮箱（token 自动推导的 noreply 邮箱，
  * 或 email 参数显式值）才能被 GitHub 验证为 verified——生成密钥强制用该邮箱，不另设 gpgEmail。
@@ -65,39 +68,6 @@ import {
   getToolDataDir,
   getToolSecretToken,
 } from "./lib/context.js";
-
-export const name = "gpg_keygen";
-
-export const description = [
-  "初始化插件的隔离 git/GPG 环境（密钥生成全在工具内部，不进对话）：",
-  "1) 提交者邮箱经 token 自动推导（gh api user → GitHub noreply 邮箱 {id}+{login}@users.noreply.github.com），",
-  "或显式 email 参数覆盖；名字由 login/邮箱自动推导，可用 name 参数覆盖；身份写入隔离 git 配置",
-  "（插件数据目录 gitconfig，不读不污染 ~/.gitconfig；推导失败会中止并提示「配置 token 或传 email 参数」）；",
-  "2) 在隔离 gpg 环（<dataDir>/gnupg）生成 ed25519 GPG 签名密钥（UID 邮箱 = 推导/指定的提交作者邮箱，需匹配才能 verified）——keygen 侧 gpg 调用显式 --homedir，签名侧经 gpg.program 指向插件 vendor gnupg（认 GNUPGHOME env），双重隔离；",
-  "首次执行 = 生成，重复执行 = 轮换：先清空隔离环旧密钥（逐个删除前置复核，环内均为插件自有密钥，用户个人主密钥不在本环，清理不涉个人资产）、再生成新密钥；删除失败即中止（不清不建），清理后生成失败 = 环空可重跑重建（不涉个人资产）；UID 无需唯一化（环空生成无冲突）；",
-  "3) 密钥指纹写入隔离 gitconfig（user.signingkey + commit.gpgsign=true + gpg.program=<vendor gnupg 绝对路径>），宿主 git spawn vendor gpg 继承 runCli 注入的 GNUPGHOME → 签名与验签命中隔离环，此后 git_commit 自动签名；",
-  "4) 返回报告 + 公钥（armored）。公钥自动落盘为 <dataDir>/github-toolkit-gpg-pubkey.asc（固定名，轮换后覆盖为最新），报告给出文件路径；",
-  "请把公钥贴到 GitHub（Settings → SSH and GPG keys → New GPG key），",
-  "之后插件签名提交即显示 verified。轮换后需删除 GitHub 上的旧公钥并上传新公钥，签名才重新 verified。",
-].join(" ");
-
-export const sessionPermission = { kind: "plugin_output" };
-
-export const parameters = {
-  type: "object",
-  properties: {
-    name: {
-      type: "string",
-      description:
-        "可选：提交者名字（覆盖 login/邮箱自动推导值；用于 git 身份与 GPG UID）。默认从 token 推导的 login（61904116+ProjectNyaser@... → ProjectNyaser）或 noreply 邮箱自动得出，无需配置",
-    },
-    email: {
-      type: "string",
-      description:
-        "可选：提交者邮箱（显式覆盖 token 自动推导的 noreply 邮箱；必须 = 提交作者邮箱，GPG UID 与 verified 依赖它）",
-    },
-  },
-};
 
 /**
  * GPG 私钥完整指纹解析（--list-secret-keys --with-colons）。
@@ -236,7 +206,7 @@ export async function execute(input, ctx) {
 async function runKeygen(input) {
   const dataDir = getToolDataDir();
   if (!dataDir) {
-    return "gpg_keygen：无法定位插件数据目录（ctx.dataDir 缺失），无法初始化隔离配置。";
+    return "密钥生成：无法定位插件数据目录（ctx.dataDir 缺失），无法初始化隔离配置。";
   }
   fs.mkdirSync(dataDir, { recursive: true });
 
@@ -265,15 +235,15 @@ async function runKeygen(input) {
     const token = String(getToolSecretToken() || "").trim();
     if (!token) {
       return (
-        "gpg_keygen：未配置 GitHub token（插件设置）。提交者邮箱依赖 token 自动推导" +
+        "密钥生成：未配置 GitHub 令牌。提交者邮箱依赖 token 自动推导" +
         "（gh api user → noreply 邮箱 {id}+{login}@users.noreply.github.com）。\n" +
-        "请配置 token 后重跑，或直接传 email 参数以跳过自动推导。本次未生成/删除任何密钥、未写身份。"
+        "请到设置页填入令牌后重跑，或直接传 email 参数以跳过自动推导。本次未生成/删除任何密钥、未写身份。"
       );
     }
     const userR = await runCli("gh", ["api", "user"], {});
     if (!userR.ok) {
       return (
-        "gpg_keygen：token 自动推导提交者身份失败——gh api user 调用失败：" +
+        "密钥生成：token 自动推导提交者身份失败——gh api user 调用失败：" +
         (userR.message || "未知错误") + "\n" +
         "请确认 token 有效（可访问 api.github.com；任意已认证 token 即可，无额外 scope），" +
         "或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
@@ -289,7 +259,7 @@ async function runKeygen(input) {
     const login = user && user.login ? String(user.login).trim() : "";
     if (id === undefined || id === null || id === "" || !login) {
       return (
-        "gpg_keygen：token 自动推导提交者身份失败——gh api user 响应解析失败" +
+        "密钥生成：token 自动推导提交者身份失败——gh api user 响应解析失败" +
         "（未取得 {id, login}；原始输出前 200 字符：" + String(userR.stdout || "").slice(0, 200) + "）。\n" +
         "请检查 token 与网络后重试，或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
       );
