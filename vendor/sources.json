@@ -13,10 +13,10 @@
       "components": {
         "git": {
           "label": "MinGit",
-          "version": "2.55.0.windows.1",
-          "asset": "MinGit-2.55.0-64-bit.zip",
-          "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.1/MinGit-2.55.0-64-bit.zip",
-          "sha256": "31497e7968196332263459ee319d2524e3ebc5786ab895e2abad34ffdd4f4ebf",
+          "version": "2.55.0.windows.5",
+          "asset": "MinGit-2.55.0.5-64-bit.zip",
+          "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip",
+          "sha256": "56d7b226b7693196cfc71fef26568f536c4a021ab6c37ff2db4287bed908e96e",
           "extract": "zip",
           "exe": "cmd/git.exe",
           "optional": true,
@@ -24,19 +24,19 @@
         },
         "gh": {
           "label": "gh CLI",
-          "version": "2.95.0",
-          "asset": "gh_2.95.0_windows_amd64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_windows_amd64.zip",
-          "sha256": "19a7154161ada9cfaa9e57edb752ecc679b75c391a62e4f7b586eea1df30b5bb",
+          "version": "2.101.0",
+          "asset": "gh_2.101.0_windows_amd64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_windows_amd64.zip",
+          "sha256": "bc6c814367b193cd8e713611d61e36013c0ef843b8f516458fe3eda039192794",
           "extract": "zip",
           "exe": "bin/gh.exe"
         },
         "gnupg": {
           "label": "GnuPG",
-          "version": "2.5.21",
-          "asset": "gnupg-w32-2.5.21_20260702.exe",
-          "url": "https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.21_20260702.exe",
-          "sha256": "6246c925a73167253444afc24a0deb83a3f43b7d636af84d6aaf48a98a62f024",
+          "version": "2.5.24",
+          "asset": "gnupg-w32-2.5.24_20260923.exe",
+          "url": "https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.24_20260923.exe",
+          "sha256": "ea6f9dee2cccd83287432625b8b399173805add81d27067fcaf019c0c4da1ad8",
           "extract": "7z-bin",
           "exe": "bin/gpg.exe",
           "note": "NSIS/7z 容器：只取 bin/（弃 locale/lib/include/卸载器）。置备后必须删除 gpgconf.ctl（否则便携模式恒指 scoop home、忽略 GNUPGHOME，隔离签名与 gpgconf --kill 都失效）。"
@@ -48,9 +48,9 @@
       "components": {
         "gh": {
           "label": "gh CLI",
-          "version": "2.95.0",
-          "asset": "gh_2.95.0_macOS_arm64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_arm64.zip",
+          "version": "2.101.0",
+          "asset": "gh_2.101.0_macOS_arm64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_macOS_arm64.zip",
           "sha256": "",
           "extract": "zip",
           "exe": "bin/gh"
@@ -62,9 +62,9 @@
       "components": {
         "gh": {
           "label": "gh CLI",
-          "version": "2.95.0",
-          "asset": "gh_2.95.0_macOS_amd64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_macOS_amd64.zip",
+          "version": "2.101.0",
+          "asset": "gh_2.101.0_macOS_amd64.zip",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_macOS_amd64.zip",
           "sha256": "",
           "extract": "zip",
           "exe": "bin/gh"
@@ -76,9 +76,9 @@
       "components": {
         "gh": {
           "label": "gh CLI",
-          "version": "2.95.0",
-          "asset": "gh_2.95.0_linux_amd64.tar.gz",
-          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_linux_amd64.tar.gz",
+          "version": "2.101.0",
+          "asset": "gh_2.101.0_linux_amd64.tar.gz",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz",
           "sha256": "",
           "extract": "targz",
           "exe": "bin/gh"
@@ -90,9 +90,9 @@
       "components": {
         "gh": {
           "label": "gh CLI",
-          "version": "2.95.0",
-          "asset": "gh_2.95.0_linux_arm64.tar.gz",
-          "url": "https://github.com/cli/cli/releases/download/v2.95.0/gh_2.95.0_linux_arm64.tar.gz",
+          "version": "2.101.0",
+          "asset": "gh_2.101.0_linux_arm64.tar.gz",
+          "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_arm64.tar.gz",
           "sha256": "",
           "extract": "targz",
           "exe": "bin/gh"
