@@ -184,6 +184,7 @@ function GitHanaSettings() {
   const [kgConfirm, setKgConfirm] = useState(false);
   const [kgText, setKgText] = useState(null);
   const [showKey, setShowKey] = useState(false);
+  const [showFpr, setShowFpr] = useState(false);
   const [keyText, setKeyText] = useState(null);
   const [copyMsg, setCopyMsg] = useState(null);
 
@@ -272,6 +273,7 @@ function GitHanaSettings() {
       setKgConfirm(false);
       await refresh();
       setShowKey(false);
+      setShowFpr(false);
       setKeyText(null);
     } catch (e) {
       setKgText(`执行失败：${String((e && e.message) || e)}`);
@@ -483,6 +485,9 @@ function GitHanaSettings() {
           hint={pk.present ? null : "在下方点「生成 / 轮换密钥」初始化"}
         />
         {pk.keyId ? <SettingRow label="密钥 ID" control={<MonoText>{pk.keyId}</MonoText>} /> : null}
+        {showFpr && pk.fpr ? (
+          <SettingRow label="完整指纹" truncateText control={<MonoText>{pk.fpr}</MonoText>} />
+        ) : null}
         {pk.uid ? <SettingRow label="身份（UID）" control={<MonoText>{pk.uid}</MonoText>} /> : null}
 
         <SettingRow
@@ -529,6 +534,9 @@ function GitHanaSettings() {
               )}
               <Button variant="secondary" disabled={!pk.present} onClick={toggleKeyText}>
                 {showKey ? "收起公钥" : "查看公钥"}
+              </Button>
+              <Button variant="secondary" disabled={!pk.fpr} onClick={() => setShowFpr((v) => !v)}>
+                {showFpr ? "收起指纹" : "查看指纹"}
               </Button>
               <Button variant="secondary" disabled={!pk.present} onClick={copyPubkey}>
                 复制公钥
