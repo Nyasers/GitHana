@@ -17,7 +17,7 @@
  *
  * ZIP 内文件在根：manifest.json / index.js / lib/ / tools/ / ui/ / vendor/ / skills/ / assets/…
  * 排除：node_modules（只有构建期需要，UI 产物已在 ui/ 里）、build-deps（SDK tarball）、.git* /
- * .github、_tmp、releases、pnpm-lock.yaml、pnpm-workspace.yaml、scripts/、README.md（开发件）。
+ * .github、.tmp、releases、pnpm-lock.yaml、pnpm-workspace.yaml、scripts/、README.md（开发件）。
  * 说明：官方包工具不排除任何目录，会把 node_modules 与开发件一并打进去；本脚本按上面这张
  * 排他表做净包，因此同类内容更小。
  *
@@ -58,7 +58,7 @@ const HANA_HOME = process.env.HANA_HOME || join(process.env.USERPROFILE || proce
 const EXCLUDE_TOP = new Set([
   "node_modules",
   "build-deps", // SDK tarball：构建期依赖（官方 SDK 不在 npm 上），不进运行时包
-  "_tmp",
+  ".tmp",
   "releases",
   "dist-extensions",
   ".git",

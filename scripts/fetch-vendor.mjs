@@ -30,8 +30,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCES = join(ROOT, "vendor", "sources.json");
-const CACHE_DIR = join(ROOT, "_tmp", "vendor-dl");
-const XTMP = join(ROOT, "_tmp", "vendor-x");
+const CACHE_DIR = join(ROOT, ".tmp", "vendor-dl");
+const XTMP = join(ROOT, ".tmp", "vendor-x");
 
 const log = (...a) => console.log("[fetch-vendor]", ...a);
 const rel = (p) => p.replace(ROOT, ".");
