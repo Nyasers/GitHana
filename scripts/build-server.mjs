@@ -80,7 +80,17 @@ const config = {
     },
   },
   optimization: {
-    // 单入口 + 无动态导入 → 不切 chunk：一个文件进包，安装树里只有一个服务端产物。
+    // 不切 chunk：**chunk 来自多入口共享代码或动态 `import()`**，本 App 两边都没有——
+    // 服务端就一个入口（index.js），也没有动态 import（仅 JSDoc 里出现过 `import("hono").Hono`
+    // 这类类型注释，不是真导入）。实测：把这里改成 `splitChunks: { chunks: "all" }`，产物文件名
+    // 完全一样（没有可切的东西）；只有强行 `runtimeChunk: "single"` 才会多出一个 runtime.mjs。
+    //
+    // 对照 DSHana：它的 bin/ 有 300.mjs/964.mjs，因为它是**两入口一次构建**（主体 app +
+    // 受管 runtime dsh），两边共享代码才切得出来；它的 ui/ 数字 chunk 则来自 stream-entry.ts 里
+    // 对重型半的动态 import。形态对齐的是“为什么切”，不是“看上去该有几个文件”。
+    //
+    // 单入口还有个真好处：产物逐字节可复现（连跑两次构建 SHA256 相同），宿主缓存它才稳。
+    // 这正是 DSHana 把 bin/index.mjs 写成静态壳（而非 rspack 产出）所追求的性质。
     splitChunks: false,
     runtimeChunk: false,
     minimize: true,
