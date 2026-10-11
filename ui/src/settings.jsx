@@ -179,9 +179,57 @@ function ToolRow({ label, tool }) {
       label={label}
       truncateText
       control={<StatusText ok={ok} on="可用" off="缺失" />}
-      hint={<MonoText title={text}>{text}</MonoText>}
+      hint={
+        ok || !tool?.missingHint ? (
+          <MonoText title={text}>{text}</MonoText>
+        ) : (
+          // 缺 gpg 时 hint 换成安装指引，而不是只说“缺失”——用户需要知道去哪儿装。
+          <span className="gh-msg">{tool.missingHint}</span>
+        )
+      }
     />
   );
+}
+
+/**
+ * 把用户送到 GitHub 的验证页，并尽量把验证码送进剪贴板。
+ *
+ * 两条实测约束决定了这个形态（不是偏好）：
+ *   1. GitHub 的 device/code 响应只有 `verification_uri`，**不返回** RFC 8628 的
+ *      `verification_uri_complete`，所以没有「码已嵌好」的 URL 可用；
+ *   2. `/login/device` 不接受 `?user_code=` 预填入参，码必须由用户手动粘/敲。
+ *      gh 官方（cli/oauth + cli/cli 的 authflow）也是这么做的：打开裸 URL，再把码
+ *      写进剪贴板让用户粘。这里沿用同一形态。
+ *
+ * 剪贴板优先走宿主的 `hana.clipboard.writeText`（设置页是 App iframe，有账本可查、
+ * 拿得到宿主确认）；宿主不可用时回退浏览器原生 API。开外链同理走 `hana.external.open`，
+ * 由宿主用系统默认浏览器打开，而不是 `window.open`。
+ *
+ * 两件事都不阻断授权：失败只回报文本，轮询照常进行——用户仍可手动打开/手动输码。
+ */
+async function sendToVerification(verificationUri, userCode) {
+  const notes = [];
+
+  try {
+    const r = await hana.clipboard.writeText({ text: userCode });
+    notes.push(r && r.written ? "验证码已复制到剪贴板" : "验证码未能复制，请手动输入");
+  } catch {
+    try {
+      await navigator.clipboard.writeText(userCode);
+      notes.push("验证码已复制到剪贴板");
+    } catch {
+      notes.push("验证码未能复制，请手动输入");
+    }
+  }
+
+  try {
+    const r = await hana.external.open({ url: verificationUri });
+    notes.push(r && r.opened ? "已在浏览器打开验证页" : "请手动打开验证页");
+  } catch {
+    notes.push("未能自动打开浏览器，请手动打开验证页");
+  }
+
+  return notes.join("；");
 }
 
 /** device flow 的初始态。 */
@@ -209,6 +257,7 @@ function GitHanaSettings() {
   // device flow 授权
   const [oauth, setOauth] = useState(OAUTH_IDLE);
   const [remaining, setRemaining] = useState(0);
+  const [handoff, setHandoff] = useState(null);
   const intervalRef = useRef(5);
 
   // gh 认证态（由「检测 gh 认证」/「读取身份」结果更新）
@@ -277,6 +326,7 @@ function GitHanaSettings() {
   const startLogin = useCallback(async () => {
     setOauth({ ...OAUTH_IDLE, starting: true });
     setClientIdMsg(null);
+    setHandoff(null);
     try {
       const value = clientIdInput.trim();
       // 先把输入框里的 Client ID 落盘（空串 = 撤销覆盖，回落内置默认），
@@ -298,6 +348,8 @@ function GitHanaSettings() {
         status: "waiting",
         error: null,
       });
+      // 先把浏览器与剪贴板推给用户，再做别的：验证码有 15 分钟寿命，越早到手越好。
+      setHandoff(await sendToVerification(res.verificationUri, res.userCode));
       await refresh();
     } catch (e) {
       setOauth({ ...OAUTH_IDLE, status: "error", error: String((e && e.message) || e) });
@@ -306,6 +358,7 @@ function GitHanaSettings() {
 
   const cancelLogin = useCallback(() => {
     setOauth(OAUTH_IDLE);
+    setHandoff(null);
   }, []);
 
   const revokeLogin = useCallback(async () => {
@@ -629,7 +682,7 @@ function GitHanaSettings() {
         <SettingRow
           label="用 GitHub 登录"
           layout="stacked"
-          hint="点开后按提示在浏览器完成一次授权；页面会自动轮询结果，无需手动刷新。"
+          hint="点开后自动打开浏览器并复制验证码；在页面里粘贴验证码并批准，页面会自动轮询结果，无需手动刷新。"
           control={
             <Inline gap="sm" align="center" wrap>
               <Button variant="primary" disabled={oauth.starting || waiting} onClick={startLogin}>
@@ -651,7 +704,7 @@ function GitHanaSettings() {
             <SettingRow
               label="验证码"
               layout="stacked"
-              hint="在浏览器里打开下面的地址，输入这个验证码并批准授权。"
+              hint="已复制到剪贴板；到浏览器页面粘贴并批准即可（GitHub 不支持把验证码预填进链接，所以还需要粘一下）。"
               control={<span className="gh-usercode">{oauth.userCode}</span>}
             />
             <SettingRow
@@ -664,6 +717,7 @@ function GitHanaSettings() {
               control={<MonoText>{formatCountdown(remaining)}</MonoText>}
               hint={remaining <= 0 ? "已超时，请重新发起授权" : `每 ${oauth.interval} 秒自动查询一次`}
             />
+            {handoff ? <SettingRow label="交接状态" control={<span className="gh-msg">{handoff}</span>} /> : null}
           </>
         ) : null}
         {oauth.status === "ready" ? (
