@@ -117,10 +117,11 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *
  * @param {string} bin 可执行文件名（经 PATH 解析，如 "git" / "gh"）
  * @param {string[]} args 参数数组（无 shell 拼接）
- * @param {{ cwd?: string, timeoutSec?: number, input?: string, omitToken?: boolean }} [options]
+ * @param {{ cwd?: string, timeoutSec?: number, input?: string, omitToken?: boolean, inertToken?: boolean }} [options]
  *   cwd 工作目录（绝对路径，可选但 git 工具必填）；timeoutSec 超时秒数（缺省 120）；
  *   input stdin 内容（多行/中文无损，git commit -F - 用）；
- *   omitToken=true 时不注入 GH_TOKEN（`gh auth login --with-token` 专用，见 bin.js buildBinEnv）
+ *   omitToken=true 时不注入 GH_TOKEN（跑与 GitHub 无关的子进程时用，见 bin.js buildBinEnv）；
+ *   inertToken=true 时注入惰性占位令牌（必须“看似已登录”才肯跑的 gh 调用用，见 bin.js）
  * @returns {Promise<{
  *   ok: boolean, exitCode: number | null,
  *   stdout: string, stderr: string,
@@ -128,7 +129,7 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *   timedOut: boolean, message: string | null
  * }>} ok=false 时 message 为中文可读错误；非零退出时 stdout/stderr 保留原始输出。
  */
-export async function runCli(bin, args, { cwd, timeoutSec, input, omitToken } = {}) {
+export async function runCli(bin, args, { cwd, timeoutSec, input, omitToken, inertToken } = {}) {
   const cwdErr = checkCwd(cwd);
   if (cwdErr) {
     return {
@@ -169,7 +170,7 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, omitToken } = 
         cwd: cwd !== undefined && cwd !== null && String(cwd).trim() !== "" ? String(cwd).trim() : undefined,
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
-        env: buildBinEnv(process.env, resolved, { omitToken: omitToken === true }),
+        env: buildBinEnv(process.env, resolved, { omitToken: omitToken === true, inertToken: inertToken === true }),
       });
     } catch (err) {
       finish({
