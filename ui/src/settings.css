@@ -4,9 +4,10 @@
 /**
  * ui/src/settings.css — GitHana 设置页的少量自有样式。
  *
- * 只做两件事：
+ * 只做三件事：
  *   1) 给页面铺背景（宿主的设置容器不负责画 App 的纸面，透明会让内容浮空）；
- *   2) 给状态短语 / 等宽值 / 提示文案几个小类，颜色全部取宿主主题变量。
+ *   2) 给状态短语 / 等宽值 / 提示文案几个小类，颜色全部取宿主主题变量；
+ *   3) 给 device flow 的验证码一个大号等宽样式（要用户照着抄，得看得清）。
  * 不复制桌面样式，不覆盖宿主组件的内部类名。
  */
 
@@ -53,6 +54,21 @@ body {
 .gh-msg {
   font-size: 12.5px;
   color: var(--text-muted, #6b6158);
+}
+
+/* device flow 的用户验证码：大号等宽 + 字距，方便照着抄。 */
+.gh-usercode {
+  display: inline-block;
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text, #2a2622);
+  background: var(--bg, #f5efe4);
+  border: 1px solid var(--border, #d8cfbe);
+  border-radius: 8px;
+  user-select: all;
 }
 
 /* 手动档的输出块（工具原文，保留换行与等宽） */

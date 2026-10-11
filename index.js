@@ -24,7 +24,9 @@
  *
  * 数据与配置：
  *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / GNUPGHOME / 公钥落盘）。
- *   - token 不走宿主设置表：加密落 dataDir（lib/secret.js），经进程缓存供工具同步读。
+ *   - 凭据不走宿主设置表：GitHub App device flow 签发的 user access token（`ghu_`）经平台加密
+ *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
+ *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,8 +44,9 @@ import * as ghPr from "./tools/gh-pr.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
-import { setSecretLoader } from "./tools/lib/context.js";
+import { setSecretLoader, setFreshChecker } from "./tools/lib/context.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
+import { ensureFresh } from "./lib/oauth.js";
 
 /** 安装目录（本文件所在目录）：vendor 二进制、routes、ui 的根。 */
 const INSTALL_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -114,10 +117,13 @@ export function apply(ctx) {
     logger,
   };
 
-  // 令牌不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
+  // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
   // 解密是异步的，而 buildBinEnv 必须同步拿到 GH_TOKEN；挂在 initToolContext 首次调用
   // 之后，只跑一次。
   setSecretLoader(() => loadSecretIntoContext(dataDir));
+  // 令牌保活：initToolContext 每次都跑，但只在「剩余有效期不足 5 分钟」时才真正发刷新请求
+  // （单飞，失败不抛——无其它凭据可降级，后续 gh 调用会如实报未登录）。
+  setFreshChecker(() => ensureFresh());
 
   const disposers = TOOLS.map((mod) =>
     ctx.tools.register({
@@ -137,10 +143,12 @@ export function apply(ctx) {
     unregisterRoutes = ctx.routes.register((app) => {
       registerStatusRoutes(app, { dataDir, appCtx });
       // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰宿主状态，
-      // 经 App 自己的已认证路由转发。令牌的写入口在这里（加密落盘，见 lib/secret.js）。
+      // 经 App 自己的已认证路由转发。这里只有非机密摘要与 clientId 覆盖值——OAuth 令牌
+      // 只能由 device flow 拿到（见 lib/oauth.js），页面永远不接触令牌明文。
       registerSettingsRoutes(app, { appCtx, dataDir });
       // 设置页「手动档」：直接调对应实现的本体（生成走 tools/gpg-keygen.js 的 execute，
-      // 公钥查看走 lib/routes/pubkey.js），不另写一份并行逻辑。
+      // 公钥查看走 lib/routes/pubkey.js），不另写一份并行逻辑。device flow 与 GPG 公钥
+      // 发布也在这里（见 lib/routes/actions.js）。
       registerActionRoutes(app, { appCtx, dataDir });
     });
     log("info", "路由注册：/routes/status · /routes/settings/* · /routes/actions/*");
