@@ -17,7 +17,7 @@
 | `git_log` | tools/git-log.js | readOnly | 最近提交速览（默认 10，1~100） |
 | `git_commit` | tools/git-commit.js | external_side_effect | 本地提交（message 走 stdin）；自动 Co-authored-by；自动 GPG 签名；收尾清 gpg-agent |
 | `git_push` | tools/git-push.js | external_side_effect | force 映射 `--force-with-lease`（非裸 `--force`） |
-| `gh_exec` | tools/gh-exec.js | external_side_effect | 任意 gh 命令透传（`GH_TOKEN` 由运行环境注入） |
+| `gh_exec` | tools/gh-exec.js | external_side_effect | 任意 gh 命令透传（`GH_TOKEN` = OAuth 令牌，按次注入） |
 | `gh_pr` | tools/gh-pr.js | external_side_effect | PR create / list / view / merge |
 
 `gpg_keygen` / `gpg_pubkey` 已从工具面退役：GPG 的密钥生成与公钥查看都只在设置页（生成不可逆，
@@ -30,11 +30,12 @@
 |------|------------------------------------------|------------------|
 | 工具注册 | 宿主扫描 `tools/*.js` 自动注册 | `apply(ctx)` 内逐个 `ctx.tools.register`（无前缀，名字全局唯一） |
 | 设置 | `contributes.configuration`（明文进 preferences.json） | `contributes.settings.ui` 自定义页 + App 自持存储（DPAPI 加密，不进宿主设置表） |
+| 凭据来源 | 手动粘贴 PAT | **GitHub App device flow 授权**（`ghu_` 令牌，PAT 通道已删除） |
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
 | 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
-| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`），不进宿主设置表 |
+| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`，`kind: "oauth"`），不进宿主设置表 |
 
 `tools/` 与 `tools/lib/` 的实现基本原样复用：`index.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
@@ -54,31 +55,65 @@
 
 - 清单里 `settings` 只有 `title` + `ui`，**没有 `schema`**：令牌不是宿主设置项，App 自己持有配置
   （APPS.md 的口径是 `schema` / `ui` 至少提供一个，只留 `ui` 合法）。
-- 动态读写走 App 自己的已认证路由（`/routes/settings/state` 读、`/routes/settings/token` 写），
-  页面不回显已存 token，只显示「已配置 / 未配置」，重新填写才回写。
+- 动态读写走 App 自己的已认证路由（`/routes/settings/state` 读、`/routes/settings/client-id` 写
+  Client ID 覆盖值）。**页面没有任何令牌输入框**：OAuth 令牌只由服务端 device flow 拿到，
+  页面只展示 `user_code`、验证地址与账号摘要。
 - **surface 凭证**：宿迁把 App 页面挂在租约路径下（`/api/apps/<id>/ui/_surface/<token>/…`），
   页面对自己后端路由的请求不会自动带凭证，页面从自身 URL 路径里取出该 token，
   以 `X-Hana-App-Surface-Session` 头发出（查询串形态 `appSurfaceSession` 优先）。
 - 主题：页面先加载组件自带样式（含 Hana 默认 token），再由 `hana-css` 注入宿主当前主题覆盖；
   宿主未注入时回退到公开的 `/api/apps/theme.css`，避免 antd 变量为空导致控件透明。
 
-### 令牌存哪里（不存宿主设置表）
+### 授权与令牌存哪里（不存宿主设置表）
 
-GitHub 令牌**不进** `contributes.settings`，因此不会以明文出现在 `user/preferences.json`。
+凭据来源是 **GitHub App device flow 授权**（App：`githana-app` / Client ID
+`Iv23li0dA1IaFVs6klAc`，可在设置页覆盖）。流程：
+
+1. 设置页点「用 GitHub 登录」→ `POST /routes/actions/oauth/start`；
+2. 服务端经 `gh api` 调 `https://github.com/login/device/code`（必须带
+   `-H "Accept: application/json"`，否则回 form-encoded；该端点无需认证，调用时传
+   `omitToken: true`），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
+   只把 `user_code` / `verification_uri` / `interval` / `expires_in` 回给页面；
+3. 页面按 `interval` 自轮询 `GET /routes/actions/oauth/poll?id=<flowId>`，服务端每次只查一次
+   `access_token`；`slow_down` 会把间隔 +5s，`expired_token` / `access_denied` /
+   `device_flow_disabled` 直接终止并透出可读原因。**不在服务端起长循环**（App 进程生命周期不稳定，
+   长任务还会撞宿主回调超时）；进程重启 → flow 丢失，页面拿 404 后提示重新发起。
+
+令牌**不进** `contributes.settings`，因此不会以明文出现在 `user/preferences.json`。
 它由 App 自己的加密后端写进数据目录 `<dataDir>/credential.json`：
 
 ```jsonc
-{ "schemaVersion": 1, "backend": "win32-dpapi", "alg": "dpapi-current-user",
-  "storage": "file", "cipher": "AQAAANCMnd8BFdERjHoAwE..." }
+{ "schemaVersion": 2, "kind": "oauth", "backend": "win32-dpapi", "alg": "dpapi-current-user",
+  "storage": "file", "cipher": "<DPAPI 密文，解出 { accessToken, refreshToken }>",
+  "meta": { "login": "ProjectNyaser", "name": "Nyaser", "expiresAt": "…",
+            "refreshExpiresAt": "…", "clientId": "Iv23li0dA1IaFVs6klAc" } }
 ```
 
+- **令牌保活**：剩余有效期不足 5 分钟时，工具/路由调用前自动用 `refresh_token` 换新
+  （`POST https://github.com/login/oauth/access_token`，`grant_type=refresh_token`，
+  device flow 签发的令牌刷新**不需要 client_secret**）。刷新单飞（并发调用共享同一个 Promise），
+  失败 → 记 `meta.needsReauth` 并清掉进程内令牌，设置页显示「需重新授权」。
+  **不降级到其它凭据**（也没有其它凭据）：失败就是失败，后续 gh 调用如实报未登录。
 - **后端可插拔**：`win32` = DPAPI（CurrentUser，密钥由登录身份派生，无需另管密钥）；
   `darwin` = Keychain、`linux` = libsecret 已留后端位与降级策略（`lib/secret.js` 的 `pickBackend`）。
 - **绝不回落明文**：没有可用后端时保存直接报错，不写明文。
 - **跨平台换机行为明确**：文件里的 `alg` 用来判定密文是不是本机后端写的；不匹配时设置页
-  会显示「需重新保存」，而不是静默当未配置。
+  会显示「需重新授权」，而不是静默当未配置。
 - **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退。这是 v2 首个构建起的
   形态；宿主侧那格即使留有历史记录也只是空串，App 既不读也不写它。
+- **clientId 与凭据解耦**：Client ID 非机密（代码里有内置默认值），用户覆盖值存
+  `<dataDir>/oauth.json`，**清凭据时保留**——重新授权不必重填。
+
+#### PAT 通道已删除
+
+个人访问令牌通道**已下线删除**（不保留为备用）：设置页没有 PAT 输入框与保存按钮，
+`POST /settings/token` 端点（含路由注册）已移除。旧 `schemaVersion: 1` 记录**读但不采用**——
+不报错、不动文件、不注入 `GH_TOKEN`；设置页据此提示「PAT 通道已停用」并提供显式清除入口
+（`POST /routes/settings/legacy-pat/clear`）。
+
+删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证本就走系统
+Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而 GPG 公钥上传是 PAT
+本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
 
 ### 手动档（用户自助）
 
@@ -87,13 +122,42 @@ GitHub 令牌**不进** `contributes.settings`，因此不会以明文出现在 
 
 | 入口 | 端点 | 实现 |
 |------|------|------|
-| 保存 / 清除令牌 | `POST /routes/settings/token` | `lib/secret.js`（Agent 侧无对应） |
+| 保存 / 清除 Client ID 覆盖值 | `POST /routes/settings/client-id` | `lib/secret.js`（非机密，存 `oauth.json`） |
+| 清除旧 PAT 记录 | `POST /routes/settings/legacy-pat/clear` | `lib/secret.js` 的 `removeSecretRecord` |
+| 用 GitHub 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
+| 查询授权结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
+| 退出授权 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth`（保留 clientId） |
 | GitHub 身份 | `GET /routes/actions/identity` | `tools/lib/identity.js` 的纯函数（与密钥生成同源） |
 | 检测 gh 认证 | `GET /routes/actions/gh-status` | `tools/lib/exec.js` 的 runCli（与 `gh_exec` 同款隔离 env） |
 | 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
+| 上传公钥 / 从 GitHub 移除 | `POST /routes/actions/gpg/publish` · `/unpublish` | `lib/gpg-publish.js` |
+| 发布状态 | `GET /routes/actions/gpg/status` | `lib/gpg-publish.js` 的 `publishedInfo` |
 
-轮换密钥不可逆（GitHub 上已上传的旧公钥立即失效），所以按钮先弹确认再执行。
+轮换密钥不可逆（GitHub 上已发布的旧公钥会被自动替换），所以按钮先弹确认再执行。
+
+### GPG 公钥自动发布
+
+借 GitHub App 的 `GPG keys: write` 账号权限，密钥生成后自动把公钥上传到 GitHub 账号，
+用户不必再手动粘贴。
+
+- **只删自己那把**：App 数据目录的 `published-gpg-keys.json` 记录 `{ keyId, fingerprint,
+  uploadedAt, login, gpgKeyId }`。轮换时先 `GET /user/gpg_keys` **核对**记录里的 `keyId` 是否仍在
+  （用户可能已在 GitHub 侧手动删过，以 GitHub 侧为准），再 `DELETE /user/gpg_keys/{keyId}`
+  （404 视为已不存在，继续上传），然后 `POST /user/gpg_keys` 上传新公钥并写回记录。
+- **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
+  误删是事故。上传时用的 `name`（`GitHana`）只作标识，**不参与删除匹配**。
+- 上传失败**不阻断**本地密钥生成（本地签名链路已可用），结果写进 keygen 返回文本，
+  并提供设置页手动重试按钮。
+- 错误映射：`403` → 「App 未授予 GPG keys: write」+ 指向 App 权限设置；`422` → 透出 GitHub
+  原文 + 「该邮箱需为账号已验证邮箱」；无 OAuth 凭据 → 「需先完成 GitHub App 授权」
+  （不用 PAT 尝试——PAT 通常没有 `gpg_keys` 权限）。
+
+### 安装仍需用户手动完成
+
+需要账号 admin 权限，App 侧无法代劳：装到 **Nyasers** 组织覆盖组织下的仓库；若要往
+`liliMozi` 名下的仓库发评论/提 PR，需 **liliMozi 本人** 把 App 装到该账号。App 的访问边界是
+「安装所在账号」，仅授权不安装无效。
 
 ## 构建（设置页 UI）
 
@@ -180,9 +244,12 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）
 index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / context / identity / github）
-lib/routes/status.js     # 环境状态端点（token / 二进制版本 / 公钥）
-lib/routes/settings.js   # 设置页数据端点（state / token）
-lib/routes/actions.js    # 设置页「手动档」端点（keygen / gh-status / identity / pubkey）
+lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
+lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
+lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
+lib/routes/status.js     # 环境状态端点（授权状态 / 二进制版本 / 公钥 / 发布状态）
+lib/routes/settings.js   # 设置页数据端点（state / client-id / legacy-pat/clear）
+lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / gh-status / identity / pubkey）
 lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
 ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
 assets/icon.svg          # App 图标
@@ -191,11 +258,22 @@ skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
 scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / index / selfcheck
 ```
 
+## 提交者身份推导
+
+`gh api user` 返回 `{ id, login, name }`（该端点**不需要任何权限**）。名字走三级链：
+
+   显式 name 参数 → user.name → login
+
+`login = ProjectNyaser`、`name = Nyaser` 时，隔离 gitconfig 写 `user.name = Nyaser`；
+邮箱固定为 `{id}+{login}@users.noreply.github.com`。同一组纯函数（`tools/lib/identity.js` 的
+`deriveNameFromUser`）同时供 `tools/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
+两处不会跑偏。
+
 ## GPG 隔离机制（沿用 v1）
 
 密钥只落 `app-data/githana/gnupg`，签名/验签不碰用户个人 GPG 环：
 
 1. **keygen 侧**：所有 gpg 调用显式 `--homedir <dataDir>/gnupg`
-2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true` / `gpg.program=<vendor gnupg>`；每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0` / `GH_TOKEN`
+2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true` / `gpg.program=<vendor gnupg>`；每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0` / `GH_TOKEN`（= OAuth 令牌；无凭据时不注入）
 
 两个必须绕开的坑（同 v1）：系统 scoop gpg 带 `gpgconf.ctl` 认不到 `GNUPGHOME`；MinGit 的 `gpg.program` 不支持带参。所以 `gpg.program` 只能指向认 env 的 vendor gnupg。
