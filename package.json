@@ -8,12 +8,16 @@
     "build": "node scripts/build-app.mjs",
     "build:ui": "node scripts/build-ui.mjs",
     "check": "node scripts/build-app.mjs && node scripts/selfcheck.mjs",
+    "check:all": "node scripts/build-app.mjs && node scripts/selfcheck.mjs && node scripts/derive/index.mjs --check && node scripts/fetch-vendor.mjs --check",
     "pack": "node scripts/pack.mjs",
     "index": "node scripts/build-index.mjs",
     "vendor": "node scripts/fetch-vendor.mjs",
+    "derive": "node scripts/derive/index.mjs",
+    "derive:check": "node scripts/derive/index.mjs --check",
     "sync:sdk": "node scripts/sync-sdk.mjs",
     "sync:app-tools": "node scripts/sync-app-tools.mjs",
-    "derive:thirdparty": "node scripts/derive-thirdparty.mjs"
+    "install:local": "node scripts/dev/install-local.mjs",
+    "probe:host": "node scripts/probe/host-surface.mjs"
   },
   "devDependencies": {
     "@rspack/core": "^2.2.3",
