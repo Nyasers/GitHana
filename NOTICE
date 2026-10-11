@@ -8,4 +8,5 @@ https://github.com/Nyasers/GitHana
 This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
 
 Vendored / bundled third-party components and their license texts:
-see THIRD_PARTY_NOTICES.md.
+see the THIRD_PARTY_NOTICES.md included in this package (generated per-package at build time),
+with the full license texts under licenses/.

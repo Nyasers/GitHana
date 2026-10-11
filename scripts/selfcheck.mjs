@@ -10,11 +10,13 @@
  *   1) manifest.json 结构与关键字段（manifestVersion=2、id 与目录名一致、entry 存在、
  *      capabilities 是数组、声明过的 route 文件真的在 ui/ 下）
  *   2) 所有服务端 .js 能被 Node 解析（node --check，按 package.json 的 type=module 走 ESM）
- *   3) vendor：按 vendor/sources.json 校验本平台声明过的组件是否就绪，并与 bin.js 的查找表
- *      对齐（防「声明了组件但查找表找不到」的命名漂移——探空会静默回退系统 PATH）
+ *   3) vendor：按 vendor/sources.json 校验声明过的组件是否就绪，并与 bin.js 的查找表
+ *      对齐（防「声明了组件但查找表找不到」的命名漂移——探空会静默回退系统 PATH）。
+ *      `--platform universal` 不是一个真实平台，而是「包要发到任意平台」：此时逐个校验
+ *      sources.json 里声明的**每个**平台（与 pack --target universal 的全平台随包同一口径）。
  *
  * 它不替代官方校验（那套会检查图标可解码、静态资源、隔离启动 smoke 等）。
- * 用法：node scripts/selfcheck.mjs [--platform win32-x64]
+ * 用法：node scripts/selfcheck.mjs [--platform win32-x64|universal]
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -99,32 +101,43 @@ for (const file of collectJs(ROOT)) {
 // ── 3) vendor 就绪性（按声明） ──────────────────────────────────────────────
 const argv = process.argv.slice(2);
 const pi = argv.indexOf("--platform");
-const platform = pi >= 0 && argv[pi + 1] ? argv[pi + 1] : `${process.platform}-${process.arch}`;
-let declaredComponents = null;
+const platformArg = pi >= 0 && argv[pi + 1] ? argv[pi + 1] : `${process.platform}-${process.arch}`;
+// universal：包要发到任意平台，校验面就是 sources.json 声明的全部平台（与 pack 同一口径）。
+const isUniversal = platformArg === "universal";
+let sources = null;
+let platformsToCheck = [];
 try {
-  const sources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
-  const entry = sources.platforms && sources.platforms[platform];
-  if (!entry) {
-    note(`vendor：本平台（${platform}）无声明 → 组件全部走系统 PATH`);
+  sources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
+  if (isUniversal) {
+    platformsToCheck = Object.keys(sources.platforms || {});
+    note(`vendor：universal 目标 → 校验声明的全部平台（${platformsToCheck.join(" / ")}）`);
   } else {
-    declaredComponents = entry.components || null;
-    for (const [key, spec] of Object.entries(entry.components || {})) {
-      const exe = join(ROOT, "vendor", platform, key, spec.exe);
-      if (existsSync(exe)) note(`vendor[${platform}] ${key} 就绪（${spec.version}）`);
-      else if (!spec.sha256) note(`vendor[${platform}] ${key} 未内嵌（无声明产物）→ 走宿主 / 系统 PATH`);
-      else if (spec.optional) note(`vendor[${platform}] ${key} 未随包（optional，宿主已捆绑或按需抓取）→ 走宿主 / 系统 PATH`);
-      else fail(`vendor[${platform}] ${key} 缺失：${rel(exe)}（跑 node scripts/fetch-vendor.mjs --platform ${platform} ${key}）`);
-    }
+    platformsToCheck = [platformArg];
   }
 } catch (e) {
   fail(`vendor/sources.json 读不了：${(e && e.message) || e}`);
 }
 
-// ── 3b) 声明组件 ↔ 查找表一致性 ────────────────────────────────────────────
-// sources.json（磁盘上有什么）与 bin.js（怎么找到）是两份数据，命名漂移过一次（gpg vs gnupg）：
-// 拼错目录名不报错、静默回退系统 PATH，最后只在签名时报「No secret key」。CI 挡在这一层，
-// 别等用户机器上的签名失败来暴露。查找表按 process.platform 索引，故只在平台名与本机一致时比对。
-if (declaredComponents && platform.split("-")[0] === process.platform) {
+/** 单个平台的组件就绪性 + 查找表对齐。 */
+function checkPlatformVendor(platform) {
+  const entry = sources && sources.platforms && sources.platforms[platform];
+  if (!entry) {
+    if (!isUniversal) note(`vendor：本平台（${platform}）无声明 → 组件全部走系统 PATH`);
+    return;
+  }
+  const declaredComponents = entry.components || {};
+  for (const [key, spec] of Object.entries(declaredComponents)) {
+    const exe = join(ROOT, "vendor", "bin", platform, key, spec.exe);
+    if (existsSync(exe)) note(`vendor[${platform}] ${key} 就绪（${spec.version}）`);
+    else if (!spec.sha256) note(`vendor[${platform}] ${key} 未内嵌（无声明产物）→ 走宿主 / 系统 PATH`);
+    else fail(`vendor[${platform}] ${key} 缺失：${rel(exe)}（跑 node scripts/fetch-vendor.mjs --platform ${platform} ${key}）`);
+  }
+
+  // ── 声明组件 ↔ 查找表一致性 ──
+  // sources.json（磁盘上有什么）与 bin.js（怎么找到）是两份数据，命名漂移过一次（gpg vs gnupg）：
+  // 拼错目录名不报错、静默回退系统 PATH，最后只在签名时报「No secret key」。CI 挡在这一层。
+  // 查找表按 process.platform 索引，故只在平台名与本机一致时比对；universal 下只比对本机那份。
+  if (platform.split("-")[0] !== process.platform) return;
   const table = VENDOR_LAYOUT[process.platform];
   for (const [key, spec] of Object.entries(declaredComponents)) {
     const bin = Object.keys(VENDOR_COMPONENT).find((b) => VENDOR_COMPONENT[b] === key) || key;
@@ -142,8 +155,10 @@ if (declaredComponents && platform.split("-")[0] === process.platform) {
   }
 }
 
+for (const p of platformsToCheck) checkPlatformVendor(p);
+
 // ── 输出 ───────────────────────────────────────────────────────────────────
 for (const n of notes) console.log("  note:", n);
 for (const p of problems) console.error("  FAIL:", p);
-console.log(`[selfcheck] platform=${platform} problems=${problems.length}`);
+console.log(`[selfcheck] platform=${platformArg} problems=${problems.length}`);
 process.exit(problems.length === 0 ? 0 : 1);

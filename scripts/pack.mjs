@@ -16,23 +16,30 @@
  * ## 产物形状（对齐官方包的实测布局）
  *
  * ZIP 内文件在根：manifest.json / index.js / lib/ / tools/ / ui/ / vendor/ / skills/ / assets/…
- * 排除：node_modules（只有构建期需要，UI 产物已在 ui/ 里）、build-deps（SDK tarball）、.git* /
- * .github、.tmp、releases、pnpm-lock.yaml、pnpm-workspace.yaml、scripts/、README.md（开发件）。
- * 说明：官方包工具不排除任何目录，会把 node_modules 与开发件一并打进去；本脚本按上面这张
- * 排他表做净包，因此同类内容更小。
+ *
+ * 本脚本**只从 dist/ 出包**，不再从源码树过滤：交付面由 scripts/build-app.mjs 以白名单组装好，
+ * 源码与开发件根本不进 dist/。这里不做任何排除判断——黑名单只列它记得的东西，源码树里多出
+ * 什么就漏什么（本地规划文档与 ui/src/ 就是这么漏进来的），白名单没有这种缺口。
+ *
+ * ## 出包前无条件重建交付树
+ *
+ * dist/ 是构建产出（不入库）。本脚本在暂存前先跑 scripts/build-app.mjs（它会先构建设置页产物，
+ * 再白名单组装 dist/），所以“包里的东西必然等于当前源码的产物”，不依赖调用方记得先构建。
  *
  * ## 逐目标出包
  *
- * `--target <platform|universal>`：决定随包的 vendor 目录。
- *   · `universal`：不随任何平台的 vendor（只留 `sources.json`）——运行时靠宿主 git /
- *     系统 PATH，这正是“App 是 Web 应用、天然跨平台”的那条路。**进市场的就只有它。**
+ * `--target <platform|universal>`：决定随包的 vendor 运行时目录。
+ *   · `universal`：**全平台随包**——把 `vendor/sources.json` 声明的每个平台的运行时都打进去，
+ *     运行时就近解析 `vendor/bin/<platform>-<arch>/`，一份包在任意平台都自包含。**进市场的只有它。**
+ *     全平台随包是 T7 验收里那条签名链的前提：Windows 的签名要求 vendor gnupg（认 GNUPGHOME 的
+ *     原生模式），包不带 vendor 时 gpg.program 会指向不存在的路径，签名直接失败。
  *   · `--target <platform>`：点名才用，只留该平台 vendor（自包含单平台构建），不进 CI、不进市场。
  * 产物落 `releases/<id>-v<version>-<target>.zip` + 同名 `.sha256` + `.entry.json`；
  * 版本单一事实源是 manifest.json，并与 package.json 对齐（不一致直接拒包）。
  *
  * 用法：
- *   node scripts/pack.mjs --target universal          # 无平台 vendor（release 流水线只出这个）
- *   node scripts/pack.mjs --target win32-x64            # 自包含单平台（点名用，不进 CI）
+ *   node scripts/pack.mjs --target universal          # 全平台随包（release 流水线只出这个）
+ *   node scripts/pack.mjs --target win32-x64            # 只留该平台（点名用，不进 CI）
  *   不带 --target 时默认当前平台。
  */
 import { createHash } from "node:crypto";
@@ -50,30 +57,14 @@ import {
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+// 打包期重渲染通知与裁剪许可面：包里有什么，通知就只讲什么。
+// 复用仓库级同一套 render，差别只在传入的组件列表（见 derive-thirdparty 头注）。
+import { renderNotice, licensesFor } from "./derive-thirdparty.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+/** 交付树（= App 安装目录形态）：由 scripts/build-app.mjs 白名单组装，本脚本从它出包。 */
+const DIST = join(ROOT, "dist");
 const HANA_HOME = process.env.HANA_HOME || join(process.env.USERPROFILE || process.env.HOME || "", ".hanako");
-
-/** 包内排除项（相对 app 根的第一段）。 */
-const EXCLUDE_TOP = new Set([
-  "node_modules",
-  "build-deps", // SDK tarball：构建期依赖（官方 SDK 不在 npm 上），不进运行时包
-  ".tmp",
-  "releases",
-  "dist-extensions",
-  ".git",
-  ".github",
-  ".nvmrc",
-  ".gitattributes",
-  "scripts", // 开发/构建脚本，不属于运行时交付物
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  ".gitignore",
-  ".npmrc",
-  "README.md",
-  // 注意：**不能**排除 package.json——里面有 "type": "module"，app 入口是 ESM，
-  // 没有它就按 CJS 解析，index.js 的 import 会直接语法报错。也不能排除 LICENSE / NOTICE。
-]);
 
 /** 官方限制（对齐 APPS.md：压缩 256MiB / 展开 512MiB / 30000 条）。 */
 const LIMITS = { zipBytes: 256 * 1024 * 1024, rawBytes: 512 * 1024 * 1024, entries: 30000 };
@@ -86,18 +77,46 @@ function arg(name) {
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 const sha256File = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
 
-/** 递归收集待打包文件（跳过排除项与符号链接）。 */
+/** 递归收集 dist/ 下全部文件（跳过符号链接；不做任何排除——交付面已由 build-app 定好）。 */
 function collect(dir, base = dir, out = []) {
   for (const name of readdirSync(dir)) {
     const abs = join(dir, name);
-    const relFromBase = relative(base, abs);
-    if (relFromBase.split(sep).length === 1 && EXCLUDE_TOP.has(name)) continue;
     const st = statSync(abs);
     if (st.isSymbolicLink()) continue; // 包内不允许符号链接
     if (st.isDirectory()) collect(abs, base, out);
-    else if (st.isFile()) out.push({ abs, entry: relFromBase.split(sep).join("/"), size: st.size });
+    else if (st.isFile()) out.push({ abs, entry: relative(base, abs).split(sep).join("/"), size: st.size });
   }
   return out;
+}
+
+/**
+ * 该暂存树里真实存在的随包组件。
+ *
+ * 产物已将二进制平铺到 bin/<平台>/，目录名不再携带组件身份，所以这里按 **sources.json 的声明**
+ * 逐个把组件的 exe 探一遂：哪个平台的哪个 exe 在就说明那个组件随了包。
+ * 不从 bin/ 下的文件名反推组件名——那是猜，而声明的 exe 路径是确定的事实。
+ */
+function shippedComponentsInStage(binRoot) {
+  const out = new Set();
+  if (!existsSync(binRoot)) return [];
+  const sources = readJson(join(ROOT, "vendor", "sources.json"));
+  for (const [platform, entry] of Object.entries(sources.platforms || {})) {
+    for (const [component, spec] of Object.entries(entry.components || {})) {
+      if (!spec.exe) continue;
+      if (existsSync(join(binRoot, platform, spec.exe))) out.add(component);
+    }
+  }
+  return [...out].sort();
+}
+
+/** 许可正文目录只留本包适用的那几份（其余删掉，不随包）。 */
+function pruneLicenses(stageDir, shipped) {
+  const dir = join(stageDir, "licenses");
+  if (!existsSync(dir)) return;
+  const keep = new Set(licensesFor(shipped));
+  for (const name of readdirSync(dir)) {
+    if (!keep.has(name)) rmSync(join(dir, name), { force: true });
+  }
 }
 
 /** 暂存净包。末级目录名必须等于 manifest.id（官方校验器会校验"目录名 = id"）。 */
@@ -106,7 +125,7 @@ function stage(target, id) {
   const stageDir = join(parent, id);
   rmSync(parent, { recursive: true, force: true });
   mkdirSync(stageDir, { recursive: true });
-  const files = collect(ROOT);
+  const files = collect(DIST);
   for (const f of files) {
     const dest = join(stageDir, ...f.entry.split("/"));
     mkdirSync(dirname(dest), { recursive: true });
@@ -265,7 +284,8 @@ function buildEntry({ manifest, pkg, publisher, zipName, digest, size }) {
     archive: { url: `{{BASE_URL}}/${zipName}`, sha256: digest, size, format: "zip" },
   };
   try {
-    const iconPath = join(ROOT, manifest.icon);
+    // 图标从交付树取（manifest.icon 是包根相对路径），与包里那份一致。
+    const iconPath = join(DIST, manifest.icon);
     if (manifest.icon && existsSync(iconPath)) {
       const ext = manifest.icon.toLowerCase().endsWith(".svg") ? "image/svg+xml" : "image/png";
       entry.icon = `data:${ext};base64,${readFileSync(iconPath).toString("base64")}`;
@@ -279,6 +299,7 @@ function buildEntry({ manifest, pkg, publisher, zipName, digest, size }) {
 }
 
 function main() {
+  // 版本对齐先查源码树（manifest 与 package.json 的单一事实源都在那里），再组装 dist/。
   const manifest = readJson(join(ROOT, "manifest.json"));
   const pkg = readJson(join(ROOT, "package.json"));
   if (!manifest.id || !manifest.version) {
@@ -290,22 +311,87 @@ function main() {
     process.exit(1);
   }
 
+  // 0) 先组装交付树 dist/（白名单：先构建设置页产物，再点名拷贝交付件）。
+  //    dist/ 不入库，是构建产出；在这里无条件重建，而不是依赖调用方先手动构建：
+  //    出包是唯一必须保证产物新鲜的时刻，把「记得先构建」变成机器兜底。
+  {
+    const buildApp = join(ROOT, "scripts", "build-app.mjs");
+    if (!existsSync(buildApp)) {
+      console.error("[pack] 找不到 scripts/build-app.mjs，无法组装交付树");
+      process.exit(1);
+    }
+    console.log("[pack] 组装交付树 dist/（白名单）…");
+    try {
+      execFileSync(process.execPath, [buildApp], { cwd: ROOT, stdio: "pipe" });
+    } catch (e) {
+      const out = [e.stdout, e.stderr].map((b) => String(b || "")).join("\n").trim();
+      console.error("[pack] 交付树组装失败：\n" + out.split("\n").slice(-12).join("\n"));
+      process.exit(1);
+    }
+    if (!existsSync(DIST)) {
+      console.error("[pack] 组装后 dist/ 仍不存在");
+      process.exit(1);
+    }
+  }
+
   const target = arg("--target") || `${process.platform}-${process.arch}`;
   const outDir = resolve(arg("--out") || join(ROOT, "..", "..", "build", manifest.id, "releases"));
   mkdirSync(outDir, { recursive: true });
 
-  // 1) 暂存净包（排除开发件；vendor 按 target 收窄）
+  // 1) 暂存净包（排除开发件；bin/ 按 target 收窄）
+  //    产物形状：bin/<平台>-<架构>/<exe>（二进制平铺，无组件层；详见 build-app 头注）。
+  //    universal = 全平台随包：一份包在任意平台都自包含。
+  //    点名平台 = 只留那一个（自包含单平台构建，不进 CI、不进市场）。
   const { stageDir, files } = stage(target, manifest.id);
-  const vendorRoot = join(stageDir, "vendor");
-  if (existsSync(vendorRoot)) {
-    const keep = target === "universal" ? null : target;
-    for (const name of readdirSync(vendorRoot)) {
-      if (name === "sources.json") continue;
-      if (keep && name === keep) continue;
-      rmSync(join(vendorRoot, name), { recursive: true, force: true });
+  const binRoot = join(stageDir, "bin");
+  let vendorKept = [];
+  if (existsSync(binRoot)) {
+    vendorKept = readdirSync(binRoot);
+    if (target !== "universal") {
+      for (const name of vendorKept) {
+        if (name === target) continue;
+        rmSync(join(binRoot, name), { recursive: true, force: true });
+      }
+      vendorKept = vendorKept.includes(target) ? [target] : [];
     }
   }
-  console.log(`[pack] target=${target}  暂存文件 ${files.length} 个 → ${relative(ROOT, stageDir)}`);
+
+  // universal 的完整性断言：全平台随包就要求每个平台该带的组件都在。
+  // 少一个平台 = 包到了那台机器上才发现签名链路缺 gpg，正是「名义 universal、实则不全」的缺口。
+  if (target === "universal") {
+    const sources = readJson(join(ROOT, "vendor", "sources.json"));
+    const missing = [];
+    for (const [platform, entry] of Object.entries(sources.platforms || {})) {
+      // 只要求“有可校验产物”的组件：sha256 为空的按系统 PATH 走，不必随包。
+      for (const [component, spec] of Object.entries(entry.components || {})) {
+        if (!spec.sha256) continue;
+        if (!existsSync(join(binRoot, platform, spec.exe))) missing.push(`${platform}/${component}`);
+      }
+    }
+    if (missing.length) {
+      console.error(
+        `[pack] universal 要求全平台随包，但以下组件缺失：${missing.join("、")}\n` +
+          `       逐个平台补齐：node scripts/fetch-vendor.mjs --platform <platform>`,
+      );
+      process.exit(1);
+    }
+  }
+
+  // 1b) 许可面随实际内容收窄。
+  //     通知写的是「这个包里有什么」，所以它必须跟着**本包的交付内容**走，而不是仓库的全集：
+  //     一个只装 gh 的 darwin 包若附带 GPL-3.0 条文与 GnuPG 段落，不是在多给，是在陈述不成立的事实。
+  //     与上面 bin/ 按 target 收窄同一条原则、同一个位置。
+  const shipped = shippedComponentsInStage(binRoot);
+  const notice = renderNotice({ components: shipped });
+  writeFileSync(join(stageDir, "THIRD_PARTY_NOTICES.md"), notice, "utf8");
+  pruneLicenses(stageDir, shipped);
+  console.log(`[pack] 许可面收窄：随包组件 [${shipped.join(", ") || "（无）"}] → ` +
+    `通知 ${notice.length} 字节，licenses/ 保留 ${licensesFor(shipped).length} 份`);
+
+  console.log(
+    `[pack] target=${target}  暂存文件 ${files.length} 个  vendor=[${vendorKept.join(", ")}]` +
+      ` → ${relative(ROOT, stageDir)}`,
+  );
 
   // 2) 官方静态校验（额外关卡）
   const validator = findOfficialValidator();
@@ -359,6 +445,19 @@ function main() {
       `\n        entry  ${relative(ROOT, entryPath)}` +
       `\n        官方静态校验：${officialResult}`,
   );
+
+  // 5) 收尾：暂存树是出包的中间产物，不留在现场。
+  //    不清理的后果不是“占点空间”而是会误导：`_stage/<target>/` 里那份看着像可交付的树，
+  //    实际是上一次运行时的形状，与刚出的包未必一致（本次就在此处差点误判）。
+  //    出包失败时保留现场供排查（那些路径在 throw/exit 前不会走到这里）。
+  //    先删本次 target，再把空的 `_stage` 本身也收走——只删前者会留个空壳，下轮看仍像现场。
+  const stageRoot = join(ROOT, "..", "..", "build", "_stage");
+  rmSync(join(stageRoot, target), { recursive: true, force: true });
+  try {
+    if (readdirSync(stageRoot).length === 0) rmSync(stageRoot, { recursive: true, force: true });
+  } catch {
+    /* 别的 target 还在（或目录已不在）：保留，不影响本次结果 */
+  }
 }
 
 main();

@@ -6,11 +6,15 @@
  *
  * 为什么需要这一步：设置页用宿主组件（@hana/app-sdk/components），而它把 React / React DOM
  * 当外部 peer——浏览器里没有 bare specifier 解析，必须打包。产物直接进 App 包（宿主不会在
- * 安装时跑构建），所以每次改完 UI 源码都要重跑本脚本，让 bundle 进包。
+ * 安装时跑构建），所以每次改完 UI 源码都要重跑本脚本，让产物进包。
  *
- *   ui/src/settings.jsx  ──rspack──▶  ui/settings.bundle.js
+ *   ui/src/settings.jsx  ──rspack──▶  ui/dist/settings.bundle.js
  *   （含 @hana/app-sdk/components.css 与 ./settings.css 的样式合并、按导入顺序抽取）
- *                                    └▶  ui/settings.bundle.css
+ *                                    └▶  ui/dist/settings.bundle.css
+ *
+ * 产物单独放 ui/dist/，与源码（ui/src/）分开：两者不混在同一层，源码不会在阅读时
+ * 被构建物淹没，产物也不会被误当源码改。ui/dist/ 不入 git（见 .gitignore），
+ * 由本脚本现场生成——本地 `pnpm run build`，出包时 pack.mjs 无条件重建。
  *
  * 为什么是 Rspack 而不是 esbuild：SDK 的 components 产物里有几个**可选 peer** 的
  * `require`（例如 @emotion/is-prop-valid，位于 try/catch 探测里）。esbuild 把这类调用编成
@@ -28,7 +32,7 @@ import { rspack } from "@rspack/core";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(here, "..");
 const entry = path.join(appDir, "ui", "src", "settings.jsx");
-const outDir = path.join(appDir, "ui");
+const outDir = path.join(appDir, "ui", "dist");
 
 if (!fs.existsSync(entry)) {
   console.error(`[build-ui] 入口不存在：${entry}`);
@@ -46,7 +50,7 @@ const config = {
   output: {
     path: outDir,
     filename: "[name].js",
-    clean: false, // ui/ 里还有 html 等交付文件，绝不能被清掉
+    clean: false, // ui/dist/ 是产物目录，但不该被清掉其它可能的手工产物（保持与旧行为一致，不做清理）
     module: true,
     chunkFormat: "module",
   },
@@ -105,7 +109,7 @@ rspack(config, (err, stats) => {
   // 那时 assets 的形状与首次构建不同）。
   for (const name of ["settings.bundle.js", "settings.bundle.css"]) {
     const p = path.join(outDir, name);
-    console.log(`[build-ui] ui/${name}  ${fs.existsSync(p) ? kb(fs.statSync(p).size) : "<缺失>"}`);
+    console.log(`[build-ui] ui/dist/${name}  ${fs.existsSync(p) ? kb(fs.statSync(p).size) : "<缺失>"}`);
   }
-  console.log("[build-ui] 完成。bundle 已更新，随包安装后在 App 详情页「重新加载」。");
+  console.log("[build-ui] 完成。产物在 ui/dist/，随包安装后在 App 详情页「重新加载」。");
 });
