@@ -183,6 +183,47 @@ pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/di
 源码与产物不混在同一层：`ui/src/` 是源，`ui/dist/` 是物，`dist/ui/` 是进包的那一份。
 **出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
 
+## 脚本组织
+
+`scripts/` 按域分目录，共用原语在 `shared/`：
+
+```
+scripts/
+  shared/          root（向上找仓库根）/ run（直跑判定）/ args（命令行）/ err-text
+  derive/          派生任务表：从某个源推导、写回目标文件；apply 与 --check 二态
+  dev/             本地开发循环（install-local）
+  probe/           查宿主能力面（host-surface）
+  *.mjs            命令面入口：fetch-vendor / build-ui / build-app / selfcheck / pack / index
+  hana-app-tools/  官方作者工具的原样拷贝（收录判定见其 README）
+```
+
+**为什么有 shared**：仓库根定位、直跑判定、参数读取这几件事，之前每支脚本各自写一遍且已漂
+（有的数 `..` 层数、有的只认 `--x v` 不认 `--x=v`）。收敛成一处，新增脚本只 import。
+
+**`derive` 的口径**：凡「能推导 + 被抄了多份 + 抄漏会坏」的事实都进那张表（当前两项：主清单版本
+→ `package.json#version`、SDK tgz → `licenses/` 那份声明）。只写"这个文件该长什么样"，比较与
+写回由框架统一做；`--check` 只读不写，CI 用它当门禁。人不定与不可推导的东西不进表：法律文本、
+通知正文（它是包的一部分，由 pack 渲染）。
+
+```bash
+pnpm run derive         # 全部写回
+pnpm run derive:check   # 只校验（CI 门禁）
+pnpm run check:all      # 构建 + 自检 + 派生门禁 + vendor 门禁
+```
+
+**开发循环**（每次都走，所以做成命令而不是 README 里的手工步骤）：
+
+```bash
+pnpm run pack --target win32-x64 --out /tmp/out
+pnpm run install:local -- --zip /tmp/out/githana-v<版本>-win32-x64.zip
+pnpm run probe:host -- --app-bus                 # 宿主给的 bus 能力面（读 SDK 契约）
+pnpm run probe:host -- --look models-changed     # 某字面在宿主 bundle 里出现在哪
+```
+
+`install:local` 走宿主自己的扩装面（与界面里「安装本地包」同一条）：卸载 → 提交 staging →
+确认 → 等本 App 的 Status 端点应答。**就绪判据与本 App 的形态相配**：GitHana 没有受管运行时，
+路由注册完就能应答 `/routes/status`；拿「等 runtime ready」那种判据在它这里永远等不到。
+
 ## App SDK 快照
 
 `@hana/app-sdk` 不在 npm 上，它是宿主打包时产出的内部包。仓库因此在 `vendor/hana-app-sdk/`
@@ -197,7 +238,7 @@ pnpm run sync:sdk -- --check # 只校验漂移
 ```
 
 同步后要跟着做两件事（脚本会打印）：按包名点名 `pnpm update @hana/app-sdk`（pnpm 不会因本地
-tgz 换内容而重算锁文件），再 `pnpm run derive:thirdparty` 刷新通知里的版本号。
+tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里那份 SDK 声明。
 
 快照本身**不随包**：它是构建期依赖，由 rspack 内联进设置页产物；`build-app.mjs` 会把
 `dist/vendor/hana-app-sdk/` 删掉。
@@ -219,11 +260,11 @@ tgz 换内容而重算锁文件），再 `pnpm run derive:thirdparty` 刷新通�
 - **静态正文**（`Apache-2.0.txt` / `GPL-3.0.txt` / 两份 `MIT-*.txt`）—— 必须由仓库持有原文。
   上游不给：GnuPG 官方 Windows 安装器只带 `README.txt` 版权声明、**无 COPYING**（已按 2.5.24 实物验证）；
   SDK tarball 无 Apache 正文；react 不随包。
-- **`hana-app-sdk-THIRD_PARTY_NOTICES.txt`** —— 从 SDK tgz 现取，由 `derive` 脚本写入（与版本同源，手抄必漂）：
+- **`hana-app-sdk-THIRD_PARTY_NOTICES.txt`** —— 从 SDK tgz 现取，由 `derive` 任务写入（与版本同源，手抄必漂）：
 
   ```bash
-  pnpm run derive:thirdparty            # 同步（从 tgz 现取）
-  pnpm run derive:thirdparty -- --check # CI 门禁：拦住「换了 SDK 快照却忘了同步」
+  pnpm run derive            # 全部写回（含从 tgz 现取的那份声明）
+  pnpm run derive:check      # CI 门禁：拦住「换了 SDK 快照却忘了同步」
   ```
 
 两份 MIT 各一份（`MIT-gh.txt` 版权归 GitHub, Inc.，`MIT-react.txt` 归 Meta Platforms）——
@@ -338,7 +379,11 @@ ui/settings.html         # 设置页（contributes.settings.ui.route）：认证
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌运行时：bin/<平台>/（二进制，不入 git）+ sources.json（声明）+ hana-app-sdk/（SDK 快照）
 skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
-scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / index / selfcheck
+scripts/                 # 分域：build（组装/出包）/ derive（派生同步）/ dev（本地装机）/ probe（能力面）
+  shared/                #   共用原语：root（仓库根）/ run（直跑判定）/ args（命令行）/ err-text
+  derive/index.mjs       #   派生任务表（版本对齐、SDK 声明同步），apply 与 --check 二态
+  dev/install-local.mjs  #   把本地包装进宿主（卸载→提交→确认→等路由应答）
+  probe/host-surface.mjs #   查宿主能力面（SDK 契约 / 宿主 bundle 里的字面）
 ```
 
 ## 提交者身份推导

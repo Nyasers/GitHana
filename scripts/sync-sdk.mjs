@@ -26,7 +26,7 @@
  *
  *   · 依赖树：tgz 换了内容，pnpm 不会自动重算（`file:` 依赖按路径判定，路径没变就认为锁有效）。
  *     必须按包名点名 `pnpm update <包名>`，再 `pnpm install`。
- *   · licenses/ 里那份 SDK 第三方声明（从 tgz 现取）：跑 `node scripts/derive-thirdparty.mjs`。
+ *   · licenses/ 里那份 SDK 第三方声明（从 tgz 现取）：跑 `node scripts/derive/index.mjs`。
  *
  * 用法：
  *   node scripts/sync-sdk.mjs                 # 同步（源自动探测）
@@ -170,7 +170,7 @@ function main() {
     log("接下来要做（tgz 内容变了，锁文件不会自动跟上）：");
     log(`  pnpm update ${touchedPkgs.join(" ")}`);
     log("  pnpm install");
-    log("  node scripts/derive-thirdparty.mjs   # 同步 licenses/ 里的 SDK 第三方声明");
+    log("  node scripts/derive/index.mjs   # 同步 licenses/ 里的 SDK 第三方声明");
   }
 }
 

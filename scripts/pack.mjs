@@ -58,8 +58,8 @@ import { execFileSync } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 // 打包期重渲染通知与裁剪许可面：包里有什么，通知就只讲什么。
-// 复用仓库级同一套 render，差别只在传入的组件列表（见 derive-thirdparty 头注）。
-import { renderNotice, licensesFor } from "./derive-thirdparty.mjs";
+// 复用同一套 render，差别只在传入的组件列表（见 scripts/derive/thirdparty.mjs 头注）。
+import { renderNotice, licensesFor } from "./derive/thirdparty.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** 交付树（= App 安装目录形态）：由 scripts/build-app.mjs 白名单组装，本脚本从它出包。 */
