@@ -31,14 +31,14 @@
  *    重跑可继续），全部删除成功后再生成（环已空 → UID 无冲突，无需后缀唯一化）；
  *    清理后若生成失败 = 隔离环空、当前无签名密钥；插件环空 = 无签名能力、可随时
  *    重跑重建，不涉任何个人资产。
- * 3. 签名接线：密钥指纹写入隔离 gitconfig（user.signingkey + commit.gpgsign=true）并写
- *    gpg.program=<resolveBin("gpg").cmd>。宿主内嵌 git（2.55 MinGit）不支持 gpg.homedir
- *    （本地 help --config 无此条目、实测 -c gpg.homedir 不生效），gpg.program 也不支持
- *    带参（整串当 argv0）——故 gpg.program 必须指向一个「认 GNUPGHOME env」的 gpg：
- *    vendor gnupg（无 gpgconf.ctl → 非便携模式）即满足，git spawn 它时继承 runCli 注入
- *    GNUPGHOME=<dataDir>/gnupg → 签名与验签命中隔离环（GIT_TERMINAL_PROMPT 由 runCli 注入）。
- *    系统 scoop gpg 在 bin 目录带 gpgconf.ctl（便携模式，homedir 恒为 scoop home，
- *    忽略 GNUPGHOME env），不可用于此接线。
+ * 3. 签名接线：密钥指纹写入隔离 gitconfig（user.signingkey + commit.gpgsign=true）。
+ *    gpg.program **不写文件**：每次 spawn 由 buildBinEnv 按当前安装现算注入（见 tools/lib/bin.js）。
+ *    宿主内嵌 git（2.55 MinGit）不支持 gpg.homedir（本地 help --config 无此条目、实测 -c gpg.homedir
+ *    不生效），gpg.program 也不支持带参（整串当 argv0）——故 git spawn 到的 gpg 必须是一个「认
+ *    GNUPGHOME env」的：vendor gnupg（无 gpgconf.ctl → 非便携模式）即满足，git spawn 它时继承 runCli
+ *    注入的 GNUPGHOME=<gpgDir> → 签名/验签命中隔离环（GIT_TERMINAL_PROMPT 由 runCli 注入）。
+ *    系统 scoop gpg 在 bin 目录带 gpgconf.ctl（便携模式，homedir 恒为 scoop home，忽略 GNUPGHOME env），
+ *    不可用于此接线。
  * 4. 公钥自动发布：导出公钥后，若存在可用 OAuth 凭据，自动调 lib/gpg-publish.js 上传到
  *    GitHub 账号（借 `GPG keys: write` 账号权限）。轮换时只删本 App 上次上传的那一个
  *    key_id（记在 dataDir/published-gpg-keys.json），绝不枚举账号 GPG 密钥批量删除。
@@ -66,7 +66,7 @@ import {
   noreplyEmailFromUser,
 } from "./lib/identity.js";
 import { runCli } from "./lib/exec.js";
-import { resolveBin } from "./lib/bin.js";
+import { killGpgDaemons } from "./lib/gpg-daemon.js";
 import {
   initToolContext,
   getToolDataDir,
@@ -172,26 +172,10 @@ async function deleteOldKeyPair(fpr, gpgDir) {
  * 背景：keygen 侧 gpg 操作（quick-generate-key / 删除 / --export 等）经 gpg-agent 执行——
  * agent 被 gpg 自动拉起后默认常驻不退出（为缓存口令，无空闲退出计时），还会按需拉起
  * 同环 scdaemon（--multi-server --homedir 插件环）；无头签名场景每次用完必须显式清理，
- * 否则残留 <vendor>/gnupg/bin/gpg-agent.exe --homedir <插件环> --daemon + scdaemon.exe。
- * 清理机制：gpgconf --kill gpg-agent scdaemon 可杀指定 homedir 的 daemon——gpgconf 不支持
- * --homedir 参数、靠 GNUPGHOME env 定位；runCli（exec.js applyPluginIsolation）已注入
- * GNUPGHOME=<dataDir>/gnupg，且 gpgconf 走插件 vendor/gnupg（bin.js vendorRoots 按组件目录名
- * gnupg 已纳入：无 gpgconf.ctl → 认 env；系统 scoop gpgconf 带 gpgconf.ctl 不认 env、杀不到插件环）→
- * 本调用精准命中插件环 daemon，不影响用户个人 scoop home 的 gpg/agent。
- * 幂等无副作用：失败/无 daemon 均静默；清理失败不覆盖主结果（execute 的 finally 收尾，
- * 任何返回路径都不会被清理结果打断——runCli 本身不抛，此处仍兜底 catch）。
+ * 否则残留 <vendor>/gnupg/bin/gpg-agent.exe --homedir <插件环> --daemon + scdaemon.exe，
+ * 锁住 vendor 文件使 App 卸载/更新删不掉安装目录。
+ * 机制与两道守卫见 tools/lib/gpg-daemon.js（与 git_commit / git_exec 同一实现）。
  */
-async function killGpgDaemons() {
-  if (!getToolDataDir()) return; // dataDir 未登记 → runCli 未注入 GNUPGHOME → 不 kill（避免误碰默认环）
-  // vendor gnupg 缺失时 gpgconf 落系统 scoop（gpgconf.ctl 不认 env）：kill 无法命中插件环、
-  // 可能误碰个人 scoop 环 → 跳过（插件无 vendor = 本无签名能力，无需清理）
-  if (resolveBin("gpgconf").source !== "bundled") return;
-  try {
-    await runCli("gpgconf", ["--kill", "gpg-agent", "scdaemon"], {});
-  } catch {
-    /* 清理尽力而为：失败静默，不覆盖主结果 */
-  }
-}
 
 export async function execute(input, ctx) {
   await initToolContext(ctx);
@@ -389,20 +373,20 @@ async function runKeygen(input) {
   if (fp) {
     const s1 = await runCli("git", ["config", "--global", "user.signingkey", fp], {});
     const s2 = await runCli("git", ["config", "--global", "commit.gpgsign", "true"], {});
-    // gpg.program 接线：宿主内嵌 git（2.55 MinGit）不支持 gpg.homedir（本地 help --config
-    // 无此条目、实测 -c gpg.homedir 不生效），且 gpg.program 不支持带参（整串当 argv0）→
-    // gpg.program 只能指向「认 GNUPGHOME env」的 gpg：插件 vendor gnupg（无 gpgconf.ctl →
-    // 非便携模式）即满足——git spawn vendor gpg 继承 runCli 注入的 GNUPGHOME=<gpgDir>
-    // → 签名/验签命中隔离环（GIT_TERMINAL_PROMPT 由 runCli 注入）。scoop 系统 gpg 带
-    // gpgconf.ctl（便携模式恒指个人环、忽略 GNUPGHOME），不可用于此接线。
-    const gpgProgram = resolveBin("gpg").cmd; // vendor gnupg 存在 = vendor 绝对路径；无 vendor = "gpg.exe" 系统回退
-    const s3 = await runCli("git", ["config", "--global", "gpg.program", gpgProgram], {});
-    const wiringOk = s1.ok && s2.ok && s3.ok;
+    // gpg.program **不写进 gitconfig**：它是每次 spawn 由 buildBinEnv 现算注入的（见 tools/lib/bin.js）。
+    //
+    // 不写文件的原因：gitconfig 存在 app-data、跨安装存活，而 vendor 路径会随包布局变（如平台目录
+    // 收进 vendor/bin/）——写进文件的绝对路径一旦失效，签名直接 cannot spawn；而工具面全部经
+    // runCli → buildBinEnv 拉起，注入值总在配置文件之上生效（GIT_CONFIG_*），文件里那份没有消费者。
+    // 反过来说：用户自己的终端不经本 App spawn，也不会读这份隔离 gitconfig（GIT_CONFIG_GLOBAL
+    // 只由 App 注入），所以“给外部场景留个可用值”这个理由不成立。
+    //
+    // 接线本身仍然满足（git spawn 到的 gpg 必须是认 GNUPGHOME env 的 vendor gnupg，而不是带
+    // gpgconf.ctl 的系统 scoop gpg——后者便携模式恒指个人环、忽略 GNUPGHOME，签名报 No secret key）。
     lines.push(
-      "签名已接线（user.signingkey + commit.gpgsign=true + gpg.program=" + gpgProgram +
-      " → git spawn vendor gpg 经 GNUPGHOME（runCli 注入）命中隔离环）：此后 git_commit 自动签名，" +
-      "签名与验签均落隔离环 <" + gpgDir + ">。" +
-      (wiringOk ? "" : "（配置写入异常：" + ([s1.message, s2.message, s3.message].filter(Boolean).join("；") || "?") + "）")
+      "签名已接线（user.signingkey + commit.gpgsign=true；gpg.program 由运行时按当前安装注入，" +
+      "不写进配置文件）：此后 git_commit 自动签名，签名与验签均落隔离环 <" + gpgDir + ">。" +
+      (s1.ok && s2.ok ? "" : "（配置写入异常：" + ([s1.message, s2.message].filter(Boolean).join("；") || "?") + "）")
     );
     const exportR = await runCli("gpg", ["--homedir", gpgDir, "--armor", "--export", fp], {});
     if (exportR.ok && exportR.stdout.trim()) {

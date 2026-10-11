@@ -51,6 +51,20 @@ export function setFreshChecker(fn) {
 }
 
 /**
+ * 只登记运行上下文（dataDir / pluginDir），**不触发**任何加载动作（不解密凭据、不跑保活）。
+ * 给 apply 阶段用：disposer 里要靠 dataDir 定位隔离环去收尾 gpg daemon（见 tools/lib/gpg-daemon.js），
+ * 而 initToolContext 是异步的、还会拉起 DPAPI 解密——那里不合适。此处只写两个字符串，纯同步。
+ */
+export function primeToolContext(ctx) {
+  if (ctx && ctx.dataDir !== undefined && ctx.dataDir !== null) {
+    state.dataDir = String(ctx.dataDir);
+  }
+  if (ctx && ctx.pluginDir !== undefined && ctx.pluginDir !== null) {
+    state.pluginDir = String(ctx.pluginDir);
+  }
+}
+
+/**
  * 初始化上下文单例：记录 dataDir/pluginDir。
  * 幂等，可重复调用（后调覆盖先调）。
  *

@@ -45,6 +45,7 @@ import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
 import { setSecretLoader, setFreshChecker } from "./tools/lib/context.js";
+import { killGpgDaemons } from "./tools/lib/gpg-daemon.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
 
@@ -164,6 +165,13 @@ export function apply(ctx) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }
     try { if (typeof unregisterRoutes === "function") unregisterRoutes(); } catch { /* 忽略 */ }
+    // 卸载/重载前的最后一道收尾：杀掉隔离环残留的 gpg daemon。
+    // 宿主删除安装目录时若 gpg-agent 仍持有 vendor/bin/.../gnupg/bin/*.exe 的句柄，文件删不掉——
+    // 在 Windows 上表现为卸载长时间重试后失败（宿主日志记 "delete files" outcome=failure），
+    // 并留下半个安装目录。工具侧已在每次调用后收尾（见 tools/lib/gpg-daemon.js），这里是兜底：
+    // 覆盖「daemon 是被别的路径拉起的」或「上一轮收尾失败」的情况。
+    // dispose 可能是同步调用，所以不 await——killGpgDaemons 自身不抛，进程随后也会退出。
+    try { void killGpgDaemons(); } catch { /* 忽略 */ }
   };
 }
 

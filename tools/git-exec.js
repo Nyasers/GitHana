@@ -21,6 +21,7 @@
  */
 import { runCli, formatCliResult, checkCwd } from "./lib/exec.js";
 import { initToolContext } from "./lib/context.js";
+import { killGpgDaemons } from "./lib/gpg-daemon.js";
 
 export const name = "git_exec";
 
@@ -82,6 +83,17 @@ function gitGuidance(stderr) {
 
 export async function execute(input, ctx) {
   await initToolContext(ctx);
+  // 透传层同样包 try/finally 收尾：隔离 gitconfig 里 commit.gpgsign=true，一次 git commit
+  // 就会拉起 gpg-agent（并带起 scdaemon），而透传层对子命令无预判。收尾是幂等的空操作，
+  // 对不触发签名的普通命令（status/log/…）几乎无成本。见 tools/lib/gpg-daemon.js。
+  try {
+    return await runGitExec(input);
+  } finally {
+    await killGpgDaemons();
+  }
+}
+
+async function runGitExec(input) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
   if (cwdErr) return "git_exec 参数错误：" + cwdErr;
