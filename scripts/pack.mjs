@@ -346,14 +346,19 @@ function main() {
   const binRoot = join(stageDir, "bin");
   let vendorKept = [];
   if (existsSync(binRoot)) {
-    vendorKept = readdirSync(binRoot);
+    // bin/ 下混着两类东西：**平台二进制目录**（bin/<平台>/，按 target 收窄）与**入口**
+    // （bin/index.mjs，服务端 bundle，任何 target 都要）。判别按“是不是平台名”，
+    // 而不是“是不是 target”——后者会把入口也当多余平台删掉（已实际踩到：官方校验器
+    // 报 MISSING_ENTRY，而文件确实曾经在 dist 里）。
+    const isPlatformDir = (name) =>
+      /^(win32|darwin|linux)(-[a-z0-9]+)?$/.test(name) && statSync(join(binRoot, name)).isDirectory();
     if (target !== "universal") {
-      for (const name of vendorKept) {
-        if (name === target) continue;
+      for (const name of readdirSync(binRoot)) {
+        if (!isPlatformDir(name) || name === target) continue;
         rmSync(join(binRoot, name), { recursive: true, force: true });
       }
-      vendorKept = vendorKept.includes(target) ? [target] : [];
     }
+    vendorKept = readdirSync(binRoot).filter(isPlatformDir);
   }
 
   // universal 的完整性断言：全平台随包就要求每个平台该带的组件都在。

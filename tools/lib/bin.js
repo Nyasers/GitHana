@@ -54,8 +54,51 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir, getToolSecretToken } from "./context.js";
 
-/** 插件根目录（bin.js 位于 <root>/tools/lib/，上两级即根） */
-export const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+/**
+ * 插件根目录（安装目录）。
+ *
+ * **定义式推导：从入口所在目录向上找 `manifest.json`**——manifest 就在安装根，这是"安装根"的
+ * 根本定义，不依赖入口的层数、也不依赖任何宿主字段。两种形态自动都对：
+ *   · 源码树：入口是 <repo>/index.js（与 manifest.json 同级）→ 一级不找即命中；
+ *   · 交付产物：入口是 <install>/bin/index.mjs → `bin/` 里没有，上一步命中 <install>。
+ *
+ * 为什么不靠 `ctx.pluginDir`（曾经试过）：它给的是**源码树路径**而不是安装目录
+ * （真机实测：装到 <HANA_HOME>/apps/githana 后，该字段仍报开发仓库的绝对路径），
+ * 按它算 `bin/<平台>/` 会永远探空、静默回落系统 PATH——"装好了却用着系统那份"。
+ *
+ * 为什么不数固定层数：产物布局一改（单入口后入口进了 bin/）就指错，而 manifest.json 的位置
+ * 不会因布局变化而漂。
+ *
+ * **惰性 + 记忆化**：不在模块加载期探 fs。交付形态下本文件处在入口的 import 链上，而入口
+ * 加载时是宿主权限模型下最没特权的时刻（fs 读取面尚未按 App 的安装根开放），在顶层探
+ * `manifest.json` 会被拒（实测报 `Access to this API has been restricted. Use --allow-fs-read`）。
+ * 推迟到第一次真正用到时（工具调用 / 路由处理）探一次，之后记住——那时权限面已就绪。
+ */
+let cachedPluginRoot = null;
+
+export function pluginRoot() {
+  if (cachedPluginRoot) return cachedPluginRoot;
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  const entryDir = dir;
+  for (let i = 0; i < 6; i += 1) {
+    let hit = false;
+    try {
+      hit = fs.existsSync(path.join(dir, "manifest.json"));
+    } catch {
+      hit = false; // 权限未就绪或路径不可读：按不命中处理，交给下层回退
+    }
+    if (hit) {
+      cachedPluginRoot = dir;
+      return dir;
+    }
+    const up = path.dirname(dir);
+    if (!up || up === dir) break;
+    dir = up;
+  }
+  // 找不到 manifest（非标准布局）→ 回退到入口所在目录，不抛：工具面不该因路径推导失败而全挂。
+  cachedPluginRoot = entryDir;
+  return entryDir;
+}
 
 /** 宿主注入的 resources 根环境变量（v1 时代有；v2 AppHost 不传，仅作候选之一） */
 const HOST_RESOURCES_ENV = "HANA_DESKTOP_RESOURCES_PATH";
@@ -116,7 +159,16 @@ function layoutFor(bin) {
 
 /** 产物侧二进制所在处：bin/<平台-架构>/（平铺，无组件层）。 */
 function vendorRoots(bin) {
-  return [path.join(PLUGIN_ROOT, "bin", VENDOR_PLATFORM_KEY)];
+  return [path.join(pluginRoot(), "bin", VENDOR_PLATFORM_KEY)];
+}
+
+/**
+ * 随包二进制的根目录（bin/<平台-架构>/）。导出供诊断：它是"随包二进制找得到吗"的现场值。
+ * 路径推导与产物布局不一致时（如入口搬到 bin/ 后插件根变了），只靠 tools 会表现成静默回落
+ * 系统 PATH（"装好了但用的是系统那份"），这条诊断值能把那种情况当场显形。
+ */
+export function bundledBinRoot() {
+  return path.join(pluginRoot(), "bin", VENDOR_PLATFORM_KEY);
 }
 
 /** 去掉末尾 n 段路径（安全版，段数不够返回原值）。 */

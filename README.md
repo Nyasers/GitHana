@@ -165,9 +165,31 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 
 ```bash
 pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
-pnpm run build        # 组装 dist/（内部先构建设置页产物，再拷交付件）
+pnpm run build        # 组装 dist/（内部先打产物，再按白名单拷交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/dist/settings.bundle.*
+pnpm run build:server # 只构建服务端单入口：index.js → build/server/index.mjs
 ```
+
+**交付树是「单入口 + bin」形态**（与 DSHana 同形）：服务端代码打成 `bin/index.mjs` 一个文件，
+平台二进制在 `bin/<平台>/` 平铺，两者同层——`bin/` 的语义就是「装到机器上要跑的东西」。
+
+```
+dist/
+  manifest.json  LICENSE  NOTICE
+  bin/index.mjs           ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
+  bin/<平台>/<exe>         ← 运行时二进制
+  licenses/ assets/ skills/ ui/
+```
+
+**为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。此前服务端
+以源码形态随包（`index.js` + `lib/` + `tools/` 共 22 个文件），代价是交付面里混着源码、
+还要为了解析规则随带一个 `package.json`（没有它 Node 把 `.js` 当 CJS，入口 import 直接报错）。
+
+> ⚠ bundle 有一个真陷阱：**`import.meta.url` 默认会被固化成构建机的绝对路径**
+> （`file:///H:/…/tools/lib/bin.js`），在用户机器上不存在。而入口位置正是工具面定位安装根的
+> 根据。`build-server.mjs` 因此显式关掉这个固化（`module.parser.javascript.importMeta: false`），
+> 保留运行时语义。这个坑在源码树里跑不出来（那时路径恰好是真的），只有装机后才暴露——
+> 所以「产物形态的改动必须真机验收」不是口号。
 
 **为什么是白名单而不是排除表**：源码树里多出什么，黑名单就漏什么——本地规划文档（`SPECS.md` /
 `specs/`）与设置页源码（`ui/src/`）就是这么进过包的。改成逐个点名后，要进包必须在名单里，
@@ -177,8 +199,9 @@ pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/di
 
 | 目录 | 内容 | 生成者 |
 |------|------|--------|
-| `dist/` | App 交付树（= 安装目录形态） | `scripts/build-app.mjs` |
-| `ui/dist/` | 设置页产物（bundle.js / bundle.css） | `scripts/build-ui.mjs`（build-app 内部调它） |
+| `dist/` | App 交付树（= 安装目录形态） | `scripts/build-app.mjs`（内部调 build-ui / build-server） |
+| `ui/dist/` | 设置页产物（bundle.js / bundle.css） | `scripts/build-ui.mjs` |
+| `build/server/` | 服务端单入口（index.mjs） | `scripts/build-server.mjs` |
 
 源码与产物不混在同一层：`ui/src/` 是源，`ui/dist/` 是物，`dist/ui/` 是进包的那一份。
 **出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
@@ -364,9 +387,12 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 
 ## 目录
 
+下面是**源码树**。服务端那几项（`index.js` / `lib/` / `tools/`）是源码，**不进包**：
+`build-server` 把它们打成单入口 `bin/index.mjs`，交付树里只有一个服务端文件。
+
 ```
-manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）
-index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾
+manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/index.mjs
+index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/index.mjs）
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / context / identity / github）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
