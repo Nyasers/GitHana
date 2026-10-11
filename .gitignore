@@ -7,3 +7,6 @@ releases/
 # 内嵌运行时（二进制，不入库）：按 vendor/sources.json 声明式重建
 vendor/*
 !vendor/sources.json
+
+# 本地规划文件
+specs*
