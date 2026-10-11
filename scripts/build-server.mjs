@@ -2,28 +2,32 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * scripts/build-server.mjs — 把服务端代码打成单入口 bundle（bin/index.mjs）。
+ * scripts/build-server.mjs — 把服务端代码打成单入口 bundle（bin/app.mjs）。
  *
  * ## 为什么打 bundle
  *
  * 交付面是"装到机器上要跑的东西"，而不是"源码树的形状"。此前服务端代码以源码形态随包
- * （`index.js` + `lib/` 7 个 + `tools/` 14 个 = 22 个文件），代价有三：
+ * （`app.js` + `lib/` 7 个 + `tools/` 14 个 = 22 个文件），代价有三：
  *   · 交付面里混着源码，读包的人无法一眼分清"哪些是要跑的、哪些是给人看的"；
- *   · 随包的 `package.json` 只为了让 Node 把 `.js` 按 ESM 解析（注释里写着"没有它 index.js
- *     的 import 直接语法报错"）——**一个为解析规则而随包的文件**；
+ *   · 随包的 `package.json` 只为了让 Node 把 `.js` 按 ESM 解析（那时入口是 `.js`，
+ *     没有它 import 直接语法报错）——**一个为解析规则而随包的文件**；
  *   · 入口的层数被固定（`import.meta.url` 上推两级 = 安装根），产物布局一改就指错。
  *
- * 打成单入口后：产物是 `bin/index.mjs`（`.mjs` 扩展名自带 ESM 语义，**不需要 package.json
- * 随包**），服务端只有一个文件进包，安装根的取法也不再依赖入口的层数（靠 ctx.pluginDir，
- * 见 tools/lib/bin.js）。
+ * 打成单入口后：产物是 `bin/app.mjs`（`.mjs` 扩展名自带 ESM 语义，**不需要 package.json
+ * 随包**），服务端只有一个文件进包，安装根的取法也不再依赖入口的层数（见 tools/lib/bin.js
+ * 的 pluginRoot）。
  *
- * ## 形态与 DSHana 对齐
+ * ## 为什么叫 app 而不是 index
  *
- * 同生态的兄弟仓 DSHana 就是单入口 + `bin/`：`manifest.entry = bin/index.mjs`，服务端代码在
- * `bin/` 下成 bundle，根上没有 package.json。这里取同一种形态（**形态**对齐，不是把它的
- * 打包配置搬过来——它是 pnpm workspace，本仓是扁平单包）。
+ * 单入口的名字应该回答"这是什么"：它是 App 主体，不是一份目录下的默认页。
  *
- *   index.js ──rspack(node target)──▶ build/server/index.mjs ──build-app──▶ dist/bin/index.mjs
+ * 同生态的 DSHana 把入口叫 `bin/index.mjs`，但那个名字服务于它的一个历史原因：**它有两份东西**
+ * ——主体 `app.mjs` 与受管 runtime `dsh.mjs`——而 `index.mjs` 是一层手写的静态转发壳，
+ * 用来绕开"rspack 产出的入口带数字 id、每次构建都变"的问题（宿主会缓存入口）。
+ * 本 App 没有第二份东西，也没有那层壳：直接产出主体 `app.mjs`，宿主同样按 manifest.entry 加载。
+ * 照搬 `index` 那个名字会把别人的补丁当成形态。
+ *
+ *   app.js ──rspack(node target)──▶ build/server/app.mjs ──build-app──▶ dist/bin/app.mjs
  *
  * ## 为什么是 Rspack
  *
@@ -32,7 +36,7 @@
  *
  * ## 产物落点
  *
- * `build/server/`（仓库内构建区，不入 git）。build-app.mjs 把它拷成交付树的 `bin/index.mjs`，
+ * `build/server/`（仓库内构建区，不入 git）。build-app.mjs 把它拷成交付树的 `bin/app.mjs`，
  * 与平台二进制同层——`bin/` 的语义就是"装到机器上要跑的东西"。
  *
  * 用法：node scripts/build-server.mjs
@@ -44,7 +48,7 @@ import { rspack } from "@rspack/core";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(here, "..");
-const entry = path.join(appDir, "index.js");
+const entry = path.join(appDir, "app.js");
 const outDir = path.join(appDir, "build", "server");
 
 if (!fs.existsSync(entry)) {
@@ -56,7 +60,7 @@ const config = {
   mode: "production",
   devtool: false,
   target: "node",
-  entry: { index: entry },
+  entry: { app: entry },
   output: {
     path: outDir,
     filename: "[name].mjs",
@@ -81,7 +85,7 @@ const config = {
   },
   optimization: {
     // 不切 chunk：**chunk 来自多入口共享代码或动态 `import()`**，本 App 两边都没有——
-    // 服务端就一个入口（index.js），也没有动态 import（仅 JSDoc 里出现过 `import("hono").Hono`
+    // 服务端就一个入口（app.js），也没有动态 import（仅 JSDoc 里出现过 `import("hono").Hono`
     // 这类类型注释，不是真导入）。实测：把这里改成 `splitChunks: { chunks: "all" }`，产物文件名
     // 完全一样（没有可切的东西）；只有强行 `runtimeChunk: "single"` 才会多出一个 runtime.mjs。
     //
@@ -113,12 +117,12 @@ rspack(config, (err, stats) => {
     for (const e of info.errors || []) console.error(`[build-server] 错误: ${e.message}`);
     process.exit(1);
   }
-  const out = path.join(outDir, "index.mjs");
+  const out = path.join(outDir, "app.mjs");
   if (!fs.existsSync(out)) {
-    console.error("[build-server] 未产出 build/server/index.mjs");
+    console.error("[build-server] 未产出 build/server/app.mjs");
     process.exit(1);
   }
   const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-  console.log(`[build-server] build/server/index.mjs  ${kb(fs.statSync(out).size)}`);
+  console.log(`[build-server] build/server/app.mjs  ${kb(fs.statSync(out).size)}`);
   console.log("[build-server] 完成。单入口 ESM（.mjs 自带 ESM 语义，无需随包 package.json）。");
 });

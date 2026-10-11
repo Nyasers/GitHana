@@ -37,7 +37,7 @@
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
 | 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`，`kind: "oauth"`），不进宿主设置表 |
 
-`tools/` 与 `tools/lib/` 的实现基本原样复用：`index.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
+`tools/` 与 `tools/lib/` 的实现基本原样复用：`app.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
 
 ## 清单能力
@@ -167,16 +167,16 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（内部先打产物，再按白名单拷交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/dist/settings.bundle.*
-pnpm run build:server # 只构建服务端单入口：index.js → build/server/index.mjs
+pnpm run build:server # 只构建服务端单入口：app.js → build/server/app.mjs
 ```
 
-**交付树是「单入口 + bin」形态**（与 DSHana 同形）：服务端代码打成 `bin/index.mjs` 一个文件，
+**交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 平台二进制在 `bin/<平台>/` 平铺，两者同层——`bin/` 的语义就是「装到机器上要跑的东西」。
 
 ```
 dist/
   manifest.json  LICENSE  NOTICE
-  bin/index.mjs           ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
+  bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
   bin/<平台>/<exe>         ← 运行时二进制
   licenses/ assets/ skills/ ui/
 ```
@@ -184,6 +184,11 @@ dist/
 **为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。此前服务端
 以源码形态随包（`index.js` + `lib/` + `tools/` 共 22 个文件），代价是交付面里混着源码、
 还要为了解析规则随带一个 `package.json`（没有它 Node 把 `.js` 当 CJS，入口 import 直接报错）。
+
+**为什么叫 app 而不是 index**：单入口的名字应该回答「这是什么」——它是 App 主体，不是一份
+目录下的默认页。DSHana 的入口叫 `bin/index.mjs`，但那是它**两份东西**（主体 + 受管 runtime）
+之间的一层静态转发壳，用来绕开「rspack 产出的入口带数字 id、每次构建都变」。本 App 没有第二份，
+也没有那层壳，直接产出主体 `app.mjs`——照搬 `index` 会把别人的补丁当成形态。
 
 > ⚠ bundle 有一个真陷阱：**`import.meta.url` 默认会被固化成构建机的绝对路径**
 > （`file:///H:/…/tools/lib/bin.js`），在用户机器上不存在。而入口位置正是工具面定位安装根的
@@ -201,7 +206,7 @@ dist/
 |------|------|--------|
 | `dist/` | App 交付树（= 安装目录形态） | `scripts/build-app.mjs`（内部调 build-ui / build-server） |
 | `ui/dist/` | 设置页产物（bundle.js / bundle.css） | `scripts/build-ui.mjs` |
-| `build/server/` | 服务端单入口（index.mjs） | `scripts/build-server.mjs` |
+| `build/server/` | 服务端单入口（app.mjs） | `scripts/build-server.mjs` |
 
 源码与产物不混在同一层：`ui/src/` 是源，`ui/dist/` 是物，`dist/ui/` 是进包的那一份。
 **出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
@@ -387,12 +392,12 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 
 ## 目录
 
-下面是**源码树**。服务端那几项（`index.js` / `lib/` / `tools/`）是源码，**不进包**：
-`build-server` 把它们打成单入口 `bin/index.mjs`，交付树里只有一个服务端文件。
+下面是**源码树**。服务端那几项（`app.js` / `lib/` / `tools/`）是源码，**不进包**：
+`build-server` 把它们打成单入口 `bin/app.mjs`，交付树里只有一个服务端文件。
 
 ```
-manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/index.mjs
-index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/index.mjs）
+manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
+app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / context / identity / github）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
