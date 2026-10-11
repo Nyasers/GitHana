@@ -16,14 +16,14 @@
  * ## dist/ 的形状（= App 安装目录形态）
  *
  *   manifest.json / LICENSE / NOTICE
- *   bin/  ← 入口（index.mjs，服务端 bundle）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
+ *   bin/  ← 入口（app.mjs，服务端 bundle）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
  *   licenses/ assets/ skills/
  *   ui/   ← 只含壳页与构建产物，**不含 ui/src/**
  *
- * **服务端代码以单入口进包**（`bin/index.mjs`）：与 DSHana 同形。安装目录里只有一个服务端文件，
- * 而不是 `index.js` + `lib/` + `tools/` 共 22 个源码文件——交付面是"装到机器上要跑的东西"，
- * 不是"源码树的形状"。`.mjs` 扩展名自带 ESM 语义，所以**不再随包 package.json**（以前它是为了
- * 让 Node 把 `.js` 当 ESM 解析才跟着进包的，注释里写着"没有它 index.js 的 import 直接语法报错"）。
+ * **服务端代码以单入口进包**（`bin/app.mjs`）：入口名回答“这是什么”——它是 App 主体，
+ * 不是一份目录下的默认页。安装目录里只有一个服务端文件，而不是 `app.js` + `lib/` + `tools/`
+ * 共 22 个源码文件——交付面是"装到机器上要跑的东西"，不是"源码树的形状"。`.mjs` 扩展名自带
+ * ESM 语义，所以**不再随包 package.json**（以前它是为了让 Node 把 `.js` 当 ESM 解析才跟着进包的）。
  *
  * `THIRD_PARTY_NOTICES.md` **不在这里**：它描述的是“这个包里有什么”，而包内容取决于 target，
  * 仓库源码并不“拥有”某个特定包的内容。所以它由 pack.mjs 在暂存后按实际内容渲染（见 pack 的许可面收窄）。
@@ -35,7 +35,7 @@
  *
  * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
  *
- * 不含：scripts/（开发件）、根上的 index.js / lib/ / tools/（已 bundle 进 bin/index.mjs）、
+ * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs）、
  * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
  * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
  * （构建期缓存与声明，运行时无消费者）。
@@ -106,11 +106,11 @@ function main() {
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(DIST, { recursive: true });
 
-  // 1) 先构建设置页产物（ui/src → ui/dist）与服务端单入口 bundle（index.js → build/server/）。
+  // 1) 先构建设置页产物（ui/src → ui/dist）与服务端单入口 bundle（app.js → build/server/）。
   //    两个产物都必须先就绪，下面才拷得进来。
   log("构建设置页产物（ui/src/settings.jsx → ui/dist/settings.bundle.*）…");
   runBuild("build-ui.mjs", "设置页构建失败");
-  log("构建服务端单入口（index.js → build/server/index.mjs）…");
+  log("构建服务端单入口（app.js → build/server/app.mjs）…");
   runBuild("build-server.mjs", "服务端构建失败");
 
   // 2) 契约件与代码目录（白名单）
@@ -132,15 +132,15 @@ function main() {
     total += copyInto(src, join(DIST, name));
   }
 
-  // 2a) 服务端单入口 → bin/index.mjs（与平台二进制同层：bin/ 就是"装到机器上要跑的东西"）。
-  const serverBundle = join(ROOT, "build", "server", "index.mjs");
+  // 2a) 服务端单入口 → bin/app.mjs（与平台二进制同层：bin/ 就是"装到机器上要跑的东西"）。
+  const serverBundle = join(ROOT, "build", "server", "app.mjs");
   if (!existsSync(serverBundle)) {
-    console.error("[build-app] 缺 build/server/index.mjs（服务端 bundle 未生成）");
+    console.error("[build-app] 缺 build/server/app.mjs（服务端 bundle 未生成）");
     process.exit(1);
   }
   mkdirSync(join(DIST, "bin"), { recursive: true });
-  total += copyInto(serverBundle, join(DIST, "bin", "index.mjs"));
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ 服务端单入口 bin/index.mjs`);
+  total += copyInto(serverBundle, join(DIST, "bin", "app.mjs"));
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ 服务端单入口 bin/app.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，
@@ -189,7 +189,7 @@ function main() {
   const FORBIDDEN = [
     "ui/src", // 设置页源码
     "scripts", // 构建脚本
-    "index.js", // 服务端源码（已 bundle 进 bin/index.mjs）
+    "app.js", // 服务端源码（已 bundle 进 bin/app.mjs）
     "lib", // 服务端源码目录
     "tools", // 工具实现目录
     "package.json", // 产物用 .mjs 自带 ESM 语义，不再需要它跟包

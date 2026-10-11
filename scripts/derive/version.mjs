@@ -6,12 +6,12 @@
 // ## 版本单一事实源是 manifest.json，不是 package.json
 //
 // 宿主安装时在包根读 `manifest.json`，包名里的版本（`<id>-v<version>-<target>.zip`）也取自它。
-// `package.json` 在交付树里另有作用（入口是 ESM，Node 靠它按 module 解析 index.js），但它那份
-// `version` 字段没有任何发布含义——它唯一需要满足的是"与 manifest 一致"，否则读的人会以为发
-// 布的是另一个版本。
+// `package.json` **不随包**（交付入口是 `bin/app.mjs`，`.mjs` 自带 ESM 语义）：它只是开发仓的
+// 包清单，那份 `version` 没有任何发布含义——它唯一需要满足的是“与 manifest 一致”，否则读的人
+// 会以为发的是另一个版本。
 //
-// 所以方向是 manifest → package.json，反过来会把"事实源"挪到一个人读的字段上。pack.mjs 出包时
-// 也断言两者一致（`版本不一致：manifest=… package.json=…`），那道断言拦的是"忘了跑本任务"，
+// 所以方向是 manifest → package.json，反过来会把“事实源”挪到一个人读的字段上。pack.mjs 出包时
+// 也断言两者一致（`版本不一致：manifest=… package.json=…`），那道断言拦的是“忘了跑本任务”，
 // 与这里互补：derive 负责对齐，pack 负责在不对齐时拒绝出包。
 import fs from "node:fs";
 import { at } from "../shared/root.mjs";

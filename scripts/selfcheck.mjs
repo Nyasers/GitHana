@@ -55,13 +55,13 @@ if (manifest) {
   if (typeof id !== "string" || !id || id === "." || id === ".." || /[\\/:*?"<>|]/.test(id)) {
     fail(`manifest.id 必须是非空、可作为单段目录名的字符串（当前 ${JSON.stringify(id)}）`);
   }
-  // 入口是**构建产物**（bin/index.mjs，由 build-server 打出），不在源码树里。源码树里能校验的
-  // 是它的源（index.js）与入口规约（必须是 .mjs 或 .js）——产物是否存在由 build-app 的断言管
+  // 入口是**构建产物**（bin/app.mjs，由 build-server 打出），不在源码树里。源码树里能校验的
+  // 是它的源（app.js）与入口规约（必须是 .mjs 或 .js）——产物是否存在由 build-app 的断言管
   // （交付树里逐个点名，见其第 5 步）。这也是入口改成产物形态后，两道检查各自的分工。
   if (typeof manifest.entry !== "string" || !/\.m?js$/.test(manifest.entry)) {
     fail(`manifest.entry 必须是一个 JS 入口路径（当前 ${JSON.stringify(manifest.entry)}）`);
-  } else if (!existsSync(join(ROOT, "index.js"))) {
-    fail("服务端入口源不存在：index.js（manifest.entry 指向的产物由它打出来）");
+  } else if (!existsSync(join(ROOT, "app.js"))) {
+    fail("服务端入口源不存在：app.js（manifest.entry 指向的产物由它打出来）");
   }
   if (typeof manifest.icon !== "string" || !existsSync(join(ROOT, manifest.icon))) {
     fail(`icon 不存在：${manifest.icon}`);

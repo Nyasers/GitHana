@@ -15,7 +15,7 @@
  *
  * ## 产物形状（对齐官方包的实测布局）
  *
- * ZIP 内文件在根：manifest.json / index.js / lib/ / tools/ / ui/ / vendor/ / skills/ / assets/…
+ * ZIP 内文件在根：manifest.json / bin/ / ui/ / licenses/ / skills/ / assets/…
  *
  * 本脚本**只从 dist/ 出包**，不再从源码树过滤：交付面由 scripts/build-app.mjs 以白名单组装好，
  * 源码与开发件根本不进 dist/。这里不做任何排除判断——黑名单只列它记得的东西，源码树里多出
@@ -347,7 +347,7 @@ function main() {
   let vendorKept = [];
   if (existsSync(binRoot)) {
     // bin/ 下混着两类东西：**平台二进制目录**（bin/<平台>/，按 target 收窄）与**入口**
-    // （bin/index.mjs，服务端 bundle，任何 target 都要）。判别按“是不是平台名”，
+    // （bin/app.mjs，服务端 bundle，任何 target 都要）。判别按“是不是平台名”，
     // 而不是“是不是 target”——后者会把入口也当多余平台删掉（已实际踩到：官方校验器
     // 报 MISSING_ENTRY，而文件确实曾经在 dist 里）。
     const isPlatformDir = (name) =>

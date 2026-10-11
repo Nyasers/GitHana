@@ -21,14 +21,14 @@
  * oauthMeta：凭据记录里那份**非机密** meta（login / expiresAt / needsReauth…）。挂在单例上
  * 是为了让刷新逻辑（lib/oauth.js）不必反复解密就能判断「要不要刷新」。
  *
- * freshChecker：令牌保活回调（index.js 注册，指向 lib/oauth.js 的 ensureFresh）。刷新是异步的，
+ * freshChecker：令牌保活回调（app.js 注册，指向 lib/oauth.js 的 ensureFresh）。刷新是异步的，
  * 同样塞不进同步的 buildBinEnv，所以挂在 initToolContext 里——那是每次工具/路由调用都会
  * await 一次的入口。刷新失败不抛异常（无其它凭据可降级，失败就是失败，后续 gh 调用会报未登录）。
  */
 let state = { dataDir: "", pluginDir: "", secretToken: "", oauthMeta: null };
 
 /**
- * 秘密加载器（由 index.js 注册，指向 lib/secret.js），以及「是否已加载」的一次性闩。
+ * 秘密加载器（由 app.js 注册，指向 lib/secret.js），以及「是否已加载」的一次性闩。
  *
  * 为什么挂在这里而不是 apply 里：解密要跑 powershell（DPAPI），而 spawn 前必须同步拿到
  * GH_TOKEN；所以推迟到首次工具/路由调用（initToolContext）时才跑，且只跑一次。
@@ -39,13 +39,13 @@ let secretLoaded = false;
 /** 令牌保活回调（每次 initToolContext 都跑；内部自行判断是否需要真正发请求）。 */
 let freshChecker = null;
 
-/** 注册/重置秘密加载器（index.js 在 apply 里调一次）。 */
+/** 注册/重置秘密加载器（app.js 在 apply 里调一次）。 */
 export function setSecretLoader(fn) {
   secretLoader = typeof fn === "function" ? fn : null;
   secretLoaded = false;
 }
 
-/** 注册/重置令牌保活回调（index.js 在 apply 里调一次）。 */
+/** 注册/重置令牌保活回调（app.js 在 apply 里调一次）。 */
 export function setFreshChecker(fn) {
   freshChecker = typeof fn === "function" ? fn : null;
 }

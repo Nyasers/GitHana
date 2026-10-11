@@ -59,8 +59,8 @@ import { getToolDataDir, getToolSecretToken } from "./context.js";
  *
  * **定义式推导：从入口所在目录向上找 `manifest.json`**——manifest 就在安装根，这是"安装根"的
  * 根本定义，不依赖入口的层数、也不依赖任何宿主字段。两种形态自动都对：
- *   · 源码树：入口是 <repo>/index.js（与 manifest.json 同级）→ 一级不找即命中；
- *   · 交付产物：入口是 <install>/bin/index.mjs → `bin/` 里没有，上一步命中 <install>。
+ *   · 源码树：入口是 <repo>/app.js（与 manifest.json 同级）→ 一级不找即命中；
+ *   · 交付产物：入口是 <install>/bin/app.mjs → `bin/` 里没有，上一步命中 <install>。
  *
  * 为什么不靠 `ctx.pluginDir`（曾经试过）：它给的是**源码树路径**而不是安装目录
  * （真机实测：装到 <HANA_HOME>/apps/githana 后，该字段仍报开发仓库的绝对路径），
