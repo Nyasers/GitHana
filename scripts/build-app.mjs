@@ -15,10 +15,15 @@
  *
  * ## dist/ 的形状（= App 安装目录形态）
  *
- *   manifest.json / index.js / package.json / LICENSE / NOTICE
- *   licenses/ assets/ bin/ lib/ skills/ tools/
- *   bin/<platform>/  ← 运行时二进制平铺（如 bin/win32-x64/gpg.exe、bin/win32-x64/gh.exe）
- *   ui/  ← 只含壳页与构建产物，**不含 ui/src/**
+ *   manifest.json / LICENSE / NOTICE
+ *   bin/  ← 入口（index.mjs，服务端 bundle）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
+ *   licenses/ assets/ skills/
+ *   ui/   ← 只含壳页与构建产物，**不含 ui/src/**
+ *
+ * **服务端代码以单入口进包**（`bin/index.mjs`）：与 DSHana 同形。安装目录里只有一个服务端文件，
+ * 而不是 `index.js` + `lib/` + `tools/` 共 22 个源码文件——交付面是"装到机器上要跑的东西"，
+ * 不是"源码树的形状"。`.mjs` 扩展名自带 ESM 语义，所以**不再随包 package.json**（以前它是为了
+ * 让 Node 把 `.js` 当 ESM 解析才跟着进包的，注释里写着"没有它 index.js 的 import 直接语法报错"）。
  *
  * `THIRD_PARTY_NOTICES.md` **不在这里**：它描述的是“这个包里有什么”，而包内容取决于 target，
  * 仓库源码并不“拥有”某个特定包的内容。所以它由 pack.mjs 在暂存后按实际内容渲染（见 pack 的许可面收窄）。
@@ -30,9 +35,10 @@
  *
  * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
  *
- * 不含：scripts/（开发件）、build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、
- * node_modules/、.github/、README.md、SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；
- * 以及整个 `vendor/`（构建期缓存与声明，运行时无消费者）。
+ * 不含：scripts/（开发件）、根上的 index.js / lib/ / tools/（已 bundle 进 bin/index.mjs）、
+ * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
+ * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
+ * （构建期缓存与声明，运行时无消费者）。
  *
  * ## 每轮先清再写
  *
@@ -51,22 +57,32 @@ const DIST = join(ROOT, "dist");
 /** 交付件白名单：**只有**列在这里的东西会进包。 */
 const DELIVERY_FILES = [
   "manifest.json",
-  "index.js",
-  "package.json", // 入口是 ESM，没有它 Node 按 CJS 解析，index.js 的 import 直接语法报错
   "LICENSE",
   "NOTICE",
 ];
 const DELIVERY_DIRS = [
   "licenses", // 许可正文（通知只陈述事实，法条逐份在这里随包）
   "assets",
-  "lib",
   "skills",
-  "tools",
-  "vendor",
 ];
 
 const log = (...a) => console.log("[build-app]", ...a);
 const rel = (p) => relative(ROOT, p).replace(/\\/g, "/");
+
+/** 跑一个构建脚本（同目录下的 .mjs）；失败即退出。 */
+function runBuild(script, failMessage) {
+  const p = join(ROOT, "scripts", script);
+  if (!existsSync(p)) {
+    console.error(`[build-app] 找不到 scripts/${script}`);
+    process.exit(1);
+  }
+  try {
+    execFileSync(process.execPath, [p], { cwd: ROOT, stdio: "inherit" });
+  } catch {
+    console.error(`[build-app] ${failMessage}`);
+    process.exit(1);
+  }
+}
 
 /** 逐份拷贝并计数（便于报告，也让"拷贝了什么"在日志里可见）。 */
 function copyInto(from, to) {
@@ -90,19 +106,12 @@ function main() {
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(DIST, { recursive: true });
 
-  // 1) 先构建设置页产物（ui/src → ui/dist）。产物必须先就绪，下面才拷得进来。
-  const buildUi = join(ROOT, "scripts", "build-ui.mjs");
-  if (!existsSync(buildUi)) {
-    console.error("[build-app] 找不到 scripts/build-ui.mjs");
-    process.exit(1);
-  }
+  // 1) 先构建设置页产物（ui/src → ui/dist）与服务端单入口 bundle（index.js → build/server/）。
+  //    两个产物都必须先就绪，下面才拷得进来。
   log("构建设置页产物（ui/src/settings.jsx → ui/dist/settings.bundle.*）…");
-  try {
-    execFileSync(process.execPath, [buildUi], { cwd: ROOT, stdio: "inherit" });
-  } catch {
-    console.error("[build-app] 设置页构建失败");
-    process.exit(1);
-  }
+  runBuild("build-ui.mjs", "设置页构建失败");
+  log("构建服务端单入口（index.js → build/server/index.mjs）…");
+  runBuild("build-server.mjs", "服务端构建失败");
 
   // 2) 契约件与代码目录（白名单）
   let total = 0;
@@ -122,19 +131,29 @@ function main() {
     }
     total += copyInto(src, join(DIST, name));
   }
-  log(`契约件与代码目录就位（${DELIVERY_FILES.length} 个文件 + ${DELIVERY_DIRS.length} 个目录）`);
 
-  // 2b) vendor/ 只服务构建期，**不进交付面**：交付面是 `bin/<platform>/`，二进制在那里平铺。
-  //     仓库里按组件分目录（vendor/bin/<平台>/<组件>/）是为了单组件可整体重抓；
-  //     产物里没有“重抓某个组件”这件事，组件那一层就只剩噪音。
-  //     sources.json 与 SDK 快照同样不随包（运行时无消费者，声明只服务重建与派生）。
-  const distVendorBin = join(DIST, "vendor", "bin");
-  if (!existsSync(distVendorBin)) {
+  // 2a) 服务端单入口 → bin/index.mjs（与平台二进制同层：bin/ 就是"装到机器上要跑的东西"）。
+  const serverBundle = join(ROOT, "build", "server", "index.mjs");
+  if (!existsSync(serverBundle)) {
+    console.error("[build-app] 缺 build/server/index.mjs（服务端 bundle 未生成）");
+    process.exit(1);
+  }
+  mkdirSync(join(DIST, "bin"), { recursive: true });
+  total += copyInto(serverBundle, join(DIST, "bin", "index.mjs"));
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ 服务端单入口 bin/index.mjs`);
+
+  // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
+  //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，
+  //     而不是先拷 vendor/ 再删。仓库里按组件分目录（vendor/bin/<平台>/<组件>/）是为了单组件
+  //     可整体重抓；产物里没有“重抓某个组件”这件事，组件那一层就只剩噪音。
+  //     sources.json 与 SDK 快照也不随包（运行时无消费者，声明只服务重建与派生）。
+  const srcVendorBin = join(ROOT, "vendor", "bin");
+  if (!existsSync(srcVendorBin)) {
     console.error("[build-app] 缺 vendor/bin/（跑 node scripts/fetch-vendor.mjs 重建内嵌运行时）");
     process.exit(1);
   }
-  for (const platform of readdirSync(distVendorBin)) {
-    const platformDir = join(distVendorBin, platform);
+  for (const platform of readdirSync(srcVendorBin)) {
+    const platformDir = join(srcVendorBin, platform);
     if (!statSync(platformDir).isDirectory()) continue;
     const outDir = join(DIST, "bin", platform);
     mkdirSync(outDir, { recursive: true });
@@ -142,12 +161,11 @@ function main() {
       const compDir = join(platformDir, component);
       if (!statSync(compDir).isDirectory()) continue;
       for (const name of readdirSync(compDir)) {
-        renameSync(join(compDir, name), join(outDir, name));
+        copyInto(join(compDir, name), join(outDir, name));
       }
     }
   }
-  rmSync(join(DIST, "vendor"), { recursive: true, force: true });
-  log("vendor/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
+  log("vendor/bin/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
 
   // 3) ui/：只放壳页与构建产物，**不放源码**（ui/src/ 是源，不属于交付面）。
   const uiSrcHtml = join(ROOT, "ui", "settings.html");
@@ -171,9 +189,14 @@ function main() {
   const FORBIDDEN = [
     "ui/src", // 设置页源码
     "scripts", // 构建脚本
+    "index.js", // 服务端源码（已 bundle 进 bin/index.mjs）
+    "lib", // 服务端源码目录
+    "tools", // 工具实现目录
+    "package.json", // 产物用 .mjs 自带 ESM 语义，不再需要它跟包
     "node_modules",
     "build-deps",
     "vendor", // 构建期缓存与声明：已投影为 bin/<platform>/，产物里不再有这一层
+    "build", // 构建区（服务端 bundle 已拷进 bin/）
     "README.md",
     "SPECS.md",
     "specs",

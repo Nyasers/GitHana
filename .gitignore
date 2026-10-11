@@ -3,6 +3,7 @@ node_modules/
 dist/
 dist-extensions/
 releases/
+build/
 
 # 临时目录与日志（.tmp* 覆盖 .tmp / .tmp-verify / .tmp-check 等全部临时形态）
 .tmp*/

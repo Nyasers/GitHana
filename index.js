@@ -28,9 +28,6 @@
  *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
  *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
  */
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import * as gitExec from "./tools/git-exec.js";
 import * as gitStatus from "./tools/git-status.js";
 import * as gitLog from "./tools/git-log.js";
@@ -44,13 +41,22 @@ import * as ghPr from "./tools/gh-pr.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
-import { setSecretLoader, setFreshChecker } from "./tools/lib/context.js";
+import { setSecretLoader, setFreshChecker, primeToolContext } from "./tools/lib/context.js";
 import { killGpgDaemons } from "./tools/lib/gpg-daemon.js";
+import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
 
-/** 安装目录（本文件所在目录）：vendor 二进制、routes、ui 的根。 */
-const INSTALL_DIR = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * 安装目录（服务端产物的所在目录）：二进制、routes、ui 的根。
+ *
+ * 用 `pluginRoot()`（从入口向上找 manifest.json 的定义式推导），**不靠 ctx.pluginDir**：
+ * 后者在真机上给的是源码树路径，而不是安装目录（装到 <HANA_HOME>/apps/githana 后
+ * 它仍报开发仓库的绝对路径）。manifest.json 就在安装根，按它定位两种形态都对。
+ */
+function resolveInstallDir() {
+  return pluginRoot();
+}
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
  *  只放 git / gh 两类：GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
@@ -102,6 +108,8 @@ export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;
   if (!dataDir) throw new Error("githana apply: ctx.dataDir 缺失（宿主未提供数据目录）");
 
+  const INSTALL_DIR = resolveInstallDir();
+
   const logger = ctx.logger || null;
   const log = (level, ...args) => {
     if (logger && typeof logger[level] === "function") {
@@ -117,6 +125,11 @@ export function apply(ctx) {
     pluginDir: INSTALL_DIR,
     logger,
   };
+
+  // 把这两个字符串**同步**登记进单例。必须在这里做，不能只靠 appCtx —— 它只在工具 execute 时
+  // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir 去收尾 gpg daemon
+  // （见 tools/lib/gpg-daemon.js）。
+  primeToolContext(appCtx);
 
   // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
   // 解密是异步的，而 buildBinEnv 必须同步拿到 GH_TOKEN；挂在 initToolContext 首次调用

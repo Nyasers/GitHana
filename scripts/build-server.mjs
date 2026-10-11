@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 Nyasers
+
+/**
+ * scripts/build-server.mjs — 把服务端代码打成单入口 bundle（bin/index.mjs）。
+ *
+ * ## 为什么打 bundle
+ *
+ * 交付面是"装到机器上要跑的东西"，而不是"源码树的形状"。此前服务端代码以源码形态随包
+ * （`index.js` + `lib/` 7 个 + `tools/` 14 个 = 22 个文件），代价有三：
+ *   · 交付面里混着源码，读包的人无法一眼分清"哪些是要跑的、哪些是给人看的"；
+ *   · 随包的 `package.json` 只为了让 Node 把 `.js` 按 ESM 解析（注释里写着"没有它 index.js
+ *     的 import 直接语法报错"）——**一个为解析规则而随包的文件**；
+ *   · 入口的层数被固定（`import.meta.url` 上推两级 = 安装根），产物布局一改就指错。
+ *
+ * 打成单入口后：产物是 `bin/index.mjs`（`.mjs` 扩展名自带 ESM 语义，**不需要 package.json
+ * 随包**），服务端只有一个文件进包，安装根的取法也不再依赖入口的层数（靠 ctx.pluginDir，
+ * 见 tools/lib/bin.js）。
+ *
+ * ## 形态与 DSHana 对齐
+ *
+ * 同生态的兄弟仓 DSHana 就是单入口 + `bin/`：`manifest.entry = bin/index.mjs`，服务端代码在
+ * `bin/` 下成 bundle，根上没有 package.json。这里取同一种形态（**形态**对齐，不是把它的
+ * 打包配置搬过来——它是 pnpm workspace，本仓是扁平单包）。
+ *
+ *   index.js ──rspack(node target)──▶ build/server/index.mjs ──build-app──▶ dist/bin/index.mjs
+ *
+ * ## 为什么是 Rspack
+ *
+ * 与 build-ui.mjs 同一个打包器（已经在依赖里），配置口径一致。node 内置模块全部外部化
+ * （`externalsPresets.node`）：它们是宿主进程提供的，不该被打进来。
+ *
+ * ## 产物落点
+ *
+ * `build/server/`（仓库内构建区，不入 git）。build-app.mjs 把它拷成交付树的 `bin/index.mjs`，
+ * 与平台二进制同层——`bin/` 的语义就是"装到机器上要跑的东西"。
+ *
+ * 用法：node scripts/build-server.mjs
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { rspack } from "@rspack/core";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const appDir = path.resolve(here, "..");
+const entry = path.join(appDir, "index.js");
+const outDir = path.join(appDir, "build", "server");
+
+if (!fs.existsSync(entry)) {
+  console.error(`[build-server] 入口不存在：${entry}`);
+  process.exit(1);
+}
+
+const config = {
+  mode: "production",
+  devtool: false,
+  target: "node",
+  entry: { index: entry },
+  output: {
+    path: outDir,
+    filename: "[name].mjs",
+    clean: true,
+    module: true,
+    chunkFormat: "module",
+    library: { type: "module" },
+  },
+  experiments: { outputModule: true },
+  // node 内置模块全部外部化：它们是宿主进程提供的，不该打进产物。
+  externalsPresets: { node: true },
+  module: {
+    parser: {
+      javascript: {
+        // **不要把 `import.meta.url` 在构建期固化成构建机的绝对路径。**
+        // 默认行为会把它替换成 `file:///H:/workspace/…/tools/lib/bin.js` 这样的字符串，
+        // 那台路径在用户机器上不存在，而入口位置正是工具面定位安装根的根据
+        // （见 tools/lib/bin.js 的 pluginRoot）。保持运行时语义，产物在任何安装位都自洽。
+        importMeta: false,
+      },
+    },
+  },
+  optimization: {
+    // 单入口 + 无动态导入 → 不切 chunk：一个文件进包，安装树里只有一个服务端产物。
+    splitChunks: false,
+    runtimeChunk: false,
+    minimize: true,
+  },
+  resolve: { extensions: [".js", ".json"] },
+  performance: { hints: false },
+  stats: "errors-warnings",
+};
+
+rspack(config, (err, stats) => {
+  if (err) {
+    console.error("[build-server] 编译失败：", err);
+    process.exit(1);
+  }
+  const info = stats.toJson({ all: false, assets: true, errors: true, warnings: true });
+  for (const w of info.warnings || []) {
+    console.log(`[build-server] 警告: ${(w.message || "").split("\n")[0]}`);
+  }
+  if (stats.hasErrors()) {
+    for (const e of info.errors || []) console.error(`[build-server] 错误: ${e.message}`);
+    process.exit(1);
+  }
+  const out = path.join(outDir, "index.mjs");
+  if (!fs.existsSync(out)) {
+    console.error("[build-server] 未产出 build/server/index.mjs");
+    process.exit(1);
+  }
+  const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
+  console.log(`[build-server] build/server/index.mjs  ${kb(fs.statSync(out).size)}`);
+  console.log("[build-server] 完成。单入口 ESM（.mjs 自带 ESM 语义，无需随包 package.json）。");
+});

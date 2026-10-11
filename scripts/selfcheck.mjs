@@ -55,8 +55,13 @@ if (manifest) {
   if (typeof id !== "string" || !id || id === "." || id === ".." || /[\\/:*?"<>|]/.test(id)) {
     fail(`manifest.id 必须是非空、可作为单段目录名的字符串（当前 ${JSON.stringify(id)}）`);
   }
-  if (typeof manifest.entry !== "string" || !existsSync(join(ROOT, manifest.entry))) {
-    fail(`entry 不存在：${manifest.entry}`);
+  // 入口是**构建产物**（bin/index.mjs，由 build-server 打出），不在源码树里。源码树里能校验的
+  // 是它的源（index.js）与入口规约（必须是 .mjs 或 .js）——产物是否存在由 build-app 的断言管
+  // （交付树里逐个点名，见其第 5 步）。这也是入口改成产物形态后，两道检查各自的分工。
+  if (typeof manifest.entry !== "string" || !/\.m?js$/.test(manifest.entry)) {
+    fail(`manifest.entry 必须是一个 JS 入口路径（当前 ${JSON.stringify(manifest.entry)}）`);
+  } else if (!existsSync(join(ROOT, "index.js"))) {
+    fail("服务端入口源不存在：index.js（manifest.entry 指向的产物由它打出来）");
   }
   if (typeof manifest.icon !== "string" || !existsSync(join(ROOT, manifest.icon))) {
     fail(`icon 不存在：${manifest.icon}`);
@@ -81,7 +86,7 @@ if (manifest) {
 // ── 2) 服务端 js 语法（ESM 解析） ───────────────────────────────────────────
 function collectJs(dir, out = []) {
   for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "ui" || name === "vendor" || name.startsWith(".")) continue;
+    if (name === "node_modules" || name === "ui" || name === "vendor" || name === "dist" || name === "build" || name.startsWith(".")) continue;
     const p = join(dir, name);
     const st = statSync(p);
     if (st.isDirectory()) collectJs(p, out);
