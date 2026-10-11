@@ -17,12 +17,15 @@
 
 ## 升级
 
-Hana 升级后，这份拷贝要跟着刷新（它绑定 Hana 版本）：
+Hana 升级后，这份拷贝要跟着刷新（它绑定 Hana 版本）——半手工步骤已收进脚本：
 
 ```bash
-# 覆盖式重新拷贝，并更新 PROVENANCE.json 里的版本与哈希
-# （目前是手工步骤：从 <HANA_HOME>/artifacts/server/<version>/scripts/ 复制，
-#   然后把新哈希写进 PROVENANCE.json）
+node scripts/sync-app-tools.mjs          # 从本机宿主刷新拷贝并更新 PROVENANCE.json
+node scripts/sync-app-tools.mjs --check  # 只校验漂移（有则 exit 1）
 ```
 
-刷新后请连同 `PROVENANCE.json` 一起提交，让"这份工具来自哪个 Hana 版本"始终可查。
+源按 `--source` → `<HANA_HOME>/artifacts/server/<最新版本>/scripts` → 已装 skill 的
+`scripts/` 依次探测，且**不进 CI**（源是本机宿主）。刷新后请连同改动一起提交。
+
+为什么必须跟着升：内嵌工具的校验阈值会随版本变。一个实例——索引构建器的归档上限从
+`0.970.9` 的 50 MiB 放宽到了现版的 300 MiB；用旧拷贝会把其实合法的包判成超限。

@@ -1,12 +1,19 @@
+# 依赖与构建产物
 node_modules/
+dist/
 dist-extensions/
 releases/
-.tmp/
+
+# 临时目录与日志（.tmp* 覆盖 .tmp / .tmp-verify / .tmp-check 等全部临时形态）
+.tmp*/
 *.log
 
-# 内嵌运行时（二进制，不入库）：按 vendor/sources.json 声明式重建
-vendor/*
-!vendor/sources.json
+# 内嵌运行时：二进制不入库，按 vendor/sources.json 声明式重建（scripts/fetch-vendor.mjs）。
+# 二进制统一收在 vendor/bin/ 下，与元数据分层——所以这里只需一行，不必逐条翻案。
+# 元数据在 vendor/ 根：sources.json（声明）与 hana-app-sdk/（SDK 快照，@hana/app-sdk 不在
+# npm 上，构建期必需），两者都不在 bin/ 下，天然入库。
+/vendor/bin/
 
-# 本地规划文件
-specs*
+# 本地规划文件：锚在仓库根，不误伤 src/specs.ts 之类的同名源码
+/SPECS.md
+/specs/

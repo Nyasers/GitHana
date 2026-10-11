@@ -5,11 +5,15 @@
   "type": "module",
   "packageManager": "pnpm@11.25.0",
   "scripts": {
-    "build": "node scripts/build-ui.mjs",
-    "check": "node scripts/build-ui.mjs && node scripts/selfcheck.mjs",
+    "build": "node scripts/build-app.mjs",
+    "build:ui": "node scripts/build-ui.mjs",
+    "check": "node scripts/build-app.mjs && node scripts/selfcheck.mjs",
     "pack": "node scripts/pack.mjs",
     "index": "node scripts/build-index.mjs",
-    "vendor": "node scripts/fetch-vendor.mjs"
+    "vendor": "node scripts/fetch-vendor.mjs",
+    "sync:sdk": "node scripts/sync-sdk.mjs",
+    "sync:app-tools": "node scripts/sync-app-tools.mjs",
+    "derive:thirdparty": "node scripts/derive-thirdparty.mjs"
   },
   "devDependencies": {
     "@rspack/core": "^2.2.3",
@@ -17,6 +21,6 @@
     "react-dom": "19.3.0"
   },
   "dependencies": {
-    "@hana/app-sdk": "file:./build-deps/hana-app-sdk-0.970.9.tgz"
+    "@hana/app-sdk": "file:./vendor/hana-app-sdk/hana-app-sdk.tgz"
   }
 }

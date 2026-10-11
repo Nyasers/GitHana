@@ -1,11 +1,11 @@
-# Release — 单包（universal）+ 发布 + 市场清单
+# Release — 全平台包（universal）+ 发布 + 市场清单
 #
 # 触发：push tag v*（发版）／ workflow_dispatch（手动，只出 artifact 不建 release）
 #
 # 为什么只有一个包、不做平台矩阵：App 是 Web 应用，跨平台靠运行时解析
-# （宿主 git → 本平台 vendor（若有）→ 系统 PATH），本来就不需要逐平台出包；
-# 逐平台包是"非目标平台原生模块怎么裁剪"那类问题，本仓库没有原生模块，不引入这份复杂度。
-# 进市场的也只有这一个 universal 包。
+# （宿主 git → 本平台 vendor → 系统 PATH）。本仓库没有原生模块，不需要逐平台发版；
+# 一个 universal 包把所有平台的官方运行时都打进去，任意平台装上就近解析。
+# 进市场的也只有这一个包。
 #
 # 三段式：
 #   create-release：先建 draft pre-release（已存在则跳过）——保证后续上传目标必然存在
@@ -65,13 +65,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --ignore-scripts --frozen-lockfile
 
-      - name: Build settings UI
-        run: node scripts/build-ui.mjs
+      # 全平台随包：universal 包要自包含任意平台，故先把 sources.json 声明的每个平台
+      # 都抓下来（run on ubuntu，抓的是各平台的官方产物，与主机无关）。
+      - name: Rebuild vendored runtimes (all platforms)
+        run: |
+          for p in $(node -p "Object.keys(require('./vendor/sources.json').platforms).join(' ')"); do
+            echo "=== fetch $p ==="
+            node scripts/fetch-vendor.mjs --platform "$p"
+          done
 
-      - name: Self check
+      - name: Self check (universal)
         run: node scripts/selfcheck.mjs --platform universal
 
       # 出包：ZIP + .sha256 + 市场条目 .entry.json
+      # pack.mjs 会先跑 build-app.mjs 白名单组装 dist/（含设置页产物），再从 dist/ 出包；
+      # 两个产物目录都不入库，所以包里那份必然等于当前源码的产物。
       # （官方校验器在本 runner 上没有时会在输出里标 unverified，不假装通过）
       - name: Package (universal)
         run: node scripts/pack.mjs --target universal --publisher "${{ github.repository_owner }}" --out releases

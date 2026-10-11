@@ -12,8 +12,8 @@
  *
  * index.v2.json 的 item 只有 `archive.url` 一个地址，**没有平台维度**；构建器按 `kind:id`
  * 分组，同组的多个条目会被折成「最新版 + versions[]」。所以我们按平台出的多份 ZIP
- * 不可能各占一条。本脚本因此默认只把 `universal`（不随平台 vendor 的兜底包）放进清单，
- * 平台包留在 release 资产里按名取用。要多目标进清单，得先有带平台维度的索引格式。
+ * 不可能各占一条。本脚本因此默认只把 `universal`（把各平台官方运行时都打进同一个包的全平台包）
+ * 放进清单，平台包留在 release 资产里按名取用。要多目标进清单，得先有带平台维度的索引格式。
  *
  * 用法：
  *   node scripts/build-index.mjs --base-url https://github.com/<owner>/<repo>/releases/download/v<ver>
@@ -96,8 +96,8 @@ const include = (arg("--include") || "universal")
   .map((s) => s.trim())
   .filter(Boolean);
 if (include.length !== 1 || include[0] !== "universal") {
-  // 索引当前只指 universal：index.v2.json 的 item 只有 archive.url、没有平台维度，
-  // 多平台包挤不进同一条；指向某个平台包会让其它平台的机器装到不合身的包。
+  // 索引当前只指 universal（全平台包）：index.v2.json 的 item 只有 archive.url、没有平台维度，
+  // 多平台包挤不进同一条；指向某个单平台包会让其它平台的机器装到不合身的包。
   console.warn(
     `[build-index] 注意：--include=${include.join(",")} 不是 universal。` +
       `市场清单按当前格式只应指向 universal（平台包留给 release 资产按名取用）。`,

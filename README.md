@@ -4,7 +4,7 @@
 
 - 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 7 个工具 + 3 组后端路由（status / settings / actions）
 - 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
-- 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌 git/gh/gnupg 随包分发 · 版本见 `manifest.json`（单一事实源）
+- 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌各平台运行时（gh 全平台 + Windows gnupg）随包分发 · 版本见 `manifest.json`（单一事实源）
 
 > 与 dshana 同级：本仓库是**源码**，宿主实际加载的是安装位 `<HANA_HOME>/apps/<id>/`（见「安装与更新」）。
 
@@ -71,8 +71,7 @@
 
 1. 设置页点「用 GitHub 登录」→ `POST /routes/actions/oauth/start`；
 2. 服务端经 `gh api` 调 `https://github.com/login/device/code`（必须带
-   `-H "Accept: application/json"`，否则回 form-encoded；该端点无需认证，调用时传
-   `omitToken: true`），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
+   `-H "Accept: application/json"`，否则回 form-encoded），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
    只把 `user_code` / `verification_uri` / `interval` / `expires_in` 回给页面；
 3. 页面按 `interval` 自轮询 `GET /routes/actions/oauth/poll?id=<flowId>`，服务端每次只查一次
    `access_token`；`slow_down` 会把间隔 +5s，`expired_token` / `access_denied` /
@@ -159,16 +158,76 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 `liliMozi` 名下的仓库发评论/提 PR，需 **liliMozi 本人** 把 App 装到该账号。App 的访问边界是
 「安装所在账号」，仅授权不安装无效。
 
-## 构建（设置页 UI）
+## 构建与交付面
 
-React 设置页需要一步构建（宿主不会在安装时跑构建）：
+源码树与交付树分开：**`dist/` = App 安装目录形态**（宿主读它根下的 `manifest.json` + entry），
+由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（本地 tgz）
-node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui/settings.bundle.css
+pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm run build        # 组装 dist/（内部先构建设置页产物，再拷交付件）
+pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/dist/settings.bundle.*
 ```
 
-产物 `ui/settings.bundle.*` 随包分发；`ui/src/` 只是源。改完 UI 源码要重新构建，bundle 变了才算改完。
+**为什么是白名单而不是排除表**：源码树里多出什么，黑名单就漏什么——本地规划文档（`SPECS.md` /
+`specs/`）与设置页源码（`ui/src/`）就是这么进过包的。改成逐个点名后，要进包必须在名单里，
+源码树里多出什么都不影响包。
+
+**两个产物目录都不入库**（见 `.gitignore`）：
+
+| 目录 | 内容 | 生成者 |
+|------|------|--------|
+| `dist/` | App 交付树（= 安装目录形态） | `scripts/build-app.mjs` |
+| `ui/dist/` | 设置页产物（bundle.js / bundle.css） | `scripts/build-ui.mjs`（build-app 内部调它） |
+
+源码与产物不混在同一层：`ui/src/` 是源，`ui/dist/` 是物，`dist/ui/` 是进包的那一份。
+**出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
+
+## App SDK 快照
+
+`@hana/app-sdk` 不在 npm 上，它是宿主打包时产出的内部包。仓库因此在 `vendor/hana-app-sdk/`
+存一份快照（4 个 tgz + `source-manifest.json`），**它入库**（`vendor/*` 的忽略规则里给了例外）
+——构建必需，而 npm 上拿不到。
+
+宿主升级后快照会漂，用脚本同步（源就是本机宿主，所以不进 CI）：
+
+```bash
+pnpm run sync:sdk            # 从 <HANA_HOME>/artifacts/server/<最新版本>/ 同步
+pnpm run sync:sdk -- --check # 只校验漂移
+```
+
+同步后要跟着做两件事（脚本会打印）：按包名点名 `pnpm update @hana/app-sdk`（pnpm 不会因本地
+tgz 换内容而重算锁文件），再 `pnpm run derive:thirdparty` 刷新通知里的版本号。
+
+快照本身**不随包**：它是构建期依赖，由 rspack 内联进设置页产物；`build-app.mjs` 会把
+`dist/vendor/hana-app-sdk/` 删掉。
+
+## 第三方许可
+
+**通知是包的一部分，仓库里不存它。** `THIRD_PARTY_NOTICES.md` 写的是“这个包里有什么”，而包内容
+取决于 target（universal 带全平台 gh + win32 gnupg；darwin 包只带 gh），源码并不“拥有”某个特定包的
+内容。所以它由 `pack.mjs` 在组装交付树时按实际内容渲染（见「许可面随包内容收窄」）。
+
+两个真好处：**不会漂**（没有一份静态文件可以跟包不一致，以前靠 `--check` 比对，现在压根只有一份）；
+**不会多**（darwin 包里不会出现 GnuPG 段落与 GPL-3.0 条文——那不是在多给，是在陈述不成立的事实）。
+
+通知里的事实与许可正文**分开落点**：通知只陈述关系，法条逐份在 `licenses/`（随包）。这样法条
+不经脚本转手（内联意味着让 `trimEnd` 决定法律文本长什么样）。
+
+`licenses/` 里两类内容来源不同：
+
+- **静态正文**（`Apache-2.0.txt` / `GPL-3.0.txt` / 两份 `MIT-*.txt`）—— 必须由仓库持有原文。
+  上游不给：GnuPG 官方 Windows 安装器只带 `README.txt` 版权声明、**无 COPYING**（已按 2.5.24 实物验证）；
+  SDK tarball 无 Apache 正文；react 不随包。
+- **`hana-app-sdk-THIRD_PARTY_NOTICES.txt`** —— 从 SDK tgz 现取，由 `derive` 脚本写入（与版本同源，手抄必漂）：
+
+  ```bash
+  pnpm run derive:thirdparty            # 同步（从 tgz 现取）
+  pnpm run derive:thirdparty -- --check # CI 门禁：拦住「换了 SDK 快照却忘了同步」
+  ```
+
+两份 MIT 各一份（`MIT-gh.txt` 版权归 GitHub, Inc.，`MIT-react.txt` 归 Meta Platforms）——
+同一套 MIT 条款但版权人不一，合并会让归属不清。
 
 ## 内嵌运行时（平台通用）
 
@@ -176,39 +235,63 @@ node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui
 
 | 二进制 | Windows | macOS / Linux | 来源 |
 |--------|---------|---------------|------|
-| git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 |
-| gh | 内嵌（官方单文件产物） | 内嵌（待补 sha256） | `vendor/<平台>-<架构>/gh` |
+| git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 || gh | 内嵌（官方单文件产物） | 内嵌（官方单文件产物） | `vendor/bin/<平台>-<架构>/gh` |
 | gnupg | 内嵌（必需：签名链路要求认 GNUPGHOME 的原生模式） | 系统 gpg（本就读 GNUPGHOME） | vendor 或 系统 |
+
+**每个组件目录只留运行时需要的文件**：落盘把上游 `remove/*` 的内容平铺到组件根，最终形态是
+`vendor/bin/<平台>/<组件>/<exe>`。上游产物里那此 `share/`（man 手册）、`LICENSE`、卸载器、
+`include/` 都裁掉，不靠随包拷贝转运许可文本（法条统一走 `licenses/`）。
+**git 不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在宿主
+安装目录里，不由本包再带一份。
+
+**许可面随包内容收窄**：`pack.mjs` 出包时重渲染 `THIRD_PARTY_NOTICES.md`、并只留本包适用的
+`licenses/` 正文——一个只装 gh 的 darwin 包不该出现 GPL 条文与 GnuPG 段落，那不是在多给，
+是在陈述不成立的事实。与 vendor 按 `--target` 收窄同一条原则、同一个位置。
 
 布局与解析：
 
-- 布局是数据：`vendor/<platform>-<arch>/<component>/…`（`vendor/sources.json` 声明来源与 sha256）；
-  旧的 `vendor/<component>/…` 仍兼容。
+- 布局是数据：`vendor/bin/<platform>-<arch>/<component>/<exe>`（`vendor/sources.json` 声明来源与 sha256）。
+  运行时二进制统一收在 `vendor/bin/` 下，与元数据分层：`sources.json` 与 SDK 快照在 `vendor/` 根，
+  所以 `.gitignore` 只需一行 `/vendor/bin/`（不必用 `!` 逐条翻案）。
 - 解析是代码（`tools/lib/bin.js`）：**宿主内嵌 → 随包 vendor → 系统 PATH**。
 - **探活不用 fs 用 spawn**：AppHost 开了 Node Permission Model，宿主 resources 在许可根之外，
   `fs.statSync/existsSync` 一律 `ERR_ACCESS_DENIED`；但 `app/process.spawn` 开的是子进程，
   **外部命令不继承该模型**。所以判存在性的方式是「跑一次 `--version`，能起来就算有」。
   只看 `HANA_DESKTOP_RESOURCES_PATH` 的写法在 v2 里必然失效（AppHost 不传它）。
-- 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`；
-  `optional: true` 的条目（如 Windows 的 git）默认不抓，显式点名才抓。
+- 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`。
+  **不点名时只拉当前平台**（`process.platform`）：开发机只需要自己的那份，其他平台是 CI 的事。
+  抓全平台只应该发生在两条流水线上：`release.yml` 遍历 sources.json 全部平台出 universal 包，
+  `ci.yml` 按矩阵各拉自己的。本地手动拉全平台只会白白占两百多 MB。
 - CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch vendored runtime + `pnpm run check`
   （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发），
-  官方 creator 不在本仓，所以用一个零依赖的 `scripts/selfcheck.mjs` 兜住结构门槛
+  ubuntu 上抓全平台运行时并出 universal 包。官方 creator 不在本仓，所以用一个零依赖的
+  `scripts/selfcheck.mjs` 兜住结构门槛
   （manifest 字段与 route 文件存在性、全部服务端 JS 语法、vendor 就绪性）。
 
-## 跨平台与市场包（只有一个包）
+## 跨平台与市场包（只有一个包，但它是全平台的）
 
 **App 是 Web 应用，跨平台靠运行时解析，不逐平台出包**：
 
 ```
 宿主内嵌 git（<HANA_ROOT>/resources/git，spawn 探活）
-  → 本平台 vendor/<platform>-<arch>/（若随包带了）
-    → 系统 PATH（gh / gpg）
+  → 本平台 bin/<platform>-<arch>/（随包带了）
+    → 系统 PATH（git / gh / gpg）
 ```
 
-- CI 的 release 流水线**只出一个 `universal` 包**（不随任何平台的 vendor），**进市场的也只有它**。
-- `node scripts/pack.mjs --target <platform>` 是点名才用的自包含单平台构建（带该平台的 vendor），
-  不进 CI、不进市场。
+- CI 的 release 流水线**只出一个 `universal` 包**——这个包把 `vendor/sources.json` 声明的
+  **每个平台的官方运行时都打进去**（win32-x64 的 gh + gnupg，win32-arm64 / darwin-arm64 / darwin-x64
+  与 linux-x64/arm64 的 gh），所以它在任意平台装上都是自包含的。**进市场的也只有它。**
+- **macOS / Linux 的 gpg 走系统，不随包**：GnuPG 上游只发 Windows 安装器（`gnupg-w32-*`），
+  POSIX 一律给源码、交由发行版/包管理器分发，没有可直接校验 sha256 的单文件产物。
+  影响：**GNU/Linux 发行版普遍预装 gpg；macOS 从不预装**（需 `brew install gnupg` 或 GPG Suite）。
+  设置页在 gpg 缺失时会直接给出对应平台的安装指引，而不是只说“缺失”。
+- **win32-arm64 上只有 gh**：gh 有官方 arm64 产物，GnuPG 没有（官方 ftp 只有 w32 x86/x64）。
+  那台机器上 gh 自包含，gpg 仍走系统。
+- 为什么必须全平台随包，而不只是“不带 vendor 靠系统 PATH”：Windows 的签名链路要求
+  vendor gnupg（认 `GNUPGHOME` 的原生模式，系统 scoop gpg 带 `gpgconf.ctl` 不认），
+  而 `gpg.program` 由运行时解析到现在安装的 vendor gnupg，包不带 vendor 就没有可解析的目标。
+- `node scripts/pack.mjs --target <platform>` 是点名才用的单平台构建（只留该平台 vendor），
+  不进 CI、不进市场；universal 出包前会断言各平台必需组件都在，缺一个直接拒包。
 - 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
   宿主侧的包限制偏紧时，抬限制比裁包合理。
 
@@ -222,7 +305,7 @@ pnpm run index                            # → index.v2.json（市场清单）
 
 - `pack.mjs` 自带最小 ZIP 写入器，**不依赖官方包工具**；官方静态校验器可用时会作为额外关卡（不可用则标 `unverified`，不假装通过）。
 - `.entry.json` 不能漏：索引构建器只吃这种文件。它的 `archive.url` 写 `{{BASE_URL}}` 占位，由 `build-index.mjs` 换成真实下载基址。
-- **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
+- **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal（它本身已是全平台的）；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
 
 ## 安装与更新（走发行包）
 
@@ -253,7 +336,7 @@ lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / g
 lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
 ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
 assets/icon.svg          # App 图标
-vendor/                  # 内嵌 git（MinGit）/ gh / gnupg（随包分发，不入 git 仓库）
+vendor/                  # 内嵌运行时：bin/<平台>/（二进制，不入 git）+ sources.json（声明）+ hana-app-sdk/（SDK 快照）
 skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
 scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / index / selfcheck
 ```
@@ -274,6 +357,6 @@ scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / 
 密钥只落 `app-data/githana/gnupg`，签名/验签不碰用户个人 GPG 环：
 
 1. **keygen 侧**：所有 gpg 调用显式 `--homedir <dataDir>/gnupg`
-2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true` / `gpg.program=<vendor gnupg>`；每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0` / `GH_TOKEN`（= OAuth 令牌；无凭据时不注入）
+2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入（文件里的绝对路径会被 vendor 布局绑死，换布局即失效）；同时每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0` / `GH_TOKEN`（= OAuth 令牌；无凭据时不注入）
 
-两个必须绕开的坑（同 v1）：系统 scoop gpg 带 `gpgconf.ctl` 认不到 `GNUPGHOME`；MinGit 的 `gpg.program` 不支持带参。所以 `gpg.program` 只能指向认 env 的 vendor gnupg。
+两个必须绕开的坑（同 v1）：系统 scoop gpg 带 `gpgconf.ctl` 认不到 `GNUPGHOME`；MinGit 的 `gpg.program` 不支持带参。所以运行时注入的 `gpg.program` 只能指向认 env 的 vendor gnupg（绝对路径由 `resolveBin("gpg")` 现算，不落文件）。

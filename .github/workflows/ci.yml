@@ -49,6 +49,12 @@ jobs:
           node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }}
           node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }} --check
 
-      # 与本地同一条链：构建设置页 UI + 结构自检（manifest / 全部服务端 JS 语法 / vendor 就绪性）
+      # 与本地同一条链：白名单组装交付树 dist/ + 结构自检
+      # （manifest / 全部服务端 JS 语法 / vendor 就绪性）。dist/ 与 ui/dist/ 不入库，现场生成。
       - name: Check chain
         run: pnpm run check
+
+      # licenses/ 里从 tgz 现取的 SDK 第三方声明：拦住「换了 SDK 快照却忘了重新同步」。
+      # （THIRD_PARTY_NOTICES.md 不在仓库里——它是包的一部分，由 pack 按实际内容渲染。）
+      - name: SDK third-party notice in sync
+        run: node scripts/derive-thirdparty.mjs --check

@@ -6,13 +6,22 @@
  *
  * ## 目录布局（布局是数据，查找是代码）
  *
- * 首选（多平台）： vendor/<platform>-<arch>/<component>/…  例：vendor/win32-x64/gh/bin/gh.exe
- * 兼容（v1 单一布局，仍可用）： vendor/<component>/…
+ * **仓库侧（sources.json 声明 / fetch-vendor 落盘 / selfcheck 校验）**：
+ *   vendor/sources.json                        声明（入库）
+ *   vendor/hana-app-sdk/                       SDK 快照（入库，构建期依赖）
+ *   vendor/bin/<platform>-<arch>/<component>/  构建期缓存（不入库）
+ *
+ * **产物侧（本文件解析的就是这一侧）**：
+ *   bin/<platform>-<arch>/<exe>                运行时二进制，平铺
+ *
+ * 两边形状**有意不同**：仓库那份是构建期缓存，按组件分目录是为了单组件能整体重抓；
+ * 产物里没有“重抓某个组件”这件事，组件那一层就只剩噪音——装到机器上要的是“这个平台的
+ * 二进制在哪”，`bin/<平台>/` 直接回答。构建期由 build-app 把两边投影过去。
  *
  * ## 解析链（按序探测，命中即用；全缺回退系统 PATH）
  *
  *   1) 宿主捆绑 git（Hana <resources>/git）——**只用 spawn 探活，不用 fs**
- *   2) 随包 vendor（许可根内，fs 判定）
+ *   2) 随包 bin/<平台>（许可根内，fs 判定）
  *   3) 系统 PATH
  *
  * 第 1 条为什么不能用 fs：AppHost 开了 Node Permission Model，宿主 resources 在许可根之外，
@@ -30,9 +39,11 @@
  * GIT_TERMINAL_PROMPT=0；token 已配置时注入 GH_TOKEN（取 DPAPI 解密结果，见 lib/secret.js）。
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
  *
- * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，让 git 经 gpg.program 解析到的
- * 「PATH 里的 gpg」必然是插件环那把（认 GNUPGHOME env）。密钥生成接线写的是 vendor 绝对路径，
- * 而更早版本留下过裸名 "gpg.exe"——两种写法都命中隔离环，签名不会落系统 gpg。
+ * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，并用 `GIT_CONFIG_*` 把
+ * `gpg.program` 覆盖成当前安装的 vendor gpg 绝对路径——git 经它解析到的 gpg 必然是插件环那把
+ * （认 GNUPGHOME env），且路径随安装现算，不会被 vendor 布局绑死。
+ * 密钥生成侧不把 gpg.program 写进 gitconfig：工具面全部经本进程 spawn，覆盖值总在配置文件之上
+ * 生效，文件里那份没有消费者。
  *
  * 平台注记：vendor 里的 gpg 必须是"认 GNUPGHOME env"的原生模式（Windows 上表现为删除
  * gpgconf.ctl，否则便携模式恒指 scoop home、忽略 GNUPGHOME）；POSIX 的系统 gpg 本就认。
@@ -54,25 +65,34 @@ const isWindows = PLATFORM === "win32";
 /** vendor 子目录名：平台-架构，例 win32-x64 / darwin-arm64 / linux-x64 */
 export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
-/** 每个组件在各平台 vendor 树里的相对路径与 PATH 附加目录（只写"树内形态"）。 */
+/** 每个工具在各平台的可执行路径与 PATH 附加目录（只写"树内形态"）。
+ *
+ * 路径形态是 `bin/<平台>-<架构>/<exe>`：产物里二进制平铺，不再有组件那一层。
+ * 编排参考：构建期 build-app 把仓库的 vendor/bin/<平台>/<组件>/ 投影到这里。
+ *
+ * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里已不再声明 git），App 始终用宿主
+ * 那份 `<HANA_ROOT>/resources/git`。这里的 git 条目服务的是**宿主 git 的树内形态**——
+ * finish() 用 extraPath 把它自带的 cmd/ 与 mingw64/bin 等目录前置进 PATH，否则 git 找不到
+ * 自己的子命令与 gpg。不要因“不随包”就删掉这条。
+ */
 export const VENDOR_LAYOUT = {
   win32: {
     git: { exe: "cmd/git.exe", extraPath: ["cmd", "mingw64", "bin", "usr", "bin"] },
-    gh: { exe: "bin/gh.exe" },
-    gpg: { exe: "bin/gpg.exe" },
-    gpgconf: { exe: "bin/gpgconf.exe" },
+    gh: { exe: "gh.exe" },
+    gpg: { exe: "gpg.exe" },
+    gpgconf: { exe: "gpgconf.exe" },
   },
   darwin: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "bin/gh" },
-    gpg: { exe: "bin/gpg" },
-    gpgconf: { exe: "bin/gpgconf" },
+    gh: { exe: "gh" },
+    gpg: { exe: "gpg" },
+    gpgconf: { exe: "gpgconf" },
   },
   linux: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "bin/gh" },
-    gpg: { exe: "bin/gpg" },
-    gpgconf: { exe: "bin/gpgconf" },
+    gh: { exe: "gh" },
+    gpg: { exe: "gpg" },
+    gpgconf: { exe: "gpgconf" },
   },
 };
 
@@ -94,13 +114,9 @@ function layoutFor(bin) {
   return table && table[bin] ? table[bin] : null;
 }
 
-/** vendor 根下某组件的候选目录（新布局优先，旧布局兜底）。 */
+/** 产物侧二进制所在处：bin/<平台-架构>/（平铺，无组件层）。 */
 function vendorRoots(bin) {
-  const component = componentFor(bin);
-  return [
-    path.join(PLUGIN_ROOT, "vendor", VENDOR_PLATFORM_KEY, component),
-    path.join(PLUGIN_ROOT, "vendor", component),
-  ];
+  return [path.join(PLUGIN_ROOT, "bin", VENDOR_PLATFORM_KEY)];
 }
 
 /** 去掉末尾 n 段路径（安全版，段数不够返回原值）。 */
@@ -180,7 +196,7 @@ function vendorCandidates(bin) {
   if (!layout) return [];
   return vendorRoots(bin).map((root) => ({
     path: path.join(root, layout.exe),
-    label: `${root.includes(VENDOR_PLATFORM_KEY) ? "内嵌" : "内嵌(旧布局)"} ${bin}`,
+    label: `内嵌 ${bin}`,
     root,
   }));
 }
@@ -271,13 +287,29 @@ export async function resolveBinExec(bin) {
 }
 
 /**
+ * 给 gh 的惰性占位令牌。
+ *
+ * `gh api` 在**没有任何凭据**时会直接拒绝（exit 4，提示先 `gh auth login`），
+ * 连不需要认证的端点也不发请求。而 device flow 的第一步（取设备码）恰恰发生在
+ * 「还没有凭据」的时候——鸡生蛋。
+ *
+ * 两个 OAuth 端点（`github.com/login/device/code`、`github.com/login/oauth/access_token`）
+ * 实测不校验 Authorization（换任何非空值响应结构一致），所以给 gh 一个固定占位值让它放行。
+ * 它是常量、不是凭据，因此把**真令牌送到非 API 端点**这个风险仍然被挡住。
+ */
+export const INERT_GH_TOKEN = "hana-githana-auth-placeholder";
+
+/**
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
- * @param {{ omitToken?: boolean }} [options] omitToken=true 时不注入 GH_TOKEN
- *   （`gh auth login --with-token` 在 GH_TOKEN 存在时会拒绝写入自己的存储）。
+ * @param {{ omitToken?: boolean, inertToken?: boolean }} [options]
+ *   omitToken=true 时不注入任何 GH_TOKEN（跑与 GitHub 无关的子进程时用，
+ *     如 DPAPI 走的 powershell——不给它无关凭据）；
+ *   inertToken=true 时注入 INERT_GH_TOKEN（给必须“看似已登录”才肯跑、
+ *     但实际不需要认证的 gh 调用用，见该常量的说明）。
  */
-export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
+export function buildBinEnv(baseEnv, resolved, { omitToken = false, inertToken = false } = {}) {
   const env = { ...baseEnv, GIT_TERMINAL_PROMPT: "0" };
   if (resolved.source === "bundled" && resolved.extraPath && resolved.extraPath.length > 0) {
     env.PATH = resolved.extraPath.join(path.delimiter) + path.delimiter + (env.PATH || "");
@@ -292,11 +324,25 @@ export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
     const vendorGpg = resolveBin("gpg");
     if (vendorGpg.source === "bundled" && vendorGpg.cmd) {
       env.PATH = path.dirname(vendorGpg.cmd) + path.delimiter + (env.PATH || "");
+      // gpg.program 运行时覆盖：**不依赖** app-data/gitconfig 里存的值。
+      // 那份文件跨安装存活（宿主卸载时 app data was kept），存绝对路径会被 vendor 布局绑死——
+      // 包一换布局（如平台目录收进 vendor/bin/），旧路径就指向不存在的位置，签名报 cannot spawn。
+      // 这里每次 spawn 都用当前解析到的 vendor gpg 现算并覆盖，路径永远与本次安装一致。
+      // 走 git 的 GIT_CONFIG_* 机制（git ≥ 2.31）：它在所有配置文件之上生效，改不到文件也不脏文件。
+      const baseCount = Number.parseInt(env.GIT_CONFIG_COUNT || "0", 10);
+      const n = Number.isFinite(baseCount) && baseCount >= 0 ? baseCount : 0;
+      env.GIT_CONFIG_COUNT = String(n + 1);
+      env[`GIT_CONFIG_KEY_${n}`] = "gpg.program";
+      env[`GIT_CONFIG_VALUE_${n}`] = vendorGpg.cmd;
     }
-    if (!omitToken) {
-      const token = getToolSecretToken();
-      if (token) env.GH_TOKEN = token;
-    }
+  }
+  // GH_TOKEN 与 dataDir 无关：占位值是常量，真令牌为空时不注入（让 gh 自己报未登录）。
+  if (inertToken) {
+    // gh 必须有“凭据”才肯发请求，而两个 OAuth 端点不校验它——给固定占位值放行。
+    env.GH_TOKEN = INERT_GH_TOKEN;
+  } else if (!omitToken) {
+    const token = getToolSecretToken();
+    if (token) env.GH_TOKEN = token;
   }
   return env;
 }
