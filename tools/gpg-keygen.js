@@ -12,10 +12,11 @@
  * 私钥材料不进对话。路由只负责鉴权与传参，实现留在这里（export execute({ name?, email? }, ctx)）。
  *
  * 行为（全部落在插件数据目录 dataDir，不读不污染用户 ~/.gitconfig / ~/.gnupg）：
- * 1. 提交者身份：邮箱经 token 自动推导（gh api user → noreply 邮箱 {id}+{login}@users.noreply.github.com），
- *    或 email 参数显式覆盖；名字由 login/邮箱自动推导（…+ProjectNyaser@… → ProjectNyaser），
- *    可传 name 参数覆盖；身份写入隔离 gitconfig（<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。
- *    推导失败（token 未配 / gh api 失败 / 解析失败）→ 中止并提示「配置 token 或传 email 参数」，
+ * 1. 提交者身份：邮箱经 OAuth 令牌自动推导（gh api user → noreply 邮箱
+ *    {id}+{login}@users.noreply.github.com），或 email 参数显式覆盖；名字走三级推导链
+ *    （显式 name 参数 → gh api user 的 name 字段 → login），可传 name 参数覆盖；身份写入隔离
+ *    gitconfig（<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。
+ *    推导失败（未授权 / gh api 失败 / 解析失败）→ 中止并提示「完成 GitHub 登录或传 email 参数」，
  *    不生成不删除不写身份。
  * 2. GPG 密钥：隔离落点为 <dataDir>/gnupg（下称 gpgDir）。keygen 侧所有 gpg 调用显式传
  *    --homedir <gpgDir>（双保险：vendor gnupg 亦认 --homedir）；git 签名侧（见 3）经
@@ -38,9 +39,12 @@
  *    GNUPGHOME=<dataDir>/gnupg → 签名与验签命中隔离环（GIT_TERMINAL_PROMPT 由 runCli 注入）。
  *    系统 scoop gpg 在 bin 目录带 gpgconf.ctl（便携模式，homedir 恒为 scoop home，
  *    忽略 GNUPGHOME env），不可用于此接线。
- * 4. 返回报告 + 新公钥（armored）——首次使用把公钥贴到 GitHub（Settings →
- *    SSH and GPG keys → New GPG key）后，签名提交即 verified；轮换后旧公钥失效，
- *    需删除旧公钥并上传新公钥（本动作会提示）。
+ * 4. 公钥自动发布：导出公钥后，若存在可用 OAuth 凭据，自动调 lib/gpg-publish.js 上传到
+ *    GitHub 账号（借 `GPG keys: write` 账号权限）。轮换时只删本 App 上次上传的那一个
+ *    key_id（记在 dataDir/published-gpg-keys.json），绝不枚举账号 GPG 密钥批量删除。
+ *    上传失败**不**影响本地密钥生成结果（本地签名链路已可用），只在返回文本里报告，
+ *    并提供设置页的手动重试入口。无 OAuth 凭据时不尝试（PAT 通常没有 gpg_keys 权限），
+ *    直接提示需先完成 GitHub App 授权。
  *
  * email 语义：密钥 UID 邮箱必须等于提交作者邮箱（token 自动推导的 noreply 邮箱，
  * 或 email 参数显式值）才能被 GitHub 验证为 verified——生成密钥强制用该邮箱，不另设 gpgEmail。
@@ -58,7 +62,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   deriveNameFromEmail,
-  deriveNameFromLogin,
+  deriveNameFromUser,
   noreplyEmailFromUser,
 } from "./lib/identity.js";
 import { runCli } from "./lib/exec.js";
@@ -68,6 +72,7 @@ import {
   getToolDataDir,
   getToolSecretToken,
 } from "./lib/context.js";
+import { publishKey } from "../lib/gpg-publish.js";
 
 /**
  * GPG 私钥完整指纹解析（--list-secret-keys --with-colons）。
@@ -218,35 +223,38 @@ async function runKeygen(input) {
   fs.mkdirSync(gpgDir, { recursive: true });
 
   // —— 0. 提交者身份解析（email/name）——
-  // 顺序：显式 email 参数 > token 自动推导（gh api user → noreply 邮箱）；推导失败
-  // （token 未配 / gh api 失败 / 解析失败）→ 中止并报错区分原因，不生成不删除不写身份。
+  // 顺序：显式 email 参数 > OAuth 令牌自动推导（gh api user → noreply 邮箱）；推导失败
+  // （未授权 / gh api 失败 / 解析失败）→ 中止并报错区分原因，不生成不删除不写身份。
+  // 名字三级链：显式 name 参数 → user.name → login（同一个 deriveNameFromUser，见 tools/lib/identity.js）。
   const explicitEmail = String((input && input.email) || "").trim();
   const explicitName = String((input && input.name) || "").trim();
   let email = "";
   let name = "";
+  let login = "";
   if (explicitEmail) {
     // a. 显式 email 参数 → 直接使用；name = name 参数或 deriveNameFromEmail(email) 兜底
     email = explicitEmail;
     name = explicitName || deriveNameFromEmail(email);
   } else {
-    // b. 否则 token 自动推导：gh api user（GH_TOKEN 由 exec.js 注入）→ {id, login}
-    //    email = noreplyEmailFromUser(id, login)，name = name 参数或 deriveNameFromLogin(login)
+    // b. 否则令牌自动推导：gh api user（GH_TOKEN 由 exec.js 注入）→ {id, login, name}
+    //    email = noreplyEmailFromUser(id, login)，name = name 参数或 deriveNameFromUser(user)
     // 令牌只在进程缓存里（DPAPI 解密结果，见 lib/secret.js）。
     const token = String(getToolSecretToken() || "").trim();
     if (!token) {
       return (
-        "密钥生成：未配置 GitHub 令牌。提交者邮箱依赖 token 自动推导" +
+        "密钥生成：尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）。提交者邮箱依赖令牌自动推导" +
         "（gh api user → noreply 邮箱 {id}+{login}@users.noreply.github.com）。\n" +
-        "请到设置页填入令牌后重跑，或直接传 email 参数以跳过自动推导。本次未生成/删除任何密钥、未写身份。"
+        "请到设置页点「用 GitHub 登录」完成授权后重跑，或直接传 email 参数以跳过自动推导。" +
+        "本次未生成/删除任何密钥、未写身份。"
       );
     }
     const userR = await runCli("gh", ["api", "user"], {});
     if (!userR.ok) {
       return (
-        "密钥生成：token 自动推导提交者身份失败——gh api user 调用失败：" +
+        "密钥生成：令牌自动推导提交者身份失败——gh api user 调用失败：" +
         (userR.message || "未知错误") + "\n" +
-        "请确认 token 有效（可访问 api.github.com；任意已认证 token 即可，无额外 scope），" +
-        "或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
+        "请确认授权有效（gh api user 不需要任何额外权限），或直接传 email 参数。" +
+        "本次未生成/删除任何密钥、未写身份。"
       );
     }
     let user = null;
@@ -256,16 +264,17 @@ async function runKeygen(input) {
       /* 解析失败走下方统一错误 */
     }
     const id = user && user.id;
-    const login = user && user.login ? String(user.login).trim() : "";
+    login = user && user.login ? String(user.login).trim() : "";
     if (id === undefined || id === null || id === "" || !login) {
       return (
-        "密钥生成：token 自动推导提交者身份失败——gh api user 响应解析失败" +
+        "密钥生成：令牌自动推导提交者身份失败——gh api user 响应解析失败" +
         "（未取得 {id, login}；原始输出前 200 字符：" + String(userR.stdout || "").slice(0, 200) + "）。\n" +
-        "请检查 token 与网络后重试，或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
+        "请检查授权与网络后重试，或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
       );
     }
     email = noreplyEmailFromUser(id, login);
-    name = explicitName || deriveNameFromLogin(login);
+    // 名字三级链：显式参数 > user.name > login
+    name = explicitName || deriveNameFromUser(user);
   }
 
   // —— 1. git 身份写入隔离 gitconfig ——
@@ -397,21 +406,37 @@ async function runKeygen(input) {
     );
     const exportR = await runCli("gpg", ["--homedir", gpgDir, "--armor", "--export", fp], {});
     if (exportR.ok && exportR.stdout.trim()) {
+      const armored = exportR.stdout.trim();
       // 公钥自动落地为文件（固定名，始终指向当前活动密钥的公钥；轮换后覆盖为最新）：
       // 用户/Agent 直接拿文件路径复制或交付即可，无需从工具输出里手工捞公钥块。
       const pubPath = path.join(dataDir, "github-toolkit-gpg-pubkey.asc");
+      let saved = false;
       try {
-        fs.writeFileSync(pubPath, exportR.stdout.trim() + "\n", "utf8");
+        fs.writeFileSync(pubPath, armored + "\n", "utf8");
+        saved = true;
         lines.push("");
         lines.push("公钥已保存：" + pubPath);
-        lines.push("请打开该文件复制全文，贴到 GitHub：Settings → SSH and GPG keys → New GPG key；");
-        lines.push("或直接交付该文件。轮换后此文件自动更新为新密钥的公钥。");
       } catch (e) {
         lines.push("");
         lines.push("公钥写入文件失败（" + (e && e.message ? e.message : String(e)) + "），请在下方直接复制：");
-        lines.push("—— 请把以下公钥贴到 GitHub：Settings → SSH and GPG keys → New GPG key ——");
-        lines.push(exportR.stdout.trim());
+        lines.push("—— 公钥 ——");
+        lines.push(armored);
         lines.push("—— 公钥结束 ——");
+      }
+
+      // —— 4. 公钥自动发布到 GitHub（有 OAuth 凭据才尝试；失败只报告，不中断本地结果） ——
+      // 轮换时只删本 App 上次上传的那一个 key_id（lib/gpg-publish.js），绝不枚举批量删除。
+      const pubResult = await publishKey({
+        dataDir,
+        pubkeyArmored: armored,
+        fingerprint: fp,
+        login,
+      });
+      lines.push("");
+      lines.push(pubResult.ok ? "GitHub 公钥发布：成功" : "GitHub 公钥发布：未完成");
+      lines.push("  " + pubResult.message);
+      if (!pubResult.ok && saved) {
+        lines.push("  本地签名链路不受影响，可稍后在设置页「隔离 GPG 签名身份」区块点「上传公钥」重试。");
       }
     }
   }
