@@ -54,7 +54,7 @@ jobs:
       - name: Check chain
         run: pnpm run check
 
-      # licenses/ 里从 tgz 现取的 SDK 第三方声明：拦住「换了 SDK 快照却忘了重新同步」。
+      # 派生门禁：拦住「改了 manifest 版本或实装依赖却忘了重生成」。
       # （THIRD_PARTY_NOTICES.md 不在仓库里——它是包的一部分，由 pack 按实际内容渲染。）
       - name: SDK third-party notice in sync
         run: node scripts/derive/index.mjs --check

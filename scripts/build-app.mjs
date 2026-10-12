@@ -18,7 +18,7 @@
  *   manifest.json / LICENSE / NOTICE
  *   bin/   ← 入口（app.mjs）+ REST worker（rest.worker.mjs）+ 签名 shim（gpg.shim.mjs）
  *            + OpenPGP.js 库文件（openpgp.min.mjs，上游 dist 原样，两个入口运行期 import）
- *   licenses/ assets/
+ *   assets/
  *   ui/    ← 壳页 + 设置页产物平铺（settings.html / settings.bundle.js / .css），**不含 ui/src/**
  *
  * 构建产物**直接落 dist/**（build-ui / build-server / build-shim 都写这里），没有 build/ 中转层：
@@ -38,7 +38,9 @@
  * 装到机器上要的是“这个平台的二进制在哪”，`bin/<platform>/` 直接回答。
  * 形状不同不是不一致，是两边各自回答自己的问题。
  *
- * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
+ * 许可面：`LICENSE`（本项目 MPL 全文）与 `NOTICE`（本项目声明）在包根，第三方单独一份
+ * `THIRD_PARTY_NOTICES.md`（由 derive 任务生成，含它所列组件的法条正文全文）——不再有 licenses/
+ * 目录：法条与它描述的组件同处一份，读的人不必在两处对照。
  *
  * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
  * 但两个 spawn 出去的独立入口例外：tools/lib/rest.worker.mjs（直接平铺）与
@@ -67,11 +69,13 @@ const DIST = join(ROOT, "dist");
 /** 交付件白名单：**只有**列在这里的东西会进包。 */
 const DELIVERY_FILES = [
   "manifest.json",
-  "LICENSE",
+  // 不带 LICENSE：MPL §3.1 要求的是「告知以本许可授权 + 如何取得副本」，不是「把副本随包带上」。
+  // 这两件事由 NOTICE 的头两句履行（声明受 MPL 约束 + 给出 mozilla.org 获取地址）。
+  // 仓库里那份 LICENSE 是给源码形式的（与 DSHana 同形）。
   "NOTICE",
+  "THIRD_PARTY_NOTICES.md", // 第三方通知（含法条正文全文；由 derive 任务生成并入库）
 ];
 const DELIVERY_DIRS = [
-  "licenses", // 许可正文（通知只陈述事实，法条逐份在这里随包）
   "assets",
 ];
 
@@ -276,6 +280,8 @@ function main() {
   //    这是白名单的最后一道保险——拷贝逻辑改了、或将来有人加了目录，这里会当场拦住。
   const FORBIDDEN = [
     "ui/src", // 设置页源码
+    "licenses", // 许可面已并入 THIRD_PARTY_NOTICES.md；这条拦住回退
+    "LICENSE", // 不进包：MPL §3.1 只要告知 + 获取地址（由 NOTICE 承担）；仓库里仍保留
     "scripts", // 构建脚本
     "app.js", // 服务端源码（已 bundle 进 bin/app.mjs）
     "lib", // 服务端源码目录

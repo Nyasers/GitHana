@@ -19,10 +19,10 @@
 // ## 任务
 //
 //   version          manifest.json#version    → package.json#version（版本单一事实源在 manifest）
-//   thirdparty       SDK tgz 的第三方声明      → licenses/hana-app-sdk-THIRD_PARTY_NOTICES.txt
+//   thirdparty       实装版本 + 仓库持有的法条正文 → THIRD_PARTY_NOTICES.md
 //
 // 不进本表：
-//   · NOTICE / LICENSE / 静态许可正文 —— 是人写的法律文本，不是"能推导"的东西；
+//   · NOTICE / LICENSE / 法条正文原文 —— 是人写/上游原文的法律文本，不是"能推导"的东西；
 //   · 随包二进制（vendor/bin/）—— 由 fetch-vendor 按 sources.json 重建，源在网络上，
 //     且它属于「拉取」而非「派生」（`node scripts/fetch-vendor.mjs --check` 单独把关）；
 //   · 通知正文（THIRD_PARTY_NOTICES.md）—— 它是包的一部分，由 pack 在组装交付树时按实际
