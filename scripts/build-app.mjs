@@ -165,17 +165,21 @@ function main() {
   //     不逐个平台校验：CI 是逐平台跑的，Linux runner 上本来就只抓了 linux 的 vendor。
   const srcVendorBin = join(ROOT, "vendor", "bin");
   const hostKey = `${process.platform}-${process.arch}`;
-  let srcSources = null;
+  // 声明读不了就是硬错：静默当成“无声明”会让下面两个判定都变空，构建能报成功却没校验过运行时树。
+  let srcSources;
   try {
     srcSources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
-  } catch {
-    srcSources = null;
+  } catch (e) {
+    console.error(
+      `[build-app] 读不了 vendor/sources.json（${(e && e.message) || e}）：它是内嵌组件的事实源，` +
+        `缺它无法判定哪些组件必须就绪。`,
+    );
+    process.exit(1);
   }
+  const hostComponents =
+    (srcSources.platforms && srcSources.platforms[hostKey] && srcSources.platforms[hostKey].components) || {};
   const declaredMissing = [];
-  for (const [component, spec] of Object.entries(
-    (srcSources && srcSources.platforms && srcSources.platforms[hostKey] &&
-      srcSources.platforms[hostKey].components) || {},
-  )) {
+  for (const [component, spec] of Object.entries(hostComponents)) {
     if (!spec.sha256) continue; // 无声明产物 → 走宿主 / 系统 PATH，不必随包
     if (!existsSync(join(srcVendorBin, hostKey, component, spec.exe))) {
       declaredMissing.push(`${hostKey}/${component}`);
@@ -189,20 +193,26 @@ function main() {
     process.exit(1);
   }
   if (existsSync(srcVendorBin)) {
+    // 遍历 `vendor/bin/` 里**实际存在的每个平台**（dist 是完整组装：universal 出包要全平台），
+    // 但每个平台只拷**它自己声明里**的组件。缓存里可能留有上一轮抓过、现在声明已删的组件：
+    // 无声明 = 走系统 PATH，而一个陈旧的随包副本会盖过系统那份，让已撤的组件悄悄继续生效。
+    let copied = 0;
     for (const platform of readdirSync(srcVendorBin)) {
       const platformDir = join(srcVendorBin, platform);
       if (!statSync(platformDir).isDirectory()) continue;
-      const outDir = join(DIST, "bin", platform);
-      mkdirSync(outDir, { recursive: true });
-      for (const component of readdirSync(platformDir)) {
-        const compDir = join(platformDir, component);
-        if (!statSync(compDir).isDirectory()) continue;
-        for (const name of readdirSync(compDir)) {
-          copyInto(join(compDir, name), join(outDir, name));
-        }
+      const comps =
+        (srcSources.platforms && srcSources.platforms[platform] && srcSources.platforms[platform].components) || {};
+      for (const component of Object.keys(comps)) {
+        const from = join(platformDir, component);
+        if (!existsSync(from)) continue;
+        const outDir = join(DIST, "bin", platform);
+        mkdirSync(outDir, { recursive: true });
+        for (const name of readdirSync(from)) copyInto(join(from, name), join(outDir, name));
+        copied += 1;
       }
     }
-    log("vendor/bin/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
+    if (copied > 0) log("vendor/bin/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
+    else log("vendor/bin/ 里没有声明内的组件：二进制走宿主 / 系统 PATH");
   } else {
     log(`vendor/bin/ 不存在：本平台（${hostKey}）声明里没有可校验的内嵌组件（二进制走宿主 / 系统 PATH）`);
   }
