@@ -43,16 +43,23 @@ const SDK_TGZ = at("vendor", "hana-app-sdk", "hana-app-sdk.tgz");
 
 const readJson = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 
-/** 随包二进制组件 → 它要随带的许可正文文件名。 */
-export const SHIPPED_COMPONENT_LICENSE = {
-  gnupg: "GPL-3.0.txt",
-};
+/** 随包二进制组件 → 它要随带的许可正文文件名。当前无随包二进制（签名走纯 JS，见下）。 */
+export const SHIPPED_COMPONENT_LICENSE = {};
 
 /**
- * 恒定内联的组件（设置页产物始终随包，故这些正文恒定适用）。
- * 它们不在 vendor 里，是 rspack 在构建期打进来的，所以不参与「包里有没有」的判断。
+ * 恒定内联的组件（设置页产物与签名 shim 始终随包，故这些正文恒定适用）。
+ * 它们不在 vendor 里，是构建期打进来的，所以不参与「包里有没有」的判断。
+ *
+ * GPL-3.0 与 LGPL-3.0 成对：LGPLv3 的定义就是「GPLv3 加上若干额外许可」，
+ * 其条文自身引用并依赖 GPLv3 正文，所以两份必须一起随包。
  */
-const INLINED_LICENSES = ["Apache-2.0.txt", "MIT-react.txt", "hana-app-sdk-THIRD_PARTY_NOTICES.txt"];
+const INLINED_LICENSES = [
+  "Apache-2.0.txt",
+  "MIT-react.txt",
+  "LGPL-3.0.txt",
+  "GPL-3.0.txt",
+  "hana-app-sdk-THIRD_PARTY_NOTICES.txt",
+];
 
 /** 随包 SDK 的版本（宿主打包时写入；唯一事实源）。 */
 export function packedVersion() {
@@ -102,14 +109,14 @@ function sdkThirdPartyText() {
  * 渲染通知正文。
  *
  * @param {{ components: string[] }} opts
- *   components — **本份通知覆盖哪些随包二进制组件**（如 ["gh","gnupg"]）。
- *   打包级传该包里真实存在的组件（pack 用 shippedComponentsInStage 算出来）。
+ *   components — **本份通知覆盖哪些随包二进制组件**。当前 sources.json 无任何组件（无内嵌二进制），
+ *   所以正常仓态下它为空数组；保留该参数供将来需要内嵌二进制时复用。
  */
 export function renderNotice({ components }) {
   const sdkVersion = packedVersion();
   const has = (c) => components.includes(c);
   const gnupg = has("gnupg") ? vendorFacts("gnupg") : null;
-  // 只有包里真的带了 GPL 组件时才谈 GPL（MinGit 从不随包，故它不参与这个判断）。
+  // 只有包里真的带了 GPL 组件时才谈 GPL。当前无随包二进制，故这一整段不会出现。
   const anyGpl = Boolean(gnupg);
   const files = licensesFor(components);
 
@@ -118,8 +125,8 @@ export function renderNotice({ components }) {
   L.push("Third-party components distributed with GitHana, and their license notices.");
   L.push("The project's own license is in `NOTICE` (MPL-2.0).", "");
   L.push("Generated at packaging time by `scripts/pack.mjs` (renderer: `scripts/derive/thirdparty.mjs`).");
-  L.push(`The SDK version is read from \`packedVersion\` in \`vendor/hana-app-sdk/source-manifest.json\`;`);
-  L.push("the vendored binary versions come from `vendor/sources.json`.", "");
+  L.push(`The SDK version is read from \`packedVersion\` in \`vendor/hana-app-sdk/source-manifest.json\`.`);
+  L.push("No binary runtime is vendored: `vendor/sources.json` declares no components.", "");
   L.push("**Full license texts ship alongside this file in `licenses/`.** This file states what is in");
   L.push("**this package** and which text applies; it does not reproduce the texts themselves.", "");
 
@@ -133,7 +140,7 @@ export function renderNotice({ components }) {
     L.push("  （mere aggregation），不构成衍生作品，因此**不会把 MPL 代码\"传染\"成 GPL**；");
     L.push("- 反向也自洽：`NOTICE` 里那句 `Incompatible With Secondary Licenses` 限制的是**本项目的 MPL");
     L.push("  代码**不得被以 GPL 等次级许可再发布，它不给这些 GPL 组件增加任何额外限制。", "");
-    L.push("**要保持的不变量**：永不把 GPL 组件链接/内联进我们的产物（打进 `ui/dist/settings.bundle.js` 的");
+    L.push("**要保持的不变量**：永不把 GPL 组件链接/内联进我们的产物（打进设置页产物的");
     L.push("只有 React(MIT) 与 @hana/app-sdk(Apache-2.0)）。一旦破坏这条线，上面的结论就不成立了。", "");
     L.push("**GPL 要求我们履行的**（作为这些二进制的再分发者）：", "");
     L.push("1. 随包附上许可正文 —— 见 `licenses/` 下的 GPL 文本；");
@@ -143,19 +150,15 @@ export function renderNotice({ components }) {
 
   // ── 随包二进制 ──
   L.push("## 随安装包分发（内嵌运行时）", "");
-  L.push("二进制不入版本库：来源与 sha256 由 `vendor/sources.json` 声明，`scripts/fetch-vendor.mjs`");
-  L.push("按 `<platform>-<arch>` 重建；落盘只保留该表 `keep` 声明的条目，最终形态是");
-  L.push("`bin/<platform>/<exe>`（产物侧，构建期由 `build-app` 从 `vendor/bin/` 投影过去）。", "");
-
+  L.push("**本包不内嵌任何二进制。** `vendor/sources.json` 的组件表为空：");
+  L.push("- git 用宿主自带的 `<HANA_ROOT>/resources/git`；");
+  L.push("- 签名由随包的纯 JS shim（`bin/gpg-shim.mjs`，含 OpenPGP.js）完成，不再有随包 GnuPG；");
+  L.push("- GitHub 请求由随包的 `bin/rest-worker.mjs` 直发。", "");
   if (gnupg) {
     L.push("### GnuPG", "");
     L.push(`- Version: ${gnupg.version}`);
-    L.push("- Purpose: 隔离环内的 GPG 签名与验签（设置页的密钥生成、`git_commit` 签名、`gpgconf` 收尾）");
-    L.push("- Form: 取自官方 Windows 安装器（NSIS/7z 容器）的 `bin/`，**未修改**；置备时删除 `gpgconf.ctl`");
-    L.push("  （使其认 `GNUPGHOME` env —— 隔离签名的前提）");
-    L.push(`- Source: ${gnupg.url}`);
     L.push("- License: GPL-3.0-or-later —— 正文见 `licenses/GPL-3.0.txt`");
-    L.push("- 上游的 Windows 安装器只带 `README.txt` 的版权声明、**不含 COPYING 正文**，故正文由本仓库持有。", "");
+    L.push(`- Source: ${gnupg.url}`, "");
   }
   L.push("### git（不随包）", "");
   L.push("- Form: **始终不随包**。宿主 Hana 自带 `<HANA_ROOT>/resources/git`（Git for Windows），App 通过");
@@ -167,20 +170,25 @@ export function renderNotice({ components }) {
   L.push("- 历史上随包的是 gh CLI（MIT）；改用自写 REST 后它已不在包内。", "");
 
   // ── 构建期内联 ──
-  L.push("## 构建期内联（打进 `ui/dist/settings.bundle.js`）", "");
+  L.push("## 构建期内联（打进设置页产物与签名 shim）", "");
   L.push("这些包在构建时被打进设置页产物，其原始包**不随安装包分发**，故在此列出。", "");
   L.push(`### @hana/app-sdk ${sdkVersion}`, "");
   L.push("- Purpose: 宿主设置页组件（`AppUiProvider` / `SettingsPage` / `SettingsRow` …）与契约类型，");
   L.push("  让设置页与宿主观感一致");
   L.push("- Form: 构建期依赖（`vendor/hana-app-sdk/hana-app-sdk.tgz`，官方 SDK 不在 npm 上），");
-  L.push("  经 rspack 内联进 `ui/dist/settings.bundle.js` / `.css`；tarball 本身不随安装包");
+  L.push("  经 rspack 内联进设置页产物 `ui/settings.bundle.js` / `.css`；tarball 本身不随安装包");
   L.push("- Source: 随宿主分发的 Hana App Creator SDK（快照见 `vendor/hana-app-sdk/`，含 `source-manifest.json`）");
   L.push("- License: Apache-2.0 —— 正文见 `licenses/Apache-2.0.txt`");
   L.push("- 该包自身的第三方声明（其内部又内联了其它组件）：见 `licenses/hana-app-sdk-THIRD_PARTY_NOTICES.txt`", "");
   L.push("### react / react-dom 19.3.0", "");
-  L.push("- Purpose: 上述宿主组件的 peer 依赖，内联进 `ui/dist/settings.bundle.js`");
+  L.push("- Purpose: 上述宿主组件的 peer 依赖，内联进设置页产物 `ui/settings.bundle.js`");
   // react 与 SDK 的 npm 包都不随包（只有编译后的代码在 bundle 里），所以正文必须随 licenses/ 走。
   L.push("- License: MIT —— 正文见 `licenses/MIT-react.txt`（该包不随包分发，正文由本仓库持有）", "");
+  L.push("### openpgp（OpenPGP.js）6.3.2", "");
+  L.push("- Purpose: 签名与验签（设置页的密钥生成、`git_commit` 的 `gpgsig`）——顶替原先随包的 GnuPG");
+  L.push("- Form: 构建期依赖（npm），经 rspack 内联进 `bin/gpg-shim.mjs`；npm 包本身不随安装包");
+  L.push("- Source: https://github.com/openpgpjs/openpgpjs（原样未修改）");
+  L.push("- License: LGPL-3.0-or-later —— 正文见 `licenses/LGPL-3.0.txt`", "");
 
   // ── 官方作者工具 ──
   L.push("## 官方作者工具（哪些能自足、哪些不能）", "");
@@ -198,7 +206,8 @@ export function renderNotice({ components }) {
   const indexRow = {
     "Apache-2.0.txt": ["Apache License 2.0", "@hana/app-sdk（构建期内联）"],
     "MIT-react.txt": ["MIT (Copyright Meta Platforms, Inc. and affiliates)", "react / react-dom（构建期内联）"],
-    "GPL-3.0.txt": ["GNU GPL v3", "GnuPG（随包）"],
+    "LGPL-3.0.txt": ["GNU LGPL v3", "openpgp / OpenPGP.js（构建期内联进签名 shim）"],
+    "GPL-3.0.txt": ["GNU GPL v3", "LGPLv3 的基底（LGPL 条文引用它）；也曾用于随包的 GnuPG"],
     "hana-app-sdk-THIRD_PARTY_NOTICES.txt": ["混合（含 MIT / ISC / Apache-2.0 等）", "@hana/app-sdk 内联的第三方依赖"],
   };
   for (const f of files) {

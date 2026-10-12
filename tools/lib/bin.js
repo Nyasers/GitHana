@@ -2,10 +2,10 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/bin.js — git/gpg/gpgconf 可执行文件解析（平台通用）。
+ * tools/lib/bin.js — git 可执行文件解析（平台通用）。
  *
- * gh 不在此列：GitHub 域已不走子进程（请求由随 App 的 REST worker 在子进程里直发，
- * 见 tools/lib/rest.js），所以没有外部二进制需要解析。
+ * gpg / gpgconf 不在此列：签名已改由随包的纯 JS shim 完成（tools/lib/gpg-shim.mjs），
+ * 包内不再内嵌任何二进制。GitHub 域也不走外部二进制（REST worker 在子进程里直发）。
  *
  * ## 目录布局（布局是数据，查找是代码）
  *
@@ -36,26 +36,21 @@
  * 不是每个平台都 vendor 每样东西：macOS/Linux 自带 git，硬塞 MinGit/Git for Windows 不合理。
  * `vendor/sources.json` 没声明的组件就是"本平台不内嵌、走系统 PATH"，与"声明了但没就绪"是两种状态。
  *
- * ## 隔离注入（applyPluginIsolation）
+ * ## 隔离与签名注入（buildBinEnv）
  *
- * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig、GNUPGHOME=<dataDir>/gnupg、
- * GIT_TERMINAL_PROMPT=0。
- * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
+ * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig 与 GIT_TERMINAL_PROMPT=0，
+ * 并把 `gpg.program` 覆盖成**随包的签名 shim**（tools/lib/sign-shim.js 生成的包装脚本）。
+ * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig。
  *
- * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，并用 `GIT_CONFIG_*` 把
- * `gpg.program` 覆盖成当前安装的 vendor gpg 绝对路径——git 经它解析到的 gpg 必然是插件环那把
- * （认 GNUPGHOME env），且路径随安装现算，不会被 vendor 布局绑死。
- * 密钥生成侧不把 gpg.program 写进 gitconfig：工具面全部经本进程 spawn，覆盖值总在配置文件之上
- * 生效，文件里那份没有消费者。
- *
- * 平台注记：vendor 里的 gpg 必须是"认 GNUPGHOME env"的原生模式（Windows 上表现为删除
- * gpgconf.ctl，否则便携模式恒指 scoop home、忽略 GNUPGHOME）；POSIX 的系统 gpg 本就认。
+ * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
+ * gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
+import { ensureWrapper, keyFilePath } from "./sign-shim.js";
 
 /**
  * 插件根目录（安装目录）。
@@ -112,41 +107,38 @@ const isWindows = PLATFORM === "win32";
 /** vendor 子目录名：平台-架构，例 win32-x64 / darwin-arm64 / linux-x64 */
 export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
-/** 每个工具在各平台的可执行路径与 PATH 附加目录（只写"树内形态"）。
+/**
+ * 每个工具在各平台的可执行路径与 PATH 附加目录（只写"树内形态"）。
  *
  * 路径形态是 `bin/<平台>-<架构>/<exe>`：产物里二进制平铺，不再有组件那一层。
  * 编排参考：构建期 build-app 把仓库的 vendor/bin/<平台>/<组件>/ 投影到这里。
  *
- * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里已不再声明 git），App 始终用宿主
+ * **当前表里只有 git**：gpg / gpgconf 已不再需要（签名由随包的纯 JS shim 完成，
+ * 见 tools/lib/gpg-shim.mjs），包里不再内嵌任何二进制。
+ *
+ * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里也不声明 git），App 始终用宿主
  * 那份 `<HANA_ROOT>/resources/git`。这里的 git 条目服务的是**宿主 git 的树内形态**——
  * finish() 用 extraPath 把它自带的 cmd/ 与 mingw64/bin 等目录前置进 PATH，否则 git 找不到
- * 自己的子命令与 gpg。不要因“不随包”就删掉这条。
+ * 自己的子命令。不要因“不随包”就删掉这条。
  */
 export const VENDOR_LAYOUT = {
   win32: {
     git: { exe: "cmd/git.exe", extraPath: ["cmd", "mingw64", "bin", "usr", "bin"] },
-    gpg: { exe: "gpg.exe" },
-    gpgconf: { exe: "gpgconf.exe" },
   },
   darwin: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gpg: { exe: "gpg" },
-    gpgconf: { exe: "gpgconf" },
   },
   linux: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gpg: { exe: "gpg" },
-    gpgconf: { exe: "gpgconf" },
   },
 };
 
 /**
  * 工具名（resolveBin 的 bin）→ vendor 组件目录名（vendor/sources.json 的 components 键）。
- * 同义不同名：gpg 与 gpgconf 两个可执行文件同出 GnuPG 一份组件目录，而该目录在 sources.json
- * 与 fetch-vendor 落盘里叫 gnupg。查找必须按组件目录名走——按工具名拼路径会永远探空、静默
- * 回退系统 gpg（Windows 上带 gpgconf.ctl 的便携版忽略 GNUPGHOME → 签名 No secret key）。
+ * 同义不同名时在这里建映射；当前无映射（git 组件名与工具名相同）。
+ * 历史上 gpg 与 gpgconf 两个可执行文件同出 gnupg 一份组件目录，那条映射随内嵌二进制一起移除。
  */
-export const VENDOR_COMPONENT = { gpg: "gnupg", gpgconf: "gnupg" };
+export const VENDOR_COMPONENT = {};
 
 /** 工具名 → vendor 组件目录名（未登记的工具名与目录同名，如 git / gh）。 */
 function componentFor(bin) {
@@ -313,7 +305,7 @@ export function probeExecutable(file, timeoutMs = 8000) {
 
 /**
  * 同步解析（仅许可根内可用 fs）：vendor → 系统 PATH。
- * 给"必须同步"的调用点用（如 gpgconf 是否来自 vendor 的判定）；外部命令解析走 resolveBinExec。
+ * 给"必须同步"的调用点用（外部命令解析走 resolveBinExec，含宿主 spawn 探活）。
  */
 export function resolveBin(bin) {
   for (const c of vendorCandidates(bin)) {
@@ -343,7 +335,7 @@ export async function resolveBinExec(bin) {
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
  *
  * 不注入任何 GitHub 凭据：GitHub 域已不走子进程（REST worker 的令牌经 stdin 传入，见
- * tools/lib/rest.js），git 子进程也不读 GH_TOKEN。所以这里只做 git / gpg 的隔离注入。
+ * tools/lib/rest.js），git 子进程也不读 GH_TOKEN。所以这里只做 git 的隔离注入与签名接线。
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
  */
@@ -355,23 +347,21 @@ export function buildBinEnv(baseEnv, resolved) {
   const dataDir = getToolDataDir();
   if (dataDir) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
-    env.GNUPGHOME = path.join(dataDir, "gnupg");
-    // PATH 收口：把 vendor gnupg/bin 前置，使「PATH 里的 gpg」就是隔离环那把。
-    // 覆盖 gpg.program 写成裸名（"gpg.exe"）的历史配置：裸名走 PATH → 命中 vendor（认 GNUPGHOME），
-    // 不再落系统 scoop gpg（gpgconf.ctl 便携模式忽略 GNUPGHOME → 签名 No secret key）。
-    const vendorGpg = resolveBin("gpg");
-    if (vendorGpg.source === "bundled" && vendorGpg.cmd) {
-      env.PATH = path.dirname(vendorGpg.cmd) + path.delimiter + (env.PATH || "");
-      // gpg.program 运行时覆盖：**不依赖** app-data/gitconfig 里存的值。
-      // 那份文件跨安装存活（宿主卸载时 app data was kept），存绝对路径会被 vendor 布局绑死——
-      // 包一换布局（如平台目录收进 vendor/bin/），旧路径就指向不存在的位置，签名报 cannot spawn。
-      // 这里每次 spawn 都用当前解析到的 vendor gpg 现算并覆盖，路径永远与本次安装一致。
-      // 走 git 的 GIT_CONFIG_* 机制（git ≥ 2.31）：它在所有配置文件之上生效，改不到文件也不脏文件。
+    // 签名接线：gpg.program 指向**签名 shim**（纯 JS，见 tools/lib/gpg-shim.mjs）。
+    // 不再有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——gpg 二进制已经不在包里，
+    // 那套隔离机制存在的唯一理由（让 gpg 认隔离环）随之消失。
+    //
+    // 包装脚本每次现算（node 路径与安装位都可能变）；见 tools/lib/sign-shim.js。
+    // 走 git 的 GIT_CONFIG_* 机制（git ≥ 2.31）：它在所有配置文件之上生效，改不到文件也不脏文件。
+    const wrapper = ensureWrapper(dataDir);
+    if (wrapper) {
       const baseCount = Number.parseInt(env.GIT_CONFIG_COUNT || "0", 10);
       const n = Number.isFinite(baseCount) && baseCount >= 0 ? baseCount : 0;
       env.GIT_CONFIG_COUNT = String(n + 1);
       env[`GIT_CONFIG_KEY_${n}`] = "gpg.program";
-      env[`GIT_CONFIG_VALUE_${n}`] = vendorGpg.cmd;
+      env[`GIT_CONFIG_VALUE_${n}`] = wrapper;
+      // shim 是独立进程，不知道 dataDir：密钥路径经 env 传它（与 REST worker 的令牌经 stdin 同理）。
+      env.GITHANA_KEY_FILE = keyFilePath(dataDir);
     }
   }
   return env;

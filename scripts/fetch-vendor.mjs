@@ -18,27 +18,18 @@
  *      许可正文走 licenses/ 单一出口（见 sources.json 的 keep 说明）。
  *   4) `--check` 只校验现状，不下载；CI 用它把"声明了却没就绪"变成硬失败。
  *
+ * **当前 sources.json 里没有任何组件**（无内嵌二进制：签名走纯 JS、git 用宿主那份），
+ * 所以本脚本在正常仓态下是空操作。解压分支（targz / zip）保留供将来需要内嵌二进制时复用。
+ *
  * 用法：
  *   node scripts/fetch-vendor.mjs                      # 当前平台全量
- *   node scripts/fetch-vendor.mjs gnupg                # 只补某组件
+ *   node scripts/fetch-vendor.mjs <组件>                # 只补某组件
  *   node scripts/fetch-vendor.mjs --platform linux-x64 # 指定平台条目（跨平台准备）
  *   node scripts/fetch-vendor.mjs --check              # 只校验（不下载）
  */
 
-/**
- * 解压工具依赖：zip 在 Windows/macOS 用 tar（bsdtar 支持 zip），Linux 用 unzip；targz 用 tar。
- *
- * NSIS/7z 容器（GnuPG 的 Windows 安装器）用 **7z-wasm**（devDependency）：它是 7-Zip 编译成
- * WASM 的包，能力等同完整 `7zz`。不用主机上的 7z，因为：
- *   · 解压在**抓取主机**上执行，与目标平台无关：CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg，
- *     用外部 7z 就等于要求每台构建主机都装对版本；
- *   · 主机上的 `7za` / `7zr` 是精简版，**不支持 NSIS**，而各发行版上的名字不统一，容易静默选中错的那个；
- *   · 作为 devDependency，它的字节不进产物（node_modules 不在交付面），不构成再分发，故不进
- *     licenses/（该目录只列随包或内联的组件，见 derive/thirdparty.mjs 的边界）。
- */
-
 import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, renameSync, copyFileSync, cpSync, unlinkSync, statSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, renameSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,7 +37,6 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCES = join(ROOT, "vendor", "sources.json");
 const CACHE_DIR = join(ROOT, ".tmp", "vendor-dl");
-const XTMP = join(ROOT, ".tmp", "vendor-x");
 
 const log = (...a) => console.log("[fetch-vendor]", ...a);
 const rel = (p) => p.replace(ROOT, ".");
@@ -106,33 +96,12 @@ async function download(spec, cacheFile) {
 }
 
 /**
- * 用 7z-wasm 解一个 7z / NSIS 容器到 destDir（宿主目录，转成 WASM 侧能看的路径）。
+ * 用 7z 解一个 7z / NSIS 容器到 destDir。
  *
- * 7z-wasm 把目标目录挂为 NODEFS 后 callMain；它的两条行为要点（实测）：
- *   · 成功：callMain 正常返回；
- *   · 失败：callMain **抛出数字**（7z 的退出码，带位标志，不是 0/1），不是 Error。
- *     所以这里不能拿 exitCode !== 0 判，只把“抛出”当失败。
- * WS 侧路径分隔符是 "/"，而 NODEFS 的 root 要宿主绝对路径。
+ * 当前 sources.json 无组件使用它（无内嵌二进制），保留供将来需要拆 NSIS 类容器时复用。
+ * 注：若重新启用，需重新引入 7z-wasm（devDependency）并处理 callMain 的行为：
+ * 成功时正常返回，失败时**抛出数字**（7z 退出码，带位标志，不是 0/1）。
  */
-async function extract7z(cacheFile, destDir) {
-  const { default: SevenZip } = await import("7z-wasm");
-  const sz = await SevenZip({ print: () => {}, printErr: () => {} });
-  const mount = "/host";
-  try {
-    sz.FS.mkdir(mount);
-  } catch {
-    /* 已存在 */
-  }
-  sz.FS.mount(sz.NODEFS, { root: ROOT.replace(/\\/g, "/") }, mount);
-  sz.FS.chdir(mount);
-  const relCache = relative(ROOT, cacheFile).replace(/\\/g, "/");
-  const relDest = relative(ROOT, destDir).replace(/\\/g, "/");
-  try {
-    sz.callMain(["x", relCache, "-o" + relDest, "-y"]);
-  } catch (e) {
-    throw new Error(`7z-wasm 解压失败（退出码 ${String(e)}）：${relCache}`);
-  }
-}
 
 /** 摊平单层顶层目录：解压后若 exe 不在预期位置，且只套了一层目录，则把内容上移。 */
 function flattenIfNested(destRoot, exeRel) {
@@ -153,34 +122,10 @@ function flattenIfNested(destRoot, exeRel) {
   return existsSync(join(destRoot, exeRel));
 }
 
-/** 解压（按 extract 类型分派）。7z-bin 走 7z-wasm，是异步的。 */
+/** 解压（按 extract 类型分派）。targz / zip 为当前保留的两种；NSIS（7z-bin）已随 gnupg 一起移除。 */
 async function extract(spec, cacheFile, destRoot) {
   rmSync(destRoot, { recursive: true, force: true });
   mkdirSync(destRoot, { recursive: true });
-
-  if (spec.extract === "7z-bin") {
-    // GnuPG 的 NSIS 容器：解到临时目录后只取 bin/ 的内容（平铺到组件根）。
-    // 走 7z-wasm（devDependency），不依赖主机上的 7z：这一步在任意主机上跑
-    // （CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg），拷目录用 node 的 cpSync。
-    rmSync(XTMP, { recursive: true, force: true });
-    mkdirSync(XTMP, { recursive: true });
-    await extract7z(cacheFile, XTMP);
-    cpSync(join(XTMP, "bin"), destRoot, { recursive: true, force: true });
-    // NSIS 中间态残留
-    for (const f of readdirSync(destRoot)) {
-      if (f.endsWith(".exe.tmp")) unlinkSync(join(destRoot, f));
-    }
-    const gpg = join(destRoot, "gpg.exe");
-    if (existsSync(gpg)) copyFileSync(gpg, join(destRoot, "gpg2.exe"));
-    // 隔离前提：删除 gpgconf.ctl（有它 = 便携模式恒指 scoop home、忽略 GNUPGHOME）
-    const ctl = join(destRoot, "gpgconf.ctl");
-    if (existsSync(ctl)) {
-      rmSync(ctl, { force: true });
-      log("已删除 gpgconf.ctl（原生模式：认 GNUPGHOME）");
-    }
-    rmSync(XTMP, { recursive: true, force: true });
-    return;
-  }
 
   if (spec.extract === "targz") {
     execFileSync("tar", ["-xzf", cacheFile, "-C", destRoot], { stdio: "inherit" });
