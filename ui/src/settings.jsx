@@ -645,9 +645,12 @@ function GitHanaSettings() {
         {kgText ? <pre className="gh-out">{kgText}</pre> : null}
       </SettingsSection>
 
+      {/* 收起时用 plain：容器内容高度归零，card 形态会留下一道 2px 高的空描边。
+          展开后恢复 card，与其它区块外形一致。 */}
       <SettingsSection
         title="高级"
         description="一般不需要改动这里的任何东西。安装是否完整、签名与连网是否就绪，都在这一层，出问题时供排查。"
+        surface={advancedOpen ? "card" : "plain"}
         context={
           <Button variant="secondary" onClick={() => setAdvancedOpen((v) => !v)}>
             {advancedOpen ? "收起" : "展开"}
