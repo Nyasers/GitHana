@@ -5,7 +5,7 @@
     "vendor/ 不入 git（二进制太大）；CI 与打包前用 scripts/fetch-vendor.mjs 按本表重建。",
     "sha256 为空 = 本平台暂未提供可校验产物：fetch 脚本会明确跳过并告警，该组件回退系统 PATH。",
     "不要为了填满表格编造 sha256——校验失败必须拒绝落盘，这是这条链路唯一的价值。",
-    "**当前没有任何平台内嵌二进制**：git 用宿主的 <HANA_ROOT>/resources/git，签名由随包的纯 JS shim（bin/gpg-shim.mjs）完成，GitHub 请求由随包的 REST worker（bin/rest-worker.mjs）直发。三平台因此完全同构，没有平台分支。",
+    "**当前没有任何平台内嵌二进制**：git 用宿主的 <HANA_ROOT>/resources/git，签名由随包的纯 JS shim（bin/gpg.shim.mjs，OpenPGP.js 为同目录运行期库 bin/openpgp.min.mjs）完成，GitHub 请求由随包的 REST worker（bin/rest.worker.mjs）直发。三平台因此完全同构，没有平台分支。",
     "keep 声明上游树里哪些顶层条目的内容落到组件根（缺省 [\"bin\"]）。当前无组件使用，保留该语义供将来需要内嵌二进制时复用。"
   ],
   "platforms": {

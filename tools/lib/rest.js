@@ -7,7 +7,7 @@
  * ## 形状
  *
  * 本模块是「调用 REST」的唯一入口，与 exec.js 之于 git 子进程同构。它负责：
- *   · 定位并 spawn REST worker（tools/lib/rest-worker.mjs，随包进 bin/）；
+ *   · 定位并 spawn REST worker（tools/lib/rest.worker.mjs，随包进 bin/）；
  *   · **显式补 `--allow-net`**（见下）；
  *   · 把一批请求交给 worker、把结果归一成 { ok, status, json, text, error }；
  *   · 统一超时与基础设施错误的可读文案。
@@ -28,7 +28,7 @@
  * `app/process.spawn`），是运行时层面的旗标。
  *
  * 收窄出站主机在 worker 内做（`--allow-net=<host>` 的语法在 v26.8.1 不生效，实测
- * `--allow-net=api.github.com` 下请求 example.com 仍成功），见 rest-worker.mjs。
+ * `--allow-net=api.github.com` 下请求 example.com 仍成功），见 rest.worker.mjs。
  *
  * **`--allow-net` 是有条件的**：它是权限模型下的放行项，单独给会报 `ERR_MISSING_OPTION`
  * （实测：普通 node 进程加 `--allow-net` 直接启动失败）。所以只在 `process.permission` 存在时
@@ -62,8 +62,8 @@ export const INERT_REST_TOKEN = "hana-githana-rest-placeholder";
 /** worker 的候选位置：交付树（bin/）优先，源码树（tools/lib/）兜底。 */
 function workerCandidates() {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const out = [path.join(pluginRoot(), "bin", "rest-worker.mjs")];
-  const src = path.join(here, "rest-worker.mjs");
+  const out = [path.join(pluginRoot(), "bin", "rest.worker.mjs")];
+  const src = path.join(here, "rest.worker.mjs");
   if (!out.includes(src)) out.push(src);
   return out;
 }
@@ -127,7 +127,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
       ok: false,
       results: [],
       message:
-        "REST worker 缺失（找不到 bin/rest-worker.mjs）：安装包不完整或布局与预期不一致，请重装本 App。",
+        "REST worker 缺失（找不到 bin/rest.worker.mjs）：安装包不完整或布局与预期不一致，请重装本 App。",
     };
   }
 

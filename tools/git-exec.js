@@ -82,7 +82,7 @@ function gitGuidance(stderr) {
 
 export async function execute(input, ctx) {
   await initToolContext(ctx);
-  // 不再需要收尾 gpg daemon：签名改由随包的纯 JS shim 完成（见 tools/lib/gpg-shim.mjs），
+  // 不再需要收尾 gpg daemon：签名改由随包的纯 JS shim 完成（见 tools/lib/gpg.shim.mjs），
   // 没有 gpg-agent / scdaemon 会被拉起，也就没有“daemon 残留锁住安装目录”这回事。
   return await runGitExec(input);
 }

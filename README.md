@@ -4,8 +4,8 @@
 
 - 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 7 个工具 + 3 组后端路由（status / settings / actions）
 - 工具命名空间：`git_*`（本地 git）· `github_api` / `gh_pr`（GitHub REST）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
-- 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌各平台运行时（Windows gnupg）随包分发 · 版本见 `manifest.json`（单一事实源）
-- **GitHub 域不依赖任何外部二进制**：请求由随包的 `bin/rest-worker.mjs` 在子进程里直发（Node 内置 `fetch`），PR 创建稳定带 App 角标
+- 服务端零 npm 依赖（设置页 UI 需一步构建）· 签名用随包的纯 JS OpenPGP.js（无外部二进制）· 版本见 `manifest.json`（单一事实源）
+- **GitHub 域不依赖任何外部二进制**：请求由随包的 `bin/rest.worker.mjs` 在子进程里直发（Node 内置 `fetch`），PR 创建稳定带 App 角标
 
 > 与 dshana 同级：本仓库是**源码**，宿主实际加载的是安装位 `<HANA_HOME>/apps/<id>/`（见「安装与更新」）。
 
@@ -173,7 +173,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # openpgp / react / react-dom / @rspack/core / 7z-wasm / @hana/app-sdk（仓库内 tgz 快照）
+pnpm install          # openpgp / react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（先清空，再依次构建三个产物 + 拷静态交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
@@ -184,22 +184,23 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 注意三个 `build:*` 子命令产出的是 dist/ 的**一部分**，单独跑会与其它产物共存；
 要一个完整交付树请跑 `pnpm run build`（它先清空 dist/）。
 
-**构建期依赖不进包**：`@rspack/core` 是打包器，`7z-wasm` 用来拆 GnuPG 的 NSIS 安装器
-（`scripts/fetch-vendor.mjs`，当前 sources.json 无组件、它不活跃）——两者只在构建主机上跑，
-字节不进 `dist/`，所以既不用用系统上的 `7z`（也就没有“构建主机得装对版本”的外部要求），
+**构建期依赖不进包**：`@rspack/core` 是打包器，只在构建主机上跑，字节不进 `dist/`，
+所以既不用系统上的构建工具（也就没有"构建主机得装对版本"的外部要求），
 也不必进 `licenses/`（该目录只列随包或内联的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
-`openpgp` 与上述不同：它的**代码内联进 `bin/gpg-shim.mjs`**（随包），所以在 `licenses/` 里。
+`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以在 `licenses/` 里。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
-入口与另两个 spawn 出去的独立入口（`rest-worker.mjs` / `gpg-shim.mjs`）同层
-——`bin/` 的语义就是「装到机器上要跑的东西」。
+入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
+——`bin/` 的语义就是「装到机器上要跑的东西」。OpenPGP.js 以一份独立库文件（`openpgp.min.mjs`）
+放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，也让 LGPL §4(d)(1) 有落点。
 
 ```
 dist/
   manifest.json  LICENSE  NOTICE
   bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
-  bin/rest-worker.mjs     ← GitHub REST 执行体（零依赖纯 node 脚本）
-  bin/gpg-shim.mjs        ← 签名 shim（含 OpenPGP.js）
+  bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖纯 node 脚本）
+  bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
+  bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
   licenses/ assets/
   ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
 ```
@@ -294,21 +295,22 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
 
 ## 第三方许可
 
-**通知是包的一部分，仓库里不存它。** `THIRD_PARTY_NOTICES.md` 写的是“这个包里有什么”，而包内容
-取决于 target（universal 带全平台 gnupg；其余平台不带内嵌二进制），源码并不“拥有”某个特定包的
-内容。所以它由 `pack.mjs` 在组装交付树时按实际内容渲染（见「许可面随包内容收窄」）。
+**通知是包的一部分，仓库里不存它。** `THIRD_PARTY_NOTICES.md` 写的是“这个包里有什么”，
+而包内容取决于交付面（当前无内嵌二进制，只有构建期内联的 UI 依赖与一份随包独立库），
+源码并不“拥有”某个特定包的内容。所以它由 `pack.mjs` 在组装交付树时按实际内容渲染
+（见「许可面随包内容收窄」）。
 
 两个真好处：**不会漂**（没有一份静态文件可以跟包不一致，以前靠 `--check` 比对，现在压根只有一份）；
-**不会多**（只带 gnupg 的包里不会出现无关组件段落与条文——那不是在多给，是在陈述不成立的事实）。
+**不会多**（没有内嵌二进制的包里不会出现无关组件段落与条文——那不是在多给，是在陈述不成立的事实）。
 
 通知里的事实与许可正文**分开落点**：通知只陈述关系，法条逐份在 `licenses/`（随包）。这样法条
 不经脚本转手（内联意味着让 `trimEnd` 决定法律文本长什么样）。
 
-`licenses/` 里两类内容来源不同：
+`licenses/` 里的内容来源分两类：
 
-- **静态正文**（`Apache-2.0.txt` / `GPL-3.0.txt` / `MIT-react.txt`）—— 必须由仓库持有原文。
-  上游不给：GnuPG 官方 Windows 安装器只带 `README.txt` 版权声明、**无 COPYING**（已按 2.5.24 实物验证）；
-  SDK tarball 无 Apache 正文；react 不随包。
+- **静态正文**（`Apache-2.0.txt` / `GPL-3.0.txt` / `LGPL-3.0.txt` / `MIT-react.txt`）—— 必须由仓库持有原文。
+  上游不给或不便随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不携带自己的
+  LICENSE 附属件。`GPL-3.0.txt` 与 `LGPL-3.0.txt` 成对：LGPL §4(b) 要求两份都随包（LGPL 条文引用 GPL）。
 - **`hana-app-sdk-THIRD_PARTY_NOTICES.txt`** —— 从 SDK tgz 现取，由 `derive` 任务写入（与版本同源，手抄必漂）：
 
   ```bash
@@ -318,17 +320,34 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
 
 **gh CLI 的 MIT 正文已随 gh 一起移除**（见「GitHub 通道」）：包不再带它，法条就不该留在 `licenses/`。
 
-## 内嵌运行时（平台通用）
+### LGPL 组件（OpenPGP.js）的合规落点
 
-二进制不写死平台，也不无谓重复：
+OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库文件**（`bin/openpgp.min.mjs`）随包：
+两个入口在**运行期**用相对路径 `import` 它，它的代码不被合并进入口。这个形态对应 LGPL §4(d)(1)。
 
-| 二进制 | Windows | macOS / Linux | 来源 |
+为什么不内联：内联进 bundle 后，库与其消费者分不开，只能走 §4(d)(0) 的**重组路径**
+（需要交付可重新组合的 Minimal Corresponding Source 与 Corresponding Application Code）。
+独立库文件则直接满足 §4(d)(1) 的「接口兼容即可替换」。这不是合规硬性选择（两条路都合法），
+而是选一条对自己与下游都更轻的路：一份库文件顶掉两份内联副本，包体更小，替换也不用重构建。
+
+`build-app.mjs` 在每次构建时以 sha256 断言投影进 `dist/bin/` 的那份与
+`node_modules/openpgp/dist/node/openpgp.min.mjs` 逐字节相同——“原样未修改”因此是可验证的事实，
+不是声明。具体条款映射（§4(a)～§4(e)）写在 `THIRD_PARTY_NOTICES.md` 的 LGPL 段。
+
+## 运行时依赖（只剩 git，靠宿主）
+
+本包不内嵌任何二进制。唯一的外部可执行文件是 git，而它由宿主提供：
+
+| 可执行文件 | Windows | macOS / Linux | 来源 |
 |--------|---------|---------------|------|
 | git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 |
-| gnupg | 内嵌（必需：签名链路要求认 GNUPGHOME 的原生模式） | 系统 gpg（本就读 GNUPGHOME） | vendor 或 系统 |
+
+签名与 GitHub 请求都不再需要外部二进制：前者由随包的纯 JS shim（`bin/gpg.shim.mjs`）完成，
+后者由随包的 `bin/rest.worker.mjs` 直发。所以 `vendor/sources.json` 的组件表为空，
+`vendor/bin/` 不存在也是合法状态（不再是“少抓了”）。
 
 **git 与 GitHub 域都不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在
-宿主安装目录里，不由本包再带一份；GitHub 请求由随包的 `bin/rest-worker.mjs` 直发，不需要任何外部二进制。
+宿主安装目录里，不由本包再带一份；GitHub 请求由随包的 `bin/rest.worker.mjs` 直发，不需要任何外部二进制。
 
 **每个组件目录只留运行时需要的文件**：落盘把上游 `remove/*` 的内容平铺到组件根，最终形态是
 `vendor/bin/<平台>/<组件>/<exe>`。上游产物里那此 `share/`（man 手册）、`LICENSE`、卸载器、
@@ -337,8 +356,7 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
 安装目录里，不由本包再带一份。
 
 **许可面随包内容收窄**：`pack.mjs` 出包时重渲染 `THIRD_PARTY_NOTICES.md`、并只留本包适用的
-`licenses/` 正文——不带 gnupg 的包不该出现 GPL 条文与 GnuPG 段落，那不是在多给，
-是在陈述不成立的事实。与 vendor 按 `--target` 收窄同一条原则、同一个位置。
+`licenses/` 正文。与 vendor 按 `--target` 收窄同一条原则、同一个位置。
 
 布局与解析：
 
@@ -352,17 +370,13 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
   只看 `HANA_DESKTOP_RESOURCES_PATH` 的写法在 v2 里必然失效（AppHost 不传它）。
 - 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`。
   **不点名时只拉当前平台**（`process.platform`）：开发机只需要自己的那份，其他平台是 CI 的事。
-  抓全平台只应该发生在两条流水线上：`release.yml` 遍历 sources.json 全部平台出 universal 包，
-  `ci.yml` 按矩阵各拉自己的。本地手动拉全平台只会白白占两百多 MB。
-- **解压工具不靠主机**：GnuPG 的 Windows 安装器是 NSIS 容器，用 `7z-wasm`（devDependency）拆——
-  它是 7-Zip 的 WASM 编译，能力等同完整 `7zz`。不用主机上的 7z：解压在**抓取主机**上执行，
-  而 CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg；且省略版 `7za` / `7zr` **不支持 NSIS**，
-  名字在各发行版又不统一，容易静默选中错的那个。
-- CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch vendored runtime + `pnpm run check`
-  （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发），
-  ubuntu 上抓全平台运行时并出 universal 包。官方 creator 不在本仓，所以用一个零依赖的
+  当前 `sources.json` 组件表为空（无内嵌二进制），所以本脚本在正常仓态下是空操作；
+  解压分支（targz / zip）保留供将来需要内嵌二进制时复用。
+- CI：`.github/workflows/ci.yml` 三平台矩阵各自 `pnpm run check`
+  （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发）。
+  官方 creator 不在本仓，所以用一个零依赖的
   `scripts/selfcheck.mjs` 兜住结构门槛
-  （manifest 字段与 route 文件存在性、全部服务端 JS 语法、vendor 就绪性）。
+  （manifest 字段与 route 文件存在性、全部服务端 JS 语法、入口与库就绪性）。
 
 ## 跨平台与市场包（只有一个包，但它是全平台的）
 
@@ -370,23 +384,18 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
 
 ```
 宿主内嵌 git（<HANA_ROOT>/resources/git，spawn 探活）
-  → 本平台 bin/<platform>-<arch>/（随包带了）
-    → 系统 PATH（git / gpg）
+  → 本平台 bin/<platform>-<arch>/（若声明了随包组件）
+    → 系统 PATH（git）
 ```
 
-- CI 的 release 流水线**只出一个 `universal` 包**——这个包把 `vendor/sources.json` 声明的
-  **每个平台的官方运行时都打进去**（当前只有 win32-x64 的 gnupg），所以它在任意平台装上都是自包含的。
-  **进市场的也只有它。**
-- **macOS / Linux 的 gpg 走系统，不随包**：GnuPG 上游只发 Windows 安装器（`gnupg-w32-*`），
-  POSIX 一律给源码、交由发行版/包管理器分发，没有可直接校验 sha256 的单文件产物。
-  影响：**GNU/Linux 发行版普遍预装 gpg；macOS 从不预装**（需 `brew install gnupg` 或 GPG Suite）。
-  设置页在 gpg 缺失时会直接给出对应平台的安装指引，而不是只说“缺失”。
-- **win32-arm64 上没有 gpg**：GnuPG 官方 ftp 只有 w32 x86/x64，没有 arm64；那台机器上 gpg 走系统。
-- 为什么 Windows 必须随包 gnupg，而不只是“不带 vendor 靠系统 PATH”：签名链路要求
-  vendor gnupg（认 `GNUPGHOME` 的原生模式，系统 scoop gpg 带 `gpgconf.ctl` 不认），
-  而 `gpg.program` 由运行时解析到现在安装的 vendor gnupg，包不带 vendor 就没有可解析的目标。
+签名与 GitHub 请求都不依赖外部可执行文件（纯 JS shim + REST worker），所以“三平台一致”
+现在是结构上就成立的：没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
+
+- CI 的 release 流水线**只出一个 `universal` 包**：它把 `vendor/sources.json` 声明的每个平台的
+  随包组件都打进去（**当前组件表为空**，所以它与单平台包目前没有区别），
+  **进市场的也只有它**。保留 universal 形态是因为它是唯一能覆盖将来「某个平台需要内嵌二进制」的包形。
 - `node scripts/pack.mjs --target <platform>` 是点名才用的单平台构建（只留该平台 vendor），
-  不进 CI、不进市场；universal 出包前会断言各平台必需组件都在，缺一个直接拒包。
+  不进 CI、不进市场；universal 出包前会断言各平台声明为随包的组件都在，缺一个直接拒包。
 - 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
   宿主侧的包限制偏紧时，抬限制比裁包合理。
 
@@ -424,7 +433,7 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 ```
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
 app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
-tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest-worker / context / identity / github）
+tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest.worker / context / identity / github）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
 lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
@@ -444,7 +453,7 @@ scripts/                 # 分域：build（组装/出包）/ derive（派生同
 
 ## GitHub 通道（自写 REST，无外部二进制）
 
-GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest-worker.mjs` 在子进程里用 Node 内置 `fetch` 直发。
+GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子进程里用 Node 内置 `fetch` 直发。
 
 - **为什么必须是子进程**：App 的 `apply()` 跑在 AppHost 子进程里，那个进程开了 Node Permission Model
   且没有 `--allow-net`（宿主按清单能力只给 `--allow-child-process`），进程内的 `fetch` 会被运行时拒在
@@ -502,11 +511,22 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 `deriveNameFromUser`）同时供 `tools/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
 两处不会跑偏。
 
-## GPG 隔离机制（沿用 v1）
+## 签名隔离机制
 
-密钥只落 `app-data/githana/gnupg`，签名/验签不碰用户个人 GPG 环：
+私钥只落 `app-data/githana/gpg-key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
+任何 gpg 二进制：
 
-1. **keygen 侧**：所有 gpg 调用显式 `--homedir <dataDir>/gnupg`
-2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入（文件里的绝对路径会被 vendor 布局绑死，换布局即失效）；同时每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0`（不再注入任何 GitHub 凭据：GitHub 域的令牌经 stdin 传给 REST worker，不走子进程 env）
+1. **keygen 侧**：`tools/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
+   加密落盘（与 `credential.json` 同一套后端抽象，见 `lib/secret.js` / `lib/dpapi.js`）。
+2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，
+   由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入，同时注入
+   `GIT_CONFIG_GLOBAL` / `GIT_TERMINAL_PROMPT=0` 与 `GITHANA_KEY_FILE`（后者告诉 shim 密钥在哪）。
+   注入的目标是一个 `.cmd` / `.sh` 包装脚本（运行时生成在 dataDir），内含现算的宿主 node 路径与
+   `bin/gpg.shim.mjs`（见 `tools/lib/sign-shim.js`），因为 git 的 `gpg.program` 不接受带参的命令行。
 
-两个必须绕开的坑（同 v1）：系统 scoop gpg 带 `gpgconf.ctl` 认不到 `GNUPGHOME`；MinGit 的 `gpg.program` 不支持带参。所以运行时注入的 `gpg.program` 只能指向认 env 的 vendor gnupg（绝对路径由 `resolveBin("gpg")` 现算，不落文件）。
+shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、用 OpenPGP.js 签/验，
+按 git 的接口契约把状态写到 `--status-fd`。它运行期 import 同目录的 `openpgp.min.mjs`
+（不内联，见「第三方许可」）。
+
+运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
+GitHub 域的令牌也不进子进程 env（经 stdin 传给 REST worker）。

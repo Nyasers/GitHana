@@ -24,7 +24,7 @@
  *    需要先删后建——没有 keyring 的 UID 冲突问题）。
  * 3. 签名接线：指纹写入隔离 gitconfig（user.signingkey + commit.gpgsign=true）。
  *    gpg.program **不写文件**：每次 spawn 由 buildBinEnv 现算注入，指向随包的签名 shim
- *    （tools/lib/gpg-shim.mjs，经 tools/lib/sign-shim.js 的包装脚本）。**不再有 GNUPGHOME**
+ *    （tools/lib/gpg.shim.mjs，经 tools/lib/sign-shim.js 的包装脚本）。**不再有 GNUPGHOME**
  *    ——gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
  * 4. 公钥自动发布：导出公钥后，若存在可用 OAuth 凭据，自动调 lib/gpg-publish.js 上传到
  *    GitHub 账号（借 `GPG keys: write` 账号权限）。轮换时只删本 App 上次上传的那一个

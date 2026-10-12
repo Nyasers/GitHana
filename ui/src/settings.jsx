@@ -781,12 +781,14 @@ function GitHanaSettings() {
         <SettingRow
           label="签名 shim"
           truncateText
-          control={<StatusText ok={Boolean(signing && signing.shimPresent)} on="就绪" off="缺失" />}
+          control={<StatusText ok={Boolean(signing && signing.shimPresent && signing.openpgpLibPresent)} on="就绪" off="缺失" />}
           hint={
-            signing && signing.shimPresent ? (
+            signing && signing.shimPresent && signing.openpgpLibPresent ? (
               <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
             ) : (
-              <span className="gh-msg">安装包不完整：缺少 bin/gpg-shim.mjs，请重装本 App。</span>
+              <span className="gh-msg">
+                安装包不完整：缺少 {signing && !signing.shimPresent ? "bin/gpg.shim.mjs" : "bin/openpgp.min.mjs"}，请重装本 App。
+              </span>
             )
           }
         />
@@ -804,7 +806,7 @@ function GitHanaSettings() {
             rest.workerPresent ? (
               <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
             ) : (
-              <span className="gh-msg">安装包不完整：缺少 bin/rest-worker.mjs，请重装本 App。</span>
+              <span className="gh-msg">安装包不完整：缺少 bin/rest.worker.mjs，请重装本 App。</span>
             )
           }
         />

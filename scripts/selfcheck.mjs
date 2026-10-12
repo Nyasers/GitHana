@@ -164,17 +164,19 @@ function checkPlatformVendor(platform) {
 
 for (const p of platformsToCheck) checkPlatformVendor(p);
 
-// ── 4) 随包的独立子进程入口（REST worker + 签名 shim）─────────────────────
-// 它们不是外部二进制，所以不在 vendor 表里；但都是 spawn 出去的独立入口，缺了对应域
-// 整个不可用（且只在被调用时才暴露），所以在 CI 这一层拦住。
+// ── 4) 随包的独立子进程入口与共享库（REST worker / 签名 shim / OpenPGP.js）─────
+// 它们不是外部二进制，所以不在 vendor 表里；但前两个都是 spawn 出去的独立入口，缺了对应域
+// 整个不可用（且只在被调用时才暴露）；第三份是两个入口运行期 import 的共享库，
+// 少了它两个入口在加载时就报错。所以在 CI 这一层拦住。
 for (const rel of [
-  ["tools/lib/rest-worker.mjs", "GitHub REST 执行体，构建时会平铺到 bin/rest-worker.mjs"],
-  ["tools/lib/gpg-shim.mjs", "签名 shim 源（构建时打包为 bin/gpg-shim.mjs，含 OpenPGP.js）"],
+  ["tools/lib/rest.worker.mjs", "GitHub REST 执行体，构建时会平铺到 bin/rest.worker.mjs"],
+  ["tools/lib/gpg.shim.mjs", "签名 shim 源（构建时打包为 bin/gpg.shim.mjs，OpenPGP.js 运行期外置）"],
+  ["node_modules/openpgp/dist/node/openpgp.min.mjs", "OpenPGP.js 库文件源（构建时原样投影到 bin/openpgp.min.mjs）"],
 ]) {
   if (!existsSync(join(ROOT, ...rel[0].split("/")))) {
     fail(`缺 ${rel[0]}（${rel[1]}）`);
   } else {
-    note(`入口就绪（${rel[0]}）`);
+    note(`入口/库就绪（${rel[0]}）`);
   }
 }
 

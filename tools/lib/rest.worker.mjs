@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/rest-worker.mjs — GitHub REST 的 HTTP 执行体（独立子进程）。
+ * tools/lib/rest.worker.mjs — GitHub REST 的 HTTP 执行体（独立子进程）。
  *
  * ## 为什么单独一个进程
  *
