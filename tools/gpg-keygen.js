@@ -25,11 +25,11 @@
  *    gpg.program **不写文件**：每次 spawn 由 buildBinEnv 现算注入，指向随包的签名 shim
  *    （tools/lib/gpg.shim.mjs，经 tools/lib/sign-shim.js 的包装脚本）。**不再有 GNUPGHOME**
  *    ——gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
- * 4. 公钥自动发布：导出公钥后，若存在可用 OAuth 凭据，自动调 lib/gpg-publish.js 上传到
- *    GitHub 账号（借 `GPG keys: write` 账号权限）。轮换时只删本 App 上次上传的那一个
- *    key_id（记在 dataDir/published-gpg-keys.json），绝不枚举账号 GPG 密钥批量删除。
- *    上传失败**不**影响本地密钥生成结果（本地签名链路已可用），只在返回文本里报告，
- *    并提供设置页的手动重试入口。
+ * 4. 生成与上传是一个动作（不可分割）：先快照本地密钥与签名接线，再生成并接线，最后上传。
+ *    上传失败就把本地**整体退回生成前状态**（密钥文件、公钥文件、签名接线全回去）——
+ *    本地不该留一把 GitHub 上没有的密钥（那就是把“本地有密钥”与“账号上有公钥”拆成了两件事）。
+ *    轮换时这个回滚同样成立：新钥上传失败就继续用旧钥，而不是把旧的先删掉。
+ *    上传环节自己保证**只删本 App 上传过的那把**（逐条核对指纹，见 lib/gpg-publish.js）。
  *
  * email 语义：密钥 UID 邮箱必须等于提交作者邮箱（令牌推导的 noreply 邮箱）才能被 GitHub
  * 验证为 verified——生成密钥强制用该邮箱，不另设参数。
@@ -50,8 +50,29 @@ import {
   saveKey,
   keyInfo,
   pubkeyFilePath,
+  snapshotKeyFiles,
+  restoreKeyFiles,
 } from "../lib/openpgp-key.js";
 import { publishKey } from "../lib/gpg-publish.js";
+
+/** 读隔离 gitconfig 里的一个键（缺省/未设为 ""）。走 git 本身，引号与转义都由它处理。 */
+async function readGitConfig(key) {
+  const r = await runCli("git", ["config", "--global", "--get", key], {});
+  return r.ok ? String(r.stdout || "").trim() : "";
+}
+
+/**
+ * 把签名接线恢复到快照前。`--unset` 不存在的键会退非零，这里不看结果：
+ * 幂等语义是「恢复到没有该键」，unset 失败通常就是本来就没有。
+ */
+async function restoreGitSigning(snap) {
+  const set = async (key, value) => {
+    if (value) await runCli("git", ["config", "--global", key, value], {});
+    else await runCli("git", ["config", "--global", "--unset", key], {});
+  };
+  await set("user.signingkey", snap.signingkey);
+  await set("commit.gpgsign", snap.gpgsign);
+}
 
 export async function execute(input, ctx) {
   await initToolContext(ctx);
@@ -78,6 +99,7 @@ async function runKeygen() {
   let email = "";
   let name = "";
   let login = "";
+  let userId = null;
   {
     const token = String(getToolSecretToken() || "").trim();
     if (!token) {
@@ -106,6 +128,7 @@ async function runKeygen() {
         "请检查授权与网络后重试。本次未生成/删除任何密钥、未写身份。"
       );
     }
+    userId = id;
     email = noreplyEmailFromUser(id, login);
     name = deriveNameFromUser(user);
   }
@@ -127,6 +150,13 @@ async function runKeygen() {
   }
 
   // —— 2. 生成 / 轮换签名密钥 ——
+  // 先快照密钥文件与签名接线：生成+上传是一个动作，上传不成就整体退回这里。
+  const snapFiles = snapshotKeyFiles(dataDir);
+  const snapSigning = {
+    signingkey: await readGitConfig("user.signingkey"),
+    gpgsign: await readGitConfig("commit.gpgsign"),
+  };
+
   const before = keyInfo(dataDir);
   if (before.hasKey) {
     lines.push(
@@ -171,20 +201,34 @@ async function runKeygen() {
     );
   }
 
-  // —— 4. 公钥自动发布到 GitHub ——
+  // —— 4. 上传公钥（与生成同属一个动作）——
+  // 上传不成就整体退回：密钥文件回快照、签名接线回原值。轮换时也一样——新钥传不上去
+  // 就继续用旧钥，而不是把旧的先删掉、留一个没有对应公钥的本地密钥。
   const armored = gen.publicKeyArmored;
   const pubResult = await publishKey({
     dataDir,
     pubkeyArmored: armored,
     fingerprint: saved.fingerprint,
     login,
+    id: userId,
   });
-  lines.push("");
-  lines.push(pubResult.ok ? "GitHub 公钥发布：成功" : "GitHub 公钥发布：未完成");
-  lines.push("  " + pubResult.message);
   if (!pubResult.ok) {
-    lines.push("  本地签名链路不受影响，可稍后在设置页「签名密钥」区块点「上传公钥」重试。");
+    restoreKeyFiles(dataDir, snapFiles);
+    await restoreGitSigning(snapSigning);
+    lines.push("");
+    lines.push("GitHub 公钥发布未完成，已回退本次生成（本地密钥与签名接线回到操作前）：");
+    lines.push("  " + pubResult.message);
+    lines.push(
+      before.hasKey
+        ? "  仍在使用原有密钥：" + (before.fingerprint || "?") + "。请处理上述原因后重试。"
+        : "  当前没有签名密钥。请处理上述原因后重试；需要先登录 GitHub 账号。",
+    );
+    return lines.join("\n");
   }
+
+  lines.push("");
+  lines.push("GitHub 公钥发布：成功");
+  lines.push("  " + pubResult.message);
 
   lines.push("");
   lines.push("初始化完成。已生成隔离 git 配置：git_exec/git_commit 均不读用户 ~/.gitconfig。");
