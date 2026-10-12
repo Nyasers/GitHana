@@ -16,9 +16,13 @@
  * ## dist/ 的形状（= App 安装目录形态）
  *
  *   manifest.json / LICENSE / NOTICE
- *   bin/  ← 入口（app.mjs，服务端 bundle）+ REST worker（rest-worker.mjs）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
+ *   bin/   ← 入口（app.mjs）+ REST worker（rest-worker.mjs）+ 签名 shim（gpg-shim.mjs）
  *   licenses/ assets/
- *   ui/   ← 只含壳页与构建产物，**不含 ui/src/**
+ *   ui/    ← 壳页 + 设置页产物平铺（settings.html / settings.bundle.js / .css），**不含 ui/src/**
+ *
+ * 构建产物**直接落 dist/**（build-ui / build-server / build-shim 都写这里），没有 build/ 中转层：
+ * 交付面就是它们的产物落点，中间那一层只会让"产物到底在哪"多一个需要判断的间接层。
+ * 所以主流程是：先清空 dist/ → 依次调起三个构建脚本 → 再把静态交付件拷进来 → 断言。
  *
  * **服务端代码以单入口进包**（`bin/app.mjs`）：入口名回答“这是什么”——它是 App 主体，
  * 不是一份目录下的默认页。安装目录里只有一个服务端文件，而不是 `app.js` + `lib/` + `tools/`
@@ -36,7 +40,8 @@
  * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
  *
  * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
- * 但 tools/lib/rest-worker.mjs 例外——它是 spawn 出去的独立入口，平铺到 bin/rest-worker.mjs）、
+ * 但两个 spawn 出去的独立入口例外：tools/lib/rest-worker.mjs（直接平铺）与
+ * tools/lib/gpg-shim.mjs（打包为 bin/gpg-shim.mjs），均在 bin/ 下）、
  * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
  * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
  * （构建期缓存与声明，运行时无消费者）。
@@ -103,15 +108,20 @@ function copyInto(from, to) {
 
 function main() {
   // 0) 清空重建：dist/ 是产出，每轮整体重来，避免残留混进产物。
+  //    必须在调构建脚本**之前**清：现在是构建脚本直接写 dist/（不再经 build/ 中转），
+  //    清晚了一步就会把刚构好的产物抹掉。
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(DIST, { recursive: true });
 
-  // 1) 先构建设置页产物（ui/src → ui/dist）与服务端单入口 bundle（app.js → build/server/）。
-  //    两个产物都必须先就绪，下面才拷得进来。
-  log("构建设置页产物（ui/src/settings.jsx → ui/dist/settings.bundle.*）…");
+  // 1) 构建设置页产物（ui/src → dist/ui/）、服务端单入口（app.js → dist/bin/app.mjs）
+  //    与签名 shim（tools/lib/gpg-shim.mjs → dist/bin/gpg-shim.mjs）。
+  //    三个脚本都**直接写交付树**——交付面就是它们的产物落点，中间那一层没有存在理由。
+  log("构建设置页产物（ui/src/settings.jsx → dist/ui/settings.bundle.*）…");
   runBuild("build-ui.mjs", "设置页构建失败");
-  log("构建服务端单入口（app.js → build/server/app.mjs）…");
+  log("构建服务端单入口（app.js → dist/bin/app.mjs）…");
   runBuild("build-server.mjs", "服务端构建失败");
+  log("构建签名 shim（tools/lib/gpg-shim.mjs → dist/bin/gpg-shim.mjs）…");
+  runBuild("build-shim.mjs", "签名 shim 构建失败");
 
   // 2) 契约件与代码目录（白名单）
   let total = 0;
@@ -132,26 +142,27 @@ function main() {
     total += copyInto(src, join(DIST, name));
   }
 
-  // 2a) 服务端单入口 → bin/app.mjs（与平台二进制同层：bin/ 就是"装到机器上要跑的东西"）。
-  const serverBundle = join(ROOT, "build", "server", "app.mjs");
-  if (!existsSync(serverBundle)) {
-    console.error("[build-app] 缺 build/server/app.mjs（服务端 bundle 未生成）");
-    process.exit(1);
+  // 2a) 两个 spawn 出去的独立入口已由构建脚本或平铺到位，这里只做断言。
+  //     app.mjs / gpg-shim.mjs 由构建脚本产出；rest-worker.mjs 是零依赖纯 node 脚本，直接平铺。
+  {
+    const serverBundle = join(DIST, "bin", "app.mjs");
+    if (!existsSync(serverBundle)) {
+      console.error("[build-app] 缺 dist/bin/app.mjs（服务端 bundle 未生成）");
+      process.exit(1);
+    }
+    const restWorker = join(ROOT, "tools", "lib", "rest-worker.mjs");
+    if (!existsSync(restWorker)) {
+      console.error("[build-app] 缺 tools/lib/rest-worker.mjs（GitHub REST 执行体）");
+      process.exit(1);
+    }
+    total += copyInto(restWorker, join(DIST, "bin", "rest-worker.mjs"));
+    const shimBundle = join(DIST, "bin", "gpg-shim.mjs");
+    if (!existsSync(shimBundle)) {
+      console.error("[build-app] 缺 dist/bin/gpg-shim.mjs（签名 shim 未构建）");
+      process.exit(1);
+    }
   }
-  mkdirSync(join(DIST, "bin"), { recursive: true });
-  total += copyInto(serverBundle, join(DIST, "bin", "app.mjs"));
-
-  // 2a') REST worker → bin/rest-worker.mjs。
-  //     它**不**进 app.mjs 的 bundle：那是个 spawn 出去的子进程入口，必须是一个真实存在的
-  //     独立文件（tools/lib/rest.js 用 process.execPath 拉它）。与 app.mjs 同层，理由一样：
-  //     bin/ 就是“装到机器上要跑的东西”。
-  const restWorker = join(ROOT, "tools", "lib", "rest-worker.mjs");
-  if (!existsSync(restWorker)) {
-    console.error("[build-app] 缺 tools/lib/rest-worker.mjs（GitHub REST 执行体）");
-    process.exit(1);
-  }
-  total += copyInto(restWorker, join(DIST, "bin", "rest-worker.mjs"));
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/rest-worker.mjs`);
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/rest-worker.mjs + bin/gpg-shim.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，
@@ -218,21 +229,21 @@ function main() {
   }
 
   // 3) ui/：只放壳页与构建产物，**不放源码**（ui/src/ 是源，不属于交付面）。
+  //    产物由 build-ui 直接写 dist/ui/（平铺）；这里只拷壳页与做断言。
   const uiSrcHtml = join(ROOT, "ui", "settings.html");
-  const uiSrcDist = join(ROOT, "ui", "dist");
+  const uiOutDir = join(DIST, "ui");
   if (!existsSync(uiSrcHtml)) {
     console.error("[build-app] 缺 ui/settings.html");
     process.exit(1);
   }
   for (const name of ["settings.bundle.js", "settings.bundle.css"]) {
-    if (!existsSync(join(uiSrcDist, name))) {
-      console.error(`[build-app] 缺设置页产物 ui/dist/${name}`);
+    if (!existsSync(join(uiOutDir, name))) {
+      console.error(`[build-app] 缺设置页产物 dist/ui/${name}`);
       process.exit(1);
     }
   }
-  total += copyInto(uiSrcHtml, join(DIST, "ui", "settings.html"));
-  total += copyInto(uiSrcDist, join(DIST, "ui", "dist"));
-  log("ui/ 就位（settings.html + dist/ 产物；不含 ui/src/）");
+  total += copyInto(uiSrcHtml, join(uiOutDir, "settings.html"));
+  log("ui/ 就位（settings.html + 产物平铺；不含 ui/src/）");
 
   // 4) 断言：交付树里绝不能出现源码与开发件。
   //    这是白名单的最后一道保险——拷贝逻辑改了、或将来有人加了目录，这里会当场拦住。
@@ -246,7 +257,7 @@ function main() {
     "node_modules",
     "build-deps",
     "vendor", // 构建期缓存与声明：已投影为 bin/<platform>/，产物里不再有这一层
-    "build", // 构建区（服务端 bundle 已拷进 bin/）
+    "build", // 构建区（已取消：产物直接落 dist/；这条留着拦住回退）
     "README.md",
     "SPECS.md",
     "specs",

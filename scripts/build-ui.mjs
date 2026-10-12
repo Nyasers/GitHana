@@ -2,19 +2,22 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * scripts/build-ui.mjs — 把 ui/src/settings.jsx 打成 ui/ 下的浏览器产物。
+ * scripts/build-ui.mjs — 把 ui/src/settings.jsx 打成设置页浏览器产物。
  *
  * 为什么需要这一步：设置页用宿主组件（@hana/app-sdk/components），而它把 React / React DOM
  * 当外部 peer——浏览器里没有 bare specifier 解析，必须打包。产物直接进 App 包（宿主不会在
  * 安装时跑构建），所以每次改完 UI 源码都要重跑本脚本，让产物进包。
  *
- *   ui/src/settings.jsx  ──rspack──▶  ui/dist/settings.bundle.js
+ *   ui/src/settings.jsx  ──rspack──▶  dist/ui/settings.bundle.js
  *   （含 @hana/app-sdk/components.css 与 ./settings.css 的样式合并、按导入顺序抽取）
- *                                    └▶  ui/dist/settings.bundle.css
+ *                                    └▶  dist/ui/settings.bundle.css
  *
- * 产物单独放 ui/dist/，与源码（ui/src/）分开：两者不混在同一层，源码不会在阅读时
- * 被构建物淹没，产物也不会被误当源码改。ui/dist/ 不入 git（见 .gitignore），
- * 由本脚本现场生成——本地 `pnpm run build`，出包时 pack.mjs 无条件重建。
+ * 产物直接写进**交付树** dist/ui/（平铺，不再套一层 ui/dist/）：交付面里 ui/ 只该有
+ * 「壳页 + 可直接引用的产物」两层意思，多一层 dist 只是搬运留下的痕迹。dist/ 不入 git
+ * （见 .gitignore），由 build-app.mjs 每轮整体重建。
+ *
+ * 本脚本可以单独跑（改 UI 后的快速迭代），但产出的 dist/ 是部分的；
+ * 要一个完整交付树请跑 `pnpm run build`（build-app 会先清空 dist/ 再依次构建）。
  *
  * 为什么是 Rspack 而不是 esbuild：SDK 的 components 产物里有几个**可选 peer** 的
  * `require`（例如 @emotion/is-prop-valid，位于 try/catch 探测里）。esbuild 把这类调用编成
@@ -32,7 +35,7 @@ import { rspack } from "@rspack/core";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(here, "..");
 const entry = path.join(appDir, "ui", "src", "settings.jsx");
-const outDir = path.join(appDir, "ui", "dist");
+const outDir = path.join(appDir, "dist", "ui");
 
 if (!fs.existsSync(entry)) {
   console.error(`[build-ui] 入口不存在：${entry}`);
@@ -50,7 +53,7 @@ const config = {
   output: {
     path: outDir,
     filename: "[name].js",
-    clean: false, // ui/dist/ 是产物目录，但不该被清掉其它可能的手工产物（保持与旧行为一致，不做清理）
+    clean: false, // dist/ 由 build-app 整体清空重建；共享目录不能在这里清（否则会抹掉别的构建产物）
     module: true,
     chunkFormat: "module",
   },
@@ -109,7 +112,7 @@ rspack(config, (err, stats) => {
   // 那时 assets 的形状与首次构建不同）。
   for (const name of ["settings.bundle.js", "settings.bundle.css"]) {
     const p = path.join(outDir, name);
-    console.log(`[build-ui] ui/dist/${name}  ${fs.existsSync(p) ? kb(fs.statSync(p).size) : "<缺失>"}`);
+    console.log(`[build-ui] dist/ui/${name}  ${fs.existsSync(p) ? kb(fs.statSync(p).size) : "<缺失>"}`);
   }
-  console.log("[build-ui] 完成。产物在 ui/dist/，随包安装后在 App 详情页「重新加载」。");
+  console.log("[build-ui] 完成。产物在 dist/ui/，随包安装后在 App 详情页「重新加载」。");
 });

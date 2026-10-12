@@ -27,7 +27,7 @@
  * 本 App 没有第二份东西，也没有那层壳：直接产出主体 `app.mjs`，宿主同样按 manifest.entry 加载。
  * 照搬 `index` 那个名字会把别人的补丁当成形态。
  *
- *   app.js ──rspack(node target)──▶ build/server/app.mjs ──build-app──▶ dist/bin/app.mjs
+ *   app.js ──rspack(node target)──▶ dist/bin/app.mjs
  *
  * ## 为什么是 Rspack
  *
@@ -36,8 +36,9 @@
  *
  * ## 产物落点
  *
- * `build/server/`（仓库内构建区，不入 git）。build-app.mjs 把它拷成交付树的 `bin/app.mjs`，
- * 与平台二进制同层——`bin/` 的语义就是"装到机器上要跑的东西"。
+ * `dist/bin/`——**直接写交付树**，不再经过 build/ 中转。中转那一层没有存在理由：
+ * 写进去立刻又拷出来，只会让"产物到底在哪"多一个需要判断的间接层。
+ * build-app.mjs 负责先清空 dist/、再依次调起各构建脚本。
  *
  * 用法：node scripts/build-server.mjs
  */
@@ -49,7 +50,7 @@ import { rspack } from "@rspack/core";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(here, "..");
 const entry = path.join(appDir, "app.js");
-const outDir = path.join(appDir, "build", "server");
+const outDir = path.join(appDir, "dist", "bin");
 
 if (!fs.existsSync(entry)) {
   console.error(`[build-server] 入口不存在：${entry}`);
@@ -64,7 +65,7 @@ const config = {
   output: {
     path: outDir,
     filename: "[name].mjs",
-    clean: true,
+    clean: false, // dist/bin/ 是共享目录（还有 rest-worker.mjs 等同层件），不能在这里清
     module: true,
     chunkFormat: "module",
     library: { type: "module" },
@@ -119,10 +120,10 @@ rspack(config, (err, stats) => {
   }
   const out = path.join(outDir, "app.mjs");
   if (!fs.existsSync(out)) {
-    console.error("[build-server] 未产出 build/server/app.mjs");
+    console.error("[build-server] 未产出 dist/bin/app.mjs");
     process.exit(1);
   }
   const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-  console.log(`[build-server] build/server/app.mjs  ${kb(fs.statSync(out).size)}`);
+  console.log(`[build-server] dist/bin/app.mjs  ${kb(fs.statSync(out).size)}`);
   console.log("[build-server] 完成。单入口 ESM（.mjs 自带 ESM 语义，无需随包 package.json）。");
 });
