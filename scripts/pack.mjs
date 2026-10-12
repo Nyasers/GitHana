@@ -25,6 +25,8 @@
  *
  * dist/ 是构建产出（不入库）。本脚本在暂存前先跑 scripts/build-app.mjs（它会先构建设置页产物，
  * 再白名单组装 dist/），所以“包里的东西必然等于当前源码的产物”，不依赖调用方记得先构建。
+ * 同一位置还先跑 `derive --check`：`THIRD_PARTY_NOTICES.md` 入库、由实装版本生成，实装变了
+ * 没重生成就带出过时的组件清单；release.yml 不跑 pnpm run check，所以这道门必须由出包自己把。
  *
  * 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
  * 宿主侧的包限制偏紧时，抬限制比裁包合理。
@@ -294,6 +296,28 @@ function main() {
   // 版本对齐先查源码树（manifest 与 package.json 的单一事实源都在那里），再组装 dist/。
   const manifest = readJson(join(ROOT, "manifest.json"));
   const pkg = readJson(join(ROOT, "package.json"));
+
+  // 派生文件门禁：`THIRD_PARTY_NOTICES.md` 入库、由 derive 从**实装版本**生成。实装依赖变了
+  // 却没重生成时，出包会带上过时的组件清单（列错版本，或漏/多列组件）。CI 里有这道门，
+  // 但出包（release.yml）不跑 pnpm run check；而包是直接面对用户的产物，它自己必须拒。
+  // 与 build-app 同层：都在组装 dist/ 之前，保持“包里的东西对得上当前源码”这个前提。
+  {
+    const deriveEntry = join(ROOT, "scripts", "derive", "index.mjs");
+    if (!existsSync(deriveEntry)) {
+      console.error("[pack] 找不到 scripts/derive/index.mjs，无法校验派生文件");
+      process.exit(1);
+    }
+    try {
+      execFileSync(process.execPath, [deriveEntry, "--check"], { cwd: ROOT, stdio: "pipe" });
+    } catch (e) {
+      const out = [e.stdout, e.stderr].map((b) => String(b || "")).join("\n").trim();
+      console.error(
+        "[pack] 派生文件与实装不一致，拒包：\n" + out.split("\n").slice(-12).join("\n") +
+          "\n       跑 node scripts/derive/index.mjs 写回后重新提交。",
+      );
+      process.exit(1);
+    }
+  }
   if (!manifest.id || !manifest.version) {
     console.error("[pack] manifest.json 缺 id/version，拒绝出包");
     process.exit(1);
