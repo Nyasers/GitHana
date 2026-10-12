@@ -5,7 +5,5 @@ Copyright (c) 2026 Nyasers
 Source code for this distribution is available at:
 https://github.com/Nyasers/GitHana
 
-This Source Code Form is "Incompatible With Secondary Licenses", as defined by the Mozilla Public License, v. 2.0.
-
-Vendored / bundled third-party components and their license texts:
-see THIRD_PARTY_NOTICES.md.
+Third-party components bundled with this distribution and their license texts:
+see THIRD_PARTY_NOTICES.md (generated at build time; full license texts are reproduced in it).

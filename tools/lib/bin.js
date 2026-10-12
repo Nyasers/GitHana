@@ -2,17 +2,29 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/bin.js — git/gh/gpg/gpgconf 可执行文件解析（平台通用）。
+ * tools/lib/bin.js — git 可执行文件解析（平台通用）。
+ *
+ * gpg / gpgconf 不在此列：签名已改由随包的纯 JS shim 完成（tools/lib/gpg.shim.mjs），
+ * 包内不再内嵌任何二进制。GitHub 域也不走外部二进制（REST worker 在子进程里直发）。
  *
  * ## 目录布局（布局是数据，查找是代码）
  *
- * 首选（多平台）： vendor/<platform>-<arch>/<component>/…  例：vendor/win32-x64/gh/bin/gh.exe
- * 兼容（v1 单一布局，仍可用）： vendor/<component>/…
+ * **仓库侧（sources.json 声明 / fetch-vendor 落盘 / selfcheck 校验）**：
+ *   vendor/sources.json                        声明（入库）
+ *   vendor/hana-app-sdk/                       SDK 快照（入库，构建期依赖）
+ *   vendor/bin/<platform>-<arch>/<component>/  构建期缓存（不入库）
+ *
+ * **产物侧（本文件解析的就是这一侧）**：
+ *   bin/<platform>-<arch>/<exe>                运行时二进制，平铺
+ *
+ * 两边形状**有意不同**：仓库那份是构建期缓存，按组件分目录是为了单组件能整体重抓；
+ * 产物里没有“重抓某个组件”这件事，组件那一层就只剩噪音——装到机器上要的是“这个平台的
+ * 二进制在哪”，`bin/<平台>/` 直接回答。构建期由 build-app 把两边投影过去。
  *
  * ## 解析链（按序探测，命中即用；全缺回退系统 PATH）
  *
  *   1) 宿主捆绑 git（Hana <resources>/git）——**只用 spawn 探活，不用 fs**
- *   2) 随包 vendor（许可根内，fs 判定）
+ *   2) 随包 bin/<平台>（许可根内，fs 判定）
  *   3) 系统 PATH
  *
  * 第 1 条为什么不能用 fs：AppHost 开了 Node Permission Model，宿主 resources 在许可根之外，
@@ -24,27 +36,68 @@
  * 不是每个平台都 vendor 每样东西：macOS/Linux 自带 git，硬塞 MinGit/Git for Windows 不合理。
  * `vendor/sources.json` 没声明的组件就是"本平台不内嵌、走系统 PATH"，与"声明了但没就绪"是两种状态。
  *
- * ## 隔离注入（applyPluginIsolation）
+ * ## 隔离与签名注入（buildBinEnv）
  *
- * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig、GNUPGHOME=<dataDir>/gnupg、
- * GIT_TERMINAL_PROMPT=0；token 已配置时注入 GH_TOKEN（取 DPAPI 解密结果，见 lib/secret.js）。
- * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
+ * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig 与 GIT_TERMINAL_PROMPT=0，
+ * 并把 `gpg.program` 覆盖成**随包的签名 shim**（tools/lib/sign-shim.js 生成的包装脚本）。
+ * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig。
  *
- * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，让 git 经 gpg.program 解析到的
- * 「PATH 里的 gpg」必然是插件环那把（认 GNUPGHOME env）。密钥生成接线写的是 vendor 绝对路径，
- * 而更早版本留下过裸名 "gpg.exe"——两种写法都命中隔离环，签名不会落系统 gpg。
- *
- * 平台注记：vendor 里的 gpg 必须是"认 GNUPGHOME env"的原生模式（Windows 上表现为删除
- * gpgconf.ctl，否则便携模式恒指 scoop home、忽略 GNUPGHOME）；POSIX 的系统 gpg 本就认。
+ * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
+ * gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { getToolDataDir, getToolSecretToken } from "./context.js";
+import { getToolDataDir } from "./context.js";
+import { ensureWrapper, keyFilePath } from "./sign-shim.js";
 
-/** 插件根目录（bin.js 位于 <root>/tools/lib/，上两级即根） */
-export const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+/**
+ * 插件根目录（安装目录）。
+ *
+ * **定义式推导：从入口所在目录向上找 `manifest.json`**——manifest 就在安装根，这是"安装根"的
+ * 根本定义，不依赖入口的层数、也不依赖任何宿主字段。两种形态自动都对：
+ *   · 源码树：入口是 <repo>/app.js（与 manifest.json 同级）→ 一级不找即命中；
+ *   · 交付产物：入口是 <install>/bin/app.mjs → `bin/` 里没有，上一步命中 <install>。
+ *
+ * 为什么不靠 `ctx.pluginDir`（曾经试过）：它给的是**源码树路径**而不是安装目录
+ * （真机实测：装到 <HANA_HOME>/apps/githana 后，该字段仍报开发仓库的绝对路径），
+ * 按它算 `bin/<平台>/` 会永远探空、静默回落系统 PATH——"装好了却用着系统那份"。
+ *
+ * 为什么不数固定层数：产物布局一改（单入口后入口进了 bin/）就指错，而 manifest.json 的位置
+ * 不会因布局变化而漂。
+ *
+ * **惰性 + 记忆化**：不在模块加载期探 fs。交付形态下本文件处在入口的 import 链上，而入口
+ * 加载时是宿主权限模型下最没特权的时刻（fs 读取面尚未按 App 的安装根开放），在顶层探
+ * `manifest.json` 会被拒（实测报 `Access to this API has been restricted. Use --allow-fs-read`）。
+ * 推迟到第一次真正用到时（工具调用 / 路由处理）探一次，之后记住——那时权限面已就绪。
+ */
+let cachedPluginRoot = null;
+
+export function pluginRoot() {
+  if (cachedPluginRoot) return cachedPluginRoot;
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  const entryDir = dir;
+  for (let i = 0; i < 6; i += 1) {
+    let hit = false;
+    try {
+      hit = fs.existsSync(path.join(dir, "manifest.json"));
+    } catch {
+      hit = false; // 权限未就绪或路径不可读：按不命中处理，交给下层回退
+    }
+    if (hit) {
+      cachedPluginRoot = dir;
+      return dir;
+    }
+    const up = path.dirname(dir);
+    if (!up || up === dir) break;
+    dir = up;
+  }
+  // 找不到 manifest（非标准布局）→ 回退到入口所在目录，不抛：工具面不该因路径推导失败而全挂。
+  // **不记忆化这个回退**：它可能是“首次调用时 fs 权限面还没就绪”造成的假阴性，一旦记下，
+  // 后续调用再也不会重探 manifest（进程内永久用了错误的根）。只缓存确实命中 manifest 的结果。
+  return entryDir;
+}
 
 /** 宿主注入的 resources 根环境变量（v1 时代有；v2 AppHost 不传，仅作候选之一） */
 const HOST_RESOURCES_ENV = "HANA_DESKTOP_RESOURCES_PATH";
@@ -54,35 +107,38 @@ const isWindows = PLATFORM === "win32";
 /** vendor 子目录名：平台-架构，例 win32-x64 / darwin-arm64 / linux-x64 */
 export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
-/** 每个组件在各平台 vendor 树里的相对路径与 PATH 附加目录（只写"树内形态"）。 */
+/**
+ * 每个工具在各平台的可执行路径与 PATH 附加目录（只写"树内形态"）。
+ *
+ * 路径形态是 `bin/<平台>-<架构>/<exe>`：产物里二进制平铺，不再有组件那一层。
+ * 编排参考：构建期 build-app 把仓库的 vendor/bin/<平台>/<组件>/ 投影到这里。
+ *
+ * **当前表里只有 git**：gpg / gpgconf 已不再需要（签名由随包的纯 JS shim 完成，
+ * 见 tools/lib/gpg.shim.mjs），包里不再内嵌任何二进制。
+ *
+ * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里也不声明 git），App 始终用宿主
+ * 那份 `<HANA_ROOT>/resources/git`。这里的 git 条目服务的是**宿主 git 的树内形态**——
+ * finish() 用 extraPath 把它自带的 cmd/ 与 mingw64/bin 等目录前置进 PATH，否则 git 找不到
+ * 自己的子命令。不要因“不随包”就删掉这条。
+ */
 export const VENDOR_LAYOUT = {
   win32: {
     git: { exe: "cmd/git.exe", extraPath: ["cmd", "mingw64", "bin", "usr", "bin"] },
-    gh: { exe: "bin/gh.exe" },
-    gpg: { exe: "bin/gpg.exe" },
-    gpgconf: { exe: "bin/gpgconf.exe" },
   },
   darwin: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "bin/gh" },
-    gpg: { exe: "bin/gpg" },
-    gpgconf: { exe: "bin/gpgconf" },
   },
   linux: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "bin/gh" },
-    gpg: { exe: "bin/gpg" },
-    gpgconf: { exe: "bin/gpgconf" },
   },
 };
 
 /**
  * 工具名（resolveBin 的 bin）→ vendor 组件目录名（vendor/sources.json 的 components 键）。
- * 同义不同名：gpg 与 gpgconf 两个可执行文件同出 GnuPG 一份组件目录，而该目录在 sources.json
- * 与 fetch-vendor 落盘里叫 gnupg。查找必须按组件目录名走——按工具名拼路径会永远探空、静默
- * 回退系统 gpg（Windows 上带 gpgconf.ctl 的便携版忽略 GNUPGHOME → 签名 No secret key）。
+ * 同义不同名时在这里建映射；当前无映射（git 组件名与工具名相同）。
+ * 历史上 gpg 与 gpgconf 两个可执行文件同出 gnupg 一份组件目录，那条映射随内嵌二进制一起移除。
  */
-export const VENDOR_COMPONENT = { gpg: "gnupg", gpgconf: "gnupg" };
+export const VENDOR_COMPONENT = {};
 
 /** 工具名 → vendor 组件目录名（未登记的工具名与目录同名，如 git / gh）。 */
 function componentFor(bin) {
@@ -94,13 +150,18 @@ function layoutFor(bin) {
   return table && table[bin] ? table[bin] : null;
 }
 
-/** vendor 根下某组件的候选目录（新布局优先，旧布局兜底）。 */
+/** 产物侧二进制所在处：bin/<平台-架构>/（平铺，无组件层）。 */
 function vendorRoots(bin) {
-  const component = componentFor(bin);
-  return [
-    path.join(PLUGIN_ROOT, "vendor", VENDOR_PLATFORM_KEY, component),
-    path.join(PLUGIN_ROOT, "vendor", component),
-  ];
+  return [path.join(pluginRoot(), "bin", VENDOR_PLATFORM_KEY)];
+}
+
+/**
+ * 随包二进制的根目录（bin/<平台-架构>/）。导出供诊断：它是"随包二进制找得到吗"的现场值。
+ * 路径推导与产物布局不一致时（如入口搬到 bin/ 后插件根变了），只靠 tools 会表现成静默回落
+ * 系统 PATH（"装好了但用的是系统那份"），这条诊断值能把那种情况当场显形。
+ */
+export function bundledBinRoot() {
+  return path.join(pluginRoot(), "bin", VENDOR_PLATFORM_KEY);
 }
 
 /** 去掉末尾 n 段路径（安全版，段数不够返回原值）。 */
@@ -180,7 +241,7 @@ function vendorCandidates(bin) {
   if (!layout) return [];
   return vendorRoots(bin).map((root) => ({
     path: path.join(root, layout.exe),
-    label: `${root.includes(VENDOR_PLATFORM_KEY) ? "内嵌" : "内嵌(旧布局)"} ${bin}`,
+    label: `内嵌 ${bin}`,
     root,
   }));
 }
@@ -244,7 +305,7 @@ export function probeExecutable(file, timeoutMs = 8000) {
 
 /**
  * 同步解析（仅许可根内可用 fs）：vendor → 系统 PATH。
- * 给"必须同步"的调用点用（如 gpgconf 是否来自 vendor 的判定）；外部命令解析走 resolveBinExec。
+ * 给"必须同步"的调用点用（外部命令解析走 resolveBinExec，含宿主 spawn 探活）。
  */
 export function resolveBin(bin) {
   for (const c of vendorCandidates(bin)) {
@@ -272,12 +333,13 @@ export async function resolveBinExec(bin) {
 
 /**
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
+ *
+ * 不注入任何 GitHub 凭据：GitHub 域已不走子进程（REST worker 的令牌经 stdin 传入，见
+ * tools/lib/rest.js），git 子进程也不读 GH_TOKEN。所以这里只做 git 的隔离注入与签名接线。
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
- * @param {{ omitToken?: boolean }} [options] omitToken=true 时不注入 GH_TOKEN
- *   （`gh auth login --with-token` 在 GH_TOKEN 存在时会拒绝写入自己的存储）。
  */
-export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
+export function buildBinEnv(baseEnv, resolved) {
   const env = { ...baseEnv, GIT_TERMINAL_PROMPT: "0" };
   if (resolved.source === "bundled" && resolved.extraPath && resolved.extraPath.length > 0) {
     env.PATH = resolved.extraPath.join(path.delimiter) + path.delimiter + (env.PATH || "");
@@ -285,17 +347,21 @@ export function buildBinEnv(baseEnv, resolved, { omitToken = false } = {}) {
   const dataDir = getToolDataDir();
   if (dataDir) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
-    env.GNUPGHOME = path.join(dataDir, "gnupg");
-    // PATH 收口：把 vendor gnupg/bin 前置，使「PATH 里的 gpg」就是隔离环那把。
-    // 覆盖 gpg.program 写成裸名（"gpg.exe"）的历史配置：裸名走 PATH → 命中 vendor（认 GNUPGHOME），
-    // 不再落系统 scoop gpg（gpgconf.ctl 便携模式忽略 GNUPGHOME → 签名 No secret key）。
-    const vendorGpg = resolveBin("gpg");
-    if (vendorGpg.source === "bundled" && vendorGpg.cmd) {
-      env.PATH = path.dirname(vendorGpg.cmd) + path.delimiter + (env.PATH || "");
-    }
-    if (!omitToken) {
-      const token = getToolSecretToken();
-      if (token) env.GH_TOKEN = token;
+    // 签名接线：gpg.program 指向**签名 shim**（纯 JS，见 tools/lib/gpg.shim.mjs）。
+    // 不再有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——gpg 二进制已经不在包里，
+    // 那套隔离机制存在的唯一理由（让 gpg 认隔离环）随之消失。
+    //
+    // 包装脚本每次现算（node 路径与安装位都可能变）；见 tools/lib/sign-shim.js。
+    // 走 git 的 GIT_CONFIG_* 机制（git ≥ 2.31）：它在所有配置文件之上生效，改不到文件也不脏文件。
+    const wrapper = ensureWrapper(dataDir);
+    if (wrapper) {
+      const baseCount = Number.parseInt(env.GIT_CONFIG_COUNT || "0", 10);
+      const n = Number.isFinite(baseCount) && baseCount >= 0 ? baseCount : 0;
+      env.GIT_CONFIG_COUNT = String(n + 1);
+      env[`GIT_CONFIG_KEY_${n}`] = "gpg.program";
+      env[`GIT_CONFIG_VALUE_${n}`] = wrapper;
+      // shim 是独立进程，不知道 dataDir：密钥路径经 env 传它（与 REST worker 的令牌经 stdin 同理）。
+      env.GITHANA_KEY_FILE = keyFilePath(dataDir);
     }
   }
   return env;

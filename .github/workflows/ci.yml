@@ -2,8 +2,8 @@
 #
 # 设计原则：CI 只是执行者，链在本仓库里（scripts/*.mjs），本地同一条命令：
 #   pnpm install --ignore-scripts && pnpm run check
-# vendor/ 不入 git，且内嵌内容本来就与平台相关（Windows 吃宿主 git + 内嵌 gh/gnupg；
-# macOS/Linux 只有 gh 有官方单文件产物）。
+# vendor/ 不入 git；当前 sources.json 组件表为空（签名与 GitHub 请求都走随包纯 JS，无内嵌二进制），
+# 所以三个平台完全同构，CI 不需要按平台拉取运行时。
 #
 # 诚实边界：官方 creator（validate_app / pack_app）不在本仓库。没配仓库变量
 # HANA_APP_TOOLS_ROOT 时，release.yml 会明确说明"没有官方校验"，而不是静默成功。
@@ -49,6 +49,12 @@ jobs:
           node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }}
           node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }} --check
 
-      # 与本地同一条链：构建设置页 UI + 结构自检（manifest / 全部服务端 JS 语法 / vendor 就绪性）
+      # 与本地同一条链：白名单组装交付树 dist/ + 结构自检
+      # （manifest / 全部服务端 JS 语法 / vendor 就绪性）。dist/ 与 ui/dist/ 不入库，现场生成。
       - name: Check chain
         run: pnpm run check
+
+      # 派生门禁：拦住「改了 manifest 版本或实装依赖却忘了重生成」。
+      # （THIRD_PARTY_NOTICES.md 入库，由 derive 任务生成；这里校验它与实装内容一致。）
+      - name: SDK third-party notice in sync
+        run: node scripts/derive/index.mjs --check

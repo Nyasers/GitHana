@@ -15,23 +15,23 @@
  * 单例为进程级：同一插件实例内共享（插件单实例，dataDir 稳定，dsh 同款 getSingleton 模式）。
  *
  * secretToken：GitHub OAuth 令牌（`ghu_`）经 DPAPI 加密后落 App 自己的数据目录（lib/secret.js）。
- * 解密是异步的，而 buildBinEnv 必须在 spawn 前同步拿到 GH_TOKEN，所以解密结果写进本单例，
- * 工具只同步读。凭据只有 OAuth 一种：无凭据就不注入 GH_TOKEN，让 gh 自己回报「未登录」。
+ * 解密是异步的，而工具调用需要在发请求前同步知道“有没有令牌”，所以解密结果写进本单例，
+ * 工具只同步读。凭据只有 OAuth 一种：无凭据就报未授权，不做任何降级。
  *
  * oauthMeta：凭据记录里那份**非机密** meta（login / expiresAt / needsReauth…）。挂在单例上
  * 是为了让刷新逻辑（lib/oauth.js）不必反复解密就能判断「要不要刷新」。
  *
- * freshChecker：令牌保活回调（index.js 注册，指向 lib/oauth.js 的 ensureFresh）。刷新是异步的，
- * 同样塞不进同步的 buildBinEnv，所以挂在 initToolContext 里——那是每次工具/路由调用都会
- * await 一次的入口。刷新失败不抛异常（无其它凭据可降级，失败就是失败，后续 gh 调用会报未登录）。
+ * freshChecker：令牌保活回调（app.js 注册，指向 lib/oauth.js 的 ensureFresh）。刷新是异步的，
+ * 而工具调用在发请求前是同步的，所以挂在 initToolContext 里——那是每次工具/路由调用都会
+ * await 一次的入口。刷新失败不抛异常（无其它凭据可降级，失败就是失败，后续调用会报未授权）。
  */
 let state = { dataDir: "", pluginDir: "", secretToken: "", oauthMeta: null };
 
 /**
- * 秘密加载器（由 index.js 注册，指向 lib/secret.js），以及「是否已加载」的一次性闩。
+ * 秘密加载器（由 app.js 注册，指向 lib/secret.js），以及「是否已加载」的一次性闩。
  *
- * 为什么挂在这里而不是 apply 里：解密要跑 powershell（DPAPI），而 spawn 前必须同步拿到
- * GH_TOKEN；所以推迟到首次工具/路由调用（initToolContext）时才跑，且只跑一次。
+ * 为什么挂在这里而不是 apply 里：解密要跑 powershell（DPAPI），而工具调用需要在发请求前
+ * 同步知道“有没有令牌”；所以推迟到首次工具/路由调用（initToolContext）时才跑，且只跑一次。
  */
 let secretLoader = null;
 let secretLoaded = false;
@@ -39,15 +39,29 @@ let secretLoaded = false;
 /** 令牌保活回调（每次 initToolContext 都跑；内部自行判断是否需要真正发请求）。 */
 let freshChecker = null;
 
-/** 注册/重置秘密加载器（index.js 在 apply 里调一次）。 */
+/** 注册/重置秘密加载器（app.js 在 apply 里调一次）。 */
 export function setSecretLoader(fn) {
   secretLoader = typeof fn === "function" ? fn : null;
   secretLoaded = false;
 }
 
-/** 注册/重置令牌保活回调（index.js 在 apply 里调一次）。 */
+/** 注册/重置令牌保活回调（app.js 在 apply 里调一次）。 */
 export function setFreshChecker(fn) {
   freshChecker = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * 只登记运行上下文（dataDir / pluginDir），**不触发**任何加载动作（不解密凭据、不跑保活）。
+ * 给 apply 阶段用：dispose 阶段要同步读 dataDir，而 initToolContext 是异步的、还会拉起
+ * DPAPI 解密——那里不合适。此处只写两个字符串，纯同步。
+ */
+export function primeToolContext(ctx) {
+  if (ctx && ctx.dataDir !== undefined && ctx.dataDir !== null) {
+    state.dataDir = String(ctx.dataDir);
+  }
+  if (ctx && ctx.pluginDir !== undefined && ctx.pluginDir !== null) {
+    state.pluginDir = String(ctx.pluginDir);
+  }
 }
 
 /**
