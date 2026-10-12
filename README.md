@@ -174,12 +174,12 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 
 ```bash
 pnpm install          # openpgp / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
-pnpm run build        # 组装 dist/（先清空，再依次构建三个产物 + 拷静态交付件）
+pnpm run build        # 组装 dist/（先清空，再依次构建产物 + 拷静态交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
 ```
 
-**构建产物直接落 `dist/`**（build-ui / build-server / build-shim 都写这里），没有 `build/` 中转层：
+**构建产物直接落 `dist/`**（build-ui / build-server / build-entries 都写这里），没有 `build/` 中转层：
 交付面就是它们的产物落点，中间那一层只会让“产物到底在哪”多一个需要判断的间接层。
 注意三个 `build:*` 子命令产出的是 dist/ 的**一部分**，单独跑会与其它产物共存；
 要一个完整交付树请跑 `pnpm run build`（它先清空 dist/）。
@@ -191,14 +191,16 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
-——`bin/` 的语义就是「装到机器上要跑的东西」。OpenPGP.js 以一份独立库文件（`openpgp.min.mjs`）
-放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，也让 LGPL §4(d)(1) 有落点。
+——`bin/` 的语义就是「装到机器上要跑的东西」。三个入口**都是压缩后的单入口 ESM**
+（`build-server` 打 app，`build-entries` 打另两个），形态一致。OpenPGP.js 以一份独立库文件
+（`openpgp.min.mjs`）放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，
+也让 LGPL §4(d)(1) 有落点；它是 `bin/` 下唯一不做压缩的（合规要求原样）。
 
 ```
 dist/
   manifest.json  NOTICE  THIRD_PARTY_NOTICES.md
   bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
-  bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖纯 node 脚本）
+  bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖，仅用 node 全局）
   bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
   bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
   assets/
@@ -228,7 +230,7 @@ dist/
 
 | 目录 | 内容 | 生成者 |
 |------|------|--------|
-| `dist/` | App 交付树（= 安装目录形态），**三个产物直接写它内部** | `scripts/build-app.mjs`（调 build-ui / build-server / build-shim） |
+| `dist/` | App 交付树（= 安装目录形态），**产物直接写它内部** | `scripts/build-app.mjs`（调 build-ui / build-server / build-entries） |
 
 源码与产物不混在同一层：`ui/src/` 是源，`dist/ui/` 是进包的那一份。
 **出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
