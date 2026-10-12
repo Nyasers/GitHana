@@ -7,7 +7,7 @@
  * 来源与校验全部来自 vendor/sources.json（声明式）：本脚本只负责
  * 「选平台 → 下载 → sha256 校验 → 解压 → 规整成 bin.js 认得的树 → 验证 exe 存在」。
  *
- * 三条纪律：
+ * 四条纪律：
  *   1) sha256 为空 = 本平台没提供可校验产物 → 明确跳过并告警（该组件回退系统 PATH），
  *      **不替它编一个哈希**；校验不通过一律不落盘。
  *   2) 解压后的树形可能带一层版本目录（不同 release 不一样）→ 自动摊平单层顶层目录。
@@ -23,25 +23,19 @@
  *   node scripts/fetch-vendor.mjs gnupg                # 只补某组件
  *   node scripts/fetch-vendor.mjs --platform linux-x64 # 指定平台条目（跨平台准备）
  *   node scripts/fetch-vendor.mjs --check              # 只校验（不下载）
- *
-/** 解压工具依赖：zip 在 Windows/macOS 用 tar（bsdtar 支持 zip），Linux 用 unzip；
- * targz 用 tar；7z-bin（GnuPG 的 NSIS 容器）用 7z。
- *
- * 解压在**抓取主机**上执行，与目标平台无关：CI 的 release 在 ubuntu 上为 win32 目标抓
- * gnupg，所以 7z 得在多种主机上都能找到。名字不统一（Windows scoop 是 `7z`，Debian/Ubuntu
- * 的 p7zip 可能是 `7z`/`7za`/`7zr`），按候选逐个试，全找不到才报错并给安装提示。
  */
-function find7z() {
-  for (const cand of ["7z", "7za", "7zr"]) {
-    try {
-      execFileSync(cand, ["--help"], { stdio: "ignore" });
-      return cand;
-    } catch {
-      /* 换下一个候选 */
-    }
-  }
-  throw new Error("找不到 7z（解 GnuPG 的 NSIS 容器需要）：请先安装 p7zip（如 Ubuntu 的 p7zip-full、macOS 的 brew p7zip）");
-}
+
+/**
+ * 解压工具依赖：zip 在 Windows/macOS 用 tar（bsdtar 支持 zip），Linux 用 unzip；targz 用 tar。
+ *
+ * NSIS/7z 容器（GnuPG 的 Windows 安装器）用 **7z-wasm**（devDependency）：它是 7-Zip 编译成
+ * WASM 的包，能力等同完整 `7zz`。不用主机上的 7z，因为：
+ *   · 解压在**抓取主机**上执行，与目标平台无关：CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg，
+ *     用外部 7z 就等于要求每台构建主机都装对版本；
+ *   · 主机上的 `7za` / `7zr` 是精简版，**不支持 NSIS**，而各发行版上的名字不统一，容易静默选中错的那个；
+ *   · 作为 devDependency，它的字节不进产物（node_modules 不在交付面），不构成再分发，故不进
+ *     licenses/（该目录只列随包或内联的组件，见 derive/thirdparty.mjs 的边界）。
+ */
 
 import { createHash } from "node:crypto";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, renameSync, copyFileSync, cpSync, unlinkSync, statSync } from "node:fs";
@@ -85,9 +79,9 @@ async function download(spec, cacheFile) {
     const reader = res.body.getReader();
     ws.on("error", reject);
     // 等 close，不等 end()：end() 只表示写入队列排空，文件句柄要到 close 才释放。紧随其后的解压
-    // 走 execFileSync，会阻塞事件循环——句柄没释放时 7z 打不开这个文件（Windows 实测
-    // "being used by another process"，CI win32 每次红在这一步）。等 close 还顺带保证落盘
-    // 字节与已校验的哈希一致（此前哈希取自流，文件可能仍是短的）。
+    // 会打开同一个文件（Windows 上句柄未释放时打开会报 "being used by another process"，
+    // CI win32 曾每次红在这一步）。等 close 还顺带保证落盘字节与已校验的哈希一致
+    //（此前哈希取自流，文件可能仍是短的）。
     ws.on("close", resolve);
     (function pump() {
       reader
@@ -111,6 +105,35 @@ async function download(spec, cacheFile) {
   log("sha256 校验通过");
 }
 
+/**
+ * 用 7z-wasm 解一个 7z / NSIS 容器到 destDir（宿主目录，转成 WASM 侧能看的路径）。
+ *
+ * 7z-wasm 把目标目录挂为 NODEFS 后 callMain；它的两条行为要点（实测）：
+ *   · 成功：callMain 正常返回；
+ *   · 失败：callMain **抛出数字**（7z 的退出码，带位标志，不是 0/1），不是 Error。
+ *     所以这里不能拿 exitCode !== 0 判，只把“抛出”当失败。
+ * WS 侧路径分隔符是 "/"，而 NODEFS 的 root 要宿主绝对路径。
+ */
+async function extract7z(cacheFile, destDir) {
+  const { default: SevenZip } = await import("7z-wasm");
+  const sz = await SevenZip({ print: () => {}, printErr: () => {} });
+  const mount = "/host";
+  try {
+    sz.FS.mkdir(mount);
+  } catch {
+    /* 已存在 */
+  }
+  sz.FS.mount(sz.NODEFS, { root: ROOT.replace(/\\/g, "/") }, mount);
+  sz.FS.chdir(mount);
+  const relCache = relative(ROOT, cacheFile).replace(/\\/g, "/");
+  const relDest = relative(ROOT, destDir).replace(/\\/g, "/");
+  try {
+    sz.callMain(["x", relCache, "-o" + relDest, "-y"]);
+  } catch (e) {
+    throw new Error(`7z-wasm 解压失败（退出码 ${String(e)}）：${relCache}`);
+  }
+}
+
 /** 摊平单层顶层目录：解压后若 exe 不在预期位置，且只套了一层目录，则把内容上移。 */
 function flattenIfNested(destRoot, exeRel) {
   if (existsSync(join(destRoot, exeRel))) return true;
@@ -130,18 +153,18 @@ function flattenIfNested(destRoot, exeRel) {
   return existsSync(join(destRoot, exeRel));
 }
 
-/** 解压（按 extract 类型分派）。 */
-function extract(spec, cacheFile, destRoot) {
+/** 解压（按 extract 类型分派）。7z-bin 走 7z-wasm，是异步的。 */
+async function extract(spec, cacheFile, destRoot) {
   rmSync(destRoot, { recursive: true, force: true });
   mkdirSync(destRoot, { recursive: true });
 
   if (spec.extract === "7z-bin") {
-    // GnuPG 的 NSIS/7z 容器：解到临时目录后只取 bin/ 的内容（平铺到组件根）。
-    // 这一步在任意主机上跑（CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg），
-    // 所以拷目录用 node 的 cpSync，不用 Windows 专有的 cmd/xcopy。
+    // GnuPG 的 NSIS 容器：解到临时目录后只取 bin/ 的内容（平铺到组件根）。
+    // 走 7z-wasm（devDependency），不依赖主机上的 7z：这一步在任意主机上跑
+    // （CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg），拷目录用 node 的 cpSync。
     rmSync(XTMP, { recursive: true, force: true });
     mkdirSync(XTMP, { recursive: true });
-    execFileSync(find7z(), ["x", cacheFile, "-o" + XTMP, "-y"], { stdio: "inherit" });
+    await extract7z(cacheFile, XTMP);
     cpSync(join(XTMP, "bin"), destRoot, { recursive: true, force: true });
     // NSIS 中间态残留
     for (const f of readdirSync(destRoot)) {
@@ -258,7 +281,7 @@ async function fetchOne(key, spec, platform) {
   if (!ready) await download(spec, cacheFile);
 
   log("解压 →", rel(destRoot));
-  extract(spec, cacheFile, destRoot);
+  await extract(spec, cacheFile, destRoot);
 
   // 摊平要在裁减前：裁减按顶层条目判断，摊平前顶层只有那一个版本目录。
   // 这一步要找的是**上游**路径（可能还套着 keep 那一层），不是落盘路径。
