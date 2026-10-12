@@ -529,15 +529,15 @@ function GitHanaSettings() {
           }
           hint={
             authorized
-              ? "提交会带上你的账号署名；登录到期前会自动续期。"
+              ? "令牌到期前会自动续期，无需手动操作。"
               : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
           }
         />
         {needsReauth ? (
           <SettingRow
-            label="需重新登录"
+            label="登录已过期"
             hintVariant="warn"
-            hint="上次登录已过期或被撤销，不会再用于任何请求。请重新登录。"
+            hint="刷新凭证已失效（超期或授权被撤销），不会再用于任何请求。"
             control={<MonoText>需重新登录</MonoText>}
           />
         ) : null}
@@ -551,17 +551,17 @@ function GitHanaSettings() {
         ) : null}
         {secret.readable === false && secret.configured ? (
           <SettingRow
-            label="登录信息不可用"
+            label="登录信息不可读"
             hintVariant="warn"
-            hint="本机读不出已保存的登录信息（可能来自别的平台）。重新登录一次即可。"
+            hint="本机读不出已保存的登录信息（可能来自别的平台）。"
             control={<MonoText>需重新登录</MonoText>}
           />
         ) : null}
         {secret.legacyPatPresent ? (
           <SettingRow
-            label="旧版记录"
+            label="旧版令牌记录"
             hintVariant="warn"
-            hint="检测到已停用的旧版令牌记录，它不会被用于任何请求，可以清除。"
+            hint="它已停用，不会被用于任何请求，可以清除。"
             control={
               <Inline gap="sm" align="center" wrap>
                 <Button variant="secondary" disabled={legacyBusy} onClick={clearLegacyPat}>
@@ -636,8 +636,8 @@ function GitHanaSettings() {
               ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
               : pk.present
                 ? published.published
-                  ? "签名已就绪：提交时自动签名，公钥已发布到账号。"
-                  : "密钥已生成，但账号上还没有对应公钥，可展开手动上传。"
+                  ? "提交会自动签名，并在 GitHub 上显示为 Verified。"
+                  : "展开公钥可手动上传；在补齐之前，提交不会显示为 Verified。"
                 : "生成后会直接发布到账号；两边始终一致，不会留单边残留。"
           }
         />
@@ -714,7 +714,7 @@ function GitHanaSettings() {
             {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
 
             {secret.expiresAt ? (
-              <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} hint="到期前会自动续期，无需操作" />
+              <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} />
             ) : null}
             {secret.refreshExpiresAt ? (
               <SettingRow label="续期凭证到期" control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>} hint="到期后需重新登录" />
@@ -746,14 +746,14 @@ function GitHanaSettings() {
               <SettingRow
                 label="待清理的旧公钥"
                 hintVariant="warn"
-                hint="账号上还留着上次没删掉的旧公钥（上传成功但删除失败）。下次上传或移除时会再试。"
+                hint="下次上传或移除时会自动重试清理。"
                 control={<MonoText>{published.pending} 把</MonoText>}
               />
             ) : null}
             {!published.published && pk.present ? (
               <SettingRow
                 label="公钥未在账号上"
-                hint="本机有密钥、但账号上没有对应公钥，提交不会显示 Verified。可在这里补传（只影响本 App 自己那把）。"
+                hint="在补齐之前，提交不会显示为 Verified。可在这里补传（只影响本 App 自己那把）。"
                 control={
                   <Button variant="secondary" disabled={pubBusy} onClick={publishPubkey}>
                     {pubBusy ? "处理中…" : "上传公钥"}
