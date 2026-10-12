@@ -173,7 +173,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # openpgp / react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm install          # openpgp / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（先清空，再依次构建三个产物 + 拷静态交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs

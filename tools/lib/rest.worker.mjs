@@ -56,6 +56,28 @@ const REDIRECT_HOSTS = new Set(["api.github.com", "github.com", "codeload.github
 /** 单请求最多跟随的重定向跳数（防卷回的 Location 把一次调用转死）。 */
 const MAX_REDIRECTS = 5;
 
+/**
+ * 校验一个出站 URL：主机在白名单内，**且协议是 https**。
+ *
+ * 只比 host 不够：`new URL("http://api.github.com/x").host` 也是 `api.github.com`，于是明文
+ * 请求会带着 Bearer token 发出去。调用点有三处（请求起点、每跳、分页 Link），共用这一个函数，
+ * 而非各写一遍——三份逻辑迟早会漂，而这里是安全边界。
+ *
+ * @param {URL} target 已解析的 URL
+ * @param {Set<string>} allowedHosts 允许的主机集
+ * @param {string} what 报错文案里的行为名（如“请求”/“重定向”）
+ * @returns {string|null} 不通过时返可读原因，通过返 null
+ */
+function outboundReject(target, allowedHosts, what) {
+  if (target.protocol !== "https:") {
+    return `拒绝${what}：${target.protocol}// 不是 https。`;
+  }
+  if (!allowedHosts.has(target.host)) {
+    return `拒绝${what}：${target.host} 不在允许的主机（${[...allowedHosts].join(" / ")}）。`;
+  }
+  return null;
+}
+
 /** 单次响应的读取上限（字节）：GitHub 的正常响应远小于此，超限截断并标记。 */
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
@@ -177,11 +199,8 @@ async function fetchChecked(startUrl, { method, headers, body, timeoutMs }) {
       throw new Error("URL 非法：" + String(url));
     }
     const allowed = hop === 0 ? ALLOWED_HOSTS : REDIRECT_HOSTS;
-    if (!allowed.has(target.host)) {
-      throw new Error(
-        "拒绝请求：" + target.host + " 不在允许的主机（" + [...allowed].join(" / ") + "）。",
-      );
-    }
+    const reject = outboundReject(target, allowed, "请求");
+    if (reject) throw new Error(reject);
     const res = await fetch(url, {
       method: methodNow,
       headers: headersNow,
@@ -198,11 +217,9 @@ async function fetchChecked(startUrl, { method, headers, body, timeoutMs }) {
     } catch {
       return res; // Location 不是合法 URL：当最终响应回报
     }
-    if (!REDIRECT_HOSTS.has(next.host)) {
-      throw new Error(
-        "拒绝重定向：" + next.host + " 不在允许跟随的主机（" + [...REDIRECT_HOSTS].join(" / ") + "）。",
-      );
-    }
+    // 跳转目标同样既要过主机白名单，也要是 https（codeload 必须是 https 下载）。
+    const rejectNext = outboundReject(next, REDIRECT_HOSTS, "跳转");
+    if (rejectNext) throw new Error(rejectNext);
     // 离开 api.github.com 后不带走凭据：codeload 是公开下载域，把令牌送过去没有必要。
     if (next.host !== "api.github.com" && headersNow.Authorization) {
       const { Authorization, ...rest } = headersNow;
@@ -256,15 +273,9 @@ async function executeOne(req, token) {
   } catch {
     return { id, ok: false, status: null, error: "URL 非法：" + String(req.url || "") };
   }
-  if (!ALLOWED_HOSTS.has(url.host)) {
-    return {
-      id,
-      ok: false,
-      status: null,
-      error:
-        "拒绝出站：" + url.host + " 不在本 App 的白名单（" +
-        [...ALLOWED_HOSTS].join(" / ") + "）。",
-    };
+  const reject = outboundReject(url, ALLOWED_HOSTS, "出站");
+  if (reject) {
+    return { id, ok: false, status: null, error: reject };
   }
 
   const timeoutMs = Number(req.timeoutMs) > 0 ? Number(req.timeoutMs) : DEFAULT_TIMEOUT_MS;

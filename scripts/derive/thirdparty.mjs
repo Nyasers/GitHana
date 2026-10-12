@@ -190,8 +190,10 @@ export function renderNotice({ components }) {
   L.push("- Source: 随宿主分发的 Hana App Creator SDK（快照见 `vendor/hana-app-sdk/`，含 `source-manifest.json`）");
   L.push("- License: Apache-2.0 —— 正文见 `licenses/Apache-2.0.txt`");
   L.push("- 该包自身的第三方声明（其内部又内联了其它组件）：见 `licenses/hana-app-sdk-THIRD_PARTY_NOTICES.txt`", "");
-  L.push("### react / react-dom 19.3.0", "");
+  L.push("### react / react-dom 19.2.4", "");
   L.push("- Purpose: 上述宿主组件的 peer 依赖，内联进设置页产物 `ui/settings.bundle.js`");
+  L.push("- Form: 构建期依赖（npm），经 rspack 内联设置页产物；两包自身不随安装包");
+  L.push("- Version 说明：版本与随包的 `@hana/app-sdk` 声明保持一致（同一份 SDK 声明里就列了\n  `react@19.2.4` / `react-dom@19.2.4`）。SDK 把 react 当 peer（`>=19`），所以两边不必同版，\n  但取同版能让两份声明的版本号对得上、也免去“为什么两个数”的疑问。");
   // react 与 SDK 的 npm 包都不随包（只有编译后的代码在 bundle 里），所以正文必须随 licenses/ 走。
   L.push("- License: MIT —— 正文见 `licenses/MIT-react.txt`（该包不随包分发，正文由本仓库持有）", "");
 
@@ -210,7 +212,7 @@ export function renderNotice({ components }) {
   L.push("|------|------|----------|");
   const indexRow = {
     "Apache-2.0.txt": ["Apache License 2.0", "@hana/app-sdk（构建期内联）"],
-    "MIT-react.txt": ["MIT (Copyright Meta Platforms, Inc. and affiliates)", "react / react-dom（构建期内联）"],
+    "MIT-react.txt": ["MIT (Copyright Meta Platforms, Inc. and affiliates)", "react / react-dom 19.2.4（构建期内联）"],
     "LGPL-3.0.txt": ["GNU LGPL v3", "openpgp / OpenPGP.js（随包独立库 bin/openpgp.min.mjs，运行期加载）"],
     "GPL-3.0.txt": ["GNU GPL v3", "LGPLv3 的基底（LGPL 条文引用它，§4(b) 要求两份都随包）"],
     "hana-app-sdk-THIRD_PARTY_NOTICES.txt": ["混合（含 MIT / ISC / Apache-2.0 等）", "@hana/app-sdk 内联的第三方依赖"],
