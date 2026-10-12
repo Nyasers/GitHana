@@ -22,11 +22,9 @@
 //   thirdparty       实装版本 + 仓库持有的法条正文 → THIRD_PARTY_NOTICES.md
 //
 // 不进本表：
-//   · NOTICE / LICENSE / 法条正文原文 —— 是人写/上游原文的法律文本，不是"能推导"的东西；
+//   · NOTICE / 法条正文原文 —— 是人写/上游原文的法律文本，不是"能推导"的东西；
 //   · 随包二进制（vendor/bin/）—— 由 fetch-vendor 按 sources.json 重建，源在网络上，
-//     且它属于「拉取」而非「派生」（`node scripts/fetch-vendor.mjs --check` 单独把关）；
-//   · 通知正文（THIRD_PARTY_NOTICES.md）—— 它是包的一部分，由 pack 在组装交付树时按实际
-//     内容渲染，仓库里没有这份文件可校验。
+//     且它属于「拉取」而非「派生」（`node scripts/fetch-vendor.mjs --check` 单独把关）。
 //
 // 用法：
 //   node scripts/derive/index.mjs               # 全部写回
