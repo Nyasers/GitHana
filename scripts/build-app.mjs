@@ -158,25 +158,54 @@ function main() {
   //     而不是先拷 vendor/ 再删。仓库里按组件分目录（vendor/bin/<平台>/<组件>/）是为了单组件
   //     可整体重抓；产物里没有“重抓某个组件”这件事，组件那一层就只剩噪音。
   //     sources.json 与 SDK 快照也不随包（运行时无消费者，声明只服务重建与派生）。
+  //
+  //     判定面按**本机平台**的声明：sources.json 里 sha256 为空的组件本就不随包（回退宿主 /
+  //     系统 PATH），macOS / Linux 声明里没有可校验产物，fetch-vendor 不会建 vendor/bin/——那是
+  //     合法状态，不是缺件。只拦“本机平台声明了可校验产物却没就绪”（与 selfcheck 同口径）。
+  //     不逐个平台校验：CI 是逐平台跑的，Linux runner 上本来就只抓了 linux 的 vendor。
   const srcVendorBin = join(ROOT, "vendor", "bin");
-  if (!existsSync(srcVendorBin)) {
-    console.error("[build-app] 缺 vendor/bin/（跑 node scripts/fetch-vendor.mjs 重建内嵌运行时）");
-    process.exit(1);
+  const hostKey = `${process.platform}-${process.arch}`;
+  let srcSources = null;
+  try {
+    srcSources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
+  } catch {
+    srcSources = null;
   }
-  for (const platform of readdirSync(srcVendorBin)) {
-    const platformDir = join(srcVendorBin, platform);
-    if (!statSync(platformDir).isDirectory()) continue;
-    const outDir = join(DIST, "bin", platform);
-    mkdirSync(outDir, { recursive: true });
-    for (const component of readdirSync(platformDir)) {
-      const compDir = join(platformDir, component);
-      if (!statSync(compDir).isDirectory()) continue;
-      for (const name of readdirSync(compDir)) {
-        copyInto(join(compDir, name), join(outDir, name));
-      }
+  const declaredMissing = [];
+  for (const [component, spec] of Object.entries(
+    (srcSources && srcSources.platforms && srcSources.platforms[hostKey] &&
+      srcSources.platforms[hostKey].components) || {},
+  )) {
+    if (!spec.sha256) continue; // 无声明产物 → 走宿主 / 系统 PATH，不必随包
+    if (!existsSync(join(srcVendorBin, hostKey, component, spec.exe))) {
+      declaredMissing.push(`${hostKey}/${component}`);
     }
   }
-  log("vendor/bin/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
+  if (declaredMissing.length) {
+    console.error(
+      `[build-app] 本机平台声明了却未就绪的内嵌组件：${declaredMissing.join("、")}\n` +
+        `           跑 node scripts/fetch-vendor.mjs --platform ${hostKey} 重建内嵌运行时。`,
+    );
+    process.exit(1);
+  }
+  if (existsSync(srcVendorBin)) {
+    for (const platform of readdirSync(srcVendorBin)) {
+      const platformDir = join(srcVendorBin, platform);
+      if (!statSync(platformDir).isDirectory()) continue;
+      const outDir = join(DIST, "bin", platform);
+      mkdirSync(outDir, { recursive: true });
+      for (const component of readdirSync(platformDir)) {
+        const compDir = join(platformDir, component);
+        if (!statSync(compDir).isDirectory()) continue;
+        for (const name of readdirSync(compDir)) {
+          copyInto(join(compDir, name), join(outDir, name));
+        }
+      }
+    }
+    log("vendor/bin/ → bin/<platform>/（平铺）；构建期元数据与声明不随包");
+  } else {
+    log(`vendor/bin/ 不存在：本平台（${hostKey}）声明里没有可校验的内嵌组件（二进制走宿主 / 系统 PATH）`);
+  }
 
   // 3) ui/：只放壳页与构建产物，**不放源码**（ui/src/ 是源，不属于交付面）。
   const uiSrcHtml = join(ROOT, "ui", "settings.html");

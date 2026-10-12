@@ -361,13 +361,20 @@ function main() {
     vendorKept = readdirSync(binRoot).filter(isPlatformDir);
   }
 
-  // universal 的完整性断言：全平台随包就要求每个平台该带的组件都在。
-  // 少一个平台 = 包到了那台机器上才发现签名链路缺 gpg，正是「名义 universal、实则不全」的缺口。
-  if (target === "universal") {
+  // 随包完整性断言：按 target 的**声明面**逐个核。
+  //   universal = 要发到任意平台 → 要求每个平台该带的组件都在；
+  //   点名平台 = 只要求该平台的组件在（其余平台本来就不随包，不列入）。
+  // 少一个可校验组件 = 包到了那台机器上才发现签名链路缺 gpg，正是「名义完整、实则缺件」的缺口。
+  // 只要求“有可校验产物”的组件：sha256 为空的按系统 PATH 走，不必随包。
+  {
     const sources = readJson(join(ROOT, "vendor", "sources.json"));
+    const platforms = target === "universal"
+      ? Object.entries(sources.platforms || {})
+      : sources.platforms && sources.platforms[target]
+        ? [[target, sources.platforms[target]]]
+        : [];
     const missing = [];
-    for (const [platform, entry] of Object.entries(sources.platforms || {})) {
-      // 只要求“有可校验产物”的组件：sha256 为空的按系统 PATH 走，不必随包。
+    for (const [platform, entry] of platforms) {
       for (const [component, spec] of Object.entries(entry.components || {})) {
         if (!spec.sha256) continue;
         if (!existsSync(join(binRoot, platform, spec.exe))) missing.push(`${platform}/${component}`);
@@ -375,8 +382,8 @@ function main() {
     }
     if (missing.length) {
       console.error(
-        `[pack] universal 要求全平台随包，但以下组件缺失：${missing.join("、")}\n` +
-          `       逐个平台补齐：node scripts/fetch-vendor.mjs --platform <platform>`,
+        `[pack] target=${target} 要求随包的组件缺失：${missing.join("、")}\n` +
+          `       补齐：node scripts/fetch-vendor.mjs --platform <platform>`,
       );
       process.exit(1);
     }
