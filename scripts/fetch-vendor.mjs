@@ -15,7 +15,7 @@
  *      `bin/` 只是它自己的布局，而 `vendor/bin/<平台>/<组件>/` 已经声明了「这里是二进制」，
  *      再套一层纯属冗余。最终形态是 `vendor/bin/<平台>/<组件>/<exe>`。
  *      上游的 share/（man 手册）、LICENSE、卸载器、include/ 一律不进包；
- *      许可正文走 licenses/ 单一出口（见 sources.json 的 keep 说明）。
+ *      许可正文统一走 THIRD_PARTY_NOTICES.md（见 sources.json 的 keep 说明）。
  *   4) `--check` 只校验现状，不下载；CI 用它把"声明了却没就绪"变成硬失败。
  *
  * **当前 sources.json 里没有任何组件**（无内嵌二进制：签名走纯 JS、git 用宿主那份），

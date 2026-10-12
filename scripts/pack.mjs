@@ -15,7 +15,7 @@
  *
  * ## 产物形状（对齐官方包的实测布局）
  *
- * ZIP 内文件在根：manifest.json / bin/ / ui/ / licenses/ / skills/ / assets/…
+ * ZIP 内文件在根：manifest.json / bin/ / ui/ / assets/…（许可面为 NOTICE + THIRD_PARTY_NOTICES.md）
  *
  * 本脚本**只从 dist/ 出包**，不再从源码树过滤：交付面由 scripts/build-app.mjs 以白名单组装好，
  * 源码与开发件根本不进 dist/。这里不做任何排除判断——黑名单只列它记得的东西，源码树里多出
@@ -60,9 +60,8 @@ import {
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-// 打包期重渲染通知与裁剪许可面：包里有什么，通知就只讲什么。
-// 复用同一套 render，差别只在传入的组件列表（见 scripts/derive/thirdparty.mjs 头注）。
-import { renderNotice, licensesFor } from "./derive/thirdparty.mjs";
+// 打包期的许可面重渲与裁剪已取消：`THIRD_PARTY_NOTICES.md` 改由 `derive` 任务生成并入库
+// （内容与本包交付内容一致；无内嵌二进制，各 target 相同），仓库里那份就是包里那份。
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** 交付树（= App 安装目录形态）：由 scripts/build-app.mjs 白名单组装，本脚本从它出包。 */
@@ -110,16 +109,6 @@ function shippedComponentsInStage(binRoot) {
     }
   }
   return [...out].sort();
-}
-
-/** 许可正文目录只留本包适用的那几份（其余删掉，不随包）。 */
-function pruneLicenses(stageDir, shipped) {
-  const dir = join(stageDir, "licenses");
-  if (!existsSync(dir)) return;
-  const keep = new Set(licensesFor(shipped));
-  for (const name of readdirSync(dir)) {
-    if (!keep.has(name)) rmSync(join(dir, name), { force: true });
-  }
 }
 
 /** 暂存净包。末级目录名必须等于 manifest.id（官方校验器会校验"目录名 = id"）。 */
@@ -392,16 +381,11 @@ function main() {
     }
   }
 
-  // 1b) 许可面随实际内容收窄。
-  //     通知写的是「这个包里有什么」，所以它必须跟着**本包的交付内容**走，而不是仓库的全集：
-  //     一个不带某组件的包若附带它的段落与条文，不是在多给，是在陈述不成立的事实。
-  //     与上面 bin/ 按 target 收窄同一条原则、同一个位置。
+  // 1b) 许可面不再在打包期改动：`THIRD_PARTY_NOTICES.md` 由 `derive` 生成并入库，随交付树进入暂存。
+  //     旧形态（pack 现渲染 + 按组件裁剪 licenses/）是为「包内容随 target 变」服务的；当前无内嵌
+  //     二进制、各 target 交付内容相同，那个前提不成立。随包组件仍报出来供核对。
   const shipped = shippedComponentsInStage(binRoot);
-  const notice = renderNotice({ components: shipped });
-  writeFileSync(join(stageDir, "THIRD_PARTY_NOTICES.md"), notice, "utf8");
-  pruneLicenses(stageDir, shipped);
-  console.log(`[pack] 许可面收窄：随包组件 [${shipped.join(", ") || "（无）"}] → ` +
-    `通知 ${notice.length} 字节，licenses/ 保留 ${licensesFor(shipped).length} 份`);
+  console.log(`[pack] 随包二进制组件：[${shipped.join(", ") || "（无）"}]`);
 
   console.log(
     `[pack] target=${target}  暂存文件 ${files.length} 个  vendor=[${vendorKept.join(", ")}]` +

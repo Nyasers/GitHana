@@ -186,8 +186,8 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 
 **构建期依赖不进包**：`@rspack/core` 是打包器，只在构建主机上跑，字节不进 `dist/`，
 所以既不用系统上的构建工具（也就没有"构建主机得装对版本"的外部要求），
-也不必进 `licenses/`（该目录只列随包或内联的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
-`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以在 `licenses/` 里。
+也不进第三方通知（只列**代码进交付面**的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
+`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以列在通知里。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
@@ -196,12 +196,12 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 
 ```
 dist/
-  manifest.json  LICENSE  NOTICE
+  manifest.json  NOTICE  THIRD_PARTY_NOTICES.md
   bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
   bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖纯 node 脚本）
   bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
   bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
-  licenses/ assets/
+  assets/
   ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
 ```
 
@@ -251,9 +251,9 @@ scripts/
 （有的数 `..` 层数、有的只认 `--x v` 不认 `--x=v`）。收敛成一处，新增脚本只 import。
 
 **`derive` 的口径**：凡「能推导 + 被抄了多份 + 抄漏会坏」的事实都进那张表（当前两项：主清单版本
-→ `package.json#version`、SDK tgz → `licenses/` 那份声明）。只写"这个文件该长什么样"，比较与
-写回由框架统一做；`--check` 只读不写，CI 用它当门禁。人不定与不可推导的东西不进表：法律文本、
-通知正文（它是包的一部分，由 pack 渲染）。
+→ `package.json#version`、实装版本 + 仓库持有的法条正文 → `THIRD_PARTY_NOTICES.md`）。只写"这个文件
+该长什么样"，比较与写回由框架统一做；`--check` 只读不写，CI 用它当门禁。人不定的东西不进表
+（如 `NOTICE` 的措辞——它只有仓库 URL 会漂，手改即可）。
 
 ```bash
 pnpm run derive         # 全部写回
@@ -288,37 +288,57 @@ pnpm run sync:sdk -- --check # 只校验漂移
 ```
 
 同步后要跟着做两件事（脚本会打印）：按包名点名 `pnpm update @hana/app-sdk`（pnpm 不会因本地
-tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里那份 SDK 声明。
+tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 `THIRD_PARTY_NOTICES.md`（SDK 内联的那两个包
+版本读自它的声明）。
 
 快照本身**不随包**：它是构建期依赖，由 rspack 内联进设置页产物；`build-app.mjs` 会把
 `dist/vendor/hana-app-sdk/` 删掉。
 
 ## 第三方许可
 
-**通知是包的一部分，仓库里不存它。** `THIRD_PARTY_NOTICES.md` 写的是“这个包里有什么”，
-而包内容取决于交付面（当前无内嵌二进制，只有构建期内联的 UI 依赖与一份随包独立库），
-源码并不“拥有”某个特定包的内容。所以它由 `pack.mjs` 在组装交付树时按实际内容渲染
-（见「许可面随包内容收窄」）。
+许可面只有三件（对齐 DSHana 的形态）：
 
-两个真好处：**不会漂**（没有一份静态文件可以跟包不一致，以前靠 `--check` 比对，现在压根只有一份）；
-**不会多**（没有内嵌二进制的包里不会出现无关组件段落与条文——那不是在多给，是在陈述不成立的事实）。
+| 文件 | 位置 | 内容 |
+|------|------|------|
+| `LICENSE` | **只在仓库**，不进包 | 本项目 MPL-2.0 全文 |
+| `NOTICE` | 仓库 + 包根 | 本项目声明（受 MPL 约束 + 获取副本的地址 + 源码位置） |
+| `THIRD_PARTY_NOTICES.md` | 仓库 + 包根 | 第三方组件清单 + **各自的许可正文全文** |
 
-通知里的事实与许可正文**分开落点**：通知只陈述关系，法条逐份在 `licenses/`（随包）。这样法条
-不经脚本转手（内联意味着让 `trimEnd` 决定法律文本长什么样）。
+**包里不带 `LICENSE`，为什么合规**：MPL §3.1 的原文要求是「告知接收方源码形式受本许可约束，
+**以及如何取得副本**」——不是「把副本随包带上」。这两件事由 `NOTICE` 的头两句履行（声明受 MPL
+约束 + 给出 `https://mozilla.org/MPL/2.0/`）。仓库里那份 `LICENSE` 服务的是源码形式。
 
-`licenses/` 里的内容来源分两类：
+**一份 TPN 讲完第三方**：组件清单与各自的法条正文同处一文件（不再有 `licenses/` 目录）。
+旧形态是「一份汇总 + 一目录散装」，同一件事两个落点，读的人得在两处对照。
 
-- **静态正文**（`Apache-2.0.txt` / `GPL-3.0.txt` / `LGPL-3.0.txt` / `MIT-react.txt`）—— 必须由仓库持有原文。
-  上游不给或不便随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不携带自己的
-  LICENSE 附属件。`GPL-3.0.txt` 与 `LGPL-3.0.txt` 成对：LGPL §4(b) 要求两份都随包（LGPL 条文引用 GPL）。
-- **`hana-app-sdk-THIRD_PARTY_NOTICES.txt`** —— 从 SDK tgz 现取，由 `derive` 任务写入（与版本同源，手抄必漂）：
+**它入库，由 `derive` 生成**：与 DSHana 同形。旧的「不入库、由 pack 现渲染」是为「包内容随 target 变」
+服务的；当前无内嵌二进制、各 target 交付内容相同，那个前提不成立。
 
-  ```bash
-  pnpm run derive            # 全部写回（含从 tgz 现取的那份声明）
-  pnpm run derive:check      # CI 门禁：拦住「换了 SDK 快照却忘了同步」
-  ```
+```bash
+pnpm run derive            # 全部写回（含重生成 THIRD_PARTY_NOTICES.md）
+pnpm run derive:check      # CI 门禁：拦住「改了版本/组件却忘了重生成」
+```
 
-**gh CLI 的 MIT 正文已随 gh 一起移除**（见「GitHub 通道」）：包不再带它，法条就不该留在 `licenses/`。
+### 它只列**本包真的分发**的组件
+
+判据是「代码进不进交付面」，不是「是不是依赖」。当前七项：构建期内联的 `@hana/app-sdk`
+(Apache-2.0) / `react` / `react-dom` / `scheduler` / `react-is` / `use-sync-external-store`（均 MIT），
+与随包独立库 `openpgp`（LGPL-3.0-or-later）。
+
+这里有个容易踩的坑：**`@hana/app-sdk` 自带一份 91 KB 的 `THIRD_PARTY_NOTICES.txt`（82 个包）**，
+它描述的是 SDK 的 `app-ui.js` 产物（antd 生态全家桶）。本 App 只内联它的 `components` / `ui` 入口，
+antd 一个字节都没进包——整份搬运就是陈述不成立的事实。所以那份文件现在只作**构建期数据源**
+（取 SDK 内联的那两个包的版本），不随包、不再当通知发。
+
+### 法条正文的来源
+
+原文存 `scripts/derive/licenses/`（**开发件，不随包**），拼接时只 `trimEnd()`，不改正文：
+
+- `apache-2.0.txt` / `mit-meta.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
+  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不自带 LICENSE 附属件。
+- LGPL 与 GPL 成对：LGPL §4(b) 要求两份正文都在场（LGPL 条文引用 GPL）。
+- 可与实装对齐的已核对过：`mit-meta.txt` 与 react/react-dom/scheduler 的 LICENSE 逐字节相同
+  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同。
 
 ### LGPL 组件（OpenPGP.js）的合规落点
 
@@ -351,12 +371,13 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
 
 **每个组件目录只留运行时需要的文件**：落盘把上游 `remove/*` 的内容平铺到组件根，最终形态是
 `vendor/bin/<平台>/<组件>/<exe>`。上游产物里那此 `share/`（man 手册）、`LICENSE`、卸载器、
-`include/` 都裁掉，不靠随包拷贝转运许可文本（法条统一走 `licenses/`）。
+`include/` 都裁掉，不靠随包拷贝转运许可文本（许可面统一走 `THIRD_PARTY_NOTICES.md`）。
 **git 不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在宿主
 安装目录里，不由本包再带一份。
 
-**许可面随包内容收窄**：`pack.mjs` 出包时重渲染 `THIRD_PARTY_NOTICES.md`、并只留本包适用的
-`licenses/` 正文。与 vendor 按 `--target` 收窄同一条原则、同一个位置。
+**许可面不在打包期改动**：`THIRD_PARTY_NOTICES.md` 由 `derive` 生成并入库，随交付树进入暂存；
+仓库里那份就是包里那份。旧形态（pack 现渲染 + 按组件裁剪 `licenses/`）是为「包内容随 target 变」
+服务的，那个前提已不成立。
 
 布局与解析：
 

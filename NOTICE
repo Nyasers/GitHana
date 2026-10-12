@@ -6,5 +6,4 @@ Source code for this distribution is available at:
 https://github.com/Nyasers/GitHana
 
 Third-party components bundled with this distribution and their license texts:
-see the THIRD_PARTY_NOTICES.md included in this package (generated per-package at build time),
-with the full license texts under licenses/.
+see THIRD_PARTY_NOTICES.md (generated at build time; full license texts are reproduced in it).
