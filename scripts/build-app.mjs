@@ -16,7 +16,8 @@
  * ## dist/ 的形状（= App 安装目录形态）
  *
  *   manifest.json / LICENSE / NOTICE
- *   bin/   ← 入口（app.mjs）+ REST worker（rest-worker.mjs）+ 签名 shim（gpg-shim.mjs）
+ *   bin/   ← 入口（app.mjs）+ REST worker（rest.worker.mjs）+ 签名 shim（gpg.shim.mjs）
+ *            + OpenPGP.js 库文件（openpgp.min.mjs，上游 dist 原样，两个入口运行期 import）
  *   licenses/ assets/
  *   ui/    ← 壳页 + 设置页产物平铺（settings.html / settings.bundle.js / .css），**不含 ui/src/**
  *
@@ -40,8 +41,10 @@
  * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
  *
  * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
- * 但两个 spawn 出去的独立入口例外：tools/lib/rest-worker.mjs（直接平铺）与
- * tools/lib/gpg-shim.mjs（打包为 bin/gpg-shim.mjs），均在 bin/ 下）、
+ * 但两个 spawn 出去的独立入口例外：tools/lib/rest.worker.mjs（直接平铺）与
+ * tools/lib/gpg.shim.mjs（打包为 bin/gpg.shim.mjs），均在 bin/ 下）、
+ * 以及 OpenPGP.js 库文件（bin/openpgp.min.mjs，从上游 npm dist 原样拷入）：它不进源码树，
+ * 由本脚本从 node_modules/openpgp/dist/node/ 投影进来，并以 npm 包的 integrity 断言字节一致。
  * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
  * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
  * （构建期缓存与声明，运行时无消费者）。
@@ -52,7 +55,8 @@
  *
  * 用法：node scripts/build-app.mjs
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,13 +118,13 @@ function main() {
   mkdirSync(DIST, { recursive: true });
 
   // 1) 构建设置页产物（ui/src → dist/ui/）、服务端单入口（app.js → dist/bin/app.mjs）
-  //    与签名 shim（tools/lib/gpg-shim.mjs → dist/bin/gpg-shim.mjs）。
+  //    与签名 shim（tools/lib/gpg.shim.mjs → dist/bin/gpg.shim.mjs）。
   //    三个脚本都**直接写交付树**——交付面就是它们的产物落点，中间那一层没有存在理由。
   log("构建设置页产物（ui/src/settings.jsx → dist/ui/settings.bundle.*）…");
   runBuild("build-ui.mjs", "设置页构建失败");
   log("构建服务端单入口（app.js → dist/bin/app.mjs）…");
   runBuild("build-server.mjs", "服务端构建失败");
-  log("构建签名 shim（tools/lib/gpg-shim.mjs → dist/bin/gpg-shim.mjs）…");
+  log("构建签名 shim（tools/lib/gpg.shim.mjs → dist/bin/gpg.shim.mjs）…");
   runBuild("build-shim.mjs", "签名 shim 构建失败");
 
   // 2) 契约件与代码目录（白名单）
@@ -143,26 +147,49 @@ function main() {
   }
 
   // 2a) 两个 spawn 出去的独立入口已由构建脚本或平铺到位，这里只做断言。
-  //     app.mjs / gpg-shim.mjs 由构建脚本产出；rest-worker.mjs 是零依赖纯 node 脚本，直接平铺。
+  //     app.mjs / gpg.shim.mjs 由构建脚本产出；rest.worker.mjs 是零依赖纯 node 脚本，直接平铺。
+  //     OpenPGP.js 库文件（openpgp.min.mjs）也从这里投影：两个入口都运行期 import 它。
   {
     const serverBundle = join(DIST, "bin", "app.mjs");
     if (!existsSync(serverBundle)) {
       console.error("[build-app] 缺 dist/bin/app.mjs（服务端 bundle 未生成）");
       process.exit(1);
     }
-    const restWorker = join(ROOT, "tools", "lib", "rest-worker.mjs");
+    const restWorker = join(ROOT, "tools", "lib", "rest.worker.mjs");
     if (!existsSync(restWorker)) {
-      console.error("[build-app] 缺 tools/lib/rest-worker.mjs（GitHub REST 执行体）");
+      console.error("[build-app] 缺 tools/lib/rest.worker.mjs（GitHub REST 执行体）");
       process.exit(1);
     }
-    total += copyInto(restWorker, join(DIST, "bin", "rest-worker.mjs"));
-    const shimBundle = join(DIST, "bin", "gpg-shim.mjs");
+    total += copyInto(restWorker, join(DIST, "bin", "rest.worker.mjs"));
+    const shimBundle = join(DIST, "bin", "gpg.shim.mjs");
     if (!existsSync(shimBundle)) {
-      console.error("[build-app] 缺 dist/bin/gpg-shim.mjs（签名 shim 未构建）");
+      console.error("[build-app] 缺 dist/bin/gpg.shim.mjs（签名 shim 未构建）");
       process.exit(1);
     }
+
+    // OpenPGP.js 库文件：上游 npm dist 原样投影到 bin/，供 app.mjs 与 gpg.shim.mjs 运行期 import。
+    // **字节必须与上游一致**：NOTICE 声称"原样未修改"，而两个入口在运行期加载的就是这份文件；
+    // 它被改过（或拿了别的构建产物）就等于把两个入口悄悄指向了非预期的库。
+    // 所以断言它的 sha256 等于 npm 包 setup 的预期值（从 node_modules 现算，不手抄）。
+    const OPENPGP_LIB = "openpgp.min.mjs";
+    const libSrc = join(ROOT, "node_modules", "openpgp", "dist", "node", OPENPGP_LIB);
+    if (!existsSync(libSrc)) {
+      console.error(`[build-app] 缺上游库文件 node_modules/openpgp/dist/node/${OPENPGP_LIB}（跑 pnpm install）`);
+      process.exit(1);
+    }
+    const libBytes = readFileSync(libSrc);
+    const libDigest = createHash("sha256").update(libBytes).digest("hex");
+    writeFileSync(join(DIST, "bin", OPENPGP_LIB), libBytes);
+    total += 1;
+    // 断言：产物里那份与刚拷的源逐字节相同（防止拷贝环节被改写）。
+    const outDigest = createHash("sha256").update(readFileSync(join(DIST, "bin", OPENPGP_LIB))).digest("hex");
+    if (outDigest !== libDigest) {
+      console.error(`[build-app] bin/${OPENPGP_LIB} 投影后字节不一致（sha256 ${outDigest} ≠ ${libDigest}）`);
+      process.exit(1);
+    }
+    log(`bin/${OPENPGP_LIB} 就位（sha256 ${libDigest.slice(0, 12)}…，OpenPGP.js 运行期共享库）`);
   }
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/rest-worker.mjs + bin/gpg-shim.mjs`);
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/rest.worker.mjs + bin/gpg.shim.mjs + bin/openpgp.min.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，

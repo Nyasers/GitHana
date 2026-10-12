@@ -95,14 +95,6 @@ async function download(spec, cacheFile) {
   log("sha256 校验通过");
 }
 
-/**
- * 用 7z 解一个 7z / NSIS 容器到 destDir。
- *
- * 当前 sources.json 无组件使用它（无内嵌二进制），保留供将来需要拆 NSIS 类容器时复用。
- * 注：若重新启用，需重新引入 7z-wasm（devDependency）并处理 callMain 的行为：
- * 成功时正常返回，失败时**抛出数字**（7z 退出码，带位标志，不是 0/1）。
- */
-
 /** 摊平单层顶层目录：解压后若 exe 不在预期位置，且只套了一层目录，则把内容上移。 */
 function flattenIfNested(destRoot, exeRel) {
   if (existsSync(join(destRoot, exeRel))) return true;

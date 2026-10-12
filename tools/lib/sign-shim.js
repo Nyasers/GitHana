@@ -9,8 +9,8 @@
  * git 的 `gpg.program` 只接受**一个可执行文件路径**，不能带参数（整串当 argv0，实测）。
  * 而 shim 是 `.mjs`，需要一个 node 来执行它。所以中间垫一层包装：
  *
- *   Windows：<dataDir>/gpg-shim.cmd   @echo off / "<node>" "<shim>" %*
- *   POSIX  ：<dataDir>/gpg-shim.sh    #!/bin/sh / exec "<node>" "<shim>" "$@"
+ *   Windows：<dataDir>/gpg.shim.cmd   @echo off / "<node>" "<shim>" %*
+ *   POSIX  ：<dataDir>/gpg.shim.sh    #!/bin/sh / exec "<node>" "<shim>" "$@"
  *
  * 包装生成到 **dataDir**（可写），不写安装目录（安装目录只读）；内含的 node 与 shim 路径
  * **每次现算**——宿主升级会换 node 路径，安装目录也可能变，写死就会指向不存在的位置
@@ -33,7 +33,7 @@ import { pluginRoot } from "./bin.js";
 
 /** shim 在交付树里的位置（bin/ 与 app.mjs 同层）。 */
 export function shimPath() {
-  return path.join(pluginRoot(), "bin", "gpg-shim.mjs");
+  return path.join(pluginRoot(), "bin", "gpg.shim.mjs");
 }
 
 /** 密钥文件（dataDir 下，由 lib/openpgp-key.js 写入）。 */
@@ -43,7 +43,7 @@ export function keyFilePath(dataDir) {
 
 /** 包装脚本路径（dataDir 下，按平台取扩展名）。 */
 export function wrapperPath(dataDir) {
-  return path.join(dataDir || "", process.platform === "win32" ? "gpg-shim.cmd" : "gpg-shim.sh");
+  return path.join(dataDir || "", process.platform === "win32" ? "gpg.shim.cmd" : "gpg.shim.sh");
 }
 
 /**

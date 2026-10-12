@@ -4,7 +4,7 @@
 /**
  * tools/lib/bin.js — git 可执行文件解析（平台通用）。
  *
- * gpg / gpgconf 不在此列：签名已改由随包的纯 JS shim 完成（tools/lib/gpg-shim.mjs），
+ * gpg / gpgconf 不在此列：签名已改由随包的纯 JS shim 完成（tools/lib/gpg.shim.mjs），
  * 包内不再内嵌任何二进制。GitHub 域也不走外部二进制（REST worker 在子进程里直发）。
  *
  * ## 目录布局（布局是数据，查找是代码）
@@ -114,7 +114,7 @@ export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
  * 编排参考：构建期 build-app 把仓库的 vendor/bin/<平台>/<组件>/ 投影到这里。
  *
  * **当前表里只有 git**：gpg / gpgconf 已不再需要（签名由随包的纯 JS shim 完成，
- * 见 tools/lib/gpg-shim.mjs），包里不再内嵌任何二进制。
+ * 见 tools/lib/gpg.shim.mjs），包里不再内嵌任何二进制。
  *
  * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里也不声明 git），App 始终用宿主
  * 那份 `<HANA_ROOT>/resources/git`。这里的 git 条目服务的是**宿主 git 的树内形态**——
@@ -347,7 +347,7 @@ export function buildBinEnv(baseEnv, resolved) {
   const dataDir = getToolDataDir();
   if (dataDir) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
-    // 签名接线：gpg.program 指向**签名 shim**（纯 JS，见 tools/lib/gpg-shim.mjs）。
+    // 签名接线：gpg.program 指向**签名 shim**（纯 JS，见 tools/lib/gpg.shim.mjs）。
     // 不再有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——gpg 二进制已经不在包里，
     // 那套隔离机制存在的唯一理由（让 gpg 认隔离环）随之消失。
     //

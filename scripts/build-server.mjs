@@ -34,6 +34,10 @@
  * 与 build-ui.mjs 同一个打包器（已经在依赖里），配置口径一致。node 内置模块全部外部化
  * （`externalsPresets.node`）：它们是宿主进程提供的，不该被打进来。
  *
+ * `openpgp` 则外置成同目录的运行期相对 import（`./openpgp.min.mjs`）：该库文件由
+ * build-app.mjs 从上游 dist 原样拷进 dist/bin/，与 gpg.shim.mjs 共用同一份。体积上
+ * 省掉一份内联副本；许可上是 LGPL §4(d)(1) 的落点（独立可替换的库文件，见 NOTICE 的 LGPL 段）。
+ *
  * ## 产物落点
  *
  * `dist/bin/`——**直接写交付树**，不再经过 build/ 中转。中转那一层没有存在理由：
@@ -65,7 +69,7 @@ const config = {
   output: {
     path: outDir,
     filename: "[name].mjs",
-    clean: false, // dist/bin/ 是共享目录（还有 rest-worker.mjs 等同层件），不能在这里清
+    clean: false, // dist/bin/ 是共享目录（还有 rest.worker.mjs 等同层件），不能在这里清
     module: true,
     chunkFormat: "module",
     library: { type: "module" },
@@ -73,6 +77,8 @@ const config = {
   experiments: { outputModule: true },
   // node 内置模块全部外部化：它们是宿主进程提供的，不该打进产物。
   externalsPresets: { node: true },
+  // OpenPGP.js 外置为同目录的运行期相对 import（与 gpg.shim.mjs 共用 bin/openpgp.min.mjs）。
+  externals: { openpgp: "module ./openpgp.min.mjs" },
   module: {
     parser: {
       javascript: {
@@ -126,4 +132,5 @@ rspack(config, (err, stats) => {
   const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
   console.log(`[build-server] dist/bin/app.mjs  ${kb(fs.statSync(out).size)}`);
   console.log("[build-server] 完成。单入口 ESM（.mjs 自带 ESM 语义，无需随包 package.json）。");
+  console.log("[build-server] OpenPGP.js 为运行期相对 import（bin/openpgp.min.mjs）。");
 });

@@ -26,13 +26,16 @@
  * dist/ 是构建产出（不入库）。本脚本在暂存前先跑 scripts/build-app.mjs（它会先构建设置页产物，
  * 再白名单组装 dist/），所以“包里的东西必然等于当前源码的产物”，不依赖调用方记得先构建。
  *
+ * 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
+ * 宿主侧的包限制偏紧时，抬限制比裁包合理。
+ *
  * ## 逐目标出包
  *
  * `--target <platform|universal>`：决定随包的 vendor 运行时目录。
  *   · `universal`：**全平台随包**——把 `vendor/sources.json` 声明的每个平台的运行时都打进去，
  *     运行时就近解析 `vendor/bin/<platform>-<arch>/`，一份包在任意平台都自包含。**进市场的只有它。**
- *     全平台随包是 T7 验收里那条签名链的前提：Windows 的签名要求 vendor gnupg（认 GNUPGHOME 的
- *     原生模式），包不带 vendor 时 gpg.program 会指向不存在的路径，签名直接失败。
+ *     当前组件表为空（签名与 GitHub 请求都走随包纯 JS），所以它与单平台包目前没有区别；
+ *     保留 universal 形态是因为它是唯一能覆盖将来“某个平台需要内嵌二进制”的包形。
  *   · `--target <platform>`：点名才用，只留该平台 vendor（自包含单平台构建），不进 CI、不进市场。
  * 产物落 `releases/<id>-v<version>-<target>.zip` + 同名 `.sha256` + `.entry.json`；
  * 版本单一事实源是 manifest.json，并与 package.json 对齐（不一致直接拒包）。
@@ -391,7 +394,7 @@ function main() {
 
   // 1b) 许可面随实际内容收窄。
   //     通知写的是「这个包里有什么」，所以它必须跟着**本包的交付内容**走，而不是仓库的全集：
-  //     一个不带 gnupg 的包若附带 GPL-3.0 条文与 GnuPG 段落，不是在多给，是在陈述不成立的事实。
+  //     一个不带某组件的包若附带它的段落与条文，不是在多给，是在陈述不成立的事实。
   //     与上面 bin/ 按 target 收窄同一条原则、同一个位置。
   const shipped = shippedComponentsInStage(binRoot);
   const notice = renderNotice({ components: shipped });
