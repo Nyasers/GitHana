@@ -9,9 +9,10 @@
 <!--
   设置页壳（contributes.settings.ui.route = /settings.html）。
 
-  页面本体由 React 渲染（ui/src/settings.jsx → 构建产物 settings.bundle.js），
+  页面本体由 React 渲染（ui/src/settings.jsx → 构建产物 settings.bundle.js，与本页平铺同层），
   用的是宿主组件 @hana/app-sdk/components（AppUiProvider / SettingsPage / …），
   所以这里是空壳：一个 #root 容器 + 两个产物引用。
+  产物与源码分开：ui/src/ 是源，同级打包产物是构建物（两者都随包，但只有后者在交付面里）。
 
   顺序有意如此：先加载组件自带的样式（含 Hana 默认 token），再由 hana-css 注入宿主主题，
   让宿主变量覆盖默认值。宿主设置容器负责外边界留白，本页不叠同一层页边距。

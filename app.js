@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * index.js — GitHana（githana）App v2 入口。
+ * app.js — GitHana（githana）App v2 入口。
  *
  * 形态：宿主在隔离的 AppHost 子进程里加载本文件并调用 apply(ctx)（入口契约兼容具名
  * apply / default.apply / 默认函数，两种都导出）。apply 完成注册后立即返回，不等任何长活。
@@ -10,7 +10,7 @@
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
  *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
- *   因此本文件把 tools/ 下 7 个模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
+ *   因此本文件把 tools/ 下的模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
  *   并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给既有的 v1 工具实现，
  *   让 tools/ 与 lib/ 的代码基本零改动复用（见 tools/lib/context.js 的契约）。
  *
@@ -18,25 +18,26 @@
  *   - Node Permission Model：安装目录只读、{HANA_HOME}/app-data/githana 可写；
  *     许可根之外的裸 fs 读取会被运行时拒绝（tools/lib/exec.js 的 checkCwd 已对此显式放行）。
  *   - 裸 child_process 默认被拒；本 App 申请清单能力 `app/process.spawn` 后开
- *     `--allow-child-process`，git / gh / gpg 以外部命令运行，不继承 Node 权限模型，
- *     可自由访问任意仓库目录（这正是它们需要的边界）。
- *   - 出站 HTTP 走宿主动词（本 App 不需要：gh CLI 自己联网）。
+ *     `--allow-child-process`，git 以外部命令运行，不继承 Node 权限模型，可自由访问
+ *     任意仓库目录（这正是它需要的边界）。git 签名时 spawn 的 shim 是**本地 node 脚本**
+ *     （不是外部二进制），它**会**继承权限模型——能读 dataDir 是因为宿主的 AppHost 命令行
+ *     带了 `--allow-fs-read=<dataDir>`（实测）。
+ *   - GitHub 域的 HTTPS 也走子进程：REST worker 由 tools/lib/rest.js 用 process.execPath
+ *     拉起，**spawn 时显式补 `--allow-net`**（权限模型会经 NODE_OPTIONS 传染给子进程，
+ *     而放行项不会跟着走）。这一层不走清单的 network 声明——那是宿主代发，令牌会穿 IPC。
  *
  * 数据与配置：
- *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / GNUPGHOME / 公钥落盘）。
+ *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / 加密的签名密钥 / 公钥落盘）。
  *   - 凭据不走宿主设置表：GitHub App device flow 签发的 user access token（`ghu_`）经平台加密
  *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
  *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
  */
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import * as gitExec from "./tools/git-exec.js";
 import * as gitStatus from "./tools/git-status.js";
 import * as gitLog from "./tools/git-log.js";
 import * as gitCommit from "./tools/git-commit.js";
 import * as gitPush from "./tools/git-push.js";
-import * as ghExec from "./tools/gh-exec.js";
+import * as githubApi from "./tools/github-api.js";
 import * as ghPr from "./tools/gh-pr.js";
 
 // 路由模块放 lib/routes/：顶层 routes/ 是 v2 保留目录（形态互斥的另一种路由源），
@@ -44,16 +45,25 @@ import * as ghPr from "./tools/gh-pr.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
-import { setSecretLoader, setFreshChecker } from "./tools/lib/context.js";
+import { setSecretLoader, setFreshChecker, primeToolContext } from "./tools/lib/context.js";
+import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
 
-/** 安装目录（本文件所在目录）：vendor 二进制、routes、ui 的根。 */
-const INSTALL_DIR = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * 安装目录（服务端产物的所在目录）：二进制、routes、ui 的根。
+ *
+ * 用 `pluginRoot()`（从入口向上找 manifest.json 的定义式推导），**不靠 ctx.pluginDir**：
+ * 后者在真机上给的是源码树路径，而不是安装目录（装到 <HANA_HOME>/apps/githana 后
+ * 它仍报开发仓库的绝对路径）。manifest.json 就在安装根，按它定位两种形态都对。
+ */
+function resolveInstallDir() {
+  return pluginRoot();
+}
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
- *  只放 git / gh 两类：GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
-const TOOLS = [gitExec, gitStatus, gitLog, gitCommit, gitPush, ghExec, ghPr];
+ *  只放 git / GitHub 两类：GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
+const TOOLS = [gitExec, gitStatus, gitLog, gitCommit, gitPush, githubApi, ghPr];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
@@ -95,11 +105,13 @@ function toToolResult(value) {
 }
 
 /**
- * App v2 主入口。注册 9 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
+ * App v2 主入口。注册 7 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
  */
 export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;
   if (!dataDir) throw new Error("githana apply: ctx.dataDir 缺失（宿主未提供数据目录）");
+
+  const INSTALL_DIR = resolveInstallDir();
 
   const logger = ctx.logger || null;
   const log = (level, ...args) => {
@@ -117,12 +129,16 @@ export function apply(ctx) {
     logger,
   };
 
+  // 把这两个字符串**同步**登记进单例。必须在这里做，不能只靠 appCtx —— 它只在工具 execute 时
+  // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir。
+  primeToolContext(appCtx);
+
   // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
-  // 解密是异步的，而 buildBinEnv 必须同步拿到 GH_TOKEN；挂在 initToolContext 首次调用
-  // 之后，只跑一次。
+  // 解密是异步的，而工具调用需要在发请求前同步知道“有没有令牌”；挂在 initToolContext
+  // 首次调用之后，只跑一次。
   setSecretLoader(() => loadSecretIntoContext(dataDir));
   // 令牌保活：initToolContext 每次都跑，但只在「剩余有效期不足 5 分钟」时才真正发刷新请求
-  // （单飞，失败不抛——无其它凭据可降级，后续 gh 调用会如实报未登录）。
+  // （单飞，失败不抛——无其它凭据可降级，后续调用会如实报未授权）。
   setFreshChecker(() => ensureFresh());
 
   const disposers = TOOLS.map((mod) =>
@@ -164,6 +180,8 @@ export function apply(ctx) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }
     try { if (typeof unregisterRoutes === "function") unregisterRoutes(); } catch { /* 忽略 */ }
+    // 不再有 gpg daemon 要收尾：签名由随包的纯 JS shim 完成，没有 gpg-agent / scdaemon
+    // 会被拉起，也就没有“daemon 持有二进制句柄、卸载删不掉目录”这回事。
   };
 }
 

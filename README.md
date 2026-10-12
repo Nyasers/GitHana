@@ -1,10 +1,11 @@
 # GitHana（githana）
 
-把 git / gh / gpg 三条 CLI 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
+把 git / gpg 两条 CLI 与 GitHub REST 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
 
 - 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 7 个工具 + 3 组后端路由（status / settings / actions）
-- 工具命名空间：`git_*`（本地 git）· `gh_*`（GitHub CLI）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
-- 服务端零 npm 依赖（设置页 UI 需一步构建）· `vendor/` 内嵌 git/gh/gnupg 随包分发 · 版本见 `manifest.json`（单一事实源）
+- 工具命名空间：`git_*`（本地 git）· `github_api` / `gh_pr`（GitHub REST）。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
+- 服务端零 npm 依赖（设置页 UI 需一步构建）· 签名用随包的纯 JS OpenPGP.js（无外部二进制）· 版本见 `manifest.json`（单一事实源）
+- **GitHub 域不依赖任何外部二进制**：请求由随包的 `bin/rest.worker.mjs` 在子进程里直发（Node 内置 `fetch`），PR 创建稳定带 App 角标
 
 > 与 dshana 同级：本仓库是**源码**，宿主实际加载的是安装位 `<HANA_HOME>/apps/<id>/`（见「安装与更新」）。
 
@@ -17,12 +18,16 @@
 | `git_log` | tools/git-log.js | readOnly | 最近提交速览（默认 10，1~100） |
 | `git_commit` | tools/git-commit.js | external_side_effect | 本地提交（message 走 stdin）；自动 Co-authored-by；自动 GPG 签名；收尾清 gpg-agent |
 | `git_push` | tools/git-push.js | external_side_effect | force 映射 `--force-with-lease`（非裸 `--force`） |
-| `gh_exec` | tools/gh-exec.js | external_side_effect | 任意 gh 命令透传（`GH_TOKEN` = OAuth 令牌，按次注入） |
-| `gh_pr` | tools/gh-pr.js | external_side_effect | PR create / list / view / merge |
+| `github_api` | tools/github-api.js | external_side_effect | 任意 GitHub REST 端点透传（path + method + body） |
+| `gh_pr` | tools/gh-pr.js | external_side_effect | PR create / list / view / merge（走 REST） |
 
 `gpg_keygen` / `gpg_pubkey` 已从工具面退役：GPG 的密钥生成与公钥查看都只在设置页（生成不可逆，
 要用户点按钮确认）。实现仍在 `tools/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
 `lib/routes/pubkey.js`，原来的 `tools/gpg-pubkey.js` 已删。
+
+`gh_exec` 已由 `github_api` 取代：前者透传 gh 的**子命令**（`gh release create` 这类高层动词），
+后者透传 **REST 端点**。多数高层动词都能由端点组合出来，但组合工作从 CLI 移到了调用方——
+这是能力面的真实变化，不是等价换皮。
 
 ## 与 v1 插件的关键差异
 
@@ -34,17 +39,22 @@
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
 | 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
+| GitHub 域 | gh CLI（外部二进制） | 随包 REST worker（Node 内置 fetch，见「GitHub 通道」） |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
 | 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`，`kind: "oauth"`），不进宿主设置表 |
 
-`tools/` 与 `tools/lib/` 的实现基本原样复用：`index.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
+`tools/` 与 `tools/lib/` 的实现基本原样复用：`app.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给既有的 `execute(input, ctx)`，因此工具代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
 
 ## 清单能力
 
 - `app/tools.expose-to-model` — 让模型能主动调用这 7 个工具
-- `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gh / gpg（**需要用户在安装审阅里批准**）
+- `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gpg，以及随包的 REST worker（**需要用户在安装审阅里批准**）
 - `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
+- `app/ui.open-external` — 设置页开 GitHub 验证页
+
+**没有 `network` 声明**：那是宿主代发的通道（令牌会穿 IPC）。GitHub 请求由子进程直发，
+令牌经 stdin 传给 worker，不出 App 边界（见「GitHub 通道」）。
 
 ## 设置页
 
@@ -70,9 +80,8 @@
 `Iv23li0dA1IaFVs6klAc`，可在设置页覆盖）。流程：
 
 1. 设置页点「用 GitHub 登录」→ `POST /routes/actions/oauth/start`；
-2. 服务端经 `gh api` 调 `https://github.com/login/device/code`（必须带
-   `-H "Accept: application/json"`，否则回 form-encoded；该端点无需认证，调用时传
-   `omitToken: true`），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
+2. 服务端经 REST worker 调 `https://github.com/login/device/code`（必须带
+   `Accept: application/json`，否则回 form-encoded），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
    只把 `user_code` / `verification_uri` / `interval` / `expires_in` 回给页面；
 3. 页面按 `interval` 自轮询 `GET /routes/actions/oauth/poll?id=<flowId>`，服务端每次只查一次
    `access_token`；`slow_down` 会把间隔 +5s，`expired_token` / `access_denied` /
@@ -93,7 +102,7 @@
   （`POST https://github.com/login/oauth/access_token`，`grant_type=refresh_token`，
   device flow 签发的令牌刷新**不需要 client_secret**）。刷新单飞（并发调用共享同一个 Promise），
   失败 → 记 `meta.needsReauth` 并清掉进程内令牌，设置页显示「需重新授权」。
-  **不降级到其它凭据**（也没有其它凭据）：失败就是失败，后续 gh 调用如实报未登录。
+  **不降级到其它凭据**（也没有其它凭据）：失败就是失败，后续调用如实报未授权。
 - **后端可插拔**：`win32` = DPAPI（CurrentUser，密钥由登录身份派生，无需另管密钥）；
   `darwin` = Keychain、`linux` = libsecret 已留后端位与降级策略（`lib/secret.js` 的 `pickBackend`）。
 - **绝不回落明文**：没有可用后端时保存直接报错，不写明文。
@@ -108,7 +117,7 @@
 
 个人访问令牌通道**已下线删除**（不保留为备用）：设置页没有 PAT 输入框与保存按钮，
 `POST /settings/token` 端点（含路由注册）已移除。旧 `schemaVersion: 1` 记录**读但不采用**——
-不报错、不动文件、不注入 `GH_TOKEN`；设置页据此提示「PAT 通道已停用」并提供显式清除入口
+不报错、不动文件、不参与任何调用；设置页据此提示「PAT 通道已停用」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
 删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证本就走系统
@@ -127,8 +136,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 | 用 GitHub 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
 | 查询授权结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
 | 退出授权 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth`（保留 clientId） |
-| GitHub 身份 | `GET /routes/actions/identity` | `tools/lib/identity.js` 的纯函数（与密钥生成同源） |
-| 检测 gh 认证 | `GET /routes/actions/gh-status` | `tools/lib/exec.js` 的 runCli（与 `gh_exec` 同款隔离 env） |
+| GitHub 身份 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
 | 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
 | 上传公钥 / 从 GitHub 移除 | `POST /routes/actions/gpg/publish` · `/unpublish` | `lib/gpg-publish.js` |
@@ -159,56 +167,262 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 `liliMozi` 名下的仓库发评论/提 PR，需 **liliMozi 本人** 把 App 装到该账号。App 的访问边界是
 「安装所在账号」，仅授权不安装无效。
 
-## 构建（设置页 UI）
+## 构建与交付面
 
-React 设置页需要一步构建（宿主不会在安装时跑构建）：
+源码树与交付树分开：**`dist/` = App 安装目录形态**（宿主读它根下的 `manifest.json` + entry），
+由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（本地 tgz）
-node scripts/build-ui.mjs   # ui/src/settings.jsx → ui/settings.bundle.js + ui/settings.bundle.css
+pnpm install          # openpgp / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm run build        # 组装 dist/（先清空，再依次构建产物 + 拷静态交付件）
+pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
+pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
 ```
 
-产物 `ui/settings.bundle.*` 随包分发；`ui/src/` 只是源。改完 UI 源码要重新构建，bundle 变了才算改完。
+**构建产物直接落 `dist/`**（build-ui / build-server / build-entries 都写这里），没有 `build/` 中转层：
+交付面就是它们的产物落点，中间那一层只会让“产物到底在哪”多一个需要判断的间接层。
+注意三个 `build:*` 子命令产出的是 dist/ 的**一部分**，单独跑会与其它产物共存；
+要一个完整交付树请跑 `pnpm run build`（它先清空 dist/）。
 
-## 内嵌运行时（平台通用）
+**构建期依赖不进包**：`@rspack/core` 是打包器，只在构建主机上跑，字节不进 `dist/`，
+所以既不用系统上的构建工具（也就没有"构建主机得装对版本"的外部要求），
+也不进第三方通知（只列**代码进交付面**的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
+`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以列在通知里。
 
-二进制不写死平台，也不无谓重复：
+**交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
+入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
+——`bin/` 的语义就是「装到机器上要跑的东西」。三个入口**都是压缩后的单入口 ESM**
+（`build-server` 打 app，`build-entries` 打另两个），形态一致。OpenPGP.js 以一份独立库文件
+（`openpgp.min.mjs`）放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，
+也让 LGPL §4(d)(1) 有落点；它是 `bin/` 下唯一不做压缩的（合规要求原样）。
 
-| 二进制 | Windows | macOS / Linux | 来源 |
+```
+dist/
+  manifest.json  NOTICE  THIRD_PARTY_NOTICES.md
+  bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
+  bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖，仅用 node 全局）
+  bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
+  bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
+  assets/
+  ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
+```
+
+**为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。此前服务端
+以源码形态随包（`index.js` + `lib/` + `tools/` 共 22 个文件），代价是交付面里混着源码、
+还要为了解析规则随带一个 `package.json`（没有它 Node 把 `.js` 当 CJS，入口 import 直接报错）。
+
+**为什么叫 app 而不是 index**：单入口的名字应该回答「这是什么」——它是 App 主体，不是一份
+目录下的默认页。DSHana 的入口叫 `bin/index.mjs`，但那是它**两份东西**（主体 + 受管 runtime）
+之间的一层静态转发壳，用来绕开「rspack 产出的入口带数字 id、每次构建都变」。本 App 没有第二份，
+也没有那层壳，直接产出主体 `app.mjs`——照搬 `index` 会把别人的补丁当成形态。
+
+> ⚠ bundle 有一个真陷阱：**`import.meta.url` 默认会被固化成构建机的绝对路径**
+> （`file:///H:/…/tools/lib/bin.js`），在用户机器上不存在。而入口位置正是工具面定位安装根的
+> 根据。`build-server.mjs` 因此显式关掉这个固化（`module.parser.javascript.importMeta: false`），
+> 保留运行时语义。这个坑在源码树里跑不出来（那时路径恰好是真的），只有装机后才暴露——
+> 所以「产物形态的改动必须真机验收」不是口号。
+
+**为什么是白名单而不是排除表**：源码树里多出什么，黑名单就漏什么——本地规划文档（`SPECS.md` /
+`specs/`）与设置页源码（`ui/src/`）就是这么进过包的。改成逐个点名后，要进包必须在名单里，
+源码树里多出什么都不影响包。
+
+**产物目录是构建中间产物**（见 `.gitignore`）：
+
+| 目录 | 内容 | 生成者 |
+|------|------|--------|
+| `dist/` | App 交付树（= 安装目录形态），**产物直接写它内部** | `scripts/build-app.mjs`（调 build-ui / build-server / build-entries） |
+
+源码与产物不混在同一层：`ui/src/` 是源，`dist/ui/` 是进包的那一份。
+**出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
+
+## 脚本组织
+
+`scripts/` 按域分目录，共用原语在 `shared/`：
+
+```
+scripts/
+  shared/          root（向上找仓库根）/ run（直跑判定）/ args（命令行）/ err-text
+  derive/          派生任务表：从某个源推导、写回目标文件；apply 与 --check 二态
+  dev/             本地开发循环（install-local）
+  probe/           查宿主能力面（host-surface）
+  *.mjs            命令面入口：fetch-vendor / build-ui / build-app / selfcheck / pack / index
+  hana-app-tools/  官方作者工具的原样拷贝（收录判定见其 README）
+```
+
+**为什么有 shared**：仓库根定位、直跑判定、参数读取这几件事，之前每支脚本各自写一遍且已漂
+（有的数 `..` 层数、有的只认 `--x v` 不认 `--x=v`）。收敛成一处，新增脚本只 import。
+
+**`derive` 的口径**：凡「能推导 + 被抄了多份 + 抄漏会坏」的事实都进那张表（当前两项：主清单版本
+→ `package.json#version`、实装版本 + 仓库持有的法条正文 → `THIRD_PARTY_NOTICES.md`）。只写"这个文件
+该长什么样"，比较与写回由框架统一做；`--check` 只读不写，CI 用它当门禁。人不定的东西不进表
+（如 `NOTICE` 的措辞——它只有仓库 URL 会漂，手改即可）。
+
+```bash
+pnpm run derive         # 全部写回
+pnpm run derive:check   # 只校验（CI 门禁）
+pnpm run check:all      # 构建 + 自检 + 派生门禁 + vendor 门禁
+```
+
+**开发循环**（每次都走，所以做成命令而不是 README 里的手工步骤）：
+
+```bash
+pnpm run pack --target win32-x64 --out /tmp/out
+pnpm run install:local -- --zip /tmp/out/githana-v<版本>-win32-x64.zip
+pnpm run probe:host -- --app-bus                 # 宿主给的 bus 能力面（读 SDK 契约）
+pnpm run probe:host -- --look models-changed     # 某字面在宿主 bundle 里出现在哪
+```
+
+`install:local` 走宿主自己的扩装面（与界面里「安装本地包」同一条）：卸载 → 提交 staging →
+确认 → 等本 App 的 Status 端点应答。**就绪判据与本 App 的形态相配**：GitHana 没有受管运行时，
+路由注册完就能应答 `/routes/status`；拿「等 runtime ready」那种判据在它这里永远等不到。
+
+## App SDK 快照
+
+`@hana/app-sdk` 不在 npm 上，它是宿主打包时产出的内部包。仓库因此在 `vendor/hana-app-sdk/`
+存一份快照（4 个 tgz + `source-manifest.json`），**它入库**（`vendor/*` 的忽略规则里给了例外）
+——构建必需，而 npm 上拿不到。
+
+宿主升级后快照会漂，用脚本同步（源就是本机宿主，所以不进 CI）：
+
+```bash
+pnpm run sync:sdk            # 从 <HANA_HOME>/artifacts/server/<最新版本>/ 同步
+pnpm run sync:sdk -- --check # 只校验漂移
+```
+
+同步后要跟着做两件事（脚本会打印）：按包名点名 `pnpm update @hana/app-sdk`（pnpm 不会因本地
+tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 `THIRD_PARTY_NOTICES.md`（SDK 内联的那两个包
+版本读自它的声明）。
+
+快照本身**不随包**：它是构建期依赖，由 rspack 内联进设置页产物；`build-app.mjs` 会把
+`dist/vendor/hana-app-sdk/` 删掉。
+
+## 第三方许可
+
+许可面只有三件（对齐 DSHana 的形态）：
+
+| 文件 | 位置 | 内容 |
+|------|------|------|
+| `LICENSE` | **只在仓库**，不进包 | 本项目 MPL-2.0 全文 |
+| `NOTICE` | 仓库 + 包根 | 本项目声明（受 MPL 约束 + 获取副本的地址 + 源码位置） |
+| `THIRD_PARTY_NOTICES.md` | 仓库 + 包根 | 第三方组件清单 + **各自的许可正文全文** |
+
+**包里不带 `LICENSE`，为什么合规**：MPL §3.1 的原文要求是「告知接收方源码形式受本许可约束，
+**以及如何取得副本**」——不是「把副本随包带上」。这两件事由 `NOTICE` 的头两句履行（声明受 MPL
+约束 + 给出 `https://mozilla.org/MPL/2.0/`）。仓库里那份 `LICENSE` 服务的是源码形式。
+
+**一份 TPN 讲完第三方**：组件清单与各自的法条正文同处一文件（不再有 `licenses/` 目录）。
+旧形态是「一份汇总 + 一目录散装」，同一件事两个落点，读的人得在两处对照。
+
+**它入库，由 `derive` 生成**：与 DSHana 同形。旧的「不入库、由 pack 现渲染」是为「包内容随 target 变」
+服务的；当前无内嵌二进制、各 target 交付内容相同，那个前提不成立。
+
+```bash
+pnpm run derive            # 全部写回（含重生成 THIRD_PARTY_NOTICES.md）
+pnpm run derive:check      # CI 门禁：拦住「改了版本/组件却忘了重生成」
+```
+
+### 它只列**本包真的分发**的组件
+
+判据是「代码进不进交付面」，不是「是不是依赖」。当前七项：构建期内联的 `@hana/app-sdk`
+(Apache-2.0) / `react` / `react-dom` / `scheduler` / `react-is` / `use-sync-external-store`（均 MIT），
+与随包独立库 `openpgp`（LGPL-3.0-or-later）。
+
+这里有个容易踩的坑：**`@hana/app-sdk` 自带一份 91 KB 的 `THIRD_PARTY_NOTICES.txt`（82 个包）**，
+它描述的是 SDK 的 `app-ui.js` 产物（antd 生态全家桶）。本 App 只内联它的 `components` / `ui` 入口，
+antd 一个字节都没进包——整份搬运就是陈述不成立的事实。所以那份文件现在只作**构建期数据源**
+（取 SDK 内联的那两个包的版本），不随包、不再当通知发。
+
+### 法条正文的来源
+
+原文存 `scripts/derive/licenses/`（**开发件，不随包**），拼接时只 `trimEnd()`，不改正文：
+
+- `apache-2.0.txt` / `mit-meta.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
+  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不自带 LICENSE 附属件。
+- LGPL 与 GPL 成对：LGPL §4(b) 要求两份正文都在场（LGPL 条文引用 GPL）。
+- 可与实装对齐的已核对过：`mit-meta.txt` 与 react/react-dom/scheduler 的 LICENSE 逐字节相同
+  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同。
+
+### LGPL 组件（OpenPGP.js）的合规落点
+
+OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库文件**（`bin/openpgp.min.mjs`）随包：
+两个入口在**运行期**用相对路径 `import` 它，它的代码不被合并进入口。这个形态对应 LGPL §4(d)(1)。
+
+为什么不内联：内联进 bundle 后，库与其消费者分不开，只能走 §4(d)(0) 的**重组路径**
+（需要交付可重新组合的 Minimal Corresponding Source 与 Corresponding Application Code）。
+独立库文件则直接满足 §4(d)(1) 的「接口兼容即可替换」。这不是合规硬性选择（两条路都合法），
+而是选一条对自己与下游都更轻的路：一份库文件顶掉两份内联副本，包体更小，替换也不用重构建。
+
+`build-app.mjs` 在每次构建时以 sha256 断言投影进 `dist/bin/` 的那份与
+`node_modules/openpgp/dist/node/openpgp.min.mjs` 逐字节相同——“原样未修改”因此是可验证的事实，
+不是声明。具体条款映射（§4(a)～§4(e)）写在 `THIRD_PARTY_NOTICES.md` 的 LGPL 段。
+
+## 运行时依赖（只剩 git，靠宿主）
+
+本包不内嵌任何二进制。唯一的外部可执行文件是 git，而它由宿主提供：
+
+| 可执行文件 | Windows | macOS / Linux | 来源 |
 |--------|---------|---------------|------|
 | git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 |
-| gh | 内嵌（官方单文件产物） | 内嵌（待补 sha256） | `vendor/<平台>-<架构>/gh` |
-| gnupg | 内嵌（必需：签名链路要求认 GNUPGHOME 的原生模式） | 系统 gpg（本就读 GNUPGHOME） | vendor 或 系统 |
+
+签名与 GitHub 请求都不再需要外部二进制：前者由随包的纯 JS shim（`bin/gpg.shim.mjs`）完成，
+后者由随包的 `bin/rest.worker.mjs` 直发。所以 `vendor/sources.json` 的组件表为空，
+`vendor/bin/` 不存在也是合法状态（不再是“少抓了”）。
+
+**git 与 GitHub 域都不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在
+宿主安装目录里，不由本包再带一份；GitHub 请求由随包的 `bin/rest.worker.mjs` 直发，不需要任何外部二进制。
+
+**每个组件目录只留运行时需要的文件**：落盘把上游 `remove/*` 的内容平铺到组件根，最终形态是
+`vendor/bin/<平台>/<组件>/<exe>`。上游产物里那此 `share/`（man 手册）、`LICENSE`、卸载器、
+`include/` 都裁掉，不靠随包拷贝转运许可文本（许可面统一走 `THIRD_PARTY_NOTICES.md`）。
+**git 不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在宿主
+安装目录里，不由本包再带一份。
+
+**许可面不在打包期改动**：`THIRD_PARTY_NOTICES.md` 由 `derive` 生成并入库，随交付树进入暂存；
+仓库里那份就是包里那份。旧形态（pack 现渲染 + 按组件裁剪 `licenses/`）是为「包内容随 target 变」
+服务的，那个前提已不成立。
 
 布局与解析：
 
-- 布局是数据：`vendor/<platform>-<arch>/<component>/…`（`vendor/sources.json` 声明来源与 sha256）；
-  旧的 `vendor/<component>/…` 仍兼容。
+- 布局是数据：`vendor/bin/<platform>-<arch>/<component>/<exe>`（`vendor/sources.json` 声明来源与 sha256）。
+  运行时二进制统一收在 `vendor/bin/` 下，与元数据分层：`sources.json` 与 SDK 快照在 `vendor/` 根，
+  所以 `.gitignore` 只需一行 `/vendor/bin/`（不必用 `!` 逐条翻案）。
 - 解析是代码（`tools/lib/bin.js`）：**宿主内嵌 → 随包 vendor → 系统 PATH**。
 - **探活不用 fs 用 spawn**：AppHost 开了 Node Permission Model，宿主 resources 在许可根之外，
   `fs.statSync/existsSync` 一律 `ERR_ACCESS_DENIED`；但 `app/process.spawn` 开的是子进程，
   **外部命令不继承该模型**。所以判存在性的方式是「跑一次 `--version`，能起来就算有」。
   只看 `HANA_DESKTOP_RESOURCES_PATH` 的写法在 v2 里必然失效（AppHost 不传它）。
-- 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`；
-  `optional: true` 的条目（如 Windows 的 git）默认不抓，显式点名才抓。
-- CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch vendored runtime + `pnpm run check`
-  （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发），
-  官方 creator 不在本仓，所以用一个零依赖的 `scripts/selfcheck.mjs` 兜住结构门槛
-  （manifest 字段与 route 文件存在性、全部服务端 JS 语法、vendor 就绪性）。
+- 按需重建：`node scripts/fetch-vendor.mjs [--platform <key>] [组件…]`。
+  **不点名时只拉当前平台**（`process.platform`）：开发机只需要自己的那份，其他平台是 CI 的事。
+  当前 `sources.json` 组件表为空（无内嵌二进制），所以本脚本在正常仓态下是空操作；
+  解压分支（targz / zip）保留供将来需要内嵌二进制时复用。
+- CI：`.github/workflows/ci.yml` 三平台矩阵各自 `pnpm run check`
+  （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发）。
+  官方 creator 不在本仓，所以用一个零依赖的
+  `scripts/selfcheck.mjs` 兜住结构门槛
+  （manifest 字段与 route 文件存在性、全部服务端 JS 语法、入口与库就绪性）。
 
-## 跨平台与市场包（只有一个包）
+## 跨平台与市场包（只有一个包，但它是全平台的）
 
 **App 是 Web 应用，跨平台靠运行时解析，不逐平台出包**：
 
 ```
 宿主内嵌 git（<HANA_ROOT>/resources/git，spawn 探活）
-  → 本平台 vendor/<platform>-<arch>/（若随包带了）
-    → 系统 PATH（gh / gpg）
+  → 本平台 bin/<platform>-<arch>/（若声明了随包组件）
+    → 系统 PATH（git）
 ```
 
-- CI 的 release 流水线**只出一个 `universal` 包**（不随任何平台的 vendor），**进市场的也只有它**。
-- `node scripts/pack.mjs --target <platform>` 是点名才用的自包含单平台构建（带该平台的 vendor），
-  不进 CI、不进市场。
+签名与 GitHub 请求都不依赖外部可执行文件（纯 JS shim + REST worker），所以“可执行依赖三平台一致”
+现在是结构上就成立的：没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
+
+（**仅指可执行依赖这一层**：凭据与私钥的加密后端目前只有 `win32` 的 DPAPI 落地，`darwin`/`linux`
+是占位（`lib/secret.js` 的 `pickBackend`）——那两个平台上签名链路本身能跑，但还缺密钥与令牌的
+本地保护后端，所以“三平台可用签名”尚不成立。见上面「授权与令牌存哪里」一段。）
+
+- CI 的 release 流水线**只出一个 `universal` 包**：它把 `vendor/sources.json` 声明的每个平台的
+  随包组件都打进去（**当前组件表为空**，所以它与单平台包目前没有区别），
+  **进市场的也只有它**。保留 universal 形态是因为它是唯一能覆盖将来「某个平台需要内嵌二进制」的包形。
+- `node scripts/pack.mjs --target <platform>` 是点名才用的单平台构建（只留该平台 vendor），
+  不进 CI、不进市场；universal 出包前会断言各平台声明为随包的组件都在，缺一个直接拒包。
 - 包体大小不在包内解决：本仓库没有原生模块，因此不存在“非目标平台原生模块怎么裁剪”的问题；
   宿主侧的包限制偏紧时，抬限制比裁包合理。
 
@@ -222,7 +436,7 @@ pnpm run index                            # → index.v2.json（市场清单）
 
 - `pack.mjs` 自带最小 ZIP 写入器，**不依赖官方包工具**；官方静态校验器可用时会作为额外关卡（不可用则标 `unverified`，不假装通过）。
 - `.entry.json` 不能漏：索引构建器只吃这种文件。它的 `archive.url` 写 `{{BASE_URL}}` 占位，由 `build-index.mjs` 换成真实下载基址。
-- **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
+- **索引的限制**：`index.v2.json` 的条目只有 `archive.url` 一个地址，**没有平台维度**，构建器按 `kind:id` 分组——所以清单只放 universal（它本身已是全平台的）；平台包（如有）作为 release 资产按名取用。选非 universal 时脚本会警告。
 
 ## 安装与更新（走发行包）
 
@@ -240,27 +454,82 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 
 ## 目录
 
+下面是**源码树**。服务端那几项（`app.js` / `lib/` / `tools/`）是源码，**不进包**：
+`build-server` 把它们打成单入口 `bin/app.mjs`，交付树里只有一个服务端文件。
+
 ```
-manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）
-index.js                 # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾
-tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / context / identity / github）
+manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
+app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
+tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest.worker / context / identity / github）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
 lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
-lib/routes/status.js     # 环境状态端点（授权状态 / 二进制版本 / 公钥 / 发布状态）
+lib/routes/status.js     # 环境状态端点（授权状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
 lib/routes/settings.js   # 设置页数据端点（state / client-id / legacy-pat/clear）
-lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / gh-status / identity / pubkey）
+lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / identity / pubkey）
 lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
 ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
 assets/icon.svg          # App 图标
-vendor/                  # 内嵌 git（MinGit）/ gh / gnupg（随包分发，不入 git 仓库）
-skills/gh/SKILL.md       # 随 App 分发的 gh CLI 使用参考
-scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / index / selfcheck
+vendor/                  # 内嵌运行时：bin/<平台>/（二进制，不入 git）+ sources.json（声明）+ hana-app-sdk/（SDK 快照）
+scripts/                 # 分域：build（组装/出包）/ derive（派生同步）/ dev（本地装机）/ probe（能力面）
+  shared/                #   共用原语：root（仓库根）/ run（直跑判定）/ args（命令行）/ err-text
+  derive/index.mjs       #   派生任务表（版本对齐、SDK 声明同步），apply 与 --check 二态
+  dev/install-local.mjs  #   把本地包装进宿主（卸载→提交→确认→等路由应答）
+  probe/host-surface.mjs #   查宿主能力面（SDK 契约 / 宿主 bundle 里的字面）
 ```
+
+## GitHub 通道（自写 REST，无外部二进制）
+
+GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子进程里用 Node 内置 `fetch` 直发。
+
+- **为什么必须是子进程**：App 的 `apply()` 跑在 AppHost 子进程里，那个进程开了 Node Permission Model
+  且没有 `--allow-net`（宿主按清单能力只给 `--allow-child-process`），进程内的 `fetch` 会被运行时拒在
+  DNS 那一步（实测 `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。`app/process.spawn` 授权下起的
+  外部进程不继承该模型——gh CLI 以前就是这么联网的。
+- **为什么 spawn 时要显式补 `--allow-net`**：Node 26 的 `--permission` 会经 **NODE_OPTIONS 传染给
+  子进程**（子进程继承权限模型），而放行项不会跟着走。清 NODE_OPTIONS 无效（父进程里已生效）。
+  所以 `tools/lib/rest.js` 在自己 spawn 的 argv 里显式开这扇门——它不是新增清单能力，是运行时层面
+  的旗标。`--allow-net` 只在权限模型下合法（单独给会报 `ERR_MISSING_OPTION`），故按
+  `process.permission` 判在不在。
+- **白名单在 worker 内自查**：`--allow-net=<host>` 的收窄语法在 v26.8.1 **不生效**（实测
+  `--allow-net=api.github.com` 下请求 example.com 仍成功）。运行时的门只能全开，所以 worker 把门
+  收窄到 `api.github.com` 与 `github.com`，其余一律在发请求前拒。
+- **重定向逐跳校验**：不用 `fetch(..., { redirect: "follow" })`——那等于把起始 URL 的白名单作废，
+  任意一个 302 都能把请求引到别处（`/repos/{o}/{r}/tarball/x` 就 302 到 `codeload.github.com`）。
+  改为 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`），跳数上限 5；
+  离开 `api.github.com` 后不带走 `Authorization`（内容域不需要凭据）。
+- **无正文响应是一等公民**：204/304/HEAD 没有 body，`res.body` 为 `null`。这类响应按
+  `{ ok: true, json: null, text: "" }` 回报，不是错误——DELETE 成功（删评论 / 删分支）本来就是 204，
+  当成错误会让调用方去重试一个已经成功的写操作。
+- **只重试“没到服务端”的连接层错误**：DNS 失败 / 连接被拒 / 连接超时。已拿到响应后的错误
+  （包括 `UND_ERR_SOCKET`、超时）不重试——那时代码可能已经生效，重试 POST 会双写。
+- **一次调用一批请求**：worker 无状态，一次工具调用的全部 HTTP 请求打包成数组交给它、顺序执行、
+  返回结果数组（`gh_pr view` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
+  而长驻要背生命周期收尾。
+- **令牌边界不变**：仍只在 App 进程内存与 worker 之间流转（经 stdin 传，不走子进程 env，更不进宿主 IPC）。
+  OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
+
+### 与 gh CLI 的两处真实行为差异
+
+替换 gh 不是无损换皮，这两点不藏：
+
+1. **不做「自动推分支」**：`gh pr create` 在分支未推送时会先帮你推；REST 不会。本实现因此**显式报错
+   并引导先 push**，不静默失败也不悄悄退回去。
+2. **`reviewDecision` 是推导的**：那是 GraphQL 专有字段，REST 没有等价单值。由 `GET /pulls/{n}/reviews`
+   的评审记录聚合出「审查状态」，输出里注明它是推导值。
+
+### App 角标（本次改造的目标）
+
+GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 建 PR 才写这个字段**
+（`POST /repos/{o}/{r}/pulls`），走 GraphQL 的 `createPullRequest`（即 `gh pr create` 的实现路径）不写。
+改用自写 REST 后角标成为稳定行为。
+
+归因字段只在 **issue 表示**上（`GET /issues/{n}`）；`POST /pulls` 与 `GET /pulls/{n}` 的响应体**都不带**
+它（实测）——UI 角标读的就是 issue 表示，所以 `gh_pr create` 完成后单独查一次。
 
 ## 提交者身份推导
 
-`gh api user` 返回 `{ id, login, name }`（该端点**不需要任何权限**）。名字走三级链：
+`GET /user` 返回 `{ id, login, name }`（该端点**不需要任何权限**）。名字走三级链：
 
    显式 name 参数 → user.name → login
 
@@ -269,11 +538,24 @@ scripts/                 # fetch-vendor（内嵌运行时）/ build-ui / pack / 
 `deriveNameFromUser`）同时供 `tools/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
 两处不会跑偏。
 
-## GPG 隔离机制（沿用 v1）
+## 签名隔离机制
 
-密钥只落 `app-data/githana/gnupg`，签名/验签不碰用户个人 GPG 环：
+私钥只落 `app-data/githana/gpg-key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
+任何 gpg 二进制：
 
-1. **keygen 侧**：所有 gpg 调用显式 `--homedir <dataDir>/gnupg`
-2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true` / `gpg.program=<vendor gnupg>`；每次 spawn 注入 `GIT_CONFIG_GLOBAL` / `GNUPGHOME` / `GIT_TERMINAL_PROMPT=0` / `GH_TOKEN`（= OAuth 令牌；无凭据时不注入）
+1. **keygen 侧**：`tools/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
+   加密落盘（与 `credential.json` 同一套后端抽象，见 `lib/secret.js` / `lib/dpapi.js`）。
+2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，
+   由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入，同时注入
+   `GIT_CONFIG_GLOBAL` / `GIT_TERMINAL_PROMPT=0` 与 `GITHANA_KEY_FILE`（后者告诉 shim 密钥在哪）。
+   注入的目标是一个 `.cmd` / `.sh` 包装脚本（运行时生成在 dataDir），内含现算的宿主 node 路径与
+   `bin/gpg.shim.mjs`（见 `tools/lib/sign-shim.js`），因为 git 的 `gpg.program` 不接受带参的命令行。
 
-两个必须绕开的坑（同 v1）：系统 scoop gpg 带 `gpgconf.ctl` 认不到 `GNUPGHOME`；MinGit 的 `gpg.program` 不支持带参。所以 `gpg.program` 只能指向认 env 的 vendor gnupg。
+shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、用 OpenPGP.js 签/验，
+按 git 的接口契约把状态写到 `--status-fd`。签名前它会核对 git 传来的签名者选择
+（`-bsau` 的 selector，即 `user.signingkey`）是否指向本机这把密钥（指纹 / 长短 keyID / uid / 邮箱
+任一写法均可），对不上就报 `FAILURE sign` 并退 2——不让“指定的身份”与“实际签名者”不一致。
+它运行期 import 同目录的 `openpgp.min.mjs`（不内联，见「第三方许可」）。
+
+运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
+GitHub 域的令牌也不进子进程 env（经 stdin 传给 REST worker）。

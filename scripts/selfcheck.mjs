@@ -10,11 +10,15 @@
  *   1) manifest.json 结构与关键字段（manifestVersion=2、id 与目录名一致、entry 存在、
  *      capabilities 是数组、声明过的 route 文件真的在 ui/ 下）
  *   2) 所有服务端 .js 能被 Node 解析（node --check，按 package.json 的 type=module 走 ESM）
- *   3) vendor：按 vendor/sources.json 校验本平台声明过的组件是否就绪，并与 bin.js 的查找表
- *      对齐（防「声明了组件但查找表找不到」的命名漂移——探空会静默回退系统 PATH）
+ *   3) vendor：按 vendor/sources.json 校验声明过的组件是否就绪，并与 bin.js 的查找表
+ *      对齐（防「声明了组件但查找表找不到」的命名漂移——探空会静默回退系统 PATH）。
+ *      `--platform universal` 不是一个真实平台，而是「包要发到任意平台」：此时逐个校验
+ *      sources.json 里声明的**每个**平台（与 pack --target universal 的全平台随包同一口径）。
+ *   4) 随包的独立子进程入口存在（REST worker / 签名 shim）：两者都不依赖外部二进制，
+ *      但缺了对应域整个不可用（GitHub 请求 / 签名），所以在 CI 这一层拦住。
  *
  * 它不替代官方校验（那套会检查图标可解码、静态资源、隔离启动 smoke 等）。
- * 用法：node scripts/selfcheck.mjs [--platform win32-x64]
+ * 用法：node scripts/selfcheck.mjs [--platform win32-x64|universal]
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -53,8 +57,13 @@ if (manifest) {
   if (typeof id !== "string" || !id || id === "." || id === ".." || /[\\/:*?"<>|]/.test(id)) {
     fail(`manifest.id 必须是非空、可作为单段目录名的字符串（当前 ${JSON.stringify(id)}）`);
   }
-  if (typeof manifest.entry !== "string" || !existsSync(join(ROOT, manifest.entry))) {
-    fail(`entry 不存在：${manifest.entry}`);
+  // 入口是**构建产物**（bin/app.mjs，由 build-server 打出），不在源码树里。源码树里能校验的
+  // 是它的源（app.js）与入口规约（必须是 .mjs 或 .js）——产物是否存在由 build-app 的断言管
+  // （交付树里逐个点名，见其第 5 步）。这也是入口改成产物形态后，两道检查各自的分工。
+  if (typeof manifest.entry !== "string" || !/\.m?js$/.test(manifest.entry)) {
+    fail(`manifest.entry 必须是一个 JS 入口路径（当前 ${JSON.stringify(manifest.entry)}）`);
+  } else if (!existsSync(join(ROOT, "app.js"))) {
+    fail("服务端入口源不存在：app.js（manifest.entry 指向的产物由它打出来）");
   }
   if (typeof manifest.icon !== "string" || !existsSync(join(ROOT, manifest.icon))) {
     fail(`icon 不存在：${manifest.icon}`);
@@ -79,7 +88,7 @@ if (manifest) {
 // ── 2) 服务端 js 语法（ESM 解析） ───────────────────────────────────────────
 function collectJs(dir, out = []) {
   for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "ui" || name === "vendor" || name.startsWith(".")) continue;
+    if (name === "node_modules" || name === "ui" || name === "vendor" || name === "dist" || name === "build" || name.startsWith(".")) continue;
     const p = join(dir, name);
     const st = statSync(p);
     if (st.isDirectory()) collectJs(p, out);
@@ -99,32 +108,43 @@ for (const file of collectJs(ROOT)) {
 // ── 3) vendor 就绪性（按声明） ──────────────────────────────────────────────
 const argv = process.argv.slice(2);
 const pi = argv.indexOf("--platform");
-const platform = pi >= 0 && argv[pi + 1] ? argv[pi + 1] : `${process.platform}-${process.arch}`;
-let declaredComponents = null;
+const platformArg = pi >= 0 && argv[pi + 1] ? argv[pi + 1] : `${process.platform}-${process.arch}`;
+// universal：包要发到任意平台，校验面就是 sources.json 声明的全部平台（与 pack 同一口径）。
+const isUniversal = platformArg === "universal";
+let sources = null;
+let platformsToCheck = [];
 try {
-  const sources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
-  const entry = sources.platforms && sources.platforms[platform];
-  if (!entry) {
-    note(`vendor：本平台（${platform}）无声明 → 组件全部走系统 PATH`);
+  sources = JSON.parse(readFileSync(join(ROOT, "vendor", "sources.json"), "utf8"));
+  if (isUniversal) {
+    platformsToCheck = Object.keys(sources.platforms || {});
+    note(`vendor：universal 目标 → 校验声明的全部平台（${platformsToCheck.join(" / ")}）`);
   } else {
-    declaredComponents = entry.components || null;
-    for (const [key, spec] of Object.entries(entry.components || {})) {
-      const exe = join(ROOT, "vendor", platform, key, spec.exe);
-      if (existsSync(exe)) note(`vendor[${platform}] ${key} 就绪（${spec.version}）`);
-      else if (!spec.sha256) note(`vendor[${platform}] ${key} 未内嵌（无声明产物）→ 走宿主 / 系统 PATH`);
-      else if (spec.optional) note(`vendor[${platform}] ${key} 未随包（optional，宿主已捆绑或按需抓取）→ 走宿主 / 系统 PATH`);
-      else fail(`vendor[${platform}] ${key} 缺失：${rel(exe)}（跑 node scripts/fetch-vendor.mjs --platform ${platform} ${key}）`);
-    }
+    platformsToCheck = [platformArg];
   }
 } catch (e) {
   fail(`vendor/sources.json 读不了：${(e && e.message) || e}`);
 }
 
-// ── 3b) 声明组件 ↔ 查找表一致性 ────────────────────────────────────────────
-// sources.json（磁盘上有什么）与 bin.js（怎么找到）是两份数据，命名漂移过一次（gpg vs gnupg）：
-// 拼错目录名不报错、静默回退系统 PATH，最后只在签名时报「No secret key」。CI 挡在这一层，
-// 别等用户机器上的签名失败来暴露。查找表按 process.platform 索引，故只在平台名与本机一致时比对。
-if (declaredComponents && platform.split("-")[0] === process.platform) {
+/** 单个平台的组件就绪性 + 查找表对齐。 */
+function checkPlatformVendor(platform) {
+  const entry = sources && sources.platforms && sources.platforms[platform];
+  if (!entry) {
+    if (!isUniversal) note(`vendor：本平台（${platform}）无声明 → 组件全部走系统 PATH`);
+    return;
+  }
+  const declaredComponents = entry.components || {};
+  for (const [key, spec] of Object.entries(declaredComponents)) {
+    const exe = join(ROOT, "vendor", "bin", platform, key, spec.exe);
+    if (existsSync(exe)) note(`vendor[${platform}] ${key} 就绪（${spec.version}）`);
+    else if (!spec.sha256) note(`vendor[${platform}] ${key} 未内嵌（无声明产物）→ 走宿主 / 系统 PATH`);
+    else fail(`vendor[${platform}] ${key} 缺失：${rel(exe)}（跑 node scripts/fetch-vendor.mjs --platform ${platform} ${key}）`);
+  }
+
+  // ── 声明组件 ↔ 查找表一致性 ──
+  // sources.json（磁盘上有什么）与 bin.js（怎么找到）是两份数据，命名漂移过一次（gpg vs gnupg）：
+  // 拼错目录名不报错、静默回退系统 PATH，最后只在签名时报「No secret key」。CI 挡在这一层。
+  // 查找表按 process.platform 索引，故只在平台名与本机一致时比对；universal 下只比对本机那份。
+  if (platform.split("-")[0] !== process.platform) return;
   const table = VENDOR_LAYOUT[process.platform];
   for (const [key, spec] of Object.entries(declaredComponents)) {
     const bin = Object.keys(VENDOR_COMPONENT).find((b) => VENDOR_COMPONENT[b] === key) || key;
@@ -142,8 +162,26 @@ if (declaredComponents && platform.split("-")[0] === process.platform) {
   }
 }
 
+for (const p of platformsToCheck) checkPlatformVendor(p);
+
+// ── 4) 随包的独立子进程入口与共享库（REST worker / 签名 shim / OpenPGP.js）─────
+// 它们不是外部二进制，所以不在 vendor 表里；但前两个都是 spawn 出去的独立入口，缺了对应域
+// 整个不可用（且只在被调用时才暴露）；第三份是两个入口运行期 import 的共享库，
+// 少了它两个入口在加载时就报错。所以在 CI 这一层拦住。
+for (const rel of [
+  ["tools/lib/rest.worker.mjs", "GitHub REST 执行体，构建时会平铺到 bin/rest.worker.mjs"],
+  ["tools/lib/gpg.shim.mjs", "签名 shim 源（构建时打包为 bin/gpg.shim.mjs，OpenPGP.js 运行期外置）"],
+  ["node_modules/openpgp/dist/node/openpgp.min.mjs", "OpenPGP.js 库文件源（构建时原样投影到 bin/openpgp.min.mjs）"],
+]) {
+  if (!existsSync(join(ROOT, ...rel[0].split("/")))) {
+    fail(`缺 ${rel[0]}（${rel[1]}）`);
+  } else {
+    note(`入口/库就绪（${rel[0]}）`);
+  }
+}
+
 // ── 输出 ───────────────────────────────────────────────────────────────────
 for (const n of notes) console.log("  note:", n);
 for (const p of problems) console.error("  FAIL:", p);
-console.log(`[selfcheck] platform=${platform} problems=${problems.length}`);
+console.log(`[selfcheck] platform=${platformArg} problems=${problems.length}`);
 process.exit(problems.length === 0 ? 0 : 1);

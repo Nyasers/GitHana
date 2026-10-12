@@ -21,8 +21,7 @@
  * 权限：external_side_effect（修改本地 git 历史；amend 改写最近提交）。
  */
 import { runCli, checkCwd } from "./lib/exec.js";
-import { resolveBin } from "./lib/bin.js";
-import { initToolContext, getToolDataDir } from "./lib/context.js";
+import { initToolContext } from "./lib/context.js";
 
 export const name = "git_commit";
 
@@ -116,36 +115,14 @@ function assembleMessage(base) {
 }
 
 /**
- * 收尾清理：杀掉插件环的 gpg-agent / scdaemon 常驻进程（rebuild spec §7，与 gpg-keygen 同款）。
- * 签名提交（隔离 gitconfig 的 commit.gpgsign=true + gpg.program=vendor gnupg）会拉起
- * 插件环 gpg-agent（默认常驻不退出，还会按需拉起同环 scdaemon）——收尾必须显式清理。
- * gpgconf 不支持 --homedir、靠 GNUPGHOME env 定位：runCli（buildBinEnv）已注入
- * GNUPGHOME=<dataDir>/gnupg，且 gpgconf 走插件 vendor/gnupg（无 gpgconf.ctl 认 env）→
- * 精准命中插件环，不碰用户个人 scoop home。
- * 幂等无副作用：失败/无 daemon 均静默（execute 的 finally 收尾，不覆盖主结果）。
- */
-async function killGpgDaemons() {
-  if (!getToolDataDir()) return; // dataDir 未登记 → 未注入 GNUPGHOME → 不 kill（防误碰默认环）
-  if (resolveBin("gpgconf").source !== "bundled") return; // vendor 缺失 = 无签名能力；系统 gpgconf 不认 env
-  try {
-    await runCli("gpgconf", ["--kill", "gpg-agent", "scdaemon"], {});
-  } catch {
-    /* 清理尽力而为：失败静默，不覆盖主结果 */
-  }
-}
-
-/**
- * 工具入口：先 initToolContext 登记 dataDir（runCli 据此注入 GIT_CONFIG_GLOBAL/GNUPGHOME
- * 隔离 env——签名配置来自隔离 gitconfig，缺登记则签名不生效），主体包 try/finally：
- * 任何返回路径统一经 finally 清理插件环 gpg-agent/scdaemon（防 daemon 残留）。
+ * 工具入口：先 initToolContext 登记 dataDir（runCli 据此注入 GIT_CONFIG_GLOBAL 隔离 env，
+ * 并把 gpg.program 指向随包的签名 shim——签名配置来自隔离 gitconfig，缺登记则签名不生效）。
  */
 export async function execute(input, ctx) {
   await initToolContext(ctx);
-  try {
-    return await runCommit(input);
-  } finally {
-    await killGpgDaemons();
-  }
+  // 不再需要收尾 gpg daemon：签名改由随包的纯 JS shim 完成（见 tools/lib/gpg.shim.mjs），
+  // 没有 gpg-agent / scdaemon 会被拉起，也就没有“daemon 残留锁住安装目录”这回事。
+  return await runCommit(input);
 }
 
 async function runCommit(input) {
