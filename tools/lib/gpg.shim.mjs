@@ -55,6 +55,55 @@ function parseStatusFd(argv) {
   return null;
 }
 
+/**
+ * 解析 git 传来的签名密钥选择（`-bsau <selector>` 的 selector 值；也兼容 `-u` / `--local-user`）。
+ *
+ * git 把 `user.signingKey` 的**原值**原样放在这里（实测）：可能是完整指纹、短/长 keyID，
+ * 也可能是 uid 或邮箱；未配 `user.signingKey` 时，git 传的是合成身份 `Name <email>`。
+ * 没给出选择时返回 null。
+ */
+function parseSigningSelector(argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "-u" || a === "--local-user") return argv[i + 1] ?? null;
+    if (a.startsWith("--local-user=")) return a.slice("--local-user=".length);
+    // 合并短选项组（git 实际发的是 `-bsau`）：u 后面紧跟值，或值在下一个 token。
+    const m = /^-[a-zA-Z]*u(.+)?$/.exec(a);
+    if (m) return m[1] ?? argv[i + 1] ?? null;
+  }
+  return null;
+}
+
+/** 归一化：压空白、去首尾、小写（keyID 与 uid 比对都按这个口径）。 */
+function normId(s) {
+  return String(s || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * 本机密钥能被 git/GnuPG 用来指认自己的所有写法：完整指纹、长/短 keyID、每个 uid 全文、
+ * uid 里的邮箱。用于比对 `-u` 的 selector——对不上说明 git 要的是**另一把**密钥。
+ */
+function keyIdentifiers(priv) {
+  const set = new Set();
+  const add = (s) => {
+    const v = normId(s);
+    if (v) set.add(v);
+  };
+  add(priv.getFingerprint());
+  const keyId = priv.getKeyID().toHex();
+  add(keyId);
+  add(keyId.slice(-8)); // 短 keyID
+  for (const uid of priv.getUserIDs()) {
+    add(uid);
+    const m = /<([^>]+)>/.exec(uid);
+    if (m) add(m[1]);
+  }
+  return set;
+}
+
 /** 往 status fd 写一行（[GNUPG:] 前缀是 git 认的格式）。 */
 function makeStatus(fd) {
   return (line) => {
@@ -181,6 +230,18 @@ async function main() {
   // 签名：payload 走 stdin（**原始字节**），armored detached 签名到 stdout。
   // 不用文本模式：`createMessage({ text })` 会按 UTF-8 解码、且以文本签名（类型 0x01）
   // 规范化行尾——git 与 GitHub 期望的是对提交对象的**精确字节**签名。
+  //
+  // 先核对 git 指定的签名密钥：`user.signingKey` 指向另一把时，git 以为签出来的是那把，
+  // 实际却由本机唯有的这把签——身份与用户的指定不符。GnuPG 对这个场景也是 FAILURE（§"签名密钥
+  // 不符"），所以照它的口径拒掉：发 FAILURE sign 并退 2，而不是默默签完。
+  const selector = parseSigningSelector(argv);
+  if (selector && !keyIdentifiers(priv).has(normId(selector))) {
+    status("FAILURE sign 17");
+    die(
+      "git 指定的签名密钥（" + selector + "）不是本机密钥（" + fpr + "，keyID " + keyId + "）：拒绝用别的身份签名。",
+      2,
+    );
+  }
   let payload = Buffer.alloc(0);
   try {
     payload = fs.readFileSync(0);
