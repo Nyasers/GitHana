@@ -150,9 +150,12 @@ export async function execute(input, ctx) {
   lines.push("HTTP " + r.status + (r.ok ? "（成功）" : "（失败）") + (r.pages ? " · 合并 " + r.pages + " 页" : ""));
   if (r.truncated) lines.push("（响应体过大，已截断）");
   if (!r.ok) lines.push("错误：" + errorDetail(r));
+  // 204/304 等无正文响应：json 与 text 都为空，不打印正文行（避免输出孤立的 null）。
   const text = r.json !== null && r.json !== undefined ? JSON.stringify(r.json, null, 2) : String(r.text || "");
-  const MAX = 8000;
-  lines.push("");
-  lines.push(text.length > MAX ? text.slice(0, MAX) + "\n…（截断，共 " + text.length + " 字符）" : text);
+  if (text !== "") {
+    const MAX = 8000;
+    lines.push("");
+    lines.push(text.length > MAX ? text.slice(0, MAX) + "\n…（截断，共 " + text.length + " 字符）" : text);
+  }
   return lines.join("\n");
 }

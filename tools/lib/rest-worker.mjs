@@ -25,7 +25,7 @@
  *
  * `--allow-net=<host>` 的收窄语法在当前 node（实测 v26.8.1）**不生效**：指定
  * `--allow-net=api.github.com` 后请求 `example.com` 仍然成功。运行时的门只能全开，
- * 那就在这一层把门收窄到实际需要的两个主机。这是本文件最重要的一条约束。
+ * 那就在这一层把门收窄到实际需要的两个主机（再加一个**重定向目标**白名单）。
  *
  * ## 协议
  *
@@ -35,11 +35,26 @@
  *
  * `auth` 缺省 true → 带 `Authorization: Bearer <token>`；false → 不带该头。
  * `paginate` true → 跟随 `Link: rel="next"` 合并 JSON 数组（上限 maxPages，缺省 10）。
+ * `redirect` 不交给 fetch：每一跳都过 REDIRECT_HOSTS，离开 api.github.com 后不带走凭据。
+ * 无正文响应（204/304/HEAD）返回 `json: null, text: ""`，不是错误。
  * stdout 只有一行 JSON；诊断一律走 stderr（App 侧只解析 stdout）。
  */
 
 /** 允许出站的主机（其余一律在发请求前拒绝）。 */
 const ALLOWED_HOSTS = new Set(["api.github.com", "github.com"]);
+
+/**
+ * 允许**重定向落到**的主机。
+ *
+ * GitHub 的内容端点（`/repos/{o}/{r}/tarball/...`、`/repos/{o}/{r}/zipball/...`、release 资产）
+ * 会 302 到 codeload.github.com；它是 GitHub 自己的下载域。不把它列进来就会让这类调用硬失败，
+ * 而把 redirect 交给 fetch 自己 follow（旧写法）则等于放弃白名单——两者都不可取。
+ * 所以：逐跳校验，且离开 api.github.com 后**不带走凭据**（见带 auth 的复件）。
+ */
+const REDIRECT_HOSTS = new Set(["api.github.com", "github.com", "codeload.github.com"]);
+
+/** 单请求最多跟随的重定向跳数（防卷回的 Location 把一次调用转死）。 */
+const MAX_REDIRECTS = 5;
 
 /** 单次响应的读取上限（字节）：GitHub 的正常响应远小于此，超限截断并标记。 */
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -50,10 +65,11 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 /**
  * 连接层失败的重试次数。
  *
- * 只重试**连接未建立**的错误（undici 的 CONNECT_TIMEOUT / ECONNREFUSED / DNS 失败）：
- * 那些情况下请求根本没到达 GitHub，重试无论对幂等的 GET 还是对 POST 都安全。
- * 已经拿到响应后的错误（包括超时、ECONNRESET 于响应中途）不重试——无法断定服务端是否
- * 已经执行了写操作，重试 POST 可能双写。
+ * 只重试**连接未建立**的错误（DNS 失败、连接被拒、连接超时）：那些情况下请求根本没
+ * 到达 GitHub，重试无论对幂等的 GET 还是对 POST 都安全。
+ *
+ * **不包含 `UND_ERR_SOCKET`**：它在 undici 里表示 socket 于请求或响应中途关闭——请求可能已经
+ * 到达并对服务端生效，重试 POST/PUT/DELETE 会双写。已拿到响应后的错误（含超时、ECONNRESET）同理。
  */
 const CONNECT_RETRIES = 2;
 
@@ -63,7 +79,6 @@ const CONNECT_ERROR_CODES = new Set([
   "ECONNREFUSED",
   "ENOTFOUND",
   "EAI_AGAIN",
-  "UND_ERR_SOCKET",
 ]);
 
 /** 从 undici 错误里取出连接层错误码；不是连接层错误返回 null。 */
@@ -83,8 +98,9 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** 有界读取响应体：超限截断并标记，不把整块读进内存。 */
+/** 有界读取响应体：超限截断并标记，不把整块读进内存。204/304 无正文，直接返回空。 */
 async function readBounded(res, limit) {
+  if (!res.body) return { text: "", truncated: false };
   const reader = res.body.getReader();
   const chunks = [];
   let size = 0;
@@ -125,6 +141,62 @@ function nextLink(linkHeader) {
     if (m) return m[1];
   }
   return null;
+}
+
+/** 需要跟随的状态码。 */
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * 带逐跳白名单校验的 fetch。
+ *
+ * 不用 `redirect:"follow"`：那样等于把起始 URL 的白名单校验作废——任何一个 302 都能把请求引到
+ * 任意主机（实测：`/repos/o/r/tarball/x` 会 302 到 codeload.github.com）。这里手工跟，每一跳都过
+ * REDIRECT_HOSTS。
+ *
+ * 另外，离开 `api.github.com` 后**不带走 Authorization**：codeload 不需要凭据，而把凭据送到
+ * 白名单里的非 API 域没有必要。
+ *
+ * 跳数超限或目标不在白名单时**抛出**（不是当作 3xx 回报）：这是拒绝，不是服务端的正常响应。
+ */
+async function fetchChecked(startUrl, { method, headers, body, timeoutMs }) {
+  let url = startUrl;
+  let headersNow = headers;
+  let methodNow = method;
+  let bodyNow = body;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const res = await fetch(url, {
+      method: methodNow,
+      headers: headersNow,
+      body: bodyNow,
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: "manual",
+    });
+    if (!REDIRECT_STATUS.has(res.status)) return res;
+    const loc = res.headers.get("location");
+    if (!loc) return res;
+    let next;
+    try {
+      next = new URL(loc, url);
+    } catch {
+      return res; // Location 不是合法 URL：当最终响应回报
+    }
+    if (!REDIRECT_HOSTS.has(next.host)) {
+      throw new Error(
+        "拒绝重定向：" + next.host + " 不在允许跟随的主机（" + [...REDIRECT_HOSTS].join(" / ") + "）。",
+      );
+    }
+    if (next.host !== "api.github.com" && headersNow.Authorization) {
+      const { Authorization, ...rest } = headersNow;
+      headersNow = rest;
+    }
+    // 303 与历史上常见的 301/302 会把非 GET 降为 GET；307/308 保留方法与体。
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && methodNow !== "GET")) {
+      methodNow = "GET";
+      bodyNow = undefined;
+    }
+    url = next.toString();
+  }
+  throw new Error("重定向次数超过上限（" + MAX_REDIRECTS + " 次）。");
 }
 
 /** 组请求头：Authorization 按 auth 开关，Accept/UA 固定，JSON 体带 content-type。 */
@@ -193,12 +265,11 @@ async function executeOne(req, token) {
     // 连接层失败重试（见 CONNECT_ERROR_CODES）：只重试“请求没到服务端”的情形。
     for (let attempt = 0; attempt <= CONNECT_RETRIES; attempt += 1) {
       try {
-        res = await fetch(current, {
+        res = await fetchChecked(current, {
           method,
           headers,
           body: body === undefined ? undefined : body,
-          signal: AbortSignal.timeout(timeoutMs),
-          redirect: "follow",
+          timeoutMs,
         });
         lastErr = null;
         break;
@@ -238,10 +309,12 @@ async function executeOne(req, token) {
     };
 
     if (!req.paginate || !res.ok) break;
+    // 先把本页收进结果，再看有没有下一页：末页的 Link 没有 rel="next"，
+    // 先判 next 会把它（也就是最后一页）丢掉。
+    if (!Array.isArray(parsed)) break; // 分页端点应回数组；不是就不继续，避免把对象拼坏
+    pages.push(...parsed);
     const next = nextLink(last.link);
     if (!next) break;
-    if (Array.isArray(parsed)) pages.push(...parsed);
-    else break; // 分页端点应回数组；不是就不继续，避免把对象拼坏
     current = next;
   }
 
