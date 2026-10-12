@@ -173,11 +173,16 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # react / react-dom / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm install          # react / react-dom / @rspack/core / 7z-wasm / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（内部先打产物，再按白名单拷交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/dist/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → build/server/app.mjs
 ```
+
+**构建期依赖不进包**：`@rspack/core` 是打包器，`7z-wasm` 用来拆 GnuPG 的 NSIS 安装器
+（`scripts/fetch-vendor.mjs`）——两者只在构建主机上跑，字节不进 `dist/`，所以既不用用系统上的
+`7z`（也就没有“构建主机得装对版本”的外部要求），也不必进 `licenses/`（该目录只列随包或内联的
+组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 平台二进制在 `bin/<平台>/` 平铺，两者同层——`bin/` 的语义就是「装到机器上要跑的东西」。
@@ -342,6 +347,10 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 licenses/ 里�
   **不点名时只拉当前平台**（`process.platform`）：开发机只需要自己的那份，其他平台是 CI 的事。
   抓全平台只应该发生在两条流水线上：`release.yml` 遍历 sources.json 全部平台出 universal 包，
   `ci.yml` 按矩阵各拉自己的。本地手动拉全平台只会白白占两百多 MB。
+- **解压工具不靠主机**：GnuPG 的 Windows 安装器是 NSIS 容器，用 `7z-wasm`（devDependency）拆——
+  它是 7-Zip 的 WASM 编译，能力等同完整 `7zz`。不用主机上的 7z：解压在**抓取主机**上执行，
+  而 CI 的 release 在 ubuntu 上为 win32 目标抓 gnupg；且省略版 `7za` / `7zr` **不支持 NSIS**，
+  名字在各发行版又不统一，容易静默选中错的那个。
 - CI：`.github/workflows/ci.yml` 三平台矩阵各自 fetch vendored runtime + `pnpm run check`
   （构建设置页 UI + selfcheck）；出包与发版在 `.github/workflows/release.yml`（tag `v*` 触发），
   ubuntu 上抓全平台运行时并出 universal 包。官方 creator 不在本仓，所以用一个零依赖的
@@ -442,6 +451,15 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest-worker.mjs` 在子�
 - **白名单在 worker 内自查**：`--allow-net=<host>` 的收窄语法在 v26.8.1 **不生效**（实测
   `--allow-net=api.github.com` 下请求 example.com 仍成功）。运行时的门只能全开，所以 worker 把门
   收窄到 `api.github.com` 与 `github.com`，其余一律在发请求前拒。
+- **重定向逐跳校验**：不用 `fetch(..., { redirect: "follow" })`——那等于把起始 URL 的白名单作废，
+  任意一个 302 都能把请求引到别处（`/repos/{o}/{r}/tarball/x` 就 302 到 `codeload.github.com`）。
+  改为 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`），跳数上限 5；
+  离开 `api.github.com` 后不带走 `Authorization`（内容域不需要凭据）。
+- **无正文响应是一等公民**：204/304/HEAD 没有 body，`res.body` 为 `null`。这类响应按
+  `{ ok: true, json: null, text: "" }` 回报，不是错误——DELETE 成功（删评论 / 删分支）本来就是 204，
+  当成错误会让调用方去重试一个已经成功的写操作。
+- **只重试“没到服务端”的连接层错误**：DNS 失败 / 连接被拒 / 连接超时。已拿到响应后的错误
+  （包括 `UND_ERR_SOCKET`、超时）不重试——那时代码可能已经生效，重试 POST 会双写。
 - **一次调用一批请求**：worker 无状态，一次工具调用的全部 HTTP 请求打包成数组交给它、顺序执行、
   返回结果数组（`gh_pr view` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
