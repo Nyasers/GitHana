@@ -173,26 +173,35 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # react / react-dom / @rspack/core / 7z-wasm / @hana/app-sdk（仓库内 tgz 快照）
-pnpm run build        # 组装 dist/（内部先打产物，再按白名单拷交付件）
-pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → ui/dist/settings.bundle.*
-pnpm run build:server # 只构建服务端单入口：app.js → build/server/app.mjs
+pnpm install          # openpgp / react / react-dom / @rspack/core / 7z-wasm / @hana/app-sdk（仓库内 tgz 快照）
+pnpm run build        # 组装 dist/（先清空，再依次构建三个产物 + 拷静态交付件）
+pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
+pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
 ```
 
+**构建产物直接落 `dist/`**（build-ui / build-server / build-shim 都写这里），没有 `build/` 中转层：
+交付面就是它们的产物落点，中间那一层只会让“产物到底在哪”多一个需要判断的间接层。
+注意三个 `build:*` 子命令产出的是 dist/ 的**一部分**，单独跑会与其它产物共存；
+要一个完整交付树请跑 `pnpm run build`（它先清空 dist/）。
+
 **构建期依赖不进包**：`@rspack/core` 是打包器，`7z-wasm` 用来拆 GnuPG 的 NSIS 安装器
-（`scripts/fetch-vendor.mjs`）——两者只在构建主机上跑，字节不进 `dist/`，所以既不用用系统上的
-`7z`（也就没有“构建主机得装对版本”的外部要求），也不必进 `licenses/`（该目录只列随包或内联的
-组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
+（`scripts/fetch-vendor.mjs`，当前 sources.json 无组件、它不活跃）——两者只在构建主机上跑，
+字节不进 `dist/`，所以既不用用系统上的 `7z`（也就没有“构建主机得装对版本”的外部要求），
+也不必进 `licenses/`（该目录只列随包或内联的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
+`openpgp` 与上述不同：它的**代码内联进 `bin/gpg-shim.mjs`**（随包），所以在 `licenses/` 里。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
-平台二进制在 `bin/<平台>/` 平铺，两者同层——`bin/` 的语义就是「装到机器上要跑的东西」。
+入口与另两个 spawn 出去的独立入口（`rest-worker.mjs` / `gpg-shim.mjs`）同层
+——`bin/` 的语义就是「装到机器上要跑的东西」。
 
 ```
 dist/
   manifest.json  LICENSE  NOTICE
   bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
-  bin/<平台>/<exe>         ← 运行时二进制
-  licenses/ assets/ skills/ ui/
+  bin/rest-worker.mjs     ← GitHub REST 执行体（零依赖纯 node 脚本）
+  bin/gpg-shim.mjs        ← 签名 shim（含 OpenPGP.js）
+  licenses/ assets/
+  ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
 ```
 
 **为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。此前服务端
@@ -214,15 +223,13 @@ dist/
 `specs/`）与设置页源码（`ui/src/`）就是这么进过包的。改成逐个点名后，要进包必须在名单里，
 源码树里多出什么都不影响包。
 
-**两个产物目录都不入库**（见 `.gitignore`）：
+**产物目录是构建中间产物**（见 `.gitignore`）：
 
 | 目录 | 内容 | 生成者 |
 |------|------|--------|
-| `dist/` | App 交付树（= 安装目录形态） | `scripts/build-app.mjs`（内部调 build-ui / build-server） |
-| `ui/dist/` | 设置页产物（bundle.js / bundle.css） | `scripts/build-ui.mjs` |
-| `build/server/` | 服务端单入口（app.mjs） | `scripts/build-server.mjs` |
+| `dist/` | App 交付树（= 安装目录形态），**三个产物直接写它内部** | `scripts/build-app.mjs`（调 build-ui / build-server / build-shim） |
 
-源码与产物不混在同一层：`ui/src/` 是源，`ui/dist/` 是物，`dist/ui/` 是进包的那一份。
+源码与产物不混在同一层：`ui/src/` 是源，`dist/ui/` 是进包的那一份。
 **出包时 `pack.mjs` 会无条件重新组装**，所以不必记得先构建，包里那份必然等于当前源码的产物。
 
 ## 脚本组织
