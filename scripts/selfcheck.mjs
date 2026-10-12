@@ -14,6 +14,7 @@
  *      对齐（防「声明了组件但查找表找不到」的命名漂移——探空会静默回退系统 PATH）。
  *      `--platform universal` 不是一个真实平台，而是「包要发到任意平台」：此时逐个校验
  *      sources.json 里声明的**每个**平台（与 pack --target universal 的全平台随包同一口径）。
+ *   4) REST worker 存在（GitHub 域不依赖外部二进制，但依赖这个随包的独立子进程入口）。
  *
  * 它不替代官方校验（那套会检查图标可解码、静态资源、隔离启动 smoke 等）。
  * 用法：node scripts/selfcheck.mjs [--platform win32-x64|universal]
@@ -161,6 +162,15 @@ function checkPlatformVendor(platform) {
 }
 
 for (const p of platformsToCheck) checkPlatformVendor(p);
+
+// ── 4) REST worker（GitHub 域的运行时依赖） ───────────────────────────────
+// 它不是外部二进制，所以不在 vendor 表里；但它是 spawn 出去的独立入口，缺了 GitHub 域
+// 整个不可用（且只在工具被调用时才暴露），所以在 CI 这一层拦住。
+if (!existsSync(join(ROOT, "tools", "lib", "rest-worker.mjs"))) {
+  fail("缺 tools/lib/rest-worker.mjs（GitHub REST 执行体，构建时会平铺到 bin/）");
+} else {
+  note("REST worker 就绪（tools/lib/rest-worker.mjs）");
+}
 
 // ── 输出 ───────────────────────────────────────────────────────────────────
 for (const n of notes) console.log("  note:", n);

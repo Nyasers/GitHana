@@ -16,8 +16,8 @@
  * ## dist/ 的形状（= App 安装目录形态）
  *
  *   manifest.json / LICENSE / NOTICE
- *   bin/  ← 入口（app.mjs，服务端 bundle）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
- *   licenses/ assets/ skills/
+ *   bin/  ← 入口（app.mjs，服务端 bundle）+ REST worker（rest-worker.mjs）+ 运行时二进制平铺（bin/<platform>/gpg.exe …）
+ *   licenses/ assets/
  *   ui/   ← 只含壳页与构建产物，**不含 ui/src/**
  *
  * **服务端代码以单入口进包**（`bin/app.mjs`）：入口名回答“这是什么”——它是 App 主体，
@@ -35,7 +35,8 @@
  *
  * licenses/ 是许可正文的单一落点：通知只陈述事实与对应关系，法条逐份在这里随包。
  *
- * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs）、
+ * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
+ * 但 tools/lib/rest-worker.mjs 例外——它是 spawn 出去的独立入口，平铺到 bin/rest-worker.mjs）、
  * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
  * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
  * （构建期缓存与声明，运行时无消费者）。
@@ -63,7 +64,6 @@ const DELIVERY_FILES = [
 const DELIVERY_DIRS = [
   "licenses", // 许可正文（通知只陈述事实，法条逐份在这里随包）
   "assets",
-  "skills",
 ];
 
 const log = (...a) => console.log("[build-app]", ...a);
@@ -140,7 +140,18 @@ function main() {
   }
   mkdirSync(join(DIST, "bin"), { recursive: true });
   total += copyInto(serverBundle, join(DIST, "bin", "app.mjs"));
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ 服务端单入口 bin/app.mjs`);
+
+  // 2a') REST worker → bin/rest-worker.mjs。
+  //     它**不**进 app.mjs 的 bundle：那是个 spawn 出去的子进程入口，必须是一个真实存在的
+  //     独立文件（tools/lib/rest.js 用 process.execPath 拉它）。与 app.mjs 同层，理由一样：
+  //     bin/ 就是“装到机器上要跑的东西”。
+  const restWorker = join(ROOT, "tools", "lib", "rest-worker.mjs");
+  if (!existsSync(restWorker)) {
+    console.error("[build-app] 缺 tools/lib/rest-worker.mjs（GitHub REST 执行体）");
+    process.exit(1);
+  }
+  total += copyInto(restWorker, join(DIST, "bin", "rest-worker.mjs"));
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/rest-worker.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，

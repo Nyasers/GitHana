@@ -20,7 +20,7 @@
  *
  * 用法：
  *   node scripts/fetch-vendor.mjs                      # 当前平台全量
- *   node scripts/fetch-vendor.mjs gh                   # 只补某组件
+ *   node scripts/fetch-vendor.mjs gnupg                # 只补某组件
  *   node scripts/fetch-vendor.mjs --platform linux-x64 # 指定平台条目（跨平台准备）
  *   node scripts/fetch-vendor.mjs --check              # 只校验（不下载）
  *
@@ -175,11 +175,11 @@ function extract(spec, cacheFile, destRoot) {
 /**
  * 把上游树规整成组件根平铺形态。
  *
- * 上游产物总带一批运行时用不到的东西（gh 的 share/man 手册、LICENSE；gnupg 的卸载器、
- * include/、locale）——它们既增大包体，又给“许可文本该从哪读”制造歧义。
+ * 上游产物总带一批运行时用不到的东西（gnupg 的卸载器、include/、locale、share/man）——
+ * 它们既增大包体，又给“许可文本该从哪读”制造歧义。
  *
  * `keep`（缺省 ["bin"]）列的是**要保留内容的顶层目录**，其内容平铺到组件根：
- * 上游的 `bin/gh` 变成组件根的 `gh`（而不是 `bin/gh`）。上游那层 bin 只是它的布局，
+ * 上游的 `bin/<exe>` 变成组件根的 `<exe>`（而不是 `bin/<exe>`）。上游那层 bin 只是它的布局，
  * 而 vendor/bin/<平台>/<组件>/ 已经声明了「这里是二进制」，再套一层纯属冗余，
  * 也让“exe 到底在第几层”重新变成需要判断的事。
  *
@@ -223,9 +223,9 @@ function keepDirs(spec) {
 /**
  * 上游树里 exe 的候选路径。
  *
- * `spec.exe` 写的是**落盘位置**（相对组件根，如 `gh.exe` / `cmd/git.exe`）——因为 bin.js、
+ * `spec.exe` 写的是**落盘位置**（相对组件根，如 `gpg.exe` / `cmd/git.exe`）——因为 bin.js、
  * pack、selfcheck 三个消费者要的都是它能直接拼接的位置。而上游树里它可能还套着一层 keep 目录
- * （上游的 bin/gh.exe → 落盘 gh.exe），所以解压后要找的路要反推回去。
+ * （上游的 bin/gpg.exe → 落盘 gpg.exe），所以解压后要找的路要反推回去。
  */
 function upstreamExePaths(spec) {
   if (spec.keep === "all") return [spec.exe];

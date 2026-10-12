@@ -5,13 +5,13 @@
 //
 // ## 通知是**包的一部分**，不是仓库的一部分
 //
-// 通知写的是「这个包里有什么」，而包内容取决于 target（universal 带全平台 gh + win32 gnupg；
-// darwin 包只带 gh）。仓库里的源码并不「拥有」某个特定包的内容，所以**仓库里不存这份通知**：
+// 通知写的是「这个包里有什么」，而包内容取决于 target（universal 带全平台 gnupg；
+// 其余平台不带内嵌二进制）。仓库里的源码并不「拥有」某个特定包的内容，所以**仓库里不存这份通知**：
 // 它由 pack.mjs 在组装交付树时按实际内容渲染并落进包里。
 //
 // 这样有两个真好处：
 //   · 不会漂：没有一份静态文件可以跟包不一致（以前需要 --check 去比，现在压根不存在两份）。
-//   · 不会多：darwin 包里不会出现 GnuPG 段落与 GPL-3.0 条文。
+//   · 不会多：只带 gnupg 的包里不会出现无关组件段落与条文。
 //
 // ## 版本号仍然是读的
 //
@@ -45,7 +45,6 @@ const readJson = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 
 /** 随包二进制组件 → 它要随带的许可正文文件名。 */
 export const SHIPPED_COMPONENT_LICENSE = {
-  gh: "MIT-gh.txt",
   gnupg: "GPL-3.0.txt",
 };
 
@@ -109,7 +108,6 @@ function sdkThirdPartyText() {
 export function renderNotice({ components }) {
   const sdkVersion = packedVersion();
   const has = (c) => components.includes(c);
-  const gh = has("gh") ? vendorFacts("gh") : null;
   const gnupg = has("gnupg") ? vendorFacts("gnupg") : null;
   // 只有包里真的带了 GPL 组件时才谈 GPL（MinGit 从不随包，故它不参与这个判断）。
   const anyGpl = Boolean(gnupg);
@@ -149,14 +147,6 @@ export function renderNotice({ components }) {
   L.push("按 `<platform>-<arch>` 重建；落盘只保留该表 `keep` 声明的条目，最终形态是");
   L.push("`bin/<platform>/<exe>`（产物侧，构建期由 `build-app` 从 `vendor/bin/` 投影过去）。", "");
 
-  if (gh) {
-    L.push("### gh CLI", "");
-    L.push(`- Version: ${gh.version}`);
-    L.push("- Purpose: GitHub CLI —— PR 生命周期、`gh api`、认证复用");
-    L.push("- Form: 官方单文件产物，**未修改**，按平台矩阵各自随包（`bin/<platform>/gh`）");
-    L.push(`- Source: ${gh.url}`);
-    L.push("- License: MIT —— 正文见 `licenses/MIT-gh.txt`（上游产物里那份 LICENSE 不随包，本文件与同目录正文即全部出口）", "");
-  }
   if (gnupg) {
     L.push("### GnuPG", "");
     L.push(`- Version: ${gnupg.version}`);
@@ -171,6 +161,10 @@ export function renderNotice({ components }) {
   L.push("- Form: **始终不随包**。宿主 Hana 自带 `<HANA_ROOT>/resources/git`（Git for Windows），App 通过");
   L.push("  `app/process.spawn` 直接使用它（详见 `tools/lib/bin.js` 的平台通用解析）。");
   L.push("- License: 随宿主那份分发，其自己的 `LICENSE.txt` 就在宿主安装目录里，不由本包再带一份。", "");
+  L.push("### GitHub 域（无外部二进制）", "");
+  L.push("- Form: **不随任何二进制**。GitHub 的 REST 请求由随包的 `bin/rest-worker.mjs` 在子进程里直发");
+  L.push("  （Node 内置 `fetch`，无第三方依赖）。");
+  L.push("- 历史上随包的是 gh CLI（MIT）；改用自写 REST 后它已不在包内。", "");
 
   // ── 构建期内联 ──
   L.push("## 构建期内联（打进 `ui/dist/settings.bundle.js`）", "");
@@ -203,7 +197,6 @@ export function renderNotice({ components }) {
   L.push("|------|------|----------|");
   const indexRow = {
     "Apache-2.0.txt": ["Apache License 2.0", "@hana/app-sdk（构建期内联）"],
-    "MIT-gh.txt": ["MIT (Copyright GitHub, Inc.)", "gh CLI（随包）"],
     "MIT-react.txt": ["MIT (Copyright Meta Platforms, Inc. and affiliates)", "react / react-dom（构建期内联）"],
     "GPL-3.0.txt": ["GNU GPL v3", "GnuPG（随包）"],
     "hana-app-sdk-THIRD_PARTY_NOTICES.txt": ["混合（含 MIT / ISC / Apache-2.0 等）", "@hana/app-sdk 内联的第三方依赖"],

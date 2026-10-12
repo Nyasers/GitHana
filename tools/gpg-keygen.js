@@ -66,6 +66,7 @@ import {
   noreplyEmailFromUser,
 } from "./lib/identity.js";
 import { runCli } from "./lib/exec.js";
+import { callRest, errorDetail } from "./lib/rest.js";
 import { killGpgDaemons } from "./lib/gpg-daemon.js";
 import {
   initToolContext,
@@ -207,8 +208,8 @@ async function runKeygen(input) {
   fs.mkdirSync(gpgDir, { recursive: true });
 
   // —— 0. 提交者身份解析（email/name）——
-  // 顺序：显式 email 参数 > OAuth 令牌自动推导（gh api user → noreply 邮箱）；推导失败
-  // （未授权 / gh api 失败 / 解析失败）→ 中止并报错区分原因，不生成不删除不写身份。
+  // 顺序：显式 email 参数 > OAuth 令牌自动推导（GET /user → noreply 邮箱）；推导失败
+  // （未授权 / 请求失败 / 解析失败）→ 中止并报错区分原因，不生成不删除不写身份。
   // 名字三级链：显式 name 参数 → user.name → login（同一个 deriveNameFromUser，见 tools/lib/identity.js）。
   const explicitEmail = String((input && input.email) || "").trim();
   const explicitName = String((input && input.name) || "").trim();
@@ -220,39 +221,38 @@ async function runKeygen(input) {
     email = explicitEmail;
     name = explicitName || deriveNameFromEmail(email);
   } else {
-    // b. 否则令牌自动推导：gh api user（GH_TOKEN 由 exec.js 注入）→ {id, login, name}
+    // b. 否则令牌自动推导：GET /user（自写 REST 通道，带进程内 OAuth 令牌）→ {id, login, name}
     //    email = noreplyEmailFromUser(id, login)，name = name 参数或 deriveNameFromUser(user)
     // 令牌只在进程缓存里（DPAPI 解密结果，见 lib/secret.js）。
     const token = String(getToolSecretToken() || "").trim();
     if (!token) {
       return (
         "密钥生成：尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）。提交者邮箱依赖令牌自动推导" +
-        "（gh api user → noreply 邮箱 {id}+{login}@users.noreply.github.com）。\n" +
+        "（GET /user → noreply 邮箱 {id}+{login}@users.noreply.github.com）。\n" +
         "请到设置页点「用 GitHub 登录」完成授权后重跑，或直接传 email 参数以跳过自动推导。" +
         "本次未生成/删除任何密钥、未写身份。"
       );
     }
-    const userR = await runCli("gh", ["api", "user"], {});
-    if (!userR.ok) {
+    const userR = await callRest(
+      [{ url: "https://api.github.com/user", timeoutMs: 30_000 }],
+      { timeoutSec: 30 },
+    );
+    const userRes = userR.ok ? userR.results[0] : null;
+    if (!userRes || !userRes.ok) {
       return (
-        "密钥生成：令牌自动推导提交者身份失败——gh api user 调用失败：" +
-        (userR.message || "未知错误") + "\n" +
-        "请确认授权有效（gh api user 不需要任何额外权限），或直接传 email 参数。" +
+        "密钥生成：令牌自动推导提交者身份失败——GET /user 调用失败：" +
+        ((userRes && errorDetail(userRes)) || userR.message || "未知错误") + "\n" +
+        "请确认授权有效（该端点不需要任何额外权限），或直接传 email 参数。" +
         "本次未生成/删除任何密钥、未写身份。"
       );
     }
-    let user = null;
-    try {
-      user = JSON.parse(userR.stdout);
-    } catch {
-      /* 解析失败走下方统一错误 */
-    }
+    const user = userRes.json;
     const id = user && user.id;
     login = user && user.login ? String(user.login).trim() : "";
     if (id === undefined || id === null || id === "" || !login) {
       return (
-        "密钥生成：令牌自动推导提交者身份失败——gh api user 响应解析失败" +
-        "（未取得 {id, login}；原始输出前 200 字符：" + String(userR.stdout || "").slice(0, 200) + "）。\n" +
+        "密钥生成：令牌自动推导提交者身份失败——GET /user 响应解析失败" +
+        "（未取得 {id, login}；原始输出前 200 字符：" + String(userRes.text || "").slice(0, 200) + "）。\n" +
         "请检查授权与网络后重试，或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
       );
     }

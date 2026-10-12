@@ -2,8 +2,8 @@
 #
 # 设计原则：CI 只是执行者，链在本仓库里（scripts/*.mjs），本地同一条命令：
 #   pnpm install --ignore-scripts && pnpm run check
-# vendor/ 不入 git，且内嵌内容本来就与平台相关（Windows 吃宿主 git + 内嵌 gh/gnupg；
-# macOS/Linux 只有 gh 有官方单文件产物）。
+# vendor/ 不入 git，且内嵌内容本来就与平台相关（Windows 需要内嵌 gnupg 认 GNUPGHOME；
+# macOS/Linux 的 gpg 走系统，无内嵌二进制）。
 #
 # 诚实边界：官方 creator（validate_app / pack_app）不在本仓库。没配仓库变量
 # HANA_APP_TOOLS_ROOT 时，release.yml 会明确说明"没有官方校验"，而不是静默成功。

@@ -6,21 +6,13 @@
     "sha256 为空 = 本平台暂未提供可校验产物：fetch 脚本会明确跳过并告警，该组件回退系统 PATH。",
     "不要为了填满表格编造 sha256——校验失败必须拒绝落盘，这是这条链路唯一的价值。",
     "不是每个平台都该内嵌每样东西：macOS / Linux 自带 git 与 gpg，硬塞反而重且违背轻量取向。",
+    "GitHub 域不在此表：请求由随 App 的 REST worker（bin/rest-worker.mjs）在子进程里直发，不需要 gh CLI。",
     "keep 声明上游树里哪些顶层条目的内容落到组件根（缺省 [\"bin\"]）。上游那层 bin/ 只是它自己的布局，而 vendor/bin/<平台>/<组件>/ 已经声明了「这里是二进制」：再套一层纯属冗余，也让「exe 到底在第几层」重新变成需要判断的事，而把二进制集中到 vendor/bin/ 的初衷正是免掉这个判断。取出的内容直接平铺到组件根，最终形态是 vendor/bin/<平台>/<组件>/<exe>。上游的 share/、LICENSE、卸载器、include/ 一律不进包；许可正文走 licenses/ 单一出口。"
   ],
   "platforms": {
     "win32-x64": {
-      "notes": "Windows 上内嵌 gh 与 gnupg：机器不一定有这两个，而签名链路要求 gpg 必须认 GNUPGHOME。git 不在此列——宿主始终随带 <HANA_ROOT>/resources/git，App 直接用它。",
+      "notes": "Windows 上内嵌 gnupg：签名链路要求 gpg 必须认 GNUPGHOME，系统那份不保证。git 不在此列——宿主始终随带 <HANA_ROOT>/resources/git，App 直接用它。",
       "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_windows_amd64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_windows_amd64.zip",
-          "sha256": "ae64e556ecc240b200f7eba60d550e4bb60d78e860e69dd88c449405b86067f4",
-          "extract": "zip",
-          "exe": "gh.exe"
-        },
         "gnupg": {
           "label": "GnuPG",
           "version": "2.5.24",
@@ -35,74 +27,24 @@
       }
     },
     "win32-arm64": {
-      "notes": "Windows on ARM（Snapdragon X 等）。gh 有官方 arm64 产物；GnuPG 官方只发 w32 的 32/64 位 x86 包、**没有 arm64**，所以这台机器上走系统 / 第三方 gpg。",
-      "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_windows_arm64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_windows_arm64.zip",
-          "sha256": "5dcf12aa8525eabd0c46ec414f323ab6cf65229fc2cd46543cc705001bbaf223",
-          "extract": "zip",
-          "exe": "gh.exe"
-        }
-      }
+      "notes": "Windows on ARM（Snapdragon X 等）。GnuPG 官方只发 w32 的 32/64 位 x86 包、**没有 arm64**，所以这台机器上走系统 / 第三方 gpg。",
+      "components": {}
     },
     "darwin-arm64": {
-      "notes": "git 与 gpg 走系统（macOS 自带 git，gpg 通常来自 Homebrew）；仅 gh 有官方单文件产物。",
-      "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_macOS_arm64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_arm64.zip",
-          "sha256": "da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e",
-          "extract": "zip",
-          "exe": "gh"
-        }
-      }
+      "notes": "git 与 gpg 走系统（macOS 自带 git，gpg 通常来自 Homebrew）。本平台无内嵌二进制。",
+      "components": {}
     },
     "darwin-x64": {
       "notes": "同上（Intel Mac）。",
-      "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_macOS_amd64.zip",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_amd64.zip",
-          "sha256": "b245f24eb2bf5f75b426b4c26da3651a107f8d5b6f4fddfbfccc5679041378b3",
-          "extract": "zip",
-          "exe": "gh"
-        }
-      }
+      "components": {}
     },
     "linux-x64": {
-      "notes": "git 走系统；gpg 走系统（gnupg 包天然认 GNUPGHOME）；仅 gh 有官方单文件产物（tar.gz）。",
-      "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_linux_amd64.tar.gz",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz",
-          "sha256": "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386",
-          "extract": "targz",
-          "exe": "gh"
-        }
-      }
+      "notes": "git 走系统；gpg 走系统（gnupg 包天然认 GNUPGHOME）。本平台无内嵌二进制。",
+      "components": {}
     },
     "linux-arm64": {
       "notes": "同上（arm64）。",
-      "components": {
-        "gh": {
-          "label": "gh CLI",
-          "version": "2.102.0",
-          "asset": "gh_2.102.0_linux_arm64.tar.gz",
-          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_arm64.tar.gz",
-          "sha256": "7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484",
-          "extract": "targz",
-          "exe": "gh"
-        }
-      }
+      "components": {}
     }
   }
 }
