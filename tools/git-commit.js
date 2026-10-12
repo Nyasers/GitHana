@@ -22,7 +22,6 @@
  */
 import { runCli, checkCwd } from "./lib/exec.js";
 import { initToolContext } from "./lib/context.js";
-import { killGpgDaemons } from "./lib/gpg-daemon.js";
 
 export const name = "git_commit";
 
@@ -116,18 +115,14 @@ function assembleMessage(base) {
 }
 
 /**
- * 工具入口：先 initToolContext 登记 dataDir（runCli 据此注入 GIT_CONFIG_GLOBAL/GNUPGHOME
- * 隔离 env——签名配置来自隔离 gitconfig，缺登记则签名不生效），主体包 try/finally：
- * 任何返回路径统一经 finally 清理插件环 gpg-agent/scdaemon（防 daemon 残留锁住 vendor 文件，
- * 见 tools/lib/gpg-daemon.js）。
+ * 工具入口：先 initToolContext 登记 dataDir（runCli 据此注入 GIT_CONFIG_GLOBAL 隔离 env，
+ * 并把 gpg.program 指向随包的签名 shim——签名配置来自隔离 gitconfig，缺登记则签名不生效）。
  */
 export async function execute(input, ctx) {
   await initToolContext(ctx);
-  try {
-    return await runCommit(input);
-  } finally {
-    await killGpgDaemons();
-  }
+  // 不再需要收尾 gpg daemon：签名改由随包的纯 JS shim 完成（见 tools/lib/gpg-shim.mjs），
+  // 没有 gpg-agent / scdaemon 会被拉起，也就没有“daemon 残留锁住安装目录”这回事。
+  return await runCommit(input);
 }
 
 async function runCommit(input) {

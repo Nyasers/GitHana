@@ -5,33 +5,20 @@
     "vendor/ 不入 git（二进制太大）；CI 与打包前用 scripts/fetch-vendor.mjs 按本表重建。",
     "sha256 为空 = 本平台暂未提供可校验产物：fetch 脚本会明确跳过并告警，该组件回退系统 PATH。",
     "不要为了填满表格编造 sha256——校验失败必须拒绝落盘，这是这条链路唯一的价值。",
-    "不是每个平台都该内嵌每样东西：macOS / Linux 自带 git 与 gpg，硬塞反而重且违背轻量取向。",
-    "GitHub 域不在此表：请求由随 App 的 REST worker（bin/rest-worker.mjs）在子进程里直发，不需要 gh CLI。",
-    "keep 声明上游树里哪些顶层条目的内容落到组件根（缺省 [\"bin\"]）。上游那层 bin/ 只是它自己的布局，而 vendor/bin/<平台>/<组件>/ 已经声明了「这里是二进制」：再套一层纯属冗余，也让「exe 到底在第几层」重新变成需要判断的事，而把二进制集中到 vendor/bin/ 的初衷正是免掉这个判断。取出的内容直接平铺到组件根，最终形态是 vendor/bin/<平台>/<组件>/<exe>。上游的 share/、LICENSE、卸载器、include/ 一律不进包；许可正文走 licenses/ 单一出口。"
+    "**当前没有任何平台内嵌二进制**：git 用宿主的 <HANA_ROOT>/resources/git，签名由随包的纯 JS shim（bin/gpg-shim.mjs）完成，GitHub 请求由随包的 REST worker（bin/rest-worker.mjs）直发。三平台因此完全同构，没有平台分支。",
+    "keep 声明上游树里哪些顶层条目的内容落到组件根（缺省 [\"bin\"]）。当前无组件使用，保留该语义供将来需要内嵌二进制时复用。"
   ],
   "platforms": {
     "win32-x64": {
-      "notes": "Windows 上内嵌 gnupg：签名链路要求 gpg 必须认 GNUPGHOME，系统那份不保证。git 不在此列——宿主始终随带 <HANA_ROOT>/resources/git，App 直接用它。",
-      "components": {
-        "gnupg": {
-          "label": "GnuPG",
-          "version": "2.5.24",
-          "asset": "gnupg-w32-2.5.24_20260923.exe",
-          "url": "https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.5.24_20260923.exe",
-          "sha256": "ea6f9dee2cccd83287432625b8b399173805add81d27067fcaf019c0c4da1ad8",
-          "extract": "7z-bin",
-          "exe": "gpg.exe",
-          "keep": "all",
-          "note": "NSIS/7z 容器：extract 分支直接只取 bin/ 的内容并平铺到组件根（这就是它的 keep 取舍），故这里标 keep: all 不再二次裁减。置备后必须删除 gpgconf.ctl（否则便携模式恒指 scoop home、忽略 GNUPGHOME，隔离签名与 gpgconf --kill 都失效）。"
-        }
-      }
+      "notes": "无内嵌二进制：签名走 OpenPGP.js（纯 JS），git 用宿主那份。",
+      "components": {}
     },
     "win32-arm64": {
-      "notes": "Windows on ARM（Snapdragon X 等）。GnuPG 官方只发 w32 的 32/64 位 x86 包、**没有 arm64**，所以这台机器上走系统 / 第三方 gpg。",
+      "notes": "同 win32-x64。",
       "components": {}
     },
     "darwin-arm64": {
-      "notes": "git 与 gpg 走系统（macOS 自带 git，gpg 通常来自 Homebrew）。本平台无内嵌二进制。",
+      "notes": "同 win32-x64：git 用宿主那份，签名走纯 JS，无平台差异。",
       "components": {}
     },
     "darwin-x64": {
@@ -39,7 +26,7 @@
       "components": {}
     },
     "linux-x64": {
-      "notes": "git 走系统；gpg 走系统（gnupg 包天然认 GNUPGHOME）。本平台无内嵌二进制。",
+      "notes": "同上。",
       "components": {}
     },
     "linux-arm64": {
