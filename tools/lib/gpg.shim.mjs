@@ -18,7 +18,9 @@
  *         进度/状态写 `--status-fd` 指向的 fd。
  *   验签：<prog> --keyid-format=long --status-fd=<fd> --verify <sigfile> -
  *         `<sigfile>` 里**只有签名**（没有 payload）；payload 走 **stdin**（末尾的 `-`）。
- *         git 会解析 status-fd 上的 `GOODSIG` / `VALIDSIG` 行判定结果——**只退 0 不够**。
+ *         git 会解析 status-fd 上的 `GOODSIG` / `VALIDSIG` / `TRUST_ULTIMATE` 行判定结果——
+ *         **只退 0 不够**，缺 TRUST_* 时 `%G?` 会落到 U 而不是 G。可读文本走 stderr，
+ *         git 原样转发给 `--show-signature` 的显示。
  *
  * ## 密钥从哪来
  *
@@ -217,12 +219,35 @@ async function main() {
         verificationKeys: priv.toPublic(),
       });
       await res.signatures[0].verified; // 不通过会抛
+      // 状态行与可读文本都照 GnuPG 的口径发：git 自己只看状态行，可读的那几行由它原样
+      // 转给用户（`--show-signature` 的显示就是这些）。
+      const pack = sig.packets && sig.packets[0];
+      const created = pack && pack.created instanceof Date ? pack.created : null;
+      const createdIso = created ? created.toISOString().replace("T", " ").replace(/\.\d+Z$/, "") : "2026-01-01 00:00:00";
+      // VALIDSIG 的第 3 项是签名时间（UTC，秒级）+ 时区。git 用它填 %GS / %GG 一类的字段。
+      const packHashAlg = pack && Number.isInteger(pack.hashAlgorithm) ? pack.hashAlgorithm : 8;
+      const packPubAlg = pack && Number.isInteger(pack.publicKeyAlgorithm) ? pack.publicKeyAlgorithm : 22;
       status("NEWSIG");
       status("GOODSIG " + keyId + " " + uid);
-      status("VALIDSIG " + fpr + " 2026-01-01 0 0 4 0 1 8 00 " + fpr);
+      status(
+        "VALIDSIG " + fpr + " " + createdIso + " 0 0 " + packPubAlg + " " + packHashAlg + " 00 " + fpr,
+      );
+      // TRUST_ULTIMATE：走到这里意味着签名者就是本机这把、且私钥就在本机。
+      // GnuPG 对自用密钥（私钥在环里）也报 ultimate，缺这行 git 判不出来，“%G?”落到
+      // U（good, unknown validity）而不是 G——`log --show-signature` 于是显示
+      // “Good signature”却带个“未验证信任”的尾巴，与真实 gpg 的行为不符。
+      // 只影响自签：别人的签名在上面 signerIds 不匹配时已经 ERRSIG/NO_PUBKEY 返回。
+      status("TRUST_ULTIMATE 0 pgp");
+      // 可读文本（走 stderr，git 原样转发）：不写这几行，`--show-signature` 在验签
+      // 成功时反而什么都不显示——只有状态行、没有人的语言。
+      const algName = packPubAlg === 22 ? "EDDSA" : String(packPubAlg);
+      process.stderr.write("gpg: Signature made " + createdIso + " UTC\n");
+      process.stderr.write("gpg:                using " + algName + " key " + fpr + "\n");
+      process.stderr.write('gpg: Good signature from "' + uid + '" [ultimate]\n');
       process.exit(0);
     } catch {
       status("BADSIG " + keyId + " " + uid);
+      process.stderr.write('gpg: BAD signature from "' + uid + '"\n');
       die("签名验证不通过（Signed digest did not match）。", 1);
     }
   }
