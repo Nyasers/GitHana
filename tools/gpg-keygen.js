@@ -13,11 +13,10 @@
  *
  * ## 实现（OpenPGP.js，不再是 gpg 二进制）
  *
- * 1. 提交者身份：邮箱经 OAuth 令牌自动推导（GET /user → noreply 邮箱
- *    {id}+{login}@users.noreply.github.com），或 email 参数显式覆盖；名字走三级推导链
- *    （显式 name 参数 → GET /user 的 name 字段 → login）；身份写入隔离 gitconfig
- *    （<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。推导失败 → 中止并提示
- *    「完成 GitHub 登录或传 email 参数」，不生成不删除不写身份。
+ * 1. 提交者身份：完全由已登录账号推导，不接受参数覆盖——邮箱用 GitHub noreply 格式
+ *    （GET /user → {id}+{login}@users.noreply.github.com），名字走三级链（user.name →
+ *    login）；身份写入隔离 gitconfig（<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。
+ *    推导失败（未登录 / 请求失败）→ 中止并提示先完成登录，不生成不删除不写身份。
  * 2. 签名密钥：由 lib/openpgp-key.js 生成 ed25519（UID name+email），私钥经 DPAPI 加密落
  *    <dataDir>/gpg-key.json，公钥明文落 <dataDir>/github-toolkit-gpg-pubkey.asc。
  *    首次执行 = 生成；重复执行 = 轮换（**直接覆盖**：旧密钥由新记录取代，不像 gpg 环那样
@@ -32,15 +31,14 @@
  *    上传失败**不**影响本地密钥生成结果（本地签名链路已可用），只在返回文本里报告，
  *    并提供设置页的手动重试入口。
  *
- * email 语义：密钥 UID 邮箱必须等于提交作者邮箱（token 自动推导的 noreply 邮箱，或 email
- * 参数显式值）才能被 GitHub 验证为 verified——生成密钥强制用该邮箱，不另设参数。
+ * email 语义：密钥 UID 邮箱必须等于提交作者邮箱（令牌推导的 noreply 邮箱）才能被 GitHub
+ * 验证为 verified——生成密钥强制用该邮箱，不另设参数。
  *
  * 权限：plugin_output（只写插件自有 dataDir，无外部副作用）。
  */
 import fs from "node:fs";
 import path from "node:path";
 import {
-  deriveNameFromEmail,
   deriveNameFromUser,
   noreplyEmailFromUser,
 } from "./lib/identity.js";
@@ -57,14 +55,14 @@ import { publishKey } from "../lib/gpg-publish.js";
 
 export async function execute(input, ctx) {
   await initToolContext(ctx);
-  return runKeygen(input);
+  return runKeygen();
 }
 
 /**
  * 主体实现（身份解析 → gitconfig 写入 → 密钥生成/轮换 → 签名接线 → 公钥发布）。
  * 各分支直接 return 报告文本。
  */
-async function runKeygen(input) {
+async function runKeygen() {
   const dataDir = getToolDataDir();
   if (!dataDir) {
     return "密钥生成：无法定位插件数据目录（ctx.dataDir 缺失），无法初始化隔离配置。";
@@ -75,24 +73,18 @@ async function runKeygen(input) {
   const cfgPath = path.join(dataDir, "gitconfig");
 
   // —— 0. 提交者身份解析（email/name）——
-  // 顺序：显式 email 参数 > OAuth 令牌自动推导（GET /user → noreply 邮箱）；推导失败
-  // （未授权 / 请求失败 / 解析失败）→ 中止并报错区分原因，不生成不写身份。
-  const explicitEmail = String((input && input.email) || "").trim();
-  const explicitName = String((input && input.name) || "").trim();
+  // 身份完全由已登录账号推导，没有覆盖入口：邮箱用 GitHub noreply 格式，名字走
+  // user.name → login。推导失败（未登录 / 请求失败 / 解析失败）→ 中止并报错区分原因。
   let email = "";
   let name = "";
   let login = "";
-  if (explicitEmail) {
-    email = explicitEmail;
-    name = explicitName || deriveNameFromEmail(email);
-  } else {
+  {
     const token = String(getToolSecretToken() || "").trim();
     if (!token) {
       return (
-        "密钥生成：尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）。提交者邮箱依赖令牌自动推导" +
+        "密钥生成：尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）。提交者身份依赖令牌自动推导" +
         "（GET /user → noreply 邮箱 {id}+{login}@users.noreply.github.com）。\n" +
-        "请到设置页点「用 GitHub 登录」完成授权后重跑，或直接传 email 参数以跳过自动推导。" +
-        "本次未生成/删除任何密钥、未写身份。"
+        "请到设置页点「用 GitHub 登录」完成授权后重跑。本次未生成/删除任何密钥、未写身份。"
       );
     }
     const userR = await callRest([{ url: "https://api.github.com/user", timeoutMs: 30_000 }], { timeoutSec: 30 });
@@ -101,8 +93,7 @@ async function runKeygen(input) {
       return (
         "密钥生成：令牌自动推导提交者身份失败——GET /user 调用失败：" +
         ((userRes && errorDetail(userRes)) || userR.message || "未知错误") + "\n" +
-        "请确认授权有效（该端点不需要任何额外权限），或直接传 email 参数。" +
-        "本次未生成/删除任何密钥、未写身份。"
+        "请确认授权有效（该端点不需要任何额外权限）。本次未生成/删除任何密钥、未写身份。"
       );
     }
     const user = userRes.json;
@@ -112,11 +103,11 @@ async function runKeygen(input) {
       return (
         "密钥生成：令牌自动推导提交者身份失败——GET /user 响应解析失败" +
         "（未取得 {id, login}；原始输出前 200 字符：" + String(userRes.text || "").slice(0, 200) + "）。\n" +
-        "请检查授权与网络后重试，或直接传 email 参数。本次未生成/删除任何密钥、未写身份。"
+        "请检查授权与网络后重试。本次未生成/删除任何密钥、未写身份。"
       );
     }
     email = noreplyEmailFromUser(id, login);
-    name = explicitName || deriveNameFromUser(user);
+    name = deriveNameFromUser(user);
   }
 
   // —— 1. git 身份写入隔离 gitconfig ——
@@ -192,7 +183,7 @@ async function runKeygen(input) {
   lines.push(pubResult.ok ? "GitHub 公钥发布：成功" : "GitHub 公钥发布：未完成");
   lines.push("  " + pubResult.message);
   if (!pubResult.ok) {
-    lines.push("  本地签名链路不受影响，可稍后在设置页「隔离 GPG 签名身份」区块点「上传公钥」重试。");
+    lines.push("  本地签名链路不受影响，可稍后在设置页「签名密钥」区块点「上传公钥」重试。");
   }
 
   lines.push("");

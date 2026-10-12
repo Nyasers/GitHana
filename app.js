@@ -159,7 +159,7 @@ export function apply(ctx) {
     unregisterRoutes = ctx.routes.register((app) => {
       registerStatusRoutes(app, { dataDir, appCtx });
       // 自定义设置页（ui/settings.html）的动态读写：页面不能直接碰宿主状态，
-      // 经 App 自己的已认证路由转发。这里只有非机密摘要与 clientId 覆盖值——OAuth 令牌
+      // 经 App 自己的已认证路由转发。这里只有非机密摘要与账号状态——OAuth 令牌
       // 只能由 device flow 拿到（见 lib/oauth.js），页面永远不接触令牌明文。
       registerSettingsRoutes(app, { appCtx, dataDir });
       // 设置页「手动档」：直接调对应实现的本体（生成走 tools/gpg-keygen.js 的 execute，

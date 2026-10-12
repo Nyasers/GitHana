@@ -59,15 +59,16 @@
 ## 设置页
 
 只贡献**一个**设置页（`contributes.settings.ui.route = /settings.html`），不开 page 卡：
-同一页里既改 GitHub 认证、又看运行环境状态。页面用**宿主组件**搭（`@hana/app-sdk/components`：
-`AppUiProvider` / `SettingsPage` / `SettingsSection` / `SettingRow` / `SaveButton` / `TextInput`），
-而不是手抄样式。
+同一页里既登录 GitHub 账号、又管理签名密钥，运行环境明细收在「高级」里。页面用**宿主组件**搭
+（`@hana/app-sdk/components`：`AppUiProvider` / `SettingsPage` / `SettingsSection` / `SettingRow` /
+`Button` / `Collapse`），而不是手抄样式。
 
 - 清单里 `settings` 只有 `title` + `ui`，**没有 `schema`**：令牌不是宿主设置项，App 自己持有配置
   （APPS.md 的口径是 `schema` / `ui` 至少提供一个，只留 `ui` 合法）。
-- 动态读写走 App 自己的已认证路由（`/routes/settings/state` 读、`/routes/settings/client-id` 写
-  Client ID 覆盖值）。**页面没有任何令牌输入框**：OAuth 令牌只由服务端 device flow 拿到，
-  页面只展示 `user_code`、验证地址与账号摘要。
+- 页面只展示，不收集身份参数：Client ID 是本 App 注册的那一个（常量）；提交者名字与邮箱由已登录
+  账号推导。**页面没有任何令牌输入框**：OAuth 令牌只由服务端 device flow 拿到，页面只展示
+  `user_code`、验证地址与账号摘要。
+- 动态读取走 App 自己的已认证路由（`/routes/settings/state`）。
 - **surface 凭证**：宿迁把 App 页面挂在租约路径下（`/api/apps/<id>/ui/_surface/<token>/…`），
   页面对自己后端路由的请求不会自动带凭证，页面从自身 URL 路径里取出该 token，
   以 `X-Hana-App-Surface-Session` 头发出（查询串形态 `appSurfaceSession` 优先）。
@@ -77,7 +78,7 @@
 ### 授权与令牌存哪里（不存宿主设置表）
 
 凭据来源是 **GitHub App device flow 授权**（App：`githana-app` / Client ID
-`Iv23li0dA1IaFVs6klAc`，可在设置页覆盖）。流程：
+`Iv23li0dA1IaFVs6klAc`，固定在代码里）。流程：
 
 1. 设置页点「用 GitHub 登录」→ `POST /routes/actions/oauth/start`；
 2. 服务端经 REST worker 调 `https://github.com/login/device/code`（必须带
@@ -110,14 +111,14 @@
   会显示「需重新授权」，而不是静默当未配置。
 - **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退。这是 v2 首个构建起的
   形态；宿主侧那格即使留有历史记录也只是空串，App 既不读也不写它。
-- **clientId 与凭据解耦**：Client ID 非机密（代码里有内置默认值），用户覆盖值存
-  `<dataDir>/oauth.json`，**清凭据时保留**——重新授权不必重填。
+- **Client ID 是常量**：本 App 注册的那一个，权限与发布链路都绑在它上面，不开放覆盖；
+  设置页只在「高级」里展示当前值。
 
 #### PAT 通道已删除
 
 个人访问令牌通道**已下线删除**（不保留为备用）：设置页没有 PAT 输入框与保存按钮，
 `POST /settings/token` 端点（含路由注册）已移除。旧 `schemaVersion: 1` 记录**读但不采用**——
-不报错、不动文件、不参与任何调用；设置页据此提示「PAT 通道已停用」并提供显式清除入口
+不报错、不动文件、不参与任何调用；设置页据此提示「旧版记录」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
 删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证本就走系统
@@ -131,12 +132,11 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 
 | 入口 | 端点 | 实现 |
 |------|------|------|
-| 保存 / 清除 Client ID 覆盖值 | `POST /routes/settings/client-id` | `lib/secret.js`（非机密，存 `oauth.json`） |
 | 清除旧 PAT 记录 | `POST /routes/settings/legacy-pat/clear` | `lib/secret.js` 的 `removeSecretRecord` |
-| 用 GitHub 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
-| 查询授权结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
-| 退出授权 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth`（保留 clientId） |
-| GitHub 身份 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
+| 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
+| 查询登录结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
+| 退出登录 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth` |
+| GitHub 账号信息 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
 | 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
 | 上传公钥 / 从 GitHub 移除 | `POST /routes/actions/gpg/publish` · `/unpublish` | `lib/gpg-publish.js` |
@@ -461,14 +461,14 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
 app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest.worker / context / identity / github）
-lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
+lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
 lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
-lib/routes/status.js     # 环境状态端点（授权状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
-lib/routes/settings.js   # 设置页数据端点（state / client-id / legacy-pat/clear）
+lib/routes/status.js     # 环境状态端点（账号状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
+lib/routes/settings.js   # 设置页数据端点（state / legacy-pat/clear）
 lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / identity / pubkey）
 lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
-ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
+ui/settings.html         # 设置页（contributes.settings.ui.route）：账号 + 签名密钥 + 高级明细
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌运行时：bin/<平台>/（二进制，不入 git）+ sources.json（声明）+ hana-app-sdk/（SDK 快照）
 scripts/                 # 分域：build（组装/出包）/ derive（派生同步）/ dev（本地装机）/ probe（能力面）
