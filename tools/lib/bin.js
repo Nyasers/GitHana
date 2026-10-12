@@ -2,7 +2,10 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/bin.js — git/gh/gpg/gpgconf 可执行文件解析（平台通用）。
+ * tools/lib/bin.js — git/gpg/gpgconf 可执行文件解析（平台通用）。
+ *
+ * gh 不在此列：GitHub 域已不走子进程（请求由随 App 的 REST worker 在子进程里直发，
+ * 见 tools/lib/rest.js），所以没有外部二进制需要解析。
  *
  * ## 目录布局（布局是数据，查找是代码）
  *
@@ -36,7 +39,7 @@
  * ## 隔离注入（applyPluginIsolation）
  *
  * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig、GNUPGHOME=<dataDir>/gnupg、
- * GIT_TERMINAL_PROMPT=0；token 已配置时注入 GH_TOKEN（取 DPAPI 解密结果，见 lib/secret.js）。
+ * GIT_TERMINAL_PROMPT=0。
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig / ~/.gnupg。
  *
  * PATH 也被就地收口：隔离生效时把 vendor gnupg/bin 前置进 PATH，并用 `GIT_CONFIG_*` 把
@@ -52,7 +55,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { getToolDataDir, getToolSecretToken } from "./context.js";
+import { getToolDataDir } from "./context.js";
 
 /**
  * 插件根目录（安装目录）。
@@ -121,19 +124,16 @@ export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 export const VENDOR_LAYOUT = {
   win32: {
     git: { exe: "cmd/git.exe", extraPath: ["cmd", "mingw64", "bin", "usr", "bin"] },
-    gh: { exe: "gh.exe" },
     gpg: { exe: "gpg.exe" },
     gpgconf: { exe: "gpgconf.exe" },
   },
   darwin: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "gh" },
     gpg: { exe: "gpg" },
     gpgconf: { exe: "gpgconf" },
   },
   linux: {
     git: { exe: "bin/git", extraPath: ["bin", "libexec/git-core"] },
-    gh: { exe: "gh" },
     gpg: { exe: "gpg" },
     gpgconf: { exe: "gpgconf" },
   },
@@ -339,29 +339,14 @@ export async function resolveBinExec(bin) {
 }
 
 /**
- * 给 gh 的惰性占位令牌。
- *
- * `gh api` 在**没有任何凭据**时会直接拒绝（exit 4，提示先 `gh auth login`），
- * 连不需要认证的端点也不发请求。而 device flow 的第一步（取设备码）恰恰发生在
- * 「还没有凭据」的时候——鸡生蛋。
- *
- * 两个 OAuth 端点（`github.com/login/device/code`、`github.com/login/oauth/access_token`）
- * 实测不校验 Authorization（换任何非空值响应结构一致），所以给 gh 一个固定占位值让它放行。
- * 它是常量、不是凭据，因此把**真令牌送到非 API 端点**这个风险仍然被挡住。
- */
-export const INERT_GH_TOKEN = "hana-githana-auth-placeholder";
-
-/**
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
+ *
+ * 不注入任何 GitHub 凭据：GitHub 域已不走子进程（REST worker 的令牌经 stdin 传入，见
+ * tools/lib/rest.js），git 子进程也不读 GH_TOKEN。所以这里只做 git / gpg 的隔离注入。
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
- * @param {{ omitToken?: boolean, inertToken?: boolean }} [options]
- *   omitToken=true 时不注入任何 GH_TOKEN（跑与 GitHub 无关的子进程时用，
- *     如 DPAPI 走的 powershell——不给它无关凭据）；
- *   inertToken=true 时注入 INERT_GH_TOKEN（给必须“看似已登录”才肯跑、
- *     但实际不需要认证的 gh 调用用，见该常量的说明）。
  */
-export function buildBinEnv(baseEnv, resolved, { omitToken = false, inertToken = false } = {}) {
+export function buildBinEnv(baseEnv, resolved) {
   const env = { ...baseEnv, GIT_TERMINAL_PROMPT: "0" };
   if (resolved.source === "bundled" && resolved.extraPath && resolved.extraPath.length > 0) {
     env.PATH = resolved.extraPath.join(path.delimiter) + path.delimiter + (env.PATH || "");
@@ -387,14 +372,6 @@ export function buildBinEnv(baseEnv, resolved, { omitToken = false, inertToken =
       env[`GIT_CONFIG_KEY_${n}`] = "gpg.program";
       env[`GIT_CONFIG_VALUE_${n}`] = vendorGpg.cmd;
     }
-  }
-  // GH_TOKEN 与 dataDir 无关：占位值是常量，真令牌为空时不注入（让 gh 自己报未登录）。
-  if (inertToken) {
-    // gh 必须有“凭据”才肯发请求，而两个 OAuth 端点不校验它——给固定占位值放行。
-    env.GH_TOKEN = INERT_GH_TOKEN;
-  } else if (!omitToken) {
-    const token = getToolSecretToken();
-    if (token) env.GH_TOKEN = token;
   }
   return env;
 }

@@ -384,7 +384,7 @@ function main() {
 
   // 1b) 许可面随实际内容收窄。
   //     通知写的是「这个包里有什么」，所以它必须跟着**本包的交付内容**走，而不是仓库的全集：
-  //     一个只装 gh 的 darwin 包若附带 GPL-3.0 条文与 GnuPG 段落，不是在多给，是在陈述不成立的事实。
+  //     一个不带 gnupg 的包若附带 GPL-3.0 条文与 GnuPG 段落，不是在多给，是在陈述不成立的事实。
   //     与上面 bin/ 按 target 收窄同一条原则、同一个位置。
   const shipped = shippedComponentsInStage(binRoot);
   const notice = renderNotice({ components: shipped });

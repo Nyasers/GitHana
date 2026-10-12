@@ -4,9 +4,8 @@
 /**
  * GitHub 域工具共享 helper（纯函数，可静态导入）。
  *
- * v1 REST 只读面（github_api / github_pr_comments / github_pr_files）已移除
- * （manifest 不再声明 network 白名单，GitHub 域操作统一走 gh CLI）——本模块只保留
- * v2 CLI 面（gh-exec / gh-pr）共用的参数解析与校验纯函数。
+ * GitHub 域调用走自写 REST 通道（tools/lib/rest.js）——本模块只保留
+ * 参数解析与校验纯函数（仓库上下文、数字参数），与传输层无关。
  *
  * 职责：
  * - repo 参数解析与校验（仅显式 repo 参数，无默认无回落，不依赖工作目录推断）

@@ -134,7 +134,7 @@ export async function execute(input, ctx) {
     } else if (/non-fast-forward|fetch first|rejected/i.test(s)) {
       text.push("提示：远端拒绝了快进推送（non-fast-forward）：先拉取合并远端变更，或用 git_push force=true（--force-with-lease）安全覆盖。");
     } else if (/Authentication failed|could not read Username|fatal: unable to access/i.test(s)) {
-      text.push("提示：远端认证失败（https 凭据不可用）：请确认凭据（可走 gh keyring / git credential），或检查远端 URL 协议。");
+      text.push("提示：远端认证失败（https 凭据不可用）：请确认凭据（本 App 不注入 git 凭据，走系统 Git Credential Manager），或检查远端 URL 协议。");
     }
   }
   return text.join("\n");

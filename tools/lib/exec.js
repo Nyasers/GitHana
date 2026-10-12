@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/exec.js — github-toolkit v2 子进程执行统一封装（git/gh CLI 唯一执行入口）。
+ * tools/lib/exec.js — 本地 CLI 子进程执行统一封装（git 唯一执行入口）。
  *
  * 设计（对齐 spec「Constraints」与「Design Decisions」）：
  * - spawn 异步执行：参数数组、无 shell（Windows/POSIX 一致，免转义免注入）；
@@ -117,11 +117,9 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *
  * @param {string} bin 可执行文件名（经 PATH 解析，如 "git" / "gh"）
  * @param {string[]} args 参数数组（无 shell 拼接）
- * @param {{ cwd?: string, timeoutSec?: number, input?: string, omitToken?: boolean, inertToken?: boolean }} [options]
+ * @param {{ cwd?: string, timeoutSec?: number, input?: string }} [options]
  *   cwd 工作目录（绝对路径，可选但 git 工具必填）；timeoutSec 超时秒数（缺省 120）；
- *   input stdin 内容（多行/中文无损，git commit -F - 用）；
- *   omitToken=true 时不注入 GH_TOKEN（跑与 GitHub 无关的子进程时用，见 bin.js buildBinEnv）；
- *   inertToken=true 时注入惰性占位令牌（必须“看似已登录”才肯跑的 gh 调用用，见 bin.js）
+ *   input stdin 内容（多行/中文无损，git commit -F - 用）。
  * @returns {Promise<{
  *   ok: boolean, exitCode: number | null,
  *   stdout: string, stderr: string,
@@ -129,7 +127,7 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *   timedOut: boolean, message: string | null
  * }>} ok=false 时 message 为中文可读错误；非零退出时 stdout/stderr 保留原始输出。
  */
-export async function runCli(bin, args, { cwd, timeoutSec, input, omitToken, inertToken } = {}) {
+export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
   const cwdErr = checkCwd(cwd);
   if (cwdErr) {
     return {
@@ -170,7 +168,7 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, omitToken, ine
         cwd: cwd !== undefined && cwd !== null && String(cwd).trim() !== "" ? String(cwd).trim() : undefined,
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
-        env: buildBinEnv(process.env, resolved, { omitToken: omitToken === true, inertToken: inertToken === true }),
+        env: buildBinEnv(process.env, resolved),
       });
     } catch (err) {
       finish({
@@ -293,7 +291,7 @@ function truncateNote(truncated, channel) {
 }
 
 /**
- * 通用结果渲染：把 runCli 结果格式化为可读文本（git_exec/gh_exec 共用）。
+ * 通用结果渲染：把 runCli 结果格式化为可读文本（git_exec / git_status 等共用）。
  * - 成功：命令 + exit 0 + stdout/stderr（非空时）；
  * - 基础设施失败（message 且 exitCode null，如 cwd/bin/超时）：直接返回 message（附部分输出）；
  * - 非零退出：exit code + 命令 + stderr/stdout 原始输出（保留原文，附截断提示）。

@@ -97,27 +97,7 @@ async function postJson(path, body) {
 }
 
 /** 凭据来源的人类可读名（来源由 gh 输出里的括号标注推断）。 */
-const AUTH_SOURCE_LABEL = { env: "用户登录的 OAuth 令牌", keyring: "系统 keyring", file: "配置文件明文" };
-
-/** 从 gh 的输出里读认证态（gh 会把凭据来源写在括号里，如 "(keyring)" / "GH_TOKEN"）。
- *  gh 可能同时列出多条账号（本 App 注入的 GH_TOKEN + 用户自己的 keyring），所以要取
- *  「Active account: true」那一段来判来源，否则会把不生效的那条当成来源。 */
-function parseAuthOutput(text, okFlag) {
-  const t = String(text || "");
-  const blocks = t.split(/^\s*✓/m);
-  const active = blocks.find((b) => /Active account:\s*true/i.test(b)) || t;
-  return {
-    known: true,
-    authed: okFlag === true && /logged in to/i.test(t),
-    source: /GH_TOKEN/i.test(active)
-      ? "env"
-      : /\(keyring\)/i.test(active)
-        ? "keyring"
-        : /hosts\.yml|plaintext/i.test(active)
-          ? "file"
-          : null,
-  };
-}
+const AUTH_SOURCE_LABEL = { oauth: "GitHub App OAuth 令牌" };
 
 /** 加密后端的人类可读名。 */
 function protectionLabel(protection) {
@@ -260,7 +240,7 @@ function GitHanaSettings() {
   const [handoff, setHandoff] = useState(null);
   const intervalRef = useRef(5);
 
-  // gh 认证态（由「检测 gh 认证」/「读取身份」结果更新）
+  // GitHub 认证态（由「检测认证」/「读取身份」结果更新）
   const [auth, setAuth] = useState({ known: false, authed: false, source: null });
   const [ghBusy, setGhBusy] = useState(false);
   const [ghText, setGhText] = useState(null);
@@ -426,9 +406,9 @@ function GitHanaSettings() {
     setGhBusy(true);
     setGhText(null);
     try {
-      const res = await getJson("actions/gh-status");
-      setGhText(res.text || "（无输出）");
-      setAuth(parseAuthOutput(res.text, res.ok));
+      const res = await getJson("actions/identity");
+      setGhText(res.text || (res.ok ? "已认证。" : "未认证。"));
+      setAuth({ known: true, authed: res.ok === true && res.authenticated === true, source: "oauth" });
     } catch (e) {
       setGhText(`检测失败：${String((e && e.message) || e)}`);
     } finally {
@@ -442,9 +422,8 @@ function GitHanaSettings() {
       const data = await getJson("actions/identity");
       if (data && data.authenticated) {
         setIdentity({ loading: false, data, text: null });
-        // 身份读取成功 = gh 确实在认证状态下；而本 App 的认证途径就是按次注入 GH_TOKEN，
-        // 所以这里宁可报「注入的令牌」，也不留一个「来源：未知」让人怀疑令牌没生效。
-        setAuth((prev) => (prev.source ? prev : { known: true, authed: true, source: "env" }));
+        // 身份读取成功 = 令牌确实在认证状态下；本 App 的认证途径只有 GitHub App OAuth 一条。
+        setAuth((prev) => (prev.source ? prev : { known: true, authed: true, source: "oauth" }));
       } else {
         setIdentity({ loading: false, data: null, text: (data && data.text) || "未取得身份" });
       }
@@ -581,6 +560,7 @@ function GitHanaSettings() {
   const status = state.status || {};
   const secret = state.secret || {};
   const tools = status.tools || {};
+  const rest = status.rest || {};
   const pk = status.pubkey || {};
   const published = (pk && pk.publishedInfo) || {};
   const authorized = !!state.tokenConfigured;
@@ -591,7 +571,7 @@ function GitHanaSettings() {
     <SettingsPage>
       <SettingsSection
         title="GitHub 认证"
-        description="用 GitHub App 授权（device flow）取得访问令牌。令牌不进宿主设置表，也不在页面回显：由本 App 用平台加密后端写进自己的数据目录，并按次注入 GH_TOKEN 给 gh CLI。"
+        description="用 GitHub App 授权（device flow）取得访问令牌。令牌不进宿主设置表，也不在页面回显：由本 App 用平台加密后端写进自己的数据目录，调用时经子进程传给随包的 REST worker。"
       >
         <SettingRow
           label="授权状态"
@@ -729,7 +709,7 @@ function GitHanaSettings() {
           <SettingRow
             label="旧 PAT 通道已停用"
             hintVariant="warn"
-            hint="检测到旧版个人访问令牌记录。它已不再被采用（不会注入 GH_TOKEN，也不会用于任何调用）；可以在这里清除。"
+            hint="检测到旧版个人访问令牌记录。它已不再被采用（不会用于任何调用）；可以在这里清除。"
             control={
               <Inline gap="sm" align="center" wrap>
                 <Button variant="secondary" disabled={legacyBusy} onClick={clearLegacyPat}>
@@ -770,8 +750,8 @@ function GitHanaSettings() {
           <SettingRow label="账号 ID" control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>} />
         ) : null}
         <SettingRow
-          label="gh 认证"
-          hint="跑一次 gh auth status；认证靠本 App 按次注入的 GH_TOKEN，不改你的全局 gh 配置。"
+          label="GitHub 认证"
+          hint="调一次 GET /user（自写 REST 通道，带本 App 的 OAuth 令牌）；不改你的全局 git / gh 配置。"
           control={
             <Inline gap="sm" align="center">
               <Button variant="secondary" disabled={ghBusy} onClick={runGhStatus}>
@@ -791,8 +771,30 @@ function GitHanaSettings() {
 
       <SettingsSection title="命令行工具" description="随 App 分发的内嵌二进制；缺失时回退系统 PATH。">
         <ToolRow label="git" tool={tools.git} />
-        <ToolRow label="gh" tool={tools.gh} />
         <ToolRow label="gpg" tool={tools.gpg} />
+      </SettingsSection>
+
+      <SettingsSection
+        title="GitHub 通道"
+        description="GitHub 域不依赖任何外部二进制：请求由随 App 的 REST worker 在子进程里直发。"
+      >
+        <SettingRow
+          label="REST worker"
+          truncateText
+          control={<StatusText ok={Boolean(rest.workerPresent)} on="就绪" off="缺失" />}
+          hint={
+            rest.workerPresent ? (
+              <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
+            ) : (
+              <span className="gh-msg">安装包不完整：缺少 bin/rest-worker.mjs，请重装本 App。</span>
+            )
+          }
+        />
+        <SettingRow
+          label="出站白名单"
+          control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>}
+          hint="worker 在进程内自查；不在此列的主机一律拒绝，不发请求。"
+        />
       </SettingsSection>
 
       <SettingsSection
