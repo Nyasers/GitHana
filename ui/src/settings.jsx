@@ -6,32 +6,31 @@
  *
  * 用 @hana/app-sdk/components 里的宿主组件搭页面，而不是手抄样式：
  *   AppUiProvider（主题 / reduced-motion）+ SettingsPage / SettingsSection / SettingRow /
- *   SaveButton / Button / TextInput，与宿主设置页同一套原语。
+ *   Button / Collapse / SettingsStack，与宿主设置页同一套原语。
  *   注意：**报到（hana.ready()）不在这套组件里**，得本页自己发，见文件末尾。
  *
  * 数据仍然走 App 自己的已认证路由（页面拿不到 ctx.config）：
- *   GET  /api/apps/githana/routes/settings/state   → 授权摘要 + 环境状态 + Client ID
- *   POST /api/apps/githana/routes/settings/client-id → 保存 Client ID 覆盖值（非机密）
+ *   GET  /api/apps/githana/routes/settings/state   → 账号摘要 + 环境状态 + Client ID
  *   POST /api/apps/githana/routes/settings/legacy-pat/clear → 清除已停用的旧 PAT 记录
- *   POST /api/apps/githana/routes/actions/oauth/start|revoke → device flow 授权
- *   GET  /api/apps/githana/routes/actions/oauth/poll → 轮询授权结果（页面按 interval 自轮询）
- *   GET  /api/apps/githana/routes/actions/*        → 身份 / gh 状态 / 公钥 / 密钥 / 发布
+ *   POST /api/apps/githana/routes/actions/oauth/start|revoke → device flow 登录
+ *   GET  /api/apps/githana/routes/actions/oauth/poll → 轮询登录结果（页面按 interval 自轮询）
+ *   GET  /api/apps/githana/routes/actions/*        → 账号信息 / 公钥 / 密钥 / 发布
  *
  * 凭据**不在页面出现**：OAuth 令牌只由服务端 device flow 拿到，页面只展示 user_code 与
- * 账号摘要；页面没有任何「粘贴令牌」的入口（PAT 通道已删除）。
+ * 账号摘要；页面没有任何「粘贴令牌」的入口（PAT 通道已删除）。Client ID 与署名身份也不收集：
+ * 前者是本 App 注册的常量，后者由已登录账号推导。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AppUiProvider,
   Button,
-  Grid,
+  Collapse,
   Inline,
-  SaveButton,
   SettingRow,
   SettingsPage,
   SettingsSection,
-  TextInput,
+  SettingsStack,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
 import { hana } from "@hana/app-sdk/ui";
@@ -96,9 +95,6 @@ async function postJson(path, body) {
   return data;
 }
 
-/** 凭据来源的人类可读名（来源由 gh 输出里的括号标注推断）。 */
-const AUTH_SOURCE_LABEL = { oauth: "GitHub App OAuth 令牌" };
-
 /** 加密后端的人类可读名。 */
 function protectionLabel(protection) {
   switch (protection) {
@@ -147,27 +143,6 @@ function MonoText({ children, title }) {
     <span className="gh-val gh-mono" title={title || undefined}>
       {children}
     </span>
-  );
-}
-
-function ToolRow({ label, tool }) {
-  const ok = Boolean(tool && tool.version);
-  const src = tool ? (tool.bundled ? tool.label || "内嵌" : "系统 PATH") : "缺失";
-  const text = tool && tool.version ? tool.version : src;
-  return (
-    <SettingRow
-      label={label}
-      truncateText
-      control={<StatusText ok={ok} on="可用" off="缺失" />}
-      hint={
-        ok || !tool?.missingHint ? (
-          <MonoText title={text}>{text}</MonoText>
-        ) : (
-          // 缺 gpg 时 hint 换成安装指引，而不是只说“缺失”——用户需要知道去哪儿装。
-          <span className="gh-msg">{tool.missingHint}</span>
-        )
-      }
-    />
   );
 }
 
@@ -228,35 +203,24 @@ function GitHanaSettings() {
   const [state, setState] = useState(null);
   const [loadError, setLoadError] = useState(null);
 
-  // Client ID（非机密）：输入框只放用户覆盖值，留空即回落内置默认。
-  const [clientIdInput, setClientIdInput] = useState("");
-  const [clientIdTouched, setClientIdTouched] = useState(false);
-  const [clientIdStatus, setClientIdStatus] = useState("idle");
-  const [clientIdMsg, setClientIdMsg] = useState(null);
-
   // device flow 授权
   const [oauth, setOauth] = useState(OAUTH_IDLE);
   const [remaining, setRemaining] = useState(0);
   const [handoff, setHandoff] = useState(null);
   const intervalRef = useRef(5);
 
-  // GitHub 认证态（由「检测认证」/「读取身份」结果更新）
-  const [auth, setAuth] = useState({ known: false, authed: false, source: null });
-  const [ghBusy, setGhBusy] = useState(false);
-  const [ghText, setGhText] = useState(null);
+  // 面向用户的一条状态消息（退出授权的结果等）
+  const [noticeMsg, setNoticeMsg] = useState(null);
 
-  // GitHub 身份（gh api user）：显式读取，不隐式轮询
+  // GitHub 身份（REST /user）：显式读取，不隐式轮询
   const [identity, setIdentity] = useState({ loading: false, data: null, text: null });
   const [identityTried, setIdentityTried] = useState(false);
 
   // GPG 手动档
-  const [kgName, setKgName] = useState("");
-  const [kgEmail, setKgEmail] = useState("");
   const [kgBusy, setKgBusy] = useState(false);
   const [kgConfirm, setKgConfirm] = useState(false);
   const [kgText, setKgText] = useState(null);
   const [showKey, setShowKey] = useState(false);
-  const [showFpr, setShowFpr] = useState(false);
   const [keyText, setKeyText] = useState(null);
   const [copyMsg, setCopyMsg] = useState(null);
   const [pubBusy, setPubBusy] = useState(false);
@@ -265,6 +229,9 @@ function GitHanaSettings() {
   // 旧 PAT 记录清除
   const [legacyBusy, setLegacyBusy] = useState(false);
   const [legacyMsg, setLegacyMsg] = useState(null);
+
+  // 高级与诊断区：默认折叠，只展示用户要操心的两条主线。
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -280,43 +247,16 @@ function GitHanaSettings() {
     refresh();
   }, [refresh]);
 
-  // 首次拿到状态时把 Client ID 覆盖值填进输入框（用户编辑过就不再覆盖）。
-  useEffect(() => {
-    if (!state || clientIdTouched) return;
-    setClientIdInput(state.clientIdOverride || "");
-  }, [state, clientIdTouched]);
-
-  const saveClientId = useCallback(async () => {
-    setClientIdStatus("saving");
-    setClientIdMsg(null);
-    try {
-      const value = clientIdInput.trim();
-      const res = await postJson("settings/client-id", { clientId: value });
-      setClientIdStatus("saved");
-      setClientIdMsg(value ? "已保存覆盖值" : "已清除覆盖，使用内置默认值");
-      setState((prev) => (prev ? { ...prev, clientId: res.clientId, clientIdOverride: res.clientIdOverride } : prev));
-    } catch (e) {
-      setClientIdStatus("idle");
-      setClientIdMsg(`保存失败：${String((e && e.message) || e)}`);
-    }
-  }, [clientIdInput]);
+  // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
   // ── device flow：发起 → 页面按 interval 自轮询 ──
 
   const startLogin = useCallback(async () => {
     setOauth({ ...OAUTH_IDLE, starting: true });
-    setClientIdMsg(null);
+    setNoticeMsg(null);
     setHandoff(null);
     try {
-      const value = clientIdInput.trim();
-      // 先把输入框里的 Client ID 落盘（空串 = 撤销覆盖，回落内置默认），
-      // 再发起授权——这样页面显示的与下次登录用的一定是同一个。
-      try {
-        await postJson("settings/client-id", { clientId: value });
-      } catch {
-        /* 覆盖值落盘失败不阻断本次授权：start 会显式带上输入框里的值 */
-      }
-      const res = await postJson("actions/oauth/start", { clientId: value });
+      const res = await postJson("actions/oauth/start", {});
       intervalRef.current = Number(res.interval) > 0 ? Number(res.interval) : 5;
       setOauth({
         starting: false,
@@ -334,7 +274,7 @@ function GitHanaSettings() {
     } catch (e) {
       setOauth({ ...OAUTH_IDLE, status: "error", error: String((e && e.message) || e) });
     }
-  }, [clientIdInput, refresh]);
+  }, [refresh]);
 
   const cancelLogin = useCallback(() => {
     setOauth(OAUTH_IDLE);
@@ -343,16 +283,15 @@ function GitHanaSettings() {
 
   const revokeLogin = useCallback(async () => {
     setOauth(OAUTH_IDLE);
-    setClientIdMsg(null);
+    setNoticeMsg(null);
     try {
       await postJson("actions/oauth/revoke", {});
       setIdentity({ loading: false, data: null, text: null });
       setIdentityTried(false);
-      setAuth({ known: false, authed: false, source: null });
       await refresh();
-      setClientIdMsg("已退出授权");
+      setNoticeMsg("已退出授权");
     } catch (e) {
-      setClientIdMsg(`退出授权失败：${String((e && e.message) || e)}`);
+      setNoticeMsg(`退出授权失败：${String((e && e.message) || e)}`);
     }
   }, [refresh]);
 
@@ -402,28 +341,12 @@ function GitHanaSettings() {
     return () => clearInterval(t);
   }, [oauth.status, oauth.expiresAt]);
 
-  const runGhStatus = useCallback(async () => {
-    setGhBusy(true);
-    setGhText(null);
-    try {
-      const res = await getJson("actions/identity");
-      setGhText(res.text || (res.ok ? "已认证。" : "未认证。"));
-      setAuth({ known: true, authed: res.ok === true && res.authenticated === true, source: "oauth" });
-    } catch (e) {
-      setGhText(`检测失败：${String((e && e.message) || e)}`);
-    } finally {
-      setGhBusy(false);
-    }
-  }, []);
-
   const loadIdentity = useCallback(async () => {
     setIdentity((prev) => ({ ...prev, loading: true, text: null }));
     try {
       const data = await getJson("actions/identity");
       if (data && data.authenticated) {
         setIdentity({ loading: false, data, text: null });
-        // 身份读取成功 = 令牌确实在认证状态下；本 App 的认证途径只有 GitHub App OAuth 一条。
-        setAuth((prev) => (prev.source ? prev : { known: true, authed: true, source: "oauth" }));
       } else {
         setIdentity({ loading: false, data: null, text: (data && data.text) || "未取得身份" });
       }
@@ -437,19 +360,17 @@ function GitHanaSettings() {
     setKgText(null);
     setPubText(null);
     try {
-      const res = await postJson("actions/keygen", { name: kgName.trim(), email: kgEmail.trim() });
+      const res = await postJson("actions/keygen", {});
       setKgText(res.text || "完成");
       setKgConfirm(false);
       await refresh();
       setShowKey(false);
-      setShowFpr(false);
-      setKeyText(null);
-    } catch (e) {
+      setKeyText(null);    } catch (e) {
       setKgText(`执行失败：${String((e && e.message) || e)}`);
     } finally {
       setKgBusy(false);
     }
-  }, [kgName, kgEmail, refresh]);
+  }, [refresh]);
 
   const publishPubkey = useCallback(async () => {
     setPubBusy(true);
@@ -571,359 +492,287 @@ function GitHanaSettings() {
   return (
     <SettingsPage>
       <SettingsSection
-        title="GitHub 认证"
-        description="用 GitHub App 授权（device flow）取得访问令牌。令牌不进宿主设置表，也不在页面回显：由本 App 用平台加密后端写进自己的数据目录，调用时经子进程传给随包的 REST worker。"
+        title="GitHub 账号"
+        description="连接后，提交会用你的账号署名，签名公钥也直接发布到账号。"
       >
         <SettingRow
-          label="授权状态"
-          control={
-            needsReauth ? (
-              <StatusText ok={false} on="已授权" off="需重新授权" />
-            ) : (
-              <StatusText ok={authorized} on="已授权" off="未授权" />
-            )
-          }
-          hint={
-            authorized
-              ? `gh 调用时会带上 OAuth 令牌${secret.login ? `（@${secret.login}）` : ""}`
-              : "未授权时 gh 调用会报未登录；生成密钥也需先授权以推导提交身份"
-          }
-        />
-        {needsReauth ? (
-          <SettingRow
-            label="需重新授权"
-            hintVariant="warn"
-            hint="刷新令牌已失效（超过 6 个月或授权被撤销）。失效令牌不会再被使用，也不会降级到其它凭据——请重新点「用 GitHub 登录」。"
-            control={<MonoText>需重新授权</MonoText>}
-          />
-        ) : null}
-        {secret.expiresAt ? (
-          <SettingRow label="令牌到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} hint="剩余不足 5 分钟时自动续期，无需操作" />
-        ) : null}
-        {secret.refreshExpiresAt ? (
-          <SettingRow label="续期凭证到期" control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>} hint="到期后需重新授权" />
-        ) : null}
-        <SettingRow
-          label="令牌保护"
-          control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
-          hint={secret.location ? `存放：${secret.location}` : null}
-        />
-        {secret.readable === false && secret.configured ? (
-          <SettingRow
-            label="提示"
-            hintVariant="warn"
-            hint="当前后端读不出这份密文（可能是别的平台加密写入的）。重新授权一次即可迁移到本机后端。"
-            control={<MonoText>需重新授权</MonoText>}
-          />
-        ) : null}
-        {secret.backendAvailable === false ? (
-          <SettingRow
-            label="提示"
-            hintVariant="warn"
-            hint="本平台暂无可用的加密后端，凭据无法落盘（不会以明文保存）。macOS / Linux 后端待接。"
-            control={<MonoText>无加密后端</MonoText>}
-          />
-        ) : null}
-
-        <SettingRow
-          label="Client ID"
-          layout="stacked"
-          hint="GitHub App 的 Client ID，非机密。留空则使用内置默认值；改动后点「保存」或直接点「用 GitHub 登录」都会落盘。"
-          control={
-            <TextInput
-              value={clientIdInput}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={`内置默认：${state.clientId || "—"}`}
-              aria-label="GitHub App Client ID"
-              onChange={(e) => {
-                setClientIdTouched(true);
-                setClientIdInput(e.target.value);
-              }}
-            />
-          }
-        />
-        <SettingRow
-          label="Client ID 操作"
+          label="账号"
           control={
             <Inline gap="sm" align="center" wrap>
-              <SaveButton
-                status={clientIdStatus}
-                labels={{ idle: "保存", saving: "保存中", saved: "已保存" }}
-                onSavedFeedbackEnd={() => setClientIdStatus("idle")}
-                disabled={clientIdStatus === "saving"}
-                onClick={saveClientId}
-              />
-              <MonoText>当前生效：{state.clientId || "—"}{state.clientIdOverride ? "（覆盖值）" : "（内置默认）"}</MonoText>
-            </Inline>
-          }
-        />
-        {clientIdMsg ? <SettingRow label="Client ID 状态" control={<span className="gh-msg">{clientIdMsg}</span>} /> : null}
-
-        <SettingRow
-          label="用 GitHub 登录"
-          layout="stacked"
-          hint="点开后自动打开浏览器并复制验证码；在页面里粘贴验证码并批准，页面会自动轮询结果，无需手动刷新。"
-          control={
-            <Inline gap="sm" align="center" wrap>
-              <Button variant="primary" disabled={oauth.starting || waiting} onClick={startLogin}>
-                {oauth.starting ? "发起中…" : waiting ? "等待授权…" : authorized ? "重新授权" : "用 GitHub 登录"}
+              {needsReauth ? (
+                <StatusText ok={false} on="已连接" off="登录已过期" />
+              ) : (
+                <StatusText ok={authorized} on="已连接" off="未连接" />
+              )}
+              {authorized && secret.login ? <MonoText>@{secret.login}</MonoText> : null}
+              <Button variant={authorized ? "secondary" : "primary"} disabled={oauth.starting || waiting} onClick={startLogin}>
+                {oauth.starting ? "正在打开…" : waiting ? "等待浏览器…" : authorized ? "重新登录" : "登录"}
               </Button>
               {waiting ? (
                 <Button variant="secondary" onClick={cancelLogin}>
                   取消
                 </Button>
               ) : null}
-              <Button variant="secondary" disabled={!authorized} onClick={revokeLogin}>
-                退出授权
-              </Button>
+              {authorized && !waiting ? (
+                <Button variant="ghost" onClick={revokeLogin}>
+                  退出登录
+                </Button>
+              ) : null}
             </Inline>
           }
+          hint={
+            authorized
+              ? "提交会带上你的账号署名；登录到期前会自动续期。"
+              : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
+          }
         />
-        {waiting ? (
-          <>
-            <SettingRow
-              label="验证码"
-              layout="stacked"
-              hint="已复制到剪贴板；到浏览器页面粘贴并批准即可（GitHub 不支持把验证码预填进链接，所以还需要粘一下）。"
-              control={<span className="gh-usercode">{oauth.userCode}</span>}
-            />
-            <SettingRow
-              label="验证地址"
-              truncateText
-              control={<MonoText title={oauth.verificationUri || ""}>{oauth.verificationUri || "—"}</MonoText>}
-            />
-            <SettingRow
-              label="剩余时间"
-              control={<MonoText>{formatCountdown(remaining)}</MonoText>}
-              hint={remaining <= 0 ? "已超时，请重新发起授权" : `每 ${oauth.interval} 秒自动查询一次`}
-            />
-            {handoff ? <SettingRow label="交接状态" control={<span className="gh-msg">{handoff}</span>} /> : null}
-          </>
+        {needsReauth ? (
+          <SettingRow
+            label="需重新登录"
+            hintVariant="warn"
+            hint="上次登录已过期或被撤销，不会再用于任何请求。请重新登录。"
+            control={<MonoText>需重新登录</MonoText>}
+          />
         ) : null}
-        {oauth.status === "ready" ? (
-          <SettingRow label="授权结果" hintVariant="default" hint="已取得令牌，可以继续生成密钥或发布公钥。" control={<span className="gh-val gh-ok">授权成功</span>} />
+        {secret.backendAvailable === false ? (
+          <SettingRow
+            label="凭据无法保存"
+            hintVariant="warn"
+            hint="本机暂不支持加密存储，登录信息无法落盘（不会以明文保存）。macOS / Linux 待接。"
+            control={<MonoText>不可用</MonoText>}
+          />
         ) : null}
-        {oauth.status === "error" && oauth.error ? <pre className="gh-out">{oauth.error}</pre> : null}
-
+        {secret.readable === false && secret.configured ? (
+          <SettingRow
+            label="登录信息不可用"
+            hintVariant="warn"
+            hint="本机读不出已保存的登录信息（可能来自别的平台）。重新登录一次即可。"
+            control={<MonoText>需重新登录</MonoText>}
+          />
+        ) : null}
         {secret.legacyPatPresent ? (
           <SettingRow
-            label="旧 PAT 通道已停用"
+            label="旧版记录"
             hintVariant="warn"
-            hint="检测到旧版个人访问令牌记录。它已不再被采用（不会用于任何调用）；可以在这里清除。"
+            hint="检测到已停用的旧版令牌记录，它不会被用于任何请求，可以清除。"
             control={
               <Inline gap="sm" align="center" wrap>
                 <Button variant="secondary" disabled={legacyBusy} onClick={clearLegacyPat}>
-                  {legacyBusy ? "清除中…" : "清除旧记录"}
+                  {legacyBusy ? "清除中…" : "清除"}
                 </Button>
                 {legacyMsg ? <span className="gh-msg">{legacyMsg}</span> : null}
               </Inline>
             }
           />
         ) : null}
-
-        <SettingRow
-          label="GitHub 身份"
-          hint="用已授权的令牌调 gh api user 读取；提交邮箱取 GitHub noreply 格式。不隐式轮询，点按钮才跑。"
-          control={
-            <Inline gap="sm" align="center">
-              <Button variant="secondary" disabled={identity.loading} onClick={loadIdentity}>
-                {identity.loading ? "读取中…" : identity.data ? "刷新身份" : "读取身份"}
-              </Button>
-              {identity.data ? <MonoText>@{identity.data.login}</MonoText> : null}
-            </Inline>
-          }
-        />
-        {identity.data ? (
-          <SettingRow label="提交者名字" control={<MonoText>{identity.data.name || "—"}</MonoText>} hint="推导链：显式参数 → 账号 name → login" />
+        {noticeMsg ? <SettingRow label="状态" control={<span className="gh-msg">{noticeMsg}</span>} /> : null}
+        {waiting ? (
+          <>
+            <SettingRow
+              label="验证码"
+              layout="stacked"
+              hint="已复制到剪贴板，到浏览器页面粘贴并批准即可。"
+              control={<span className="gh-usercode">{oauth.userCode}</span>}
+            />
+            <SettingRow
+              label="剩余时间"
+              control={<MonoText>{formatCountdown(remaining)}</MonoText>}
+              hint={remaining <= 0 ? "已超时，请重新登录" : `${oauth.verificationUri || ""}（每 ${oauth.interval} 秒自动查询一次）`}
+            />
+            {handoff ? <SettingRow label="交接状态" control={<span className="gh-msg">{handoff}</span>} /> : null}
+          </>
         ) : null}
-        {identity.data ? (
-          <SettingRow
-            label="提交邮箱"
-            truncateText
-            control={<MonoText title={identity.data.commitEmail || ""}>{identity.data.commitEmail || "—"}</MonoText>}
-          />
+        {oauth.status === "ready" ? (
+          <SettingRow label="登录结果" hint="已取得令牌，可以生成密钥或发布公钥了。" control={<span className="gh-val gh-ok">登录成功</span>} />
         ) : null}
-        {identity.data && identity.data.publicEmail ? (
-          <SettingRow label="公开邮箱" control={<MonoText>{identity.data.publicEmail}</MonoText>} />
-        ) : null}
-        {identity.data ? (
-          <SettingRow label="账号 ID" control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>} />
-        ) : null}
-        <SettingRow
-          label="GitHub 认证"
-          hint="调一次 GET /user（自写 REST 通道，带本 App 的 OAuth 令牌）；不改你的全局 git / gh 配置。"
-          control={
-            <Inline gap="sm" align="center">
-              <Button variant="secondary" disabled={ghBusy} onClick={runGhStatus}>
-                {ghBusy ? "检测中…" : "检测认证"}
-              </Button>
-              {auth.known ? (
-                <MonoText>
-                  {auth.authed ? `已登录（${AUTH_SOURCE_LABEL[auth.source] || "来源未识别"}）` : "未登录"}
-                </MonoText>
-              ) : null}
-            </Inline>
-          }
-        />
-        {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
-        {ghText ? <pre className="gh-out">{ghText}</pre> : null}
-      </SettingsSection>
-
-      <SettingsSection title="命令行工具" description="git 用宿主自带那份（不随包）；签名不依赖外部二进制。">
-        <ToolRow label="git" tool={tools.git} />
+        {oauth.status === "error" && oauth.error ? <pre className="gh-out">{oauth.error}</pre> : null}
       </SettingsSection>
 
       <SettingsSection
-        title="签名链路"
-        description="签名与验签由随包的纯 JS shim（OpenPGP.js）完成，不再需要 gpg 二进制。"
+        title="签名密钥"
+        description="给提交签名。密钥只保存在 GitHana 自己的目录里，不动系统上的其它 GPG 密钥。"
       >
         <SettingRow
-          label="签名 shim"
-          truncateText
-          control={<StatusText ok={Boolean(signing && signing.shimPresent && signing.openpgpLibPresent)} on="就绪" off="缺失" />}
-          hint={
-            signing && signing.shimPresent && signing.openpgpLibPresent ? (
-              <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
-            ) : (
-              <span className="gh-msg">
-                安装包不完整：缺少 {signing && !signing.shimPresent ? "bin/gpg.shim.mjs" : "bin/openpgp.min.mjs"}，请重装本 App。
-              </span>
-            )
-          }
-        />
-      </SettingsSection>
-
-      <SettingsSection
-        title="GitHub 通道"
-        description="GitHub 域不依赖任何外部二进制：请求由随 App 的 REST worker 在子进程里直发。"
-      >
-        <SettingRow
-          label="REST worker"
-          truncateText
-          control={<StatusText ok={Boolean(rest.workerPresent)} on="就绪" off="缺失" />}
-          hint={
-            rest.workerPresent ? (
-              <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
-            ) : (
-              <span className="gh-msg">安装包不完整：缺少 bin/rest.worker.mjs，请重装本 App。</span>
-            )
-          }
-        />
-        <SettingRow
-          label="出站白名单"
-          control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>}
-          hint="worker 在进程内自查；不在此列的主机一律拒绝，不发请求。"
-        />
-      </SettingsSection>
-
-      <SettingsSection
-        title="隔离 GPG 签名身份"
-        description="密钥只落在本 App 的数据目录，不碰系统或个人 GPG 环。生成后可自动把公钥发布到 GitHub 账号。"
-      >
-        <SettingRow
-          label="公钥"
-          control={<StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />}
-          hint={pk.present ? null : "在下方点「生成 / 轮换密钥」初始化"}
-        />
-        {pk.keyId ? <SettingRow label="密钥 ID" control={<MonoText>{pk.keyId}</MonoText>} /> : null}
-        {showFpr && pk.fpr ? (
-          <SettingRow label="完整指纹" truncateText control={<MonoText>{pk.fpr}</MonoText>} />
-        ) : null}
-        {pk.uid ? <SettingRow label="身份（UID）" control={<MonoText>{pk.uid}</MonoText>} /> : null}
-
-        <SettingRow
-          label="GitHub 发布状态"
-          control={
-            published.published ? (
-              <StatusText ok on="已发布" off="未发布" />
-            ) : (
-              <StatusText ok={false} on="已发布" off="未发布" />
-            )
-          }
-          hint="轮换时只会删除本 App 上一次上传的那一把公钥，绝不触碰账号上其它 GPG 密钥。"
-        />
-        {published.keyId ? <SettingRow label="已发布 key_id" control={<MonoText>{published.keyId}</MonoText>} /> : null}
-        {published.gpgKeyId ? <SettingRow label="公钥 ID（页面展示）" control={<MonoText>{published.gpgKeyId}</MonoText>} /> : null}
-        {published.uploadedAt ? <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} /> : null}
-        {published.login ? <SettingRow label="对应账号" control={<MonoText>@{published.login}</MonoText>} /> : null}
-
-        <SettingRow
-          label="生成 / 轮换密钥"
-          layout="stacked"
-          hint="不可逆：轮换后 GitHub 上已发布的旧公钥会被自动替换。身份不填时用已授权的账号自动推导。"
-          control={
-            <Grid columns={2} gap="sm">
-              <TextInput
-                value={kgName}
-                autoComplete="off"
-                placeholder="提交者名字（可选）"
-                aria-label="提交者名字"
-                onChange={(e) => setKgName(e.target.value)}
-              />
-              <TextInput
-                value={kgEmail}
-                autoComplete="off"
-                placeholder="提交者邮箱（可选）"
-                aria-label="提交者邮箱"
-                onChange={(e) => setKgEmail(e.target.value)}
-              />
-            </Grid>
-          }
-        />
-        <SettingRow
-          label="密钥操作"
+          label="状态"
           control={
             <Inline gap="sm" align="center" wrap>
+              <StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />
+              {pk.present && published.published ? <StatusText ok on="已发布到 GitHub" off="未发布" /> : null}
+              {pk.present && !published.published ? <StatusText ok={false} on="已发布" off="未发布到 GitHub" /> : null}
               {kgConfirm ? (
                 <>
-                  <span className="gh-msg">确认生成 / 轮换？旧密钥将被清空</span>
                   <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
-                    {kgBusy ? "执行中…" : "确认执行"}
+                    {kgBusy ? "执行中…" : "确认重新生成（旧密钥作废）"}
                   </Button>
-                  <Button variant="secondary" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
+                  <Button variant="ghost" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
                     取消
                   </Button>
                 </>
               ) : (
-                <Button variant="primary" disabled={kgBusy} onClick={() => setKgConfirm(true)}>
-                  生成 / 轮换密钥
+                <Button
+                  variant={pk.present ? "secondary" : "primary"}
+                  disabled={kgBusy || !authorized}
+                  onClick={() => (pk.present ? setKgConfirm(true) : runKeygen())}
+                >
+                  {kgBusy ? "执行中…" : pk.present ? "重新生成密钥" : "生成签名密钥"}
                 </Button>
               )}
-              <Button variant="secondary" disabled={!pk.present} onClick={toggleKeyText}>
-                {showKey ? "收起公钥" : "查看公钥"}
-              </Button>
-              <Button variant="secondary" disabled={!pk.fpr} onClick={() => setShowFpr((v) => !v)}>
-                {showFpr ? "收起指纹" : "查看指纹"}
-              </Button>
-              <Button variant="secondary" disabled={!pk.present} onClick={copyPubkey}>
-                复制公钥
-              </Button>
-              {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
+              {pk.present ? (
+                <Button variant="secondary" onClick={toggleKeyText}>
+                  {showKey ? "收起公钥" : "查看公钥"}
+                </Button>
+              ) : null}
+              {pk.present ? (
+                <Button variant="ghost" onClick={copyPubkey}>
+                  复制公钥
+                </Button>
+              ) : null}
             </Inline>
           }
-        />
-        <SettingRow
-          label="GitHub 公钥操作"
-          hint="上传失败时可在这里手动重试；「从 GitHub 移除」只删除本 App 发布记录里的那一把。"
-          control={
-            <Inline gap="sm" align="center" wrap>
-              <Button variant="secondary" disabled={pubBusy || !pk.present} onClick={publishPubkey}>
-                {pubBusy ? "处理中…" : "上传公钥"}
-              </Button>
-              <Button variant="secondary" disabled={pubBusy || !published.published} onClick={unpublishPubkey}>
-                从 GitHub 移除
-              </Button>
-            </Inline>
+          hint={
+            !authorized
+              ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
+              : pk.present
+                ? published.published
+                  ? "签名已就绪：提交时自动签名，公钥已发布到账号。"
+                  : "密钥已生成，但还没发布到 GitHub，可在下方高级区重试上传。"
+                : "生成后，提交会自动签名。署名身份取你登录的账号。"
           }
         />
+        {pk.present && pk.uid ? <SettingRow label="签名身份" control={<MonoText>{pk.uid}</MonoText>} /> : null}
+        {copyMsg ? <SettingRow label="剪贴板" control={<span className="gh-msg">{copyMsg}</span>} /> : null}
         {showKey ? <pre className="gh-out">{keyText || "读取中…"}</pre> : null}
-        {pubText ? <pre className="gh-out">{pubText}</pre> : null}
         {kgText ? <pre className="gh-out">{kgText}</pre> : null}
       </SettingsSection>
 
-      <SettingsSection title="数据目录" description="隔离 gitconfig、加密的签名密钥（gpg-key.json）与凭据（credential.json）都落在这里。">
-        <SettingRow label="路径" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
+      <SettingsSection
+        title="高级"
+        description="一般不需要改动这里的任何东西。安装是否完整、签名与连网是否就绪，都在这一层，出问题时供排查。"
+        context={
+          <Button variant="secondary" onClick={() => setAdvancedOpen((v) => !v)}>
+            {advancedOpen ? "收起" : "展开"}
+          </Button>
+        }
+      >
+        <Collapse open={advancedOpen}>
+          <SettingsStack gap="md">
+            {/* ── 账号与凭据明细 ── */}
+            <SettingRow
+              label="账号信息"
+              control={
+                <Inline gap="sm" align="center" wrap>
+                  <Button variant="secondary" disabled={identity.loading} onClick={loadIdentity}>
+                    {identity.loading ? "读取中…" : identity.data ? "刷新" : "读取"}
+                  </Button>
+                  {identity.data ? <MonoText>@{identity.data.login}</MonoText> : null}
+                </Inline>
+              }
+              hint="点「读取」才向 GitHub 查一次；平时不会自行请求。"
+            />
+            {identity.data ? (
+              <SettingRow label="提交者名字" control={<MonoText>{identity.data.name || "—"}</MonoText>} hint="账号 name 为空时用登录名" />
+            ) : null}
+            {identity.data ? (
+              <SettingRow
+                label="提交邮箱"
+                truncateText
+                control={<MonoText title={identity.data.commitEmail || ""}>{identity.data.commitEmail || "—"}</MonoText>}
+              />
+            ) : null}
+            {identity.data && identity.data.publicEmail ? (
+              <SettingRow label="公开邮箱" control={<MonoText>{identity.data.publicEmail}</MonoText>} />
+            ) : null}
+            {identity.data ? (
+              <SettingRow label="账号 ID" control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>} />
+            ) : null}
+            {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
+
+            {secret.expiresAt ? (
+              <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} hint="到期前会自动续期，无需操作" />
+            ) : null}
+            {secret.refreshExpiresAt ? (
+              <SettingRow label="续期凭证到期" control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>} hint="到期后需重新登录" />
+            ) : null}
+            <SettingRow
+              label="凭据保护方式"
+              control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
+              hint={secret.location ? `存放：${secret.location}` : null}
+            />
+
+            <SettingRow
+              label="Client ID"
+              control={<MonoText>{state.clientId || "—"}</MonoText>}
+              hint="GitHana 注册的 GitHub App，权限与发布链路都绑在它上面，不开放修改。"
+            />
+
+            {/* ── 密钥明细 ── */}
+            {pk.keyId ? <SettingRow label="密钥 ID" control={<MonoText>{pk.keyId}</MonoText>} /> : null}
+            {pk.fpr ? <SettingRow label="完整指纹" truncateText control={<MonoText>{pk.fpr}</MonoText>} /> : null}
+            {published.keyId ? <SettingRow label="已发布 key_id" control={<MonoText>{published.keyId}</MonoText>} /> : null}
+            {published.uploadedAt ? <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} /> : null}
+            {published.login ? <SettingRow label="发布账号" control={<MonoText>@{published.login}</MonoText>} /> : null}
+            <SettingRow
+              label="密钥署名"
+              hint="重新生成会作废旧密钥，并替换 GitHub 上本 App 发布的那一把，不可逆。"
+              control={<MonoText>{pk.uid || "—"}</MonoText>}
+            />
+            <SettingRow
+              label="公钥发布"
+              hint="自动发布失败时可在这里重试；「从 GitHub 移除」只删本 App 发布的那一把，不碰账号上其它密钥。"
+              control={
+                <Inline gap="sm" align="center" wrap>
+                  <Button variant="secondary" disabled={pubBusy || !pk.present} onClick={publishPubkey}>
+                    {pubBusy ? "处理中…" : "上传公钥"}
+                  </Button>
+                  <Button variant="secondary" disabled={pubBusy || !published.published} onClick={unpublishPubkey}>
+                    从 GitHub 移除
+                  </Button>
+                </Inline>
+              }
+            />
+            {pubText ? <pre className="gh-out">{pubText}</pre> : null}
+
+            {/* ── 运行环境 ── */}
+            <SettingRow
+              label="git"
+              truncateText
+              control={<StatusText ok={Boolean(tools.git && tools.git.version)} on="可用" off="缺失" />}
+              hint={<MonoText title={(tools.git && tools.git.version) || ""}>{(tools.git && tools.git.version) || "缺失"}</MonoText>}
+            />
+            <SettingRow
+              label="签名组件"
+              truncateText
+              control={<StatusText ok={Boolean(signing && signing.shimPresent && signing.openpgpLibPresent)} on="就绪" off="缺失" />}
+              hint={
+                signing && signing.shimPresent && signing.openpgpLibPresent ? (
+                  <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
+                ) : (
+                  <span className="gh-msg">
+                    安装不完整：缺少 {signing && !signing.shimPresent ? "bin/gpg.shim.mjs" : "bin/openpgp.min.mjs"}，请重装 GitHana。
+                  </span>
+                )
+              }
+            />
+            <SettingRow
+              label="GitHub 通道"
+              truncateText
+              control={<StatusText ok={Boolean(rest.workerPresent)} on="就绪" off="缺失" />}
+              hint={
+                rest.workerPresent ? (
+                  <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
+                ) : (
+                  <span className="gh-msg">安装不完整：缺少 bin/rest.worker.mjs，请重装 GitHana。</span>
+                )
+              }
+            />
+            <SettingRow
+              label="允许访问的域名"
+              control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>}
+              hint="不在此列的域名一律拒绝，不发请求。"
+            />
+            <SettingRow label="数据目录" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
+          </SettingsStack>
+        </Collapse>
       </SettingsSection>
     </SettingsPage>
   );
