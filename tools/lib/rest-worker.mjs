@@ -150,8 +150,11 @@ const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
  * 带逐跳白名单校验的 fetch。
  *
  * 不用 `redirect:"follow"`：那样等于把起始 URL 的白名单校验作废——任何一个 302 都能把请求引到
- * 任意主机（实测：`/repos/o/r/tarball/x` 会 302 到 codeload.github.com）。这里手工跟，每一跳都过
- * REDIRECT_HOSTS。
+ * 任意主机（实测：`/repos/o/r/tarball/x` 会 302 到 codeload.github.com）。这里手工跟：**每一跳的
+ * URL 都过白名单**（起始用 ALLOWED_HOSTS，重定向目标用 REDIRECT_HOSTS）。
+ *
+ * 逐跳校验对**分页**同样重要：`Link: rel="next"` 的地址是外部给的，若只校验首请求，
+ * 一个异常的 Link 就能把带凭据的请求送到别的域。
  *
  * 另外，离开 `api.github.com` 后**不带走 Authorization**：codeload 不需要凭据，而把凭据送到
  * 白名单里的非 API 域没有必要。
@@ -164,6 +167,21 @@ async function fetchChecked(startUrl, { method, headers, body, timeoutMs }) {
   let methodNow = method;
   let bodyNow = body;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    // 每一跳的 URL 都要过白名单：分页时它取自上一页的 Link 头，与 redirect 一样是**外部给的**，
+    // 不能假定它仍是 api.github.com（否则一个恶意/异常的 Link 就能把令牌送到别处）。
+    // 起始 URL 用 ALLOWED_HOSTS（我们主动请求的面）；重定向目标用 REDIRECT_HOSTS（多含 codeload）。
+    let target;
+    try {
+      target = new URL(url);
+    } catch {
+      throw new Error("URL 非法：" + String(url));
+    }
+    const allowed = hop === 0 ? ALLOWED_HOSTS : REDIRECT_HOSTS;
+    if (!allowed.has(target.host)) {
+      throw new Error(
+        "拒绝请求：" + target.host + " 不在允许的主机（" + [...allowed].join(" / ") + "）。",
+      );
+    }
     const res = await fetch(url, {
       method: methodNow,
       headers: headersNow,
@@ -185,6 +203,7 @@ async function fetchChecked(startUrl, { method, headers, body, timeoutMs }) {
         "拒绝重定向：" + next.host + " 不在允许跟随的主机（" + [...REDIRECT_HOSTS].join(" / ") + "）。",
       );
     }
+    // 离开 api.github.com 后不带走凭据：codeload 是公开下载域，把令牌送过去没有必要。
     if (next.host !== "api.github.com" && headersNow.Authorization) {
       const { Authorization, ...rest } = headersNow;
       headersNow = rest;
@@ -296,7 +315,24 @@ async function executeOne(req, token) {
       return { id, ok: false, status: null, error: "请求失败：" + (cause || "连接未能建立") };
     }
 
-    const read = await readBounded(res, MAX_RESPONSE_BYTES);
+    // 读体单独包起来：`AbortSignal.timeout` 可能在响应头已到、体还在读时中止；流也可能中途断开。
+    // 旧写法让这两种错误冒到 main().catch，**整批请求都报废**——而写操作可能已经生效
+    //（如 PR 已创建），调用方重试会撞 422。这里只让该条请求失败，带上已拿到的状态码。
+    let read;
+    try {
+      read = await readBounded(res, MAX_RESPONSE_BYTES);
+    } catch (e) {
+      const cause = e && e.cause ? String(e.cause.message || e.cause.code || "") : "";
+      return {
+        id,
+        ok: false,
+        status: res.status,
+        error:
+          "读取响应体失败（HTTP " + res.status + "）：" + String((e && e.message) || e) +
+          (cause ? "（" + cause + "）" : "") +
+          "。注意：服务端可能已经处理了该请求，重试写操作前请先确认。",
+      };
+    }
     const parsed = parseJson(read.text);
     last = {
       id,
