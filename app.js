@@ -18,14 +18,16 @@
  *   - Node Permission Model：安装目录只读、{HANA_HOME}/app-data/githana 可写；
  *     许可根之外的裸 fs 读取会被运行时拒绝（tools/lib/exec.js 的 checkCwd 已对此显式放行）。
  *   - 裸 child_process 默认被拒；本 App 申请清单能力 `app/process.spawn` 后开
- *     `--allow-child-process`，git / gpg 以外部命令运行，不继承 Node 权限模型，
- *     可自由访问任意仓库目录（这正是它们需要的边界）。
+ *     `--allow-child-process`，git 以外部命令运行，不继承 Node 权限模型，可自由访问
+ *     任意仓库目录（这正是它需要的边界）。git 签名时 spawn 的 shim 是**本地 node 脚本**
+ *     （不是外部二进制），它**会**继承权限模型——能读 dataDir 是因为宿主的 AppHost 命令行
+ *     带了 `--allow-fs-read=<dataDir>`（实测）。
  *   - GitHub 域的 HTTPS 也走子进程：REST worker 由 tools/lib/rest.js 用 process.execPath
  *     拉起，**spawn 时显式补 `--allow-net`**（权限模型会经 NODE_OPTIONS 传染给子进程，
  *     而放行项不会跟着走）。这一层不走清单的 network 声明——那是宿主代发，令牌会穿 IPC。
  *
  * 数据与配置：
- *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / GNUPGHOME / 公钥落盘）。
+ *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / 加密的签名密钥 / 公钥落盘）。
  *   - 凭据不走宿主设置表：GitHub App device flow 签发的 user access token（`ghu_`）经平台加密
  *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
  *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
@@ -44,7 +46,6 @@ import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
 import { setSecretLoader, setFreshChecker, primeToolContext } from "./tools/lib/context.js";
-import { killGpgDaemons } from "./tools/lib/gpg-daemon.js";
 import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
@@ -129,8 +130,7 @@ export function apply(ctx) {
   };
 
   // 把这两个字符串**同步**登记进单例。必须在这里做，不能只靠 appCtx —— 它只在工具 execute 时
-  // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir 去收尾 gpg daemon
-  // （见 tools/lib/gpg-daemon.js）。
+  // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir。
   primeToolContext(appCtx);
 
   // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
@@ -180,13 +180,8 @@ export function apply(ctx) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }
     try { if (typeof unregisterRoutes === "function") unregisterRoutes(); } catch { /* 忽略 */ }
-    // 卸载/重载前的最后一道收尾：杀掉隔离环残留的 gpg daemon。
-    // 宿主删除安装目录时若 gpg-agent 仍持有 vendor/bin/.../gnupg/bin/*.exe 的句柄，文件删不掉——
-    // 在 Windows 上表现为卸载长时间重试后失败（宿主日志记 "delete files" outcome=failure），
-    // 并留下半个安装目录。工具侧已在每次调用后收尾（见 tools/lib/gpg-daemon.js），这里是兜底：
-    // 覆盖「daemon 是被别的路径拉起的」或「上一轮收尾失败」的情况。
-    // dispose 可能是同步调用，所以不 await——killGpgDaemons 自身不抛，进程随后也会退出。
-    try { void killGpgDaemons(); } catch { /* 忽略 */ }
+    // 不再有 gpg daemon 要收尾：签名由随包的纯 JS shim 完成，没有 gpg-agent / scdaemon
+    // 会被拉起，也就没有“daemon 持有二进制句柄、卸载删不掉目录”这回事。
   };
 }
 
