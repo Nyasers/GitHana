@@ -139,24 +139,35 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 | GitHub 账号信息 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
 | 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
-| 上传公钥 / 从 GitHub 移除 | `POST /routes/actions/gpg/publish` · `/unpublish` | `lib/gpg-publish.js` |
+| 补传公钥（本地有、账号没有时） | `POST /routes/actions/gpg/publish` | `lib/gpg-publish.js` |
+| 从 GitHub 移除（本机密钥一并清除） | `POST /routes/actions/gpg/unpublish` | `lib/gpg-publish.js` |
 | 发布状态 | `GET /routes/actions/gpg/status` | `lib/gpg-publish.js` 的 `publishedInfo` |
 
-轮换密钥不可逆（GitHub 上已发布的旧公钥会被自动替换），所以按钮先弹确认再执行。
+轮换密钥不可逆（账号上本 App 发布的那把会被替换），所以按钮先弹确认再执行。
 
 ### GPG 公钥自动发布
 
 借 GitHub App 的 `GPG keys: write` 账号权限，密钥生成后自动把公钥上传到 GitHub 账号，
-用户不必再手动粘贴。
+用户不必再手动粘贴。**两端始终一致**：本机有密钥就有对应公钥，反之亦然。
 
+- **生成 = 生成 + 上传（一个动作）**：先快照密钥文件与签名接线，再生成并接线，最后上传；
+  上传不成就把本地**整体退回生成前状态**。轮换时这个回滚同样成立：新钥传不上去就继续用旧钥，
+  而不是把旧的先删掉。
+- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg-key.json`、`.asc` 与隔离
+  gitconfig 里的 `user.signingkey` / `commit.gpgsign`（`user.email` / `user.name` 保留）——
+  本地不该留一把账号上已经没了的密钥，那会让之后每次提交都签名失败。
+- **先加后删**：轮换时先 `POST /user/gpg_keys` 传新公钥，再删旧的。GitHub 允许账号上并存多把
+  公钥，先加后删让账号全程都有可用密钥；先删会留一段空窗。
+- **删除前核对归属**：先 `GET /user/gpg_keys`，要求 **keyId 相等且远端 key_id 等于记录指纹
+  末 16 位**，两条都成立才删。只看 keyId 不够：记录可能来自另一个账号（用户换了登录），
+  那里的同号 keyId 是别人的钥匙。指纹对不上一律不动它。
 - **只删自己那把**：App 数据目录的 `published-gpg-keys.json` 记录 `{ keyId, fingerprint,
-  uploadedAt, login, gpgKeyId }`。轮换时先 `GET /user/gpg_keys` **核对**记录里的 `keyId` 是否仍在
-  （用户可能已在 GitHub 侧手动删过，以 GitHub 侧为准），再 `DELETE /user/gpg_keys/{keyId}`
-  （404 视为已不存在，继续上传），然后 `POST /user/gpg_keys` 上传新公钥并写回记录。
+  uploadedAt, login, gpgKeyId, name, stale[] }`；`stale[]` 存本次上传成功但旧钥没删掉的残留，
+  下次发布或移除时逐条核对指纹后再试。
 - **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
-  误删是事故。上传时用的 `name`（`GitHana`）只作标识，**不参与删除匹配**。
-- 上传失败**不阻断**本地密钥生成（本地签名链路已可用），结果写进 keygen 返回文本，
-  并提供设置页手动重试按钮。
+  误删是事故。上传时用的 `name`（`<账号 id>+<login>@GitHana`，如 `61904116+ProjectNyaser@GitHana`）
+  只作展示与人工辨认，**不参与删除匹配**：名字在 GitHub 页面上随时可改，只看名字等于把
+  「删哪把」交给一个可变字符串。
 - 错误映射：`403` → 「App 未授予 GPG keys: write」+ 指向 App 权限设置；`422` → 透出 GitHub
   原文 + 「该邮箱需为账号已验证邮箱」；无 OAuth 凭据 → 「需先完成 GitHub App 授权」
   （不用 PAT 尝试——PAT 通常没有 `gpg_keys` 权限）。
@@ -463,7 +474,7 @@ app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest.worker / context / identity / github）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
-lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
+lib/gpg-publish.js       # GPG 公钥发布/轮换（先加后删；删除前核对指纹，只动自己那把）
 lib/routes/status.js     # 环境状态端点（账号状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
 lib/routes/settings.js   # 设置页数据端点（state / legacy-pat/clear）
 lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / identity / pubkey）

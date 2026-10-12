@@ -225,6 +225,7 @@ function GitHanaSettings() {
   const [copyMsg, setCopyMsg] = useState(null);
   const [pubBusy, setPubBusy] = useState(false);
   const [pubText, setPubText] = useState(null);
+  const [unpubConfirm, setUnpubConfirm] = useState(false);
 
   // 旧 PAT 记录清除
   const [legacyBusy, setLegacyBusy] = useState(false);
@@ -359,13 +360,15 @@ function GitHanaSettings() {
     setKgBusy(true);
     setKgText(null);
     setPubText(null);
+    setCopyMsg(null);
     try {
       const res = await postJson("actions/keygen", {});
       setKgText(res.text || "完成");
       setKgConfirm(false);
       await refresh();
       setShowKey(false);
-      setKeyText(null);    } catch (e) {
+      setKeyText(null);
+    } catch (e) {
       setKgText(`执行失败：${String((e && e.message) || e)}`);
     } finally {
       setKgBusy(false);
@@ -388,13 +391,17 @@ function GitHanaSettings() {
 
   const unpublishPubkey = useCallback(async () => {
     setPubBusy(true);
-    setPubText(null);
+    setUnpubConfirm(false);
+    setCopyMsg(null);
     try {
       const res = await postJson("actions/gpg/unpublish", {});
-      setPubText(res.text || "完成");
+      setCopyMsg(res.text || "完成");
       await refresh();
+      // 密钥已被移除，展开的公钥视图没有内容可看了。
+      setShowKey(false);
+      setKeyText(null);
     } catch (e) {
-      setPubText(`移除失败：${String((e && e.message) || e)}`);
+      setCopyMsg(`移除失败：${String((e && e.message) || e)}`);
     } finally {
       setPubBusy(false);
     }
@@ -622,11 +629,6 @@ function GitHanaSettings() {
                   {showKey ? "收起公钥" : "查看公钥"}
                 </Button>
               ) : null}
-              {pk.present ? (
-                <Button variant="ghost" onClick={copyPubkey}>
-                  复制公钥
-                </Button>
-              ) : null}
             </Inline>
           }
           hint={
@@ -635,13 +637,34 @@ function GitHanaSettings() {
               : pk.present
                 ? published.published
                   ? "签名已就绪：提交时自动签名，公钥已发布到账号。"
-                  : "密钥已生成，但还没发布到 GitHub，可在下方高级区重试上传。"
-                : "生成后，提交会自动签名。署名身份取你登录的账号。"
+                  : "密钥已生成，但账号上还没有对应公钥，可展开手动上传。"
+                : "生成后会直接发布到账号；两边始终一致，不会留单边残留。"
           }
         />
         {pk.present && pk.uid ? <SettingRow label="签名身份" control={<MonoText>{pk.uid}</MonoText>} /> : null}
-        {copyMsg ? <SettingRow label="剪贴板" control={<span className="gh-msg">{copyMsg}</span>} /> : null}
-        {showKey ? <pre className="gh-out">{keyText || "读取中…"}</pre> : null}
+        {showKey ? (
+          <>
+            <pre className="gh-out">{keyText || "读取中…"}</pre>
+            <Inline gap="sm" align="center" wrap>
+              <Button variant="secondary" onClick={copyPubkey}>
+                复制公钥
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={pubBusy || !published.published}
+                onClick={() => (unpubConfirm ? unpublishPubkey() : setUnpubConfirm(true))}
+              >
+                {pubBusy ? "处理中…" : unpubConfirm ? "确认移除（本机密钥一并删除）" : "从 GitHub 移除"}
+              </Button>
+              {unpubConfirm ? (
+                <Button variant="ghost" disabled={pubBusy} onClick={() => setUnpubConfirm(false)}>
+                  取消
+                </Button>
+              ) : null}
+              {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
+            </Inline>
+          </>
+        ) : null}
         {kgText ? <pre className="gh-out">{kgText}</pre> : null}
       </SettingsSection>
 
@@ -716,23 +739,28 @@ function GitHanaSettings() {
             {published.login ? <SettingRow label="发布账号" control={<MonoText>@{published.login}</MonoText>} /> : null}
             <SettingRow
               label="密钥署名"
-              hint="重新生成会作废旧密钥，并替换 GitHub 上本 App 发布的那一把，不可逆。"
+              hint="重新生成会作废旧密钥，并替换账号上本 App 发布的那一把，不可逆。"
               control={<MonoText>{pk.uid || "—"}</MonoText>}
             />
-            <SettingRow
-              label="公钥发布"
-              hint="自动发布失败时可在这里重试；「从 GitHub 移除」只删本 App 发布的那一把，不碰账号上其它密钥。"
-              control={
-                <Inline gap="sm" align="center" wrap>
-                  <Button variant="secondary" disabled={pubBusy || !pk.present} onClick={publishPubkey}>
+            {published.pending ? (
+              <SettingRow
+                label="待清理的旧公钥"
+                hintVariant="warn"
+                hint="账号上还留着上次没删掉的旧公钥（上传成功但删除失败）。下次上传或移除时会再试。"
+                control={<MonoText>{published.pending} 把</MonoText>}
+              />
+            ) : null}
+            {!published.published && pk.present ? (
+              <SettingRow
+                label="公钥未在账号上"
+                hint="本机有密钥、但账号上没有对应公钥，提交不会显示 Verified。可在这里补传（只影响本 App 自己那把）。"
+                control={
+                  <Button variant="secondary" disabled={pubBusy} onClick={publishPubkey}>
                     {pubBusy ? "处理中…" : "上传公钥"}
                   </Button>
-                  <Button variant="secondary" disabled={pubBusy || !published.published} onClick={unpublishPubkey}>
-                    从 GitHub 移除
-                  </Button>
-                </Inline>
-              }
-            />
+                }
+              />
+            ) : null}
             {pubText ? <pre className="gh-out">{pubText}</pre> : null}
 
             {/* ── 运行环境 ── */}
