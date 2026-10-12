@@ -137,8 +137,10 @@ function main() {
   const tools = { ...(prev && prev.tools ? prev.tools : {}) };
   let provenanceDirty = !prev;
   for (const name of TOOLS) {
-    // 首次同步时 DEST 还没有这份文件：哈希按源算（与同步后 DEST 内容一致）。
-    const content = fs.existsSync(join(DEST, name)) ? fs.readFileSync(join(DEST, name)) : fs.readFileSync(join(src, name));
+    // 哈希一律按**源**算：同步后 DEST 就等于 src，而内容变了的那些此刻 DEST 还是旧版
+    // （下一段才覆写）。按 DEST 算会把旧文件的 sha256/bytes 配上新的 hanaVersion，
+    // 记录的是一份即将不存在的文件，下一轮又会因哈希不同而刷新。
+    const content = fs.readFileSync(join(src, name));
     const hash = crypto.createHash("sha256").update(content).digest("hex");
     const entry = {
       source: `<HANA_HOME>/artifacts/server/${version}-…/scripts/${name}`,

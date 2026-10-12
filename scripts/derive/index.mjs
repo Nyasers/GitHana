@@ -39,7 +39,7 @@ import fs from "node:fs";
 import { at, ROOT, rel } from "../shared/root.mjs";
 import { errText } from "../shared/err-text.mjs";
 import { isDirectRun } from "../shared/run.mjs";
-import { hasFlag, positionals } from "../shared/args.mjs";
+import { parseArgs } from "node:util";
 import { versionTask } from "./version.mjs";
 import { thirdpartyTask } from "./thirdparty.mjs";
 
@@ -83,8 +83,23 @@ export function runTask(task, { checkOnly = false, log = console.log } = {}) {
 }
 
 function main() {
-  const checkOnly = hasFlag("--check");
-  const wanted = positionals([]);
+  // 选项面显式声明，未知选项即拒：`--chekc` 这种拼错在旧写法里会被静默当成位置参数丢掉
+  // （hasFlag("--check") 为 false、positionals([]) 又不看它），于是本该只校验的命令会去
+  // **写回漂移文件**并成功退出。校验门禁最不能容忍这种“看似跑了、实则没跑”的失败。
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: process.argv.slice(2),
+      options: { check: { type: "boolean", short: "c" } },
+      allowPositionals: true,
+      strict: true,
+    });
+  } catch (e) {
+    console.error(`[derive] 参数错误：${errText(e)}\n用法：node scripts/derive/index.mjs [--check] [任务名…]`);
+    process.exit(2);
+  }
+  const checkOnly = parsed.values.check === true;
+  const wanted = parsed.positionals;
   const tasks = wanted.length ? TASKS.filter((t) => wanted.includes(t.name)) : TASKS;
   const unknown = wanted.filter((w) => !TASKS.some((t) => t.name === w));
   if (unknown.length) {

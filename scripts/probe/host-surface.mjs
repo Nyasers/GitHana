@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { at, ROOT } from "../shared/root.mjs";
-import { hasFlag, value, values } from "../shared/args.mjs";
+import { hasFlag, value, valueFlagMissingOperand, values } from "../shared/args.mjs";
 
 function fail(code, message) {
   console.error(`[host-surface] ${message}`);
@@ -85,6 +85,11 @@ async function appBus() {
 
 /** 在宿主 bundle 里找字面。 */
 function look(needles) {
+  // `--bundle` 给了但没操作数 → 参数错；不能静默回落到 newestBundle()，
+  // 那样会在一个用户没指定的包上跑探针，结论看着正常却指向错误的对象。
+  if (valueFlagMissingOperand("--bundle")) {
+    fail(2, "--bundle 缺操作数：写成 --bundle <index.js> 或 --bundle=<index.js>");
+  }
   const bundleArg = value("--bundle");
   const bundle = bundleArg ? resolve(bundleArg) : newestBundle();
   if (!bundle || !existsSync(bundle)) {

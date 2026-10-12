@@ -29,6 +29,24 @@ export function value(name) {
   return null;
 }
 
+/**
+ * 取值旗标是否**出现过**（不看值是否有效）。
+ *
+ * 用 `value(name) === null` 判“没给”会把 `--bundle` 与 `--bundle=`（给了但缺操作数）
+ * 混为一谈：前者可以回落缺省值，后者是参数错，必须报。要区分就先用本函数问“出现过没”。
+ */
+export function hasValueFlag(name) {
+  return argv.some((a) => a === name || a.startsWith(`${name}=`));
+}
+
+/**
+ * 取值旗标出现但没带有效操作数时返回 true（用于报参数错）。
+ * `--x v`（v 以 `--` 开头）与 `--x=` 都算缺操作数。
+ */
+export function valueFlagMissingOperand(name) {
+  return hasValueFlag(name) && value(name) === null;
+}
+
 /** 取某个旗标的全部值（同名可重复出现）。 */
 export function values(name) {
   const out = [];

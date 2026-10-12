@@ -35,6 +35,11 @@ const home = resolve(value("--home") || process.env.HANA_HOME || join(homedir(),
 const uninstallFirst = !hasFlag("--no-uninstall");
 const quiet = hasFlag("--quiet");
 const readyTimeoutSec = Number(value("--timeout") || 600);
+// 未校验时 Number("abc") → NaN，deadline 也变 NaN，而 `Date.now() > NaN` 恒为 false ——
+// 就绪轮询会**永不超时**。参数错按本文件头声明的退出码 2。
+if (!Number.isFinite(readyTimeoutSec) || readyTimeoutSec <= 0) {
+  fail(2, `--timeout 需为正数秒（收到：${value("--timeout")}）`);
+}
 
 /** 参数/环境问题（退出码 2）或运行失败（退出码 1）。 */
 function fail(code, message) {
