@@ -561,6 +561,7 @@ function GitHanaSettings() {
   const secret = state.secret || {};
   const tools = status.tools || {};
   const rest = status.rest || {};
+  const signing = status.signing || {};
   const pk = status.pubkey || {};
   const published = (pk && pk.publishedInfo) || {};
   const authorized = !!state.tokenConfigured;
@@ -769,9 +770,26 @@ function GitHanaSettings() {
         {ghText ? <pre className="gh-out">{ghText}</pre> : null}
       </SettingsSection>
 
-      <SettingsSection title="命令行工具" description="随 App 分发的内嵌二进制；缺失时回退系统 PATH。">
+      <SettingsSection title="命令行工具" description="git 用宿主自带那份（不随包）；签名不依赖外部二进制。">
         <ToolRow label="git" tool={tools.git} />
-        <ToolRow label="gpg" tool={tools.gpg} />
+      </SettingsSection>
+
+      <SettingsSection
+        title="签名链路"
+        description="签名与验签由随包的纯 JS shim（OpenPGP.js）完成，不再需要 gpg 二进制。"
+      >
+        <SettingRow
+          label="签名 shim"
+          truncateText
+          control={<StatusText ok={Boolean(signing && signing.shimPresent)} on="就绪" off="缺失" />}
+          hint={
+            signing && signing.shimPresent ? (
+              <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
+            ) : (
+              <span className="gh-msg">安装包不完整：缺少 bin/gpg-shim.mjs，请重装本 App。</span>
+            )
+          }
+        />
       </SettingsSection>
 
       <SettingsSection
@@ -902,7 +920,7 @@ function GitHanaSettings() {
         {kgText ? <pre className="gh-out">{kgText}</pre> : null}
       </SettingsSection>
 
-      <SettingsSection title="数据目录" description="隔离 gitconfig、GPG 环（gnupg/）与加密后的凭据（credential.json）都落在这里。">
+      <SettingsSection title="数据目录" description="隔离 gitconfig、加密的签名密钥（gpg-key.json）与凭据（credential.json）都落在这里。">
         <SettingRow label="路径" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
       </SettingsSection>
     </SettingsPage>
