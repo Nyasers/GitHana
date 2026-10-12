@@ -553,12 +553,18 @@ async function doMerge(input, { repo, repoLabel, timeoutSec }) {
   const deleteBranch = input?.deleteBranch === true;
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
-  // 合并前取一次源分支名（deleteBranch 要用，且合并后 head 仍可读，这里取一次更稳）。
+  // 合并前取一次源分支信息（deleteBranch 要用，且合并后 head 仍可读，这里取一次更稳）。
+  // 必须连**源仓库**一起取：源分支可能来自 fork，而下面删的是 base 仓库的 refs。
+  // 只看 head.ref 就删，会在同名的无关分支上动手（fork PR 的常见情形）。
   let headRef = "";
+  let headRepoFull = "";
   if (deleteBranch) {
     const prRes = await callRest([{ url: apiUrl(repo, "/pulls/" + num), timeoutMs }], { timeoutSec });
     const pr = prRes.ok && prRes.results[0] && prRes.results[0].json ? prRes.results[0].json : null;
-    if (pr && pr.head && pr.head.ref) headRef = String(pr.head.ref);
+    if (pr && pr.head) {
+      if (pr.head.ref) headRef = String(pr.head.ref);
+      if (pr.head.repo && pr.head.repo.full_name) headRepoFull = String(pr.head.repo.full_name);
+    }
   }
 
   const mr = await callRest(
@@ -592,8 +598,16 @@ async function doMerge(input, { repo, repoLabel, timeoutSec }) {
 
   // 删源分支：DELETE /repos/{o}/{r}/git/refs/heads/{branch}
   if (deleteBranch) {
+    const baseFull = repo.owner + "/" + repo.repo;
     if (!headRef) {
       out.push("源分支删除：未能取到源分支名（跳过删除）。");
+    } else if (headRepoFull && headRepoFull !== baseFull) {
+      // fork 来的 PR：head.ref 在源仓库，同名分支在 base 仓库里只是同名而已，
+      // 删它等于误删他人分支。不跨仓删。
+      out.push(
+        "源分支：" + headRef + " 来自 " + headRepoFull + "（不是本仓库），跳过删除" +
+          "（不跨仓库删分支；如需清理请到源仓库操作）。",
+      );
     } else {
       const dr = await callRest(
         [{ method: "DELETE", url: apiUrl(repo, "/git/refs/heads/" + encodeURIComponent(headRef)), timeoutMs }],

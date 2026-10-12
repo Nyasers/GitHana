@@ -99,7 +99,8 @@ export function pluginRoot() {
     dir = up;
   }
   // 找不到 manifest（非标准布局）→ 回退到入口所在目录，不抛：工具面不该因路径推导失败而全挂。
-  cachedPluginRoot = entryDir;
+  // **不记忆化这个回退**：它可能是“首次调用时 fs 权限面还没就绪”造成的假阴性，一旦记下，
+  // 后续调用再也不会重探 manifest（进程内永久用了错误的根）。只缓存确实命中 manifest 的结果。
   return entryDir;
 }
 
