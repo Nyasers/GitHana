@@ -411,8 +411,12 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
     → 系统 PATH（git）
 ```
 
-签名与 GitHub 请求都不依赖外部可执行文件（纯 JS shim + REST worker），所以“三平台一致”
+签名与 GitHub 请求都不依赖外部可执行文件（纯 JS shim + REST worker），所以“可执行依赖三平台一致”
 现在是结构上就成立的：没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
+
+（**仅指可执行依赖这一层**：凭据与私钥的加密后端目前只有 `win32` 的 DPAPI 落地，`darwin`/`linux`
+是占位（`lib/secret.js` 的 `pickBackend`）——那两个平台上签名链路本身能跑，但还缺密钥与令牌的
+本地保护后端，所以“三平台可用签名”尚不成立。见上面「授权与令牌存哪里」一段。）
 
 - CI 的 release 流水线**只出一个 `universal` 包**：它把 `vendor/sources.json` 声明的每个平台的
   随包组件都打进去（**当前组件表为空**，所以它与单平台包目前没有区别），
@@ -548,8 +552,10 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
    `bin/gpg.shim.mjs`（见 `tools/lib/sign-shim.js`），因为 git 的 `gpg.program` 不接受带参的命令行。
 
 shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、用 OpenPGP.js 签/验，
-按 git 的接口契约把状态写到 `--status-fd`。它运行期 import 同目录的 `openpgp.min.mjs`
-（不内联，见「第三方许可」）。
+按 git 的接口契约把状态写到 `--status-fd`。签名前它会核对 git 传来的签名者选择
+（`-bsau` 的 selector，即 `user.signingkey`）是否指向本机这把密钥（指纹 / 长短 keyID / uid / 邮箱
+任一写法均可），对不上就报 `FAILURE sign` 并退 2——不让“指定的身份”与“实际签名者”不一致。
+它运行期 import 同目录的 `openpgp.min.mjs`（不内联，见「第三方许可」）。
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
 GitHub 域的令牌也不进子进程 env（经 stdin 传给 REST worker）。
