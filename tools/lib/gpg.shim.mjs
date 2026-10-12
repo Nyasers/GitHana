@@ -124,14 +124,14 @@ async function main() {
   })();
 
   if (isVerify) {
-    // 验签：sigfile 只含签名，payload 走 stdin。
+    // 验签：sigfile 只含签名（armored 文本），payload 走 stdin。
     const sigFile = argv.find((a) => !a.startsWith("--") && a !== "-");
     if (!sigFile) {
       status("FAILURE verify_missing_arg");
       die("验签缺少签名文件参数。", 2);
     }
     let sigText = "";
-    let payload = "";
+    let payload = Buffer.alloc(0);
     try {
       sigText = fs.readFileSync(sigFile, "utf8");
     } catch (e) {
@@ -139,14 +139,31 @@ async function main() {
       die("读签名文件失败：" + String((e && e.message) || e), 2);
     }
     try {
-      payload = fs.readFileSync(0, "utf8");
+      // 按**原始字节**读（不定编码）：git 签的是提交对象的精确字节，用文本模式读会把
+      // 非法 UTF-8 字节换成 U+FFFD，凭空改变被验的内容。
+      payload = fs.readFileSync(0);
     } catch {
       /* 无 stdin */
     }
+    let sig;
     try {
-      const sig = await openpgp.readSignature({ armoredSignature: sigText });
+      sig = await openpgp.readSignature({ armoredSignature: sigText });
+    } catch (e) {
+      status("FAILURE verify_read");
+      die("签名文件不可解析：" + String((e && e.message) || e), 2);
+    }
+    // 先认签名者是不是本机这把密钥。不是的话，这是「本地没有对应公钥」，不是「签名坏了」：
+    // GnuPG 对未知密钥发 ERRSIG/NO_PUBKEY 并退 2，而不是 BADSIG。混为一谈会让
+    // `git log --show-signature` 把协作者（或 GitHub web-flow）的有效签名报成伪造。
+    const signerIds = sig.getSigningKeyIDs().map((k) => k.toHex().toUpperCase());
+    if (!signerIds.includes(keyId)) {
+      status("ERRSIG " + (signerIds[0] || "") + " 22 8 00 0 9");
+      status("NO_PUBKEY " + (signerIds[0] || ""));
+      die("本地没有签署该内容的公钥（署名 keyID " + signerIds.join("/") + "，本机是 " + keyId + "）。", 2);
+    }
+    try {
       const res = await openpgp.verify({
-        message: await openpgp.createMessage({ text: payload }),
+        message: await openpgp.createMessage({ binary: payload }),
         signature: sig,
         verificationKeys: priv.toPublic(),
       });
@@ -161,17 +178,19 @@ async function main() {
     }
   }
 
-  // 签名：payload 走 stdin，armored detached 签名到 stdout。
-  let payload = "";
+  // 签名：payload 走 stdin（**原始字节**），armored detached 签名到 stdout。
+  // 不用文本模式：`createMessage({ text })` 会按 UTF-8 解码、且以文本签名（类型 0x01）
+  // 规范化行尾——git 与 GitHub 期望的是对提交对象的**精确字节**签名。
+  let payload = Buffer.alloc(0);
   try {
-    payload = fs.readFileSync(0, "utf8");
+    payload = fs.readFileSync(0);
   } catch {
     /* 空 payload */
   }
   let sig;
   try {
     sig = await openpgp.sign({
-      message: await openpgp.createMessage({ text: payload }),
+      message: await openpgp.createMessage({ binary: payload }),
       signingKeys: priv,
       detached: true,
       format: "armored",
