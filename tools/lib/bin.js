@@ -40,7 +40,8 @@
  *
  * buildBinEnv 每次 spawn 注入 GIT_CONFIG_GLOBAL=<dataDir>/gitconfig 与 GIT_TERMINAL_PROMPT=0，
  * 并把 `gpg.program` 覆盖成**随包的签名 shim**（tools/lib/sign-shim.js 生成的包装脚本）。
- * 同时把 TMPDIR/TMP/TEMP 收进 <dataDir>/.runtime-tmp（见 ensureTmpDir）。
+ * 同时把 TMPDIR/TMP/TEMP 收进 <dataDir>/.runtime-tmp（见 ensureTmpDir），
+ * 签名包装脚本也写在那里（它同样是现写现用的产物）。
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig。
  *
  * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
@@ -51,7 +52,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
-import { ensureWrapper, keyFilePath } from "./sign-shim.js";
+import { ensureWrapper, ensureTmpDir, keyFilePath } from "./sign-shim.js";
 
 /**
  * 插件根目录（安装目录）。
@@ -333,34 +334,6 @@ export async function resolveBinExec(bin) {
 }
 
 /**
- * 隔离的 git 临时目录（<dataDir>/.runtime-tmp）。
- *
- * git 验签时把待验签名先写成一个临时文件，再把路径交给 gpg.program。落点由 TMPDIR 决定：
- * 系统 temp 在 App 许可根之外，shim 这个 node 脚本在权限模型下读不到它，于是
- * `verify-commit` / `log --show-signature` 一律报「读签名文件失败」。
- *
- * 目录名与落点照宿主的受管运行时抄（`app-data/<id>/.runtime-tmp`，宿主给受管子进程注入
- * TMPDIR 用的就是它）。本 App 走 app/process.spawn 直接拉 git，不是受管运行时、拿不到
- * 那份注入，所以自己摆一份；两边同址同名，将来若改用受管运行时也不会分叉。
- *
- * 只重定向 TMPDIR/TEMP/TMP，不碰 HOME/USERPROFILE：git 的配置隔离已由
- * GIT_CONFIG_GLOBAL 完成，把 HOME 一并换掉会连带改变 ssh 与凭据助手的查找路径。
- *
- * @returns {string|null} 目录绝对路径；创建失败返回 null（不注入，行为退回系统 temp）
- */
-function ensureTmpDir(dataDir) {
-  const dir = path.join(dataDir, ".runtime-tmp");
-  try {
-    // mode 与宿主一致（0o700）。Windows 上它不产生 NTFS ACL 限制（ACL 是继承的），
-    // 真正的边界是 dataDir 本身就在 App 许可根内；这里只为与宿主保持同一写法。
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    return dir;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
  *
  * 不注入任何 GitHub 凭据：GitHub 域已不走子进程（REST worker 的令牌经 stdin 传入，见
@@ -376,7 +349,7 @@ export function buildBinEnv(baseEnv, resolved) {
   const dataDir = getToolDataDir();
   if (dataDir) {
     env.GIT_CONFIG_GLOBAL = path.join(dataDir, "gitconfig");
-    // 临时目录也收进 dataDir：验签时 git 写下的签名文件要落在 shim 的读取面内（见 ensureTmpDir）。
+    // 临时目录也收进 dataDir：验签时 git 写下的签名文件要落在 shim 的读取面内（见 sign-shim.js）。
     const tmpDir = ensureTmpDir(dataDir);
     if (tmpDir) {
       env.TMPDIR = tmpDir;
@@ -387,7 +360,8 @@ export function buildBinEnv(baseEnv, resolved) {
     // 不再有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——gpg 二进制已经不在包里，
     // 那套隔离机制存在的唯一理由（让 gpg 认隔离环）随之消失。
     //
-    // 包装脚本每次现算（node 路径与安装位都可能变）；见 tools/lib/sign-shim.js。
+    // 包装脚本每次现算（node 路径与安装位都可能变），落在运行期临时目录里（它本身就是
+    // 现写现用的产物，不跟密钥、凭据那些长期文件混在一起）；见 tools/lib/sign-shim.js。
     // 走 git 的 GIT_CONFIG_* 机制（git ≥ 2.31）：它在所有配置文件之上生效，改不到文件也不脏文件。
     const wrapper = ensureWrapper(dataDir);
     if (wrapper) {
