@@ -70,7 +70,7 @@ These are inlined into `ui/settings.bundle.js` at build time. Their original pac
 
 ### openpgp（OpenPGP.js） 6.3.2
 
-- Purpose: 签名与验签（设置页的密钥生成、`git_commit` 的 `gpgsig`）—— 顶替原先随包的 GnuPG。
+- Purpose: 签名与验签（设置页的密钥生成、`githana(action="commit")` 的 `gpgsig`）—— 顶替原先随包的 GnuPG。
 - Form: 一份**独立、可替换的库文件** `bin/openpgp.min.mjs`（上游 npm 发行物 `dist/node/openpgp.min.mjs` 原样未修改）；由 `bin/app.mjs` 与 `bin/gpg.shim.mjs` 在**运行期**以相对路径 `import` 加载。构建期由 `scripts/build-app.mjs` 从 `node_modules/openpgp/dist/node/` 投影进来，并以 sha256 断言与上游逐字节相同。npm 包自身（含其 `.map` / 类型文件）不随包。
 - Source: https://github.com/openpgpjs/openpgpjs（原样未修改）
 - License: GNU LGPL v3.0 or later（正文见本文件末尾）
