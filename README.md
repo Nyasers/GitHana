@@ -153,7 +153,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 - **生成 = 生成 + 上传（一个动作）**：先快照密钥文件与签名接线，再生成并接线，最后上传；
   上传不成就把本地**整体退回生成前状态**。轮换时这个回滚同样成立：新钥传不上去就继续用旧钥，
   而不是把旧的先删掉。
-- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg-key.json`、`.asc` 与隔离
+- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg.key.json`、`.pub.asc` 与隔离
   gitconfig 里的 `user.signingkey` / `commit.gpgsign`（`user.email` / `user.name` 保留）——
   本地不该留一把账号上已经没了的密钥，那会让之后每次提交都签名失败。
 - **先加后删**：轮换时先 `POST /user/gpg_keys` 传新公钥，再删旧的。GitHub 允许账号上并存多把
@@ -161,8 +161,8 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 - **删除前核对归属**：先 `GET /user/gpg_keys`，要求 **keyId 相等且远端 key_id 等于记录指纹
   末 16 位**，两条都成立才删。只看 keyId 不够：记录可能来自另一个账号（用户换了登录），
   那里的同号 keyId 是别人的钥匙。指纹对不上一律不动它。
-- **只删自己那把**：App 数据目录的 `published-gpg-keys.json` 记录 `{ keyId, fingerprint,
-  uploadedAt, login, gpgKeyId, name, stale[] }`；`stale[]` 存本次上传成功但旧钥没删掉的残留，
+- **只删自己那把**：发布状态记在密钥记录 `gpg.key.json` 的 `published` 字段（`{ keyId, fingerprint,
+  uploadedAt, login, gpgKeyId, name, stale[] }`）；`stale[]` 存本次上传成功但旧钥没删掉的残留，
   下次发布或移除时逐条核对指纹后再试。
 - **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
   误删是事故。上传时用的 `name`（`<账号 id>+<login>@GitHana`，如 `61904116+ProjectNyaser@GitHana`）
@@ -551,7 +551,7 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 ## 签名隔离机制
 
-私钥只落 `app-data/githana/gpg-key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
+私钥只落 `app-data/githana/gpg.key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
 任何 gpg 二进制：
 
 1. **keygen 侧**：`tools/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
@@ -559,7 +559,8 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，
    由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入，同时注入
    `GIT_CONFIG_GLOBAL` / `GIT_TERMINAL_PROMPT=0` 与 `GITHANA_KEY_FILE`（后者告诉 shim 密钥在哪）。
-   注入的目标是一个 `.cmd` / `.sh` 包装脚本（运行时生成在 dataDir），内含现算的宿主 node 路径与
+   注入的目标是一个 `.cmd` / `.sh` 包装脚本（运行期写在 dataDir 的 `.runtime-tmp`，每次 spawn
+   现写，不跟密钥、凭据那些长期文件混在一起），内含现算的宿主 node 路径与
    `bin/gpg.shim.mjs`（见 `tools/lib/sign-shim.js`），因为 git 的 `gpg.program` 不接受带参的命令行。
 
 shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、用 OpenPGP.js 签/验，

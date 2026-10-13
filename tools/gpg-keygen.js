@@ -18,7 +18,7 @@
  *    login）；身份写入隔离 gitconfig（<dataDir>/gitconfig，经 GIT_CONFIG_GLOBAL 生效）。
  *    推导失败（未登录 / 请求失败）→ 中止并提示先完成登录，不生成不删除不写身份。
  * 2. 签名密钥：由 lib/openpgp-key.js 生成 ed25519（UID name+email），私钥经 DPAPI 加密落
- *    <dataDir>/gpg-key.json，公钥明文落 <dataDir>/github-toolkit-gpg-pubkey.asc。
+ *    <dataDir>/gpg.key.json，公钥明文落 <dataDir>/gpg.key.pub.asc。
  *    首次执行 = 生成；重复执行 = 轮换（**直接覆盖**：旧密钥由新记录取代，不像 gpg 环那样
  *    需要先删后建——没有 keyring 的 UID 冲突问题）。
  * 3. 签名接线：指纹写入隔离 gitconfig（user.signingkey + commit.gpgsign=true）。
@@ -49,6 +49,7 @@ import {
   generateSigningKey,
   saveKey,
   keyInfo,
+  keyFilePath,
   pubkeyFilePath,
   snapshotKeyFiles,
   restoreKeyFiles,
@@ -183,7 +184,7 @@ async function runKeygen() {
   }
 
   lines.push("签名密钥已生成，指纹：" + saved.fingerprint);
-  lines.push("  私钥（DPAPI 加密）：" + path.join(dataDir, "gpg-key.json"));
+  lines.push("  私钥（DPAPI 加密）：" + keyFilePath(dataDir));
   lines.push("  公钥： " + pubkeyFilePath(dataDir));
   if (before.hasKey && before.fingerprint && before.fingerprint !== saved.fingerprint) {
     lines.push("旧密钥已由新记录取代：" + before.fingerprint + " → " + saved.fingerprint +
