@@ -55,7 +55,7 @@ const ACTIONS = [
 
 /** 保留位：本期只在 action 表与手册里留位置，不实现（见 spec D8）。 */
 const RESERVED = {
-  ci_watch: "CI 监听需要注册后台任务并在完成后唤醒会话（轮询会撞宿主回调的 30 秒上限），本期未实现；当前可用 api(action=\"api\") 查 CI 运行状态。",
+  ci_watch: "CI 监听需要注册后台任务并在完成后唤醒会话（轮询会撞宿主回调的 30 秒上限），本期未实现；当前可用 githana(action=\"api\") 查 CI 运行状态。",
 };
 
 /** 缺 action / 未知 action 时的兜底摘要（覆盖整面，偏保守）。 */

@@ -48,7 +48,7 @@ const ACTIONS = [
 
 /** 保留位：本期只在 action 表与手册里留位置，不实现（见 spec D8）。 */
 const RESERVED = {
-  ci_status: "CI 运行状态查询本期未实现；当前可用 api(action=\"api\") 直接查 GitHub 的 check-runs / workflow-runs 端点。",
+  ci_status: "CI 运行状态查询本期未实现；当前可用 githana_read(action=\"api\") 直接查 GitHub 的 check-runs / workflow-runs 端点。",
 };
 
 export const sessionPermission = { readOnly: true };
