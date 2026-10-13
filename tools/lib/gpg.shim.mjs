@@ -223,14 +223,19 @@ async function main() {
       // 转给用户（`--show-signature` 的显示就是这些）。
       const pack = sig.packets && sig.packets[0];
       const created = pack && pack.created instanceof Date ? pack.created : null;
-      const createdIso = created ? created.toISOString().replace("T", " ").replace(/\.\d+Z$/, "") : "2026-01-01 00:00:00";
-      // VALIDSIG 的第 3 项是签名时间（UTC，秒级）+ 时区。git 用它填 %GS / %GG 一类的字段。
+      const createdIso = created ? created.toISOString().replace("T", " ").replace(/\.\d+Z$/, "") : "1970-01-01 00:00:00";
+      // VALIDSIG 的十项照 GnuPG 的次序：指纹 / 签名日期 / 签名时间戳 / 过期 / 签名版本 /
+      // 保留 / 公钥算法 / 哈希算法 / 签名类别 / 主钥指纹。第 2 项只放日期，第 3 项才是
+      // epoch 秒（git 用它填 %GF / %GP 一类字段，缺项或错位会读出错误的密钥信息）。
+      const createdDate = createdIso.slice(0, 10);
+      const createdEpoch = created ? Math.floor(created.getTime() / 1000) : 0;
       const packHashAlg = pack && Number.isInteger(pack.hashAlgorithm) ? pack.hashAlgorithm : 8;
       const packPubAlg = pack && Number.isInteger(pack.publicKeyAlgorithm) ? pack.publicKeyAlgorithm : 22;
       status("NEWSIG");
       status("GOODSIG " + keyId + " " + uid);
       status(
-        "VALIDSIG " + fpr + " " + createdIso + " 0 0 " + packPubAlg + " " + packHashAlg + " 00 " + fpr,
+        "VALIDSIG " + fpr + " " + createdDate + " " + createdEpoch + " 0 4 0 " +
+          packPubAlg + " " + packHashAlg + " 00 " + fpr,
       );
       // TRUST_ULTIMATE：走到这里意味着签名者就是本机这把、且私钥就在本机。
       // GnuPG 对自用密钥（私钥在环里）也报 ultimate，缺这行 git 判不出来，“%G?”落到
