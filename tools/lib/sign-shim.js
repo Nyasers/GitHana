@@ -38,7 +38,7 @@ export function shimPath() {
 
 /** 密钥文件（dataDir 下，由 lib/openpgp-key.js 写入）。 */
 export function keyFilePath(dataDir) {
-  return path.join(dataDir || "", "gpg-key.json");
+  return path.join(dataDir || "", "gpg.key.json");
 }
 
 /** 包装脚本路径（dataDir 下，按平台取扩展名）。 */

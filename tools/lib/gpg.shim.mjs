@@ -22,7 +22,7 @@
  *
  * ## 密钥从哪来
  *
- * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg-key.json（DPAPI 加密的 armored 私钥）。
+ * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.json（DPAPI 加密的 armored 私钥）。
  * 本进程在 AppHost 的权限模型下运行（`--permission` 经 NODE_OPTIONS 传染），能读 dataDir
  * 是因为宿主的 AppHost 命令行带了 `--allow-fs-read=<dataDir>`（实测）。
  *
