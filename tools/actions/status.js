@@ -2,41 +2,28 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * git_status：仓库状态速览工具（v2 场景只读）。
+ * status：仓库状态速览（只读面 action）。
  *
  * 输出：当前分支、upstream、ahead/behind、已暂存 / 未暂存 / 未跟踪三组文件明细
- * （porcelain v1 解析，状态字母可读化），工作区干净时明确提示。纯读（readOnly），
- * 不改动仓库任何状态。
+ * （porcelain v1 解析，状态字母可读化），工作区干净时明确提示。纯读，不改动仓库任何状态。
  *
  * 实现：单次 git status --porcelain=v1 -b --untracked-files=all（含分支头），
  * 头部形如 "## main...origin/main [ahead 2, behind 3]"，一次解析分支/上游/领先落后；
  * 游离 HEAD / 尚无提交（unborn）等特殊形态做文本分支；游离态补一次 rev-parse 取短 hash。
  * -c core.quotepath=false 保证中文路径原样显示（不转义为八进制）。
  */
-import { runCli, checkCwd } from "./lib/exec.js";
-import { initToolContext } from "./lib/context.js";
+import { runCli, checkCwd } from "../lib/exec.js";
 
-export const name = "git_status";
+export const command = "status";
+export const summary = "仓库状态速览";
 
-export const description = [
-  "仓库状态速览（只读）：输出当前分支、upstream、ahead/behind、以及已暂存 / 未暂存 / 未跟踪三组文件明细",
-  "（porcelain v1 解析，状态字母可读化：A=新增 M=修改 D=删除 R=重命名 U=冲突 ??=未跟踪），",
-  "工作区干净时明确提示。cwd 必填（仓库绝对路径，显式指定无默认）。",
-  "只读不修改仓库；需要执行任意 git 操作请用 git_exec。",
-].join(" ");
-
-export const sessionPermission = { readOnly: true };
-
-export const parameters = {
-  type: "object",
-  properties: {
-    cwd: {
-      type: "string",
-      description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-    },
+export const fields = {
+  cwd: {
+    type: "string",
+    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
   },
-  required: ["cwd"],
 };
+export const required = ["cwd"];
 
 /** 未合并（冲突）状态码集合 */
 const UNMERGED = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
@@ -147,11 +134,10 @@ function renderGroup(title, items, note) {
   return lines;
 }
 
-export async function execute(input, ctx) {
-  await initToolContext(ctx);
+export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return "git_status 参数错误：" + cwdErr;
+  if (cwdErr) return label + " 参数错误：" + cwdErr;
   const cwd = String(cwdParam).trim();
 
   const r = await runCli("git", ["-c", "core.quotepath=false", "status", "--porcelain=v1", "-b", "--untracked-files=all"], { cwd });
@@ -159,9 +145,9 @@ export async function execute(input, ctx) {
     // 非 git 仓库 → 透传 git 原始错误 + 中文引导
     const raw = (r.stderr || r.stdout || "").trim();
     if (/not a git repository|does not appear to be a git repository|not our repo/i.test(raw)) {
-      return "git_status：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+      return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
     }
-    return "git_status 执行失败：\n" + (r.message || raw || "未知错误");
+    return label + " 执行失败：\n" + (r.message || raw || "未知错误");
   }
 
   const linesOut = r.stdout || "";
@@ -182,7 +168,7 @@ export async function execute(input, ctx) {
 
   // —— 分支 / 上游 / 同步状态 ——
   if (info.unborn) {
-    out.push("分支：" + (info.branch || "?") + "（仓库尚无提交：初始化后尚无 commit，首次提交可用 git_commit）");
+    out.push("分支：" + (info.branch || "?") + "（仓库尚无提交：初始化后尚无 commit，首次提交可用 githana(action=\"commit\")）");
   } else if (info.detached) {
     // 游离 HEAD：补一次 rev-parse 取短 hash（正常分支不触发第二次调用）
     const shaR = await runCli("git", ["rev-parse", "--short", "HEAD"], { cwd });
@@ -194,13 +180,13 @@ export async function execute(input, ctx) {
 
   if (!info.unborn) {
     if (!info.upstream) {
-      out.push("上游：无跟踪分支（首次推送可用 git_push 的 setUpstream=true 建立 origin 跟踪）");
+      out.push("上游：无跟踪分支（首次推送可用 githana(action=\"push\") 的 setUpstream=true 建立 origin 跟踪）");
     } else if (info.gone) {
       out.push("上游：" + info.upstream + "（上游分支已被删除 gone）");
     } else {
       let syncText = "已与上游同步";
       if (info.ahead && info.behind) syncText = "领先 " + info.ahead + " 且落后 " + info.behind + "（需推送且需拉取合并）";
-      else if (info.ahead) syncText = "领先 " + info.ahead + "（可推送 git_push）";
+      else if (info.ahead) syncText = "领先 " + info.ahead + "（可推送 githana(action=\"push\")）";
       else if (info.behind) syncText = "落后 " + info.behind + "（需拉取合并）";
       out.push("上游：" + info.upstream + " · " + syncText);
     }

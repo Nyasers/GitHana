@@ -2,11 +2,11 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * git_commit：提交工具（v2 场景写）——本地提交 + 自动 Co-authored-by 署名。
+ * commit：本地提交 + 自动 Co-authored-by 署名（写面 action）。
  *
- * 核心语义（对齐 spec）：
+ * 核心语义（逐条保真）：
  * - message 用 stdin 传（git commit -F -），多行/中文无损；
- * - 自动 Co-authored-by trailer：固定写死（v0.3.1 对齐「直接写死」决策，移除配置键）——
+ * - 自动 Co-authored-by trailer：固定写死（对齐「直接写死」决策，无配置键）——
  *   Co-authored-by: HanaAgent <313794804+HanaAgent@users.noreply.github.com>
  *   （@HanaAgent 为 liliMozi 注册的官方账号，仅作协作署名实体，不承担登录/认证；
  *   GitHub 据 email 把协作者归到 @HanaAgent）。
@@ -18,60 +18,45 @@
  * - paths：相对 cwd 的可选文件列表（缺省提交全部已 staged 内容；提供则只提交这些文件，
  *   文件未暂存也会按其工作区内容提交——git commit <paths> 语义）；与 amend 不能同用（git 限制）。
  * - 返回：短 hash + 首行 + 文件数统计（含署名是否追加的说明）。
- * 权限：external_side_effect（修改本地 git 历史；amend 改写最近提交）。
+ *
+ * 签名由隔离 gitconfig 的 user.signingkey + commit.gpgsign=true 驱动，gpg.program 由
+ * buildBinEnv 每次 spawn 注入随包的签名 shim（见 tools/lib/sign-shim.js）。
  */
-import { runCli, checkCwd } from "./lib/exec.js";
-import { initToolContext } from "./lib/context.js";
+import { runCli, checkCwd } from "../lib/exec.js";
 
-export const name = "git_commit";
+export const command = "commit";
+export const summary = "提交（自动 CoA + 签名）";
 
-export const description = [
-  "在指定仓库创建本地提交，并自动追加 Co-authored-by 署名（title/body 之后空行 + ",
-  "固定署名 Co-authored-by: HanaAgent <313794804+HanaAgent@users.noreply.github.com>（@HanaAgent 为 liliMozi 注册的官方账号，仅作协作署名实体，不承担登录/认证）；",
-  "message 必填（经 stdin 传 git commit -F -，多行/中文无损）；",
-  "paths 可选（相对 cwd 的文件列表，提交指定文件——未跟踪文件会自动先暂存（git add）后按路径提交，",
-  "其余已暂存内容不受影响；缺省提交全部已暂存内容；无 paths 且无 staged 时返回提示，不会空提交，",
-  "除非 allowEmpty=true）；amend 可选（改写最近提交，不需 staged，message 留空则沿用 HEAD 完整说明，",
-  "已含 Co-authored-by 不重复追加）。cwd 必填（仓库绝对路径）。返回短 hash + 首行 + 文件数。",
-  "注意：amend 会改写提交历史（force 推送需求请自评）；如需纯透传不带署名请用 git_exec。",
-].join(" ");
-
-export const sessionPermission = {
-  kind: "external_side_effect",
-  describeSideEffect: () => ({
-    kind: "git_local",
-    summary:
-      "在指定仓库（cwd）创建本地提交并自动追加 Co-authored-by 署名：修改本地 git 历史（生成新提交；amend 时改写最近一条提交），不推送远端；执行前请确认 cwd、message 与 paths",
-    ruleId: "github-toolkit-git-commit",
-  }),
-};
-
-export const parameters = {
-  type: "object",
-  properties: {
-    cwd: {
-      type: "string",
-      description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-    },
-    message: {
-      type: "string",
-      description: "提交说明（必填；amend 且需沿用原说明时可传空串）：支持多行（title 与 body 空行分隔）与中文，经 stdin 无损传入",
-    },
-    paths: {
-      type: "array",
-      items: { type: "string" },
-      description: "可选：要提交的相对路径列表（相对 cwd，如 [\"src/a.js\"]）；缺省提交全部已暂存内容",
-    },
-    amend: {
-      type: "boolean",
-      description: "可选：改写最近一次提交（--amend）；message 为空时沿用 HEAD 完整 message 并自动合并署名（已含 Co-authored-by 不重复）",
-    },
-    allowEmpty: {
-      type: "boolean",
-      description: "可选：允许空提交（--allow-empty）；缺省 false——无 paths 且无已暂存内容时不空提交，返回引导提示",
-    },
+export const fields = {
+  cwd: {
+    type: "string",
+    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
   },
-  required: ["cwd", "message"],
+  message: {
+    type: "string",
+    description: "提交说明（必填；amend 且需沿用原说明时可传空串）：支持多行（title 与 body 空行分隔）与中文，经 stdin 无损传入",
+  },
+  paths: {
+    type: "array",
+    items: { type: "string" },
+    description: "可选：要提交的相对路径列表（相对 cwd，如 [\"src/a.js\"]）；缺省提交全部已暂存内容",
+  },
+  amend: {
+    type: "boolean",
+    description: "可选：改写最近一次提交（--amend）；message 为空时沿用 HEAD 完整 message 并自动合并署名（已含 Co-authored-by 不重复）",
+  },
+  allowEmpty: {
+    type: "boolean",
+    description: "可选：允许空提交（--allow-empty）；缺省 false——无 paths 且无已暂存内容时不空提交，返回引导提示",
+  },
+};
+export const required = ["cwd", "message"];
+
+export const sideEffect = {
+  kind: "git_local",
+  summary:
+    "在指定仓库（cwd）创建本地提交并自动追加 Co-authored-by 署名：修改本地 git 历史（生成新提交；amend 时改写最近一条提交），不推送远端；执行前请确认 cwd、message 与 paths",
+  ruleId: "github-toolkit-git-commit",
 };
 
 /** 固定署名：@HanaAgent（liliMozi 注册的官方账号，仅作 Co-authored-by 协作署名实体，不承担登录/认证）。
@@ -93,7 +78,7 @@ function commitGuidance(stderr, stdout) {
     return "当前目录不是 git 仓库：请在仓库目录内执行（或先 git init）。";
   }
   if (/Please tell me who you are|unable to auto-detect email|user\.name|user\.email/i.test(s)) {
-    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 git_exec 配置）。";
+    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana(action=\"exec\") 配置）。";
   }
   if (/pathspec|does not match any|unable to resolve/i.test(s)) {
     return "路径不匹配：pathspec 未命中——文件可能不存在、不在仓库内或已被 .gitignore 忽略（git 原始输出见上）。";
@@ -114,21 +99,10 @@ function assembleMessage(base) {
   return { final: body + "\n\n" + line, note: "已自动追加署名：" + line };
 }
 
-/**
- * 工具入口：先 initToolContext 登记 dataDir（runCli 据此注入 GIT_CONFIG_GLOBAL 隔离 env，
- * 并把 gpg.program 指向随包的签名 shim——签名配置来自隔离 gitconfig，缺登记则签名不生效）。
- */
-export async function execute(input, ctx) {
-  await initToolContext(ctx);
-  // 不再需要收尾 gpg daemon：签名改由随包的纯 JS shim 完成（见 tools/lib/gpg.shim.mjs），
-  // 没有 gpg-agent / scdaemon 会被拉起，也就没有“daemon 残留锁住安装目录”这回事。
-  return await runCommit(input);
-}
-
-async function runCommit(input) {
+export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return "git_commit 参数错误：" + cwdErr;
+  if (cwdErr) return label + " 参数错误：" + cwdErr;
   const cwd = String(cwdParam).trim();
 
   const amend = input?.amend === true;
@@ -139,23 +113,23 @@ async function runCommit(input) {
   let paths = [];
   if (input?.paths !== undefined && input?.paths !== null) {
     if (!Array.isArray(input.paths)) {
-      return "git_commit 参数错误：paths 必须是字符串数组（相对 cwd 的路径）。";
+      return label + " 参数错误：paths 必须是字符串数组（相对 cwd 的路径）。";
     }
     for (const p of input.paths) {
       const s = String(p ?? "").trim();
-      if (!s) return "git_commit 参数错误：paths 含空路径项。";
+      if (!s) return label + " 参数错误：paths 含空路径项。";
       if (/^([A-Za-z]:[\\/]|\/|\\\\)/.test(s)) {
-        return "git_commit 参数错误：paths 项必须是相对路径（收到绝对路径：" + s + "），相对 cwd 传入。";
+        return label + " 参数错误：paths 项必须是相对路径（收到绝对路径：" + s + "），相对 cwd 传入。";
       }
       paths.push(s);
     }
   }
 
   if (!amend && !userMessage) {
-    return "git_commit 参数错误：message 必填（非 amend 提交需要提交说明）；或改用 amend=true 沿用上一条提交说明。";
+    return label + " 参数错误：message 必填（非 amend 提交需要提交说明）；或改用 amend=true 沿用上一条提交说明。";
   }
   if (amend && paths.length > 0) {
-    return "git_commit 参数错误：amend 不能与 paths 同用（git commit --amend 只按暂存区改写，不支持文件列表）。请去掉 paths 或去掉 amend。";
+    return label + " 参数错误：amend 不能与 paths 同用（git commit --amend 只按暂存区改写，不支持文件列表）。请去掉 paths 或去掉 amend。";
   }
 
   // 提交前检查：无 paths 且无已暂存内容 → 引导（allowEmpty / amend 除外——
@@ -165,17 +139,17 @@ async function runCommit(input) {
     if (!stagedR.ok) {
       const raw = (stagedR.stderr || "").trim();
       if (/not a git repository|does not appear to be a git repository/i.test(raw)) {
-        return "git_commit：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+        return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
       }
       // exit 1 = 有已暂存内容，正常继续；其他非零按错误透传
       if (stagedR.exitCode !== 1) {
-        return "git_commit 预检失败（git diff --cached --quiet）：\n" + (stagedR.message || raw);
+        return label + " 预检失败（git diff --cached --quiet）：\n" + (stagedR.message || raw);
       }
     } else {
       // exit 0 = 无任何已暂存内容
       return [
-        "git_commit：没有可提交的内容——既未传 paths 也没有已暂存（staged）的文件。",
-        "请先 git add 目标文件（可用 git_exec）或传入 paths 指定要提交的相对路径；",
+        label + "：没有可提交的内容——既未传 paths 也没有已暂存（staged）的文件。",
+        "请先 git add 目标文件（可用 githana(action=\"exec\")）或传入 paths 指定要提交的相对路径；",
         "若确需创建空提交请显式传 allowEmpty=true。",
       ].join("\n");
     }
@@ -188,12 +162,12 @@ async function runCommit(input) {
     if (!headR.ok) {
       const raw = (headR.stderr || "").trim();
       if (/does not have any commits yet|bad default revision|ambiguous argument/i.test(raw)) {
-        return "git_commit：amend 需要已有提交（HEAD 不存在：仓库尚无 commit，请用普通提交而非 amend）。";
+        return label + "：amend 需要已有提交（HEAD 不存在：仓库尚无 commit，请用普通提交而非 amend）。";
       }
       if (/not a git repository/i.test(raw)) {
-        return "git_commit：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+        return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
       }
-      return "git_commit 读取 HEAD message 失败（git log -1 --format=%B）：\n" + (headR.message || raw);
+      return label + " 读取 HEAD message 失败（git log -1 --format=%B）：\n" + (headR.message || raw);
     }
     base = toLf(headR.stdout).trimEnd();
   }
@@ -207,7 +181,7 @@ async function runCommit(input) {
     if (!addR.ok) {
       const raw = ((addR.stderr || "") + "\n" + (addR.stdout || "")).trim();
       const guide = commitGuidance(addR.stderr, addR.stdout);
-      const text = "git_commit 暂存 paths 失败（git add）：\n" + (raw || addR.message || "未知错误");
+      const text = label + " 暂存 paths 失败（git add）：\n" + (raw || addR.message || "未知错误");
       return guide ? text + "\n" + guide : text;
     }
   }
@@ -223,7 +197,7 @@ async function runCommit(input) {
     const raw = ((commitR.stderr || "") + "\n" + (commitR.stdout || "")).trim();
     const guide = commitGuidance(commitR.stderr, commitR.stdout);
     const text =
-      "git_commit 执行失败（exit code " + commitR.exitCode + "）：\n" +
+      label + " 执行失败（exit code " + commitR.exitCode + "）：\n" +
       (raw || commitR.message || "未知错误");
     return guide ? text + "\n" + guide : text;
   }
