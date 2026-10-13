@@ -270,7 +270,7 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 
 | 工具 | action | 状态 | 现在怎么做 |
 |---|---|---|---|
-| `githana_read` | `ci_status` | 未实现 | 用 `api(action="api")` 直接查 GitHub 的 check-runs / workflow-runs 端点 |
+| `githana_read` | `ci_status` | 未实现 | 用 `githana_read(action="api")` 直接查 GitHub 的 check-runs / workflow-runs 端点 |
 | `githana` | `ci_watch` | 未实现 | 同上；监听形态要等后台任务通道落地 |
 
 `ci_watch` 不是「多一个 api 调用」：GitHub 没有面向本地 App 的 webhook，只能轮询；轮询占着
