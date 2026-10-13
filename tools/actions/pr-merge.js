@@ -104,10 +104,12 @@ export async function run(input, ctx, { label }) {
 
   // 删源分支：DELETE /repos/{o}/{r}/git/refs/heads/{branch}
   if (deleteBranch) {
-    const baseFull = repo.owner + "/" + repo.repo;
+    // resolveContext 返回的 repo 已经是 "owner/repo" 字符串（不是对象）。
+    // 与 headRepoFull（GitHub 的 full_name）比较时忽略大小写：两边大小写不保证一致。
+    const baseFull = repo;
     if (!headRef) {
       out.push("源分支删除：未能取到源分支名（跳过删除）。");
-    } else if (headRepoFull && headRepoFull !== baseFull) {
+    } else if (headRepoFull && headRepoFull.toLowerCase() !== baseFull.toLowerCase()) {
       // fork 来的 PR：head.ref 在源仓库，同名分支在 base 仓库里只是同名而已，
       // 删它等于误删他人分支。不跨仓删。
       out.push(
