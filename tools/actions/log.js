@@ -2,52 +2,39 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * git_log：最近提交速览工具（v2 场景只读）。
+ * log：最近提交速览（只读面 action）。
  *
  * 输出最近 N 条提交（默认 10，1~100）：短 hash、作者名、相对时间、首行。
- * 空仓库（无 HEAD / 尚无提交）返回「暂无提交」不报错。纯读（readOnly）。
+ * 空仓库（无 HEAD / 尚无提交）返回「暂无提交」不报错。纯读。
  *
  * 实现：git log --pretty=format 定制格式 "%h\t%an\t%ar\t%s"，每条记录占一行、
  * 字段以 TAB 分层——%s（首行主题）不可能含换行（git 提交信息首行以换行结束），
- * 因此换行分层天然防分隔符混淆（spec：用 %x00 或换行分层，此处取换行分层 + TAB 字段）。
+ * 因此换行分层天然防分隔符混淆。
  */
-import { runCli, checkCwd } from "./lib/exec.js";
-import { initToolContext } from "./lib/context.js";
+import { runCli, checkCwd } from "../lib/exec.js";
 
-export const name = "git_log";
+export const command = "log";
+export const summary = "最近提交速览";
 
-export const description = [
-  "最近提交速览（只读）：输出最近 N 条提交的短 hash、作者名、相对时间与首行说明",
-  "（默认最近 10 条，N 可配 1~100）。空仓库（尚无提交）返回「暂无提交」不报错。",
-  "cwd 必填（仓库绝对路径，显式指定无默认）。",
-  "需要详细提交信息（diff/文件/完整 message）请用 git_exec（如 git show / git log --stat）。",
-].join(" ");
-
-export const sessionPermission = { readOnly: true };
-
-export const parameters = {
-  type: "object",
-  properties: {
-    cwd: {
-      type: "string",
-      description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-    },
-    n: {
-      type: "integer",
-      minimum: 1,
-      maximum: 100,
-      default: 10,
-      description: "返回条数：默认 10，范围 1~100，越界自动收敛到边界",
-    },
+export const fields = {
+  cwd: {
+    type: "string",
+    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
   },
-  required: ["cwd"],
+  n: {
+    type: "integer",
+    minimum: 1,
+    maximum: 100,
+    default: 10,
+    description: "返回条数：默认 10，范围 1~100，越界自动收敛到边界",
+  },
 };
+export const required = ["cwd"];
 
-export async function execute(input, ctx) {
-  await initToolContext(ctx);
+export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return "git_log 参数错误：" + cwdErr;
+  if (cwdErr) return label + " 参数错误：" + cwdErr;
   const cwd = String(cwdParam).trim();
 
   // n 归一：默认 10，1~100 收敛
@@ -66,18 +53,18 @@ export async function execute(input, ctx) {
     const raw = (r.stderr || r.stdout || "").trim();
     // 空仓库（分支尚无任何提交）→ 按规范返回「暂无提交」，不当作错误
     if (/does not have any commits yet|your current branch.*does not have any commits|fatal: bad default revision/i.test(raw)) {
-      return "git_log：" + cwd + " 仓库暂无提交（该分支尚无 commit，HEAD 不存在）。";
+      return label + "：" + cwd + " 仓库暂无提交（该分支尚无 commit，HEAD 不存在）。";
     }
     if (/not a git repository|does not appear to be a git repository|not our repo/i.test(raw)) {
-      return "git_log：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+      return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
     }
-    return "git_log 执行失败：\n" + (r.message || raw || "未知错误");
+    return label + " 执行失败：\n" + (r.message || raw || "未知错误");
   }
 
   const text = r.stdout || "";
   const lines = text.split("\n").map((l) => l.trimEnd()).filter((l) => l !== "");
   if (lines.length === 0) {
-    return "git_log：" + cwd + " 仓库暂无提交（该分支尚无 commit）。";
+    return label + "：" + cwd + " 仓库暂无提交（该分支尚无 commit）。";
   }
 
   const out = ["最近 " + lines.length + " 条提交（" + cwd + "）："];

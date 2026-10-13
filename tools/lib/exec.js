@@ -291,7 +291,7 @@ function truncateNote(truncated, channel) {
 }
 
 /**
- * 通用结果渲染：把 runCli 结果格式化为可读文本（git_exec / git_status 等共用）。
+ * 通用结果渲染：把 runCli 结果格式化为可读文本（githana 的 status / log / commit / push / exec 等共用）。
  * - 成功：命令 + exit 0 + stdout/stderr（非空时）；
  * - 基础设施失败（message 且 exitCode null，如 cwd/bin/超时）：直接返回 message（附部分输出）；
  * - 非零退出：exit code + 命令 + stderr/stdout 原始输出（保留原文，附截断提示）。

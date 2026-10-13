@@ -20,6 +20,7 @@
  *            + OpenPGP.js 库文件（openpgp.min.mjs，上游 dist 原样，两个入口运行期 import）
  *         三个入口均为压缩后的单入口 ESM；库文件是唯一例外（合规要求原样）。
  *   assets/
+ *   skills/ ← 随包 SKILL 手册（skills/githana/SKILL.md，App 根目录约定）
  *   ui/    ← 壳页 + 设置页产物平铺（settings.html / settings.bundle.js / .css），**不含 ui/src/**
  *
  * 构建产物**直接落 dist/**（build-ui / build-server / build-entries 都写这里），没有 build/ 中转层：
@@ -78,6 +79,9 @@ const DELIVERY_FILES = [
 ];
 const DELIVERY_DIRS = [
   "assets",
+  // 随包 SKILL 手册（skills/githana/SKILL.md）：宿主从 App 根读 skills/，模型可见其名称与描述。
+  // 工具描述只留路由信息，用法细节都在这本手册里。
+  "skills",
 ];
 
 const log = (...a) => console.log("[build-app]", ...a);
