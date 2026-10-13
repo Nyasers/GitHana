@@ -59,15 +59,16 @@
 ## 设置页
 
 只贡献**一个**设置页（`contributes.settings.ui.route = /settings.html`），不开 page 卡：
-同一页里既改 GitHub 认证、又看运行环境状态。页面用**宿主组件**搭（`@hana/app-sdk/components`：
-`AppUiProvider` / `SettingsPage` / `SettingsSection` / `SettingRow` / `SaveButton` / `TextInput`），
-而不是手抄样式。
+同一页里既登录 GitHub 账号、又管理签名密钥，运行环境明细收在「高级」里。页面用**宿主组件**搭
+（`@hana/app-sdk/components`：`AppUiProvider` / `SettingsPage` / `SettingsSection` / `SettingRow` /
+`Button` / `Collapse`），而不是手抄样式。
 
 - 清单里 `settings` 只有 `title` + `ui`，**没有 `schema`**：令牌不是宿主设置项，App 自己持有配置
   （APPS.md 的口径是 `schema` / `ui` 至少提供一个，只留 `ui` 合法）。
-- 动态读写走 App 自己的已认证路由（`/routes/settings/state` 读、`/routes/settings/client-id` 写
-  Client ID 覆盖值）。**页面没有任何令牌输入框**：OAuth 令牌只由服务端 device flow 拿到，
-  页面只展示 `user_code`、验证地址与账号摘要。
+- 页面只展示，不收集身份参数：Client ID 是本 App 注册的那一个（常量）；提交者名字与邮箱由已登录
+  账号推导。**页面没有任何令牌输入框**：OAuth 令牌只由服务端 device flow 拿到，页面只展示
+  `user_code`、验证地址与账号摘要。
+- 动态读取走 App 自己的已认证路由（`/routes/settings/state`）。
 - **surface 凭证**：宿迁把 App 页面挂在租约路径下（`/api/apps/<id>/ui/_surface/<token>/…`），
   页面对自己后端路由的请求不会自动带凭证，页面从自身 URL 路径里取出该 token，
   以 `X-Hana-App-Surface-Session` 头发出（查询串形态 `appSurfaceSession` 优先）。
@@ -77,7 +78,7 @@
 ### 授权与令牌存哪里（不存宿主设置表）
 
 凭据来源是 **GitHub App device flow 授权**（App：`githana-app` / Client ID
-`Iv23li0dA1IaFVs6klAc`，可在设置页覆盖）。流程：
+`Iv23li0dA1IaFVs6klAc`，固定在代码里）。流程：
 
 1. 设置页点「用 GitHub 登录」→ `POST /routes/actions/oauth/start`；
 2. 服务端经 REST worker 调 `https://github.com/login/device/code`（必须带
@@ -110,14 +111,14 @@
   会显示「需重新授权」，而不是静默当未配置。
 - **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退。这是 v2 首个构建起的
   形态；宿主侧那格即使留有历史记录也只是空串，App 既不读也不写它。
-- **clientId 与凭据解耦**：Client ID 非机密（代码里有内置默认值），用户覆盖值存
-  `<dataDir>/oauth.json`，**清凭据时保留**——重新授权不必重填。
+- **Client ID 是常量**：本 App 注册的那一个，权限与发布链路都绑在它上面，不开放覆盖；
+  设置页只在「高级」里展示当前值。
 
 #### PAT 通道已删除
 
 个人访问令牌通道**已下线删除**（不保留为备用）：设置页没有 PAT 输入框与保存按钮，
 `POST /settings/token` 端点（含路由注册）已移除。旧 `schemaVersion: 1` 记录**读但不采用**——
-不报错、不动文件、不参与任何调用；设置页据此提示「PAT 通道已停用」并提供显式清除入口
+不报错、不动文件、不参与任何调用；设置页据此提示「旧版记录」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
 删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证本就走系统
@@ -131,32 +132,42 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 
 | 入口 | 端点 | 实现 |
 |------|------|------|
-| 保存 / 清除 Client ID 覆盖值 | `POST /routes/settings/client-id` | `lib/secret.js`（非机密，存 `oauth.json`） |
 | 清除旧 PAT 记录 | `POST /routes/settings/legacy-pat/clear` | `lib/secret.js` 的 `removeSecretRecord` |
-| 用 GitHub 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
-| 查询授权结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
-| 退出授权 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth`（保留 clientId） |
-| GitHub 身份 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
+| 登录（device flow） | `POST /routes/actions/oauth/start` | `lib/oauth.js` 的 `startDeviceFlow` |
+| 查询登录结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
+| 退出登录 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth` |
+| GitHub 账号信息 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
 | 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
-| 上传公钥 / 从 GitHub 移除 | `POST /routes/actions/gpg/publish` · `/unpublish` | `lib/gpg-publish.js` |
+| 补传公钥（本地有、账号没有时） | `POST /routes/actions/gpg/publish` | `lib/gpg-publish.js` |
+| 从 GitHub 移除（本机密钥一并清除） | `POST /routes/actions/gpg/unpublish` | `lib/gpg-publish.js` |
 | 发布状态 | `GET /routes/actions/gpg/status` | `lib/gpg-publish.js` 的 `publishedInfo` |
 
-轮换密钥不可逆（GitHub 上已发布的旧公钥会被自动替换），所以按钮先弹确认再执行。
+轮换密钥不可逆（账号上本 App 发布的那把会被替换），所以按钮先弹确认再执行。
 
 ### GPG 公钥自动发布
 
 借 GitHub App 的 `GPG keys: write` 账号权限，密钥生成后自动把公钥上传到 GitHub 账号，
-用户不必再手动粘贴。
+用户不必再手动粘贴。**两端始终一致**：本机有密钥就有对应公钥，反之亦然。
 
+- **生成 = 生成 + 上传（一个动作）**：先快照密钥文件与签名接线，再生成并接线，最后上传；
+  上传不成就把本地**整体退回生成前状态**。轮换时这个回滚同样成立：新钥传不上去就继续用旧钥，
+  而不是把旧的先删掉。
+- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg-key.json`、`.asc` 与隔离
+  gitconfig 里的 `user.signingkey` / `commit.gpgsign`（`user.email` / `user.name` 保留）——
+  本地不该留一把账号上已经没了的密钥，那会让之后每次提交都签名失败。
+- **先加后删**：轮换时先 `POST /user/gpg_keys` 传新公钥，再删旧的。GitHub 允许账号上并存多把
+  公钥，先加后删让账号全程都有可用密钥；先删会留一段空窗。
+- **删除前核对归属**：先 `GET /user/gpg_keys`，要求 **keyId 相等且远端 key_id 等于记录指纹
+  末 16 位**，两条都成立才删。只看 keyId 不够：记录可能来自另一个账号（用户换了登录），
+  那里的同号 keyId 是别人的钥匙。指纹对不上一律不动它。
 - **只删自己那把**：App 数据目录的 `published-gpg-keys.json` 记录 `{ keyId, fingerprint,
-  uploadedAt, login, gpgKeyId }`。轮换时先 `GET /user/gpg_keys` **核对**记录里的 `keyId` 是否仍在
-  （用户可能已在 GitHub 侧手动删过，以 GitHub 侧为准），再 `DELETE /user/gpg_keys/{keyId}`
-  （404 视为已不存在，继续上传），然后 `POST /user/gpg_keys` 上传新公钥并写回记录。
+  uploadedAt, login, gpgKeyId, name, stale[] }`；`stale[]` 存本次上传成功但旧钥没删掉的残留，
+  下次发布或移除时逐条核对指纹后再试。
 - **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
-  误删是事故。上传时用的 `name`（`GitHana`）只作标识，**不参与删除匹配**。
-- 上传失败**不阻断**本地密钥生成（本地签名链路已可用），结果写进 keygen 返回文本，
-  并提供设置页手动重试按钮。
+  误删是事故。上传时用的 `name`（`<账号 id>+<login>@GitHana`，如 `61904116+ProjectNyaser@GitHana`）
+  只作展示与人工辨认，**不参与删除匹配**：名字在 GitHub 页面上随时可改，只看名字等于把
+  「删哪把」交给一个可变字符串。
 - 错误映射：`403` → 「App 未授予 GPG keys: write」+ 指向 App 权限设置；`422` → 透出 GitHub
   原文 + 「该邮箱需为账号已验证邮箱」；无 OAuth 凭据 → 「需先完成 GitHub App 授权」
   （不用 PAT 尝试——PAT 通常没有 `gpg_keys` 权限）。
@@ -461,14 +472,14 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
 app.js                   # apply(ctx)：注册 7 工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
 tools/                   # 7 个工具 + gpg-keygen.js（仅设置页动作）+ lib/（exec / bin / rest / rest.worker / context / identity / github）
-lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）+ clientId 覆盖值
+lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
-lib/gpg-publish.js       # GPG 公钥发布/轮换（只删自己记录里的那一个 key_id）
-lib/routes/status.js     # 环境状态端点（授权状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
-lib/routes/settings.js   # 设置页数据端点（state / client-id / legacy-pat/clear）
+lib/gpg-publish.js       # GPG 公钥发布/轮换（先加后删；删除前核对指纹，只动自己那把）
+lib/routes/status.js     # 环境状态端点（账号状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
+lib/routes/settings.js   # 设置页数据端点（state / legacy-pat/clear）
 lib/routes/actions.js    # 设置页「手动档」端点（oauth/* / keygen / gpg/* / identity / pubkey）
 lib/routes/pubkey.js     # 公钥数据读取（无端点）：状态端点 / 设置页动作共用
-ui/settings.html         # 设置页（contributes.settings.ui.route）：认证 + 运行环境状态合一
+ui/settings.html         # 设置页（contributes.settings.ui.route）：账号 + 签名密钥 + 高级明细
 assets/icon.svg          # App 图标
 vendor/                  # 内嵌运行时：bin/<平台>/（二进制，不入 git）+ sources.json（声明）+ hana-app-sdk/（SDK 快照）
 scripts/                 # 分域：build（组装/出包）/ derive（派生同步）/ dev（本地装机）/ probe（能力面）

@@ -15,9 +15,9 @@
  *
  * 调用点只有两处，且都走本文件的同一组函数（避免两处逻辑跑偏）：
  *   - tools/gpg-keygen.js（生成/轮换密钥时写隔离 gitconfig）
- *   - lib/routes/actions.js 的 /actions/identity（设置页「读取身份」）
+ *   - lib/routes/actions.js 的 /actions/identity（设置页「提交身份」）
  *
- * 插件不配置邮箱/名字（拒绝多余配置键），keygen 时自动推导；keygen 的 email/name 参数可显式覆盖。
+ * 身份不开放覆盖：插件不配置邮箱/名字（拒绝多余配置键），keygen 时一律自动推导。
  */
 
 /**
@@ -32,7 +32,7 @@ export function noreplyEmailFromUser(id, login) {
 
 /**
  * 由 login 推导提交者名字：login 原样（如 ProjectNyaser）。
- * 三级推导链的最后一级兜底。
+ * 推导链的最后一级兜底。
  * @param {string} login
  * @returns {string}
  */
@@ -41,7 +41,7 @@ export function deriveNameFromLogin(login) {
 }
 
 /**
- * 由 gh api user 的响应推导提交者名字（三级链的第二级）。
+ * 由 gh api user 的响应推导提交者名字。
  * name 字段为空/纯空白时回落 deriveNameFromLogin(login)。
  * @param {{ id?: number|string, login?: string, name?: string } | null | undefined} user
  * @returns {string}
@@ -50,23 +50,4 @@ export function deriveNameFromUser(user) {
   const name = user && typeof user.name === "string" ? user.name.trim() : "";
   if (name) return name;
   return deriveNameFromLogin(user && user.login);
-}
-
-/**
- * 由邮箱推导提交者名字（显式 email 参数时兜底用）：
- * - noreply 邮箱（{id}+{login}@users.noreply.github.com）→ 取 + 与 @ 之间段（ProjectNyaser）；
- * - 普通邮箱 → 取 @ 前段；
- * - 解析不出返回 ""。
- * @param {string} email
- * @returns {string}
- */
-export function deriveNameFromEmail(email) {
-  const e = String(email || "").trim();
-  if (!e) return "";
-  const at = e.indexOf("@");
-  if (at <= 0) return "";
-  const local = e.slice(0, at);
-  const plus = local.lastIndexOf("+");
-  const cand = plus >= 0 ? local.slice(plus + 1) : local;
-  return cand || "";
 }
