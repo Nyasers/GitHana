@@ -12,7 +12,7 @@
  *   · 把一批请求交给 worker、把结果归一成 { ok, status, json, text, error }；
  *   · 统一超时与基础设施错误的可读文案。
  *
- * 语义都在调用方（tools/gh-pr.js / lib/oauth.js / lib/gpg-publish.js）：本模块不认识
+ * 语义都在调用方（tools/actions/*.js、lib/oauth.js、lib/gpg-publish.js）：本模块不认识
  * GitHub 的路径与字段，只负责把请求发出去、把响应拿回来。
  *
  * ## 为什么 spawn 时要补 --allow-net

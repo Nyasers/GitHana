@@ -7,6 +7,10 @@
  * 形态：宿主在隔离的 AppHost 子进程里加载本文件并调用 apply(ctx)（入口契约兼容具名
  * apply / default.apply / 默认函数，两种都导出）。apply 完成注册后立即返回，不等任何长活。
  *
+ * 工具面是两个入口：githana（写面）与 githana_read（只读面）。收敛前是 7 个平铺工具，
+ * 其中 gh_pr 把读与写放在一起，整体只能声明 external_side_effect，读也要过审；拆成两面
+ * 后只读动作拿到独立免审通道（见 tools/githana-read.js 头注与随包手册）。
+ *
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
  *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
@@ -32,13 +36,8 @@
  *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
  *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
  */
-import * as gitExec from "./tools/git-exec.js";
-import * as gitStatus from "./tools/git-status.js";
-import * as gitLog from "./tools/git-log.js";
-import * as gitCommit from "./tools/git-commit.js";
-import * as gitPush from "./tools/git-push.js";
-import * as githubApi from "./tools/github-api.js";
-import * as ghPr from "./tools/gh-pr.js";
+import * as githana from "./tools/githana.js";
+import * as githanaRead from "./tools/githana-read.js";
 
 // 路由模块放 lib/routes/：顶层 routes/ 是 v2 保留目录（形态互斥的另一种路由源），
 // 本项目统一用 ctx.routes.register 单 bundle 形态，故顶层不放 routes/。
@@ -62,8 +61,10 @@ function resolveInstallDir() {
 }
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
- *  只放 git / GitHub 两类：GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
-const TOOLS = [gitExec, gitStatus, gitLog, gitCommit, gitPush, githubApi, ghPr];
+ *  两个入口：githana（写面）与 githana_read（只读面，sessionPermission { readOnly: true }）。
+ *  action 表与路由在 tools/lib/surface.js，实现按 action 拆在 tools/actions/。
+ *  GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
+const TOOLS = [githana, githanaRead];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
@@ -105,7 +106,7 @@ function toToolResult(value) {
 }
 
 /**
- * App v2 主入口。注册 7 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
+ * App v2 主入口。注册 2 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
  */
 export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;
