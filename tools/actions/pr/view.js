@@ -2,18 +2,19 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_view：PR 详情（只读面 action）。
+ * pr/view：PR 详情（githana_pr 动词）。
  *
  * prNumber 缺省时用当前分支查（REST 没有「当前分支关联 PR」的语义，所以先取当前分支再按
- * head 过滤）。输出 title/state/head→base/审查状态/合并状态/URL/body（截断）。
+ * head 过滤，见 lib/pr.js 的 resolvePrNumber）。输出 title/state/head→base/审查状态/合并状态/
+ * URL/body（截断）。
  *
  * 审查状态由 `GET /pulls/{n}/reviews` 的评审记录聚合而成（REST 无 reviewDecision，见 lib/pr.js）。
  */
-import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import * as params from "../lib/params.js";
-import { resolveContext, describeFailure, fmtTime, reviewSummary, mergeStateText, currentBranch } from "../lib/pr.js";
+import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, resolvePrNumber, describeFailure, fmtTime, reviewSummary, mergeStateText } from "../../lib/pr.js";
 
-export const command = "pr_view";
+export const command = "view";
 export const summary = "PR 详情（含 reviews）";
 
 export const schema = {
@@ -26,35 +27,14 @@ export const schema = {
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
-  const { repo, repoLabel, cwd, timeoutSec } = c;
+  const { repo, repoLabel, timeoutSec } = c;
 
-  // prNumber 的"正整数"由 schema 保证（见上方 schema）：到了这里只需判断给没给。
-  let numStr = input?.prNumber !== undefined && input?.prNumber !== null ? String(input.prNumber) : "";
+  // prNumber 缺省 = 当前分支关联 PR（共享那一跳，见 lib/pr.js）。
+  const numRes = await resolvePrNumber(input, label, c);
+  if (numRes.error) return numRes.error;
+  const numStr = numRes.prNumber;
 
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
-
-  if (!numStr) {
-    // 缺省 = 当前分支关联 PR：先取当前分支，再按 head 过滤。
-    if (!cwd) {
-      return (
-        label + " 参数错误：未传 prNumber，而缺省值需要 cwd 来确定当前分支（REST 无「当前分支关联 PR」语义）。\n" +
-        "请传 prNumber，或在 git 仓库 cwd 内执行。"
-      );
-    }
-    const cur = await currentBranch(cwd);
-    if (cur.error) return label + " 无法确定当前分支：" + cur.error;
-    const listUrl =
-      apiUrl(repo, "/pulls") + "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
-    const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
-    if (!lr.ok) return label + " 执行失败：" + lr.message;
-    const lres = lr.results[0];
-    if (!lres || !lres.ok) return label + " 执行失败：" + describeFailure(lres, repoLabel);
-    const arr = Array.isArray(lres.json) ? lres.json : [];
-    if (arr.length === 0) {
-      return label + "：当前分支（" + cur.branch + "）没有打开的关联 PR。可显式传 prNumber 查看指定 PR。";
-    }
-    numStr = String(arr[0].number);
-  }
 
   const r = await callRest(
     [

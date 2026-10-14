@@ -197,7 +197,7 @@ async function runKeygen() {
     const s2 = await runCli("git", ["config", "--global", "commit.gpgsign", "true"], {});
     lines.push(
       "签名已接线（user.signingkey + commit.gpgsign=true；gpg.program 由运行时按当前安装注入，" +
-      "不写进配置文件）：此后 githana(action=\"commit\") 自动签名，签名由随包的签名 shim（纯 JS）完成。" +
+      "不写进配置文件）：此后 githana_git(action=\"commit\") 自动签名，签名由随包的签名 shim（纯 JS）完成。" +
       (s1.ok && s2.ok ? "" : "（配置写入异常：" + ([s1.message, s2.message].filter(Boolean).join("；") || "?") + "）"),
     );
   }

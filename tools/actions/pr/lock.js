@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 Nyasers
+
+/**
+ * pr/lock：锁定 PR 的对话（githana_pr 动词）。
+ *
+ * 走 REST `PUT /repos/{o}/{r}/issues/{n}/lock`（支撑权限 `pull_requests: write`）。锁定的对象是
+ * **issue 对话**（PR 就是一种 issue），所以打的是 issues 这条：锁上之后非协作者不能再评论，
+ * 已有的评论全部保留。
+ *
+ * 与 gh `pr lock` 一致，附带 `lock_reason`：
+ *   · `off-topic`（默认）· `too heated` · `resolved` · `spam`
+ * 这些理由会显示在 PR 页面上，所以说清为什么锁本身就是内容的一部分。
+ */
+import { z } from "zod";
+import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
+
+export const command = "lock";
+export const summary = "锁定 PR 对话（禁止非协作者评论）";
+
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  prNumber: params.prNumberOptional,
+  reason: z
+    .enum(["off-topic", "too heated", "resolved", "spam"])
+    .optional()
+    .describe("锁定理由（默认 off-topic）：off-topic / too heated / resolved / spam，会显示在 PR 页面上"),
+  timeoutSec: params.timeoutSec,
+};
+
+export const sideEffect = {
+  kind: "github_pr",
+  summary:
+    "锁定 GitHub 远端 PR 的对话（非协作者不能再评论，已有评论保留；理由会公开展示）：修改 GitHub 远端状态",
+  ruleId: "github-toolkit-pr-lock",
+};
+
+export async function run(input, ctx, { label }) {
+  const c = await resolveContext(input, label);
+  if (c.error) return c.error;
+  const { repo, repoLabel, timeoutSec } = c;
+
+  const numRes = await resolvePrNumber(input, label, c);
+  if (numRes.error) return numRes.error;
+  const numStr = numRes.prNumber;
+  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
+
+  // reason 的取值域由 schema 保证（enum）；这里只做缺省。枚举值 "too heated" 带空格，
+  // 与 gh 的取值一致（GitHub 只认带空格的形态）。
+  const apiReason = input?.reason !== undefined && input?.reason !== null ? String(input.reason) : "off-topic";
+
+  const r = await callRest(
+    [{ method: "PUT", url: apiUrl(repo, "/issues/" + numStr + "/lock"), json: { lock_reason: apiReason }, timeoutMs }],
+    { timeoutSec },
+  );
+  if (!r.ok) return label + " 执行失败：" + r.message;
+  const res = r.results[0];
+  // 204 No Content 是成功（锁定不返回正文）。
+  if (!res || (!res.ok && res.status !== 204)) {
+    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 403) {
+      return label + " 执行失败：没有锁定对话的权限（403）——锁定需要仓库写权限（本 App 有 pull_requests: write）。\nGitHub 原文：" + errorDetail(res);
+    }
+    return label + " 执行失败：" + describeFailure(res, repoLabel);
+  }
+
+  return [
+    label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：",
+    "状态：对话已锁定（locked）· 理由：" + apiReason,
+    "说明：非协作者不能再评论，已有评论保留；要放开用 githana_pr(action=\"unlock\")。",
+  ].join("\n");
+}

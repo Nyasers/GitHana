@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * commit：本地提交 + 自动 Co-authored-by 署名（写面 action）。
+ * git/commit：本地提交 + 自动 Co-authored-by 署名（githana_git 动词）。
  *
  * 核心语义（逐条保真）：
  * - message 用 stdin 传（git commit -F -），多行/中文无损；
@@ -23,8 +23,8 @@
  * buildBinEnv 每次 spawn 注入随包的签名 shim（见 tools/lib/sign-shim.js）。
  */
 import { z } from "zod";
-import { runCli, checkCwd } from "../lib/exec.js";
-import * as params from "../lib/params.js";
+import { runCli, checkCwd } from "../../lib/exec.js";
+import * as params from "../../lib/params.js";
 
 export const command = "commit";
 export const summary = "提交（自动 CoA + 签名）";
@@ -79,7 +79,7 @@ function commitGuidance(stderr, stdout) {
     return "当前目录不是 git 仓库：请在仓库目录内执行（或先 git init）。";
   }
   if (/Please tell me who you are|unable to auto-detect email|user\.name|user\.email/i.test(s)) {
-    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana(action=\"exec\") 配置）。";
+    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana_git(action=\"exec\") 配置）。";
   }
   if (/pathspec|does not match any|unable to resolve/i.test(s)) {
     return "路径不匹配：pathspec 未命中——文件可能不存在、不在仓库内或已被 .gitignore 忽略（git 原始输出见上）。";
@@ -147,7 +147,7 @@ export async function run(input, ctx, { label }) {
       // exit 0 = 无任何已暂存内容
       return [
         label + "：没有可提交的内容——既未传 paths 也没有已暂存（staged）的文件。",
-        "请先 git add 目标文件（可用 githana(action=\"exec\")）或传入 paths 指定要提交的相对路径；",
+        "请先 git add 目标文件（可用 githana_git(action=\"exec\")）或传入 paths 指定要提交的相对路径；",
         "若确需创建空提交请显式传 allowEmpty=true。",
       ].join("\n");
     }

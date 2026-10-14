@@ -2,20 +2,22 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * push：推送本地提交到远端（写面 action）。
+ * git/push：推送本地提交到远端（githana_git 动词）。
  *
  * 语义：
  * - cwd 必填（仓库）；branch 缺省 = 当前分支（git rev-parse --abbrev-ref HEAD）；
  *   remote 缺省 "origin"；branch 未指定时简化为 "git push <remote>"（推配置的跟踪分支）；
  *   显式 branch 时带分支名推送。
  * - setUpstream=true → -u（建立跟踪）；force=true → --force-with-lease（安全 force，
- *   非裸 --force——防覆盖他人提交；裸 force 需走 githana(action="exec") 显式传）；
+ *   非裸 --force——防覆盖他人提交；裸 force 需走 githana_git(action="exec") 显式传）；
  *   dryRun=true → --dry-run（只验证不真推）。
  * - 返回推送结果摘要（含远端/分支/参数与 git 原文）。
+ *
+ * 凭据：本 App 不注入 git 凭据，走系统 Git Credential Manager（注入 App 令牌是后续阶段的事）。
  */
 import { z } from "zod";
-import { runCli, checkCwd } from "../lib/exec.js";
-import * as params from "../lib/params.js";
+import { runCli, checkCwd } from "../../lib/exec.js";
+import * as params from "../../lib/params.js";
 
 export const command = "push";
 export const summary = "推送到远端";
@@ -28,7 +30,7 @@ export const schema = {
   force: z
     .boolean()
     .optional()
-    .describe("可选：强制推送——映射 --force-with-lease（安全 force，拒绝覆盖他人新提交）；裸 --force 请走 githana(action=\"exec\")"),
+    .describe("可选：强制推送——映射 --force-with-lease（安全 force，拒绝覆盖他人新提交）；裸 --force 请走 githana_git(action=\"exec\")"),
   dryRun: z.boolean().optional().describe("可选：只做 --dry-run 演练，验证可推送性，不真正更新远端"),
 };
 
@@ -68,7 +70,7 @@ export async function run(input, ctx, { label }) {
     }
     branch = brR.stdout.trim();
     if (!branch || branch === "HEAD") {
-      return label + "：当前处于游离 HEAD 或分支未命名，无法推送。请先检出/创建分支（githana(action=\"exec\")：checkout -b <branch>）或显式传 branch。";
+      return label + "：当前处于游离 HEAD 或分支未命名，无法推送。请先检出/创建分支（githana_git(action=\"exec\")：checkout -b <branch>）或显式传 branch。";
     }
   }
 
@@ -104,7 +106,7 @@ export async function run(input, ctx, { label }) {
     } else if (/does not appear to be a git repository|repository .* not found/i.test(s)) {
       text.push("提示：远端 " + remote + " 不存在或不可达：请检查 remote 配置（git remote -v）或 URL。");
     } else if (/non-fast-forward|fetch first|rejected/i.test(s)) {
-      text.push("提示：远端拒绝了快进推送（non-fast-forward）：先拉取合并远端变更，或用 githana(action=\"push\") 的 force=true（--force-with-lease）安全覆盖。");
+      text.push("提示：远端拒绝了快进推送（non-fast-forward）：先拉取合并远端变更，或用 githana_git(action=\"push\") 的 force=true（--force-with-lease）安全覆盖。");
     } else if (/Authentication failed|could not read Username|fatal: unable to access/i.test(s)) {
       text.push("提示：远端认证失败（https 凭据不可用）：请确认凭据（本 App 不注入 git 凭据，走系统 Git Credential Manager），或检查远端 URL 协议。");
     }

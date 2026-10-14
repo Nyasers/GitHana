@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_merge：合并 PR（写面 action，不可撤销）。
+ * pr/merge：合并 PR（githana_pr 动词，不可撤销）。
  *
  * prNumber 必填 + method?（merge 默认/squash/rebase）+ deleteBranch?（合并后删源分支）。
  * 走 REST `PUT /pulls/{n}/merge`，成功后再取一次终态确认（合并是异步落地，取一次更可靠）。
@@ -12,11 +12,11 @@
  * 同名的无关分支上动手（fork PR 的常见情形）。所以跨仓一律不删。
  */
 import { z } from "zod";
-import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import * as params from "../lib/params.js";
-import { resolveContext, describeFailure, fmtTime } from "../lib/pr.js";
+import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
-export const command = "pr_merge";
+export const command = "merge";
 export const summary = "合并 PR（不可撤销）";
 
 export const schema = {
@@ -24,7 +24,6 @@ export const schema = {
   cwd: params.cwdOptional,
   prNumber: params.prNumber.describe("PR 编号（正整数），必填"),
   // 合并方式：取值域在这里是确定的，所以写成 enum（运行期由 schema 拒绝非法值）。
-  // 注意模型面那张平表仍显示共用字段的中性描述——`method` 在 api 上是 HTTP 方法（见 params.js）。
   method: z.enum(["merge", "squash", "rebase"]).optional().describe("合并方式（默认 merge）"),
   deleteBranch: z.boolean().optional().describe("合并后删除源分支（源分支来自 fork 时跳过，不跨仓库删）"),
   timeoutSec: params.timeoutSec,
