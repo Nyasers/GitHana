@@ -44,7 +44,8 @@ export const description = [
   "action=create / list / view / status / diff / checks / merge / review / comment / close / reopen",
   "/ revert / edit / checkout / lock / unlock / update-branch。",
   "只读的取数用 list / view / status / diff / checks；本地 git 在 githana_git，仓库在 githana_repo，",
-  "issue 在 githana_issue，标签在 githana_label，其余端点走 githana_api。",
+  "issue 在 githana_issue，发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，",
+  "标签在 githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 

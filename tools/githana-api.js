@@ -26,8 +26,10 @@ export const name = "githana_api";
 export const description = [
   "GitHana GitHub REST / GraphQL 端点透传（逃生门）：api.github.com 之后的任意 path。",
   "method=GET / POST / PATCH / PUT / DELETE（缺省 GET）；repo 传了就替换 path 里的 {owner}/{repo} 占位符。",
-  "越出 App 权限面的端点会被 GitHub 直接拒（403）；类型化能力在 githana_repo / githana_pr /",
-  "githana_issue / githana_label，本地 git 在 githana_git。",
+  "越出 App 权限面的端点会被 GitHub 直接拒（403）；二进制进出（资产上传、日志/产物下载）这条通道也走不通",
+  "（载荷是 JSON 报文、主机白名单不含 uploads.github.com、响应体按 UTF-8 有界读取）。",
+  "类型化能力在 githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
+  "githana_workflow / githana_cache / githana_label，本地 git 在 githana_git。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 
