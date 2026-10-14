@@ -31,7 +31,7 @@ export const cwd = z
 /** 工作目录：只作兜底的 GitHub 动作可选（不用它取缺省值；见各 action 的 run()）。 */
 export const cwdOptional = cwd.optional();
 
-/** 仓库上下文（githana_pr 的各动词共用）。 */
+/** 仓库上下文（githana_repo / pr / issue / label 的各动词共用）。 */
 export const repo = z
   .string()
   .optional()
@@ -53,3 +53,12 @@ export const prNumber = z.number().int().min(1).describe("PR 编号（正整数�
 export const prNumberOptional = prNumber
   .optional()
   .describe("PR 编号（正整数）；缺省 = 当前分支关联 PR（需要 cwd）");
+
+/**
+ * issue 编号：正整数，**必填**。
+ *
+ * 与 prNumber 不同，issue 没有「当前分支关联 issue」这回事——那个概念只对 PR 成立。所以这里
+ * 只有必填一个变体：`prNumberOptional` 的缺省逻辑（按 head 分支过滤）在 issue 上无对应物，
+ * 照搬会造出一个语义不成立的参数。
+ */
+export const issueNumber = z.number().int().min(1).describe("issue 编号（正整数）");

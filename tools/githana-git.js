@@ -19,6 +19,7 @@ import * as exec from "./actions/git/exec.js";
 import * as commit from "./actions/git/commit.js";
 import * as push from "./actions/git/push.js";
 import { createSurface, sideEffectDescriber } from "./lib/surface.js";
+import { otherVerbs } from "./lib/verbs.js";
 
 export const name = "githana_git";
 
@@ -26,7 +27,7 @@ export const description = [
   "GitHana 本地 git：在指定仓库里执行 git 操作。",
   "action=exec（任意 git 子命令透传）/ commit（提交，自动 Co-authored-by + OpenPGP 签名）",
   "/ push（推送，force 映射 --force-with-lease）。",
-  "GitHub 远端操作在 githana_pr（PR）与 githana_api（任意 REST / GraphQL 端点）。",
+  "GitHub 远端操作在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 
@@ -47,16 +48,7 @@ export const sessionPermission = {
 };
 
 /** 其它名词工具的动词表：走错工具时报错指名正确的那一个（见 surface.js 的 misroutedMessage）。 */
-const OTHER_VERBS = [
-  {
-    name: "githana_pr",
-    commands: [
-      "create", "list", "view", "status", "diff", "checks", "merge", "review", "comment",
-      "close", "reopen", "revert", "edit", "checkout", "lock", "unlock", "update-branch",
-    ],
-  },
-  { name: "githana_api", commands: ["api"], usage: "githana_api(path=\"/…\")——它是单动词工具，不填 action" },
-];
+const OTHER_VERBS = otherVerbs(name);
 
 const surface = createSurface({
   name,
