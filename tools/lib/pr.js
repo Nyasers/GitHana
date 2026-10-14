@@ -2,12 +2,12 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/pr.js — PR 四个 action（create / list / view / merge）共用的 REST 调用与仓库解析。
+ * tools/lib/pr.js — githana_pr 各动词共用的 REST 调用与仓库解析。
  *
- * 只放**真正共用**的部分：仓库上下文解析、默认分支查询、失败说明、时间与审查状态渲染。
- * 每个 action 自己那份请求编排与输出格式留在 tools/actions/pr-*.js。
+ * 只放**真正共用**的部分：仓库上下文解析、PR 编号解析、单 PR 读取、默认分支查询、失败说明、
+ * 时间与状态渲染。每个动词自己那份请求编排与输出格式留在 tools/actions/pr/<verb>.js。
  *
- * ## 仓库上下文（收敛前 gh_pr 的口径，逐条不变）
+ * ## 仓库上下文
  *
  * repo（owner/repo）显式优先；cwd 可选（从 git remote 推断仓库兜底，create 另用它取当前分支）。
  * 两者都没有 → 报错并给引导，不猜。
@@ -41,9 +41,13 @@ export function parseRepo(repoParam) {
   return res;
 }
 
-/** 从 cwd 的 git remote 推断 owner/repo（github.com 的 https 或 ssh 形态）。 */
-export async function repoFromCwd(cwd) {
-  const r = await runCli("git", ["remote", "get-url", "origin"], { cwd, timeoutSec: 30 });
+/**
+ * 从 cwd 的某个 git remote 推断 owner/repo（github.com 的 https 或 ssh 形态）。
+ * remote 缺省 origin：仓库上下文推断用缺省的即可，而 `pr checkout` 要核对**指定的那个远端**
+ * 是否指向目标仓库（refs/pull/<n>/head 是每个仓库各自的引用），所以它显式传 remote。
+ */
+export async function repoFromCwd(cwd, remote = "origin") {
+  const r = await runCli("git", ["remote", "get-url", String(remote)], { cwd, timeoutSec: 30 });
   if (!r.ok) return null;
   const url = String(r.stdout || "").trim();
   if (!url) return null;
@@ -139,6 +143,15 @@ export function reviewSummary(reviews) {
   return { key: "NONE", text: "无审查数据（REST 无 reviewDecision，此为评审记录聚合）" };
 }
 
+/** REST PR state → 中文可读（status / close / reopen / view 共用同一份渲染）。 */
+export function prStateText(pr) {
+  const state = String((pr && pr.state) || "?");
+  if (pr && pr.merged === true) return "MERGED（已合并）";
+  if (state === "open") return "OPEN（打开）" + (pr && pr.draft ? " · 草稿（draft）" : "");
+  if (state === "closed") return "CLOSED（已关闭）";
+  return state.toUpperCase();
+}
+
 /** REST mergeable_state → 中文可读。 */
 export function mergeStateText(v) {
   const map = {
@@ -201,4 +214,71 @@ export async function resolveContext(input, label) {
   }
 
   return { repo, repoLabel, cwd, timeoutSec };
+}
+
+/**
+ * check-runs 响应的**渲染**（`checks` 与 `status` 两个动词都要报检查现状，所以收在这里一处）。
+ *
+ * conclusion 为空表示还没跑完（status 仍是 queued / in_progress）；success / neutral / skipped
+ * 都算通过——neutral 与 skipped 不是失败，把它们算进失败会让「能不能合」判错。
+ *
+ * @param {*} json `GET /commits/{ref}/check-runs` 的响应体
+ * @returns {{ text: string, runs: Array<object>, failed: number, pending: number }}
+ */
+export function summarizeCheckRuns(json) {
+  const runs = json && Array.isArray(json.check_runs) ? json.check_runs : [];
+  if (runs.length === 0) return { text: "无检查（check-runs 为空）", runs, failed: 0, pending: 0 };
+
+  let failed = 0;
+  let pending = 0;
+  let passed = 0;
+  for (const run of runs) {
+    const conclusion = run && run.conclusion ? String(run.conclusion) : "";
+    if (!conclusion) pending += 1;
+    else if (conclusion === "success" || conclusion === "neutral" || conclusion === "skipped") passed += 1;
+    else failed += 1;
+  }
+  const text =
+    "共 " + runs.length + " 项（通过 " + passed + " · 失败 " + failed + " · 未完成 " + pending + "）";
+  return { text, runs, failed, pending };
+}
+
+/**
+ * 解析要操作的 PR 编号（prNumber 缺省 = 当前分支关联 PR）。
+ *
+ * REST 没有「当前分支关联 PR」的语义，所以缺省时先取当前分支、再按 head 过滤；这正是
+ * `pr_view` 原本就地做的那件事，其余动词按同一口径共用它。
+ *
+ * @returns {{ error: string } | { num: number, prNumber: string, branch: string }}
+ */
+export async function resolvePrNumber(input, label, c = {}) {
+  const { repo, repoLabel, cwd, timeoutSec } = c;
+  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
+
+  // prNumber 的"正整数"由 schema 保证：这里只需判断给没给。
+  const given = input?.prNumber !== undefined && input?.prNumber !== null ? String(input.prNumber) : "";
+  if (given) return { num: Number(given), prNumber: given, branch: "" };
+
+  if (!cwd) {
+    return {
+      error:
+        label + " 参数错误：未传 prNumber，而缺省值需要 cwd 来确定当前分支（REST 无「当前分支关联 PR」语义）。\n" +
+        "请传 prNumber，或在 git 仓库 cwd 内执行。",
+    };
+  }
+  const cur = await currentBranch(cwd);
+  if (cur.error) return { error: label + " 无法确定当前分支：" + cur.error };
+
+  const listUrl =
+    apiUrl(repo, "/pulls") +
+    "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
+  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
+  if (!lr.ok) return { error: label + " 执行失败：" + lr.message };
+  const lres = lr.results[0];
+  if (!lres || !lres.ok) return { error: label + " 执行失败：" + describeFailure(lres, repoLabel) };
+  const arr = Array.isArray(lres.json) ? lres.json : [];
+  if (arr.length === 0) {
+    return { error: label + "：当前分支（" + cur.branch + "）没有打开的关联 PR。可显式传 prNumber 查看指定 PR。" };
+  }
+  return { num: Number(arr[0].number), prNumber: String(arr[0].number), branch: cur.branch };
 }

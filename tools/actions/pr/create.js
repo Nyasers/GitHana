@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_create：创建 PR（写面 action）。
+ * pr/create：创建 PR（githana_pr 动词）。
  *
  * base?（缺省取仓库默认分支）、title?（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺 → 引导）、
  * body?、draft?；head 取 cwd 的当前分支（REST 必填）。输出新建 PR 的 URL 与编号。
@@ -13,12 +13,12 @@
  * （没确认也说明白了，不假装）。
  */
 import { z } from "zod";
-import { runCli } from "../lib/exec.js";
-import * as params from "../lib/params.js";
-import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../lib/pr.js";
+import { runCli } from "../../lib/exec.js";
+import * as params from "../../lib/params.js";
+import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../../lib/pr.js";
 
-export const command = "pr_create";
+export const command = "create";
 export const summary = "创建 PR";
 
 export const schema = {
@@ -105,7 +105,7 @@ export async function run(input, ctx, { label }) {
     if (notPushed) {
       return (
         label + " 执行失败：源分支 " + head + " 在远端不存在或没有新提交。\n" +
-        "REST 创建 PR 要求分支已推送到远端（本 action 不做自动推送）：请先 githana(action=\"push\") 该分支，再重试。\n" +
+        "REST 创建 PR 要求分支已推送到远端（本动词不做自动推送）：请先 githana_git(action=\"push\") 该分支，再重试。\n" +
         "GitHub 原文：" + detail
       );
     }

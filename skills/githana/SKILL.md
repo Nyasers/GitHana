@@ -1,9 +1,16 @@
 ---
 name: githana
-description: "GitHana: local git and GitHub operations. Read before any githana / githana_read call — actions, parameters, examples, and the read/write split."
+description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_pr / githana_api call — actions, parameters, examples, and the noun-tool split."
 ---
 
 # githana：用法手册
+
+> **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成名词工具：`githana_git`（exec /
+> commit / push）、`githana_pr`（create / list / view / status / diff / checks / merge /
+> review / comment / close / reopen / revert / edit / checkout / lock / unlock / update-branch）、
+> `githana_api`（单动词，**不带 action**，必填 `path`）。下面各节仍按旧的「写面 / 只读面」
+> 两个入口描述，动词名与参数表在改名前后一致（`pr_create` → `githana_pr(action="create")`
+> 等），但**工具名与分面规则已经不对**，以工具自身的 `parameters` 为准。
 
 GitHana 把本地 git 与 GitHub 接进模型工具面，收成**两个入口**：
 

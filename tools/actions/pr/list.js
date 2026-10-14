@@ -2,17 +2,17 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_list：列出仓库的 PR（只读面 action）。
+ * pr/list：列出仓库的 PR（githana_pr 动词）。
  *
  * 走 REST `GET /repos/{o}/{r}/pulls?state=&sort=created&direction=desc&per_page=`；
  * 输出编号/标题/分支/state/时间列表。只读，不改远端状态。
  */
 import { z } from "zod";
-import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import * as params from "../lib/params.js";
-import { resolveContext, describeFailure, fmtTime } from "../lib/pr.js";
+import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
-export const command = "pr_list";
+export const command = "list";
 export const summary = "列出 PR";
 
 export const schema = {
