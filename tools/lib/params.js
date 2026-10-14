@@ -62,3 +62,48 @@ export const prNumberOptional = prNumber
  * 照搬会造出一个语义不成立的参数。
  */
 export const issueNumber = z.number().int().min(1).describe("issue 编号（正整数）");
+
+/**
+ * release 的 tag：定位 release 的主键（`GET /releases/tags/{tag}`）。
+ *
+ * `GET /releases/{id}` 与 `GET /releases/tags/{tag}` 返回同一形状，所以也有 `releaseId` 那条路
+ * （在各 action 的 schema 上单独声明）；但 tag 才是人手上的那个键，报错文案统一指向它。
+ *
+ * 两个变体与 cwd 同理，必填与否按动词不同：只有 view 允许缺省（缺省 = 最近一次发布的 release）；
+ * create / delete / upload / download / delete-asset / verify / verify-asset 都要求点名一个——
+ * 「最近一个」在删改类的动作上是个危险的默认值。
+ */
+export const releaseTag = z.string().describe("release 的 tag（如 v1.2.0）");
+
+/** release 的 tag：可缺省 = 最近一次发布的 release（latest 只算非草稿、非预发布的）。 */
+export const releaseTagOptional = releaseTag
+  .optional()
+  .describe("release 的 tag（如 v1.2.0）；缺省 = 最近一次发布的 release（latest 只算非草稿、非预发布）");
+
+/** release 资产名：release 内唯一定位一个资产（不额外发请求，release 表示里内嵌了 assets）。 */
+export const assetName = z.string().describe("资产文件名（release 里唯一定位一个资产，如 app-v1.2.0-win32-x64.zip）");
+
+/** release 资产名：可缺省 = 该 release 的全部资产（download 用；其余动词必须点名）。 */
+export const assetNameOptional = assetName
+  .optional()
+  .describe("资产文件名；缺省 = 该 release 的全部资产");
+
+/**
+ * Actions 工作流定位：数字 ID 或文件名，**必填**（只有 list 不需要它——那是列全部工作流）。
+ *
+ * GitHub 的 `/actions/workflows/{workflow_id}` 两种都收（文档：You can also pass the workflow
+ * file name as a string），所以这里不做「先列表再匹配」的翻译——直接把收到的值放进路径。
+ * 路径**逐段编码**（见 tools/lib/ci.js 的 workflowPath）：`release.yml` 与 `ci/build.yml`
+ * 都合法，整串 encodeURIComponent 会把分隔用的 `/` 也编掉。
+ */
+export const workflowRef = z
+  .string()
+  .describe("必填：工作流，数字 ID（如 161335）或文件名（如 ci.yml、ci/build.yml），从 githana_workflow(action=\"list\") 取");
+
+/** Actions run 编号：正整数（GitHub 的 run id 远小于 2^53，用 number 表达无精度问题）。 */
+export const runId = z.number().int().min(1).describe("run 编号（正整数，从 githana_run(action=\"list\") 的 # 后面取）");
+
+/** Actions run 编号：可缺省 = 最近一次 run（可按 branch 过滤，branch 缺省取 cwd 的当前分支）。 */
+export const runIdOptional = runId
+  .optional()
+  .describe("run 编号；缺省 = 最近一次 run（可用 branch 过滤，branch 缺省取 cwd 的当前分支）");

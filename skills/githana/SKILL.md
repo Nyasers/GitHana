@@ -1,17 +1,21 @@
 ---
 name: githana
-description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_repo / githana_pr / githana_issue / githana_label / githana_api call — actions, parameters, examples, the noun-tool split, and the permission gaps."
+description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_repo / githana_pr / githana_issue / githana_release / githana_run / githana_workflow / githana_cache / githana_label / githana_api call — actions, parameters, examples, the noun-tool split, and the permission gaps."
 ---
 
 # githana：用法手册
 
-> **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成名词工具：`githana_git`（exec /
+> **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成十个名词工具：`githana_git`（exec /
 > commit / push）、`githana_repo`（create / list / view / clone / fork / sync / gitignore /
 > license / read-dir / read-file）、`githana_pr`（create / list / view / status / diff / checks /
 > merge / review / comment / close / reopen / revert / edit / checkout / lock / unlock /
 > update-branch）、`githana_issue`（create / list / view / status / edit / comment / close /
-> reopen / delete / develop / transfer / lock / unlock / pin / unpin）、`githana_label`（clone /
-> create / edit / delete / list）、`githana_api`（单动词，**不带 action**，必填 `path`）。
+> reopen / delete / develop / transfer / lock / unlock / pin / unpin）、`githana_release`（create /
+> list / view / delete / upload / download / delete-asset / verify / verify-asset；**edit 是保留位**）、
+> `githana_run`（list / view / rerun / cancel / delete / download；**watch 是保留位**）、
+> `githana_workflow`（list / view / run / enable / disable）、`githana_cache`（list / delete）、
+> `githana_label`（clone / create / edit / delete / list）、`githana_api`（单动词，**不带 action**，
+> 必填 `path`）。
 > 下面各节仍按旧的「写面 / 只读面」两个入口描述，动词名与参数表在改名前后一致
 > （`pr_create` → `githana_pr(action="create")` 等），但**工具名与分面规则已经不对**，
 > 以工具自身的 `parameters` 为准。
@@ -319,19 +323,54 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 > **每个 action 只接受自己声明的字段。** 参数表由 zod 定义生成、运行期也用同一份校验，
 > 所以多传一个不属于该 action 的键会被当场拒（并列出 issues），不会被静默忽略。
 
-## 保留位：CI（本期未实现）
+## 保留位与受限动词（本期）
 
-下面两个 action **只在 action 表与手册里留位**，调用会明确回报「未实现」，不会静默失败：
+`action` 候选里有几个动词**能定位、能给地址，但取不到字节**；还有两个动词只在保留位里
+（认得出、调用会明确回报「未实现」）。两档的分辨见 `tools/lib/surface.js` 的 `reserved` 与
+`tools/actions/release/upload.js` 头注。
+
+**二进制受限期：在 `action` 候选里，调用时给具体限制与替代路径**
 
 | 工具 | action | 状态 | 现在怎么做 |
 |---|---|---|---|
-| `githana_read` | `ci_status` | 未实现 | 用 `githana_read(action="api")` 直接查 GitHub 的 check-runs / workflow-runs 端点 |
-| `githana` | `ci_watch` | 未实现 | 同上；监听形态要等后台任务通道落地 |
+| `githana_release` | `upload` | 不写盘（通道不存在） | 用 `gh release upload`，或网页拖文件 |
+| `githana_release` | `download` | 不写盘（通道不存在） | 回执里给 `browser_download_url` 与 API 取字节地址，用 `gh release download` / curl / 浏览器取 |
+| `githana_run` | `download` | 不写盘（通道不存在） | 产物清单是**真的可用**（纯 JSON）；取字节用 `gh run download` / `gh run view --log` |
 
-`ci_watch` 不是「多一个 api 调用」：GitHub 没有面向本地 App 的 webhook，只能轮询；轮询占着
+三条硬限制（逐条可在源码里核对）：
+
+1. **载荷是 JSON 报文，不是 multipart**：`rest.worker.mjs` 从 stdin 读一行 JSON，请求只能带
+   `json` / `form` / `body` 字符串；二进制进不去，worker 也不把 base64 解回字节。
+2. **主机不在出站白名单**：上传端点 `uploads.github.com` 不在 `ALLOWED_HOSTS`；下载侧 302 到
+   `objects.githubusercontent.com` / `*.blob.core.windows.net` 等，也不在 `REDIRECT_HOSTS`。
+3. **响应体按 UTF-8 有界读取**：`readBounded` 上限 2MB 并 `toString("utf8")`——即使主机放行，
+   二进制也会被破坏。
+
+`githana_api` **不是**逃生门：它走同一条 worker、同一份主机白名单。
+
+> `githana_release` 的 `verify` / `verify-asset` **不在这一档**：它们完全可用，只是口径与 gh
+> 那个同名命令不同——核对的是**发布自身的完整性**（GitHub 记录的 `digest` 与本地文件的 sha256），
+> 而 gh 的「来源证明（attestation）」校验做不到：`attestations` 权限不在授权集里，且 sigstore
+> 验签需要一个签名验证实现，与「服务端零 npm 依赖」冲突。要那一层用 `gh attestation verify`。
+
+**保留位：不进 `action` 候选，只留 reserved 文案**（连参数契约都还没定，属阶段 2 能力空洞）
+
+| 工具 | action | 状态 | 现在怎么做 |
+|---|---|---|---|
+| `githana_release` | `edit` | 未实现 | 改 `draft` / `prerelease` / `latest`（`latest` 取 `true\|false\|legacy` 三值）；到网页改，或走 `githana_api` 打 `PATCH /repos/{owner}/{repo}/releases/{id}` |
+| `githana_run` | `watch` | 未实现 | 任务型（返回句柄、CI 到终态回投来源会话），要 `app/tasks.manage`；现在用 `githana_run(action="view")` 隔一会儿看一次 |
+
+这两个动词**在别的工具上被错投时会指名过来**（`githana_cache(action="watch")` → 「watch 属于
+githana_run」），但它们的值不在 `action` 候选里——候选里放一个说不清怎么用的值只是给模型一个
+试错入口。
+
+`run watch` 不是「多一个 api 调用」：GitHub 没有面向本地 App 的 webhook，只能轮询；轮询占着
 工具调用会撞宿主回调的 30 秒上限，必须注册后台任务并在完成后唤醒会话，形状与 DSHana 的
-open / get 同构。那需要新增清单能力声明，且返回契约要能容纳「返回句柄而非结果」这一档——
-所以留位是为了让返回契约现在就留出这个口。
+open / get 同构。那需要新增清单能力声明（D8 的 `app/tasks.manage`），且返回契约要能容纳
+「返回句柄而非结果」这一档——所以留位是为了让返回契约现在就留出这个口。
+
+> 旧的 `githana_read` / `githana` 两个入口上的 `ci_status` / `ci_watch` 保留位随那两个工具一起
+> 移除：CI 现在是 `githana_run` / `githana_workflow` / `githana_cache` 三组真实动词。
 
 ## 其它约定
 

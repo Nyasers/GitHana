@@ -8,10 +8,11 @@
  * apply / default.apply / 默认函数，两种都导出）。apply 完成注册后立即返回，不等任何长活。
  *
  * 工具面按 gh 的组分成名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr
- * （Pull Request）/ githana_issue（Issue）/ githana_label（标签）/ githana_api（任意 REST 与
- * GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body` 在平表里同键
- * 不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity D1 / D2 与
- * tools/lib/surface.js 的装配路径）。
+ * （Pull Request）/ githana_issue（Issue）/ githana_release（发布）/ githana_run（Actions run）/
+ * githana_workflow（工作流）/ githana_cache（构建缓存）/ githana_label（标签）/ githana_api
+ * （任意 REST 与 GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body`
+ * 在平表里同键不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity
+ * D1 / D2 与 tools/lib/surface.js 的装配路径）。
  *
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
@@ -42,6 +43,10 @@ import * as githanaGit from "./tools/githana-git.js";
 import * as githanaRepo from "./tools/githana-repo.js";
 import * as githanaPr from "./tools/githana-pr.js";
 import * as githanaIssue from "./tools/githana-issue.js";
+import * as githanaRelease from "./tools/githana-release.js";
+import * as githanaRun from "./tools/githana-run.js";
+import * as githanaWorkflow from "./tools/githana-workflow.js";
+import * as githanaCache from "./tools/githana-cache.js";
 import * as githanaLabel from "./tools/githana-label.js";
 import * as githanaApi from "./tools/githana-api.js";
 
@@ -67,13 +72,17 @@ function resolveInstallDir() {
 }
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
- *  本批六个名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr（Pull Request）
- *  / githana_issue（Issue）/ githana_label（标签）/ githana_api（逃生门）。
+ *  十个名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr（Pull Request）
+ *  / githana_issue（Issue）/ githana_release（发布）/ githana_run（Actions run）/
+ *  githana_workflow（工作流）/ githana_cache（构建缓存）/ githana_label（标签）/
+ *  githana_api（逃生门）。工具目录与 spec gh-cli-parity AC1 一致。
  *  action 表与路由在 tools/lib/surface.js，跨工具的动词索引在 tools/lib/verbs.js，
- *  实现按动词拆在 tools/actions/{git,repo,pr,issue,label}/。
- *  下批（1c）：githana_release / githana_run / githana_workflow / githana_cache。
+ *  实现按动词拆在 tools/actions/{git,repo,pr,issue,release,run,workflow,cache,label}/。
  *  GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
-const TOOLS = [githanaGit, githanaRepo, githanaPr, githanaIssue, githanaLabel, githanaApi];
+const TOOLS = [
+  githanaGit, githanaRepo, githanaPr, githanaIssue, githanaRelease,
+  githanaRun, githanaWorkflow, githanaCache, githanaLabel, githanaApi,
+];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
@@ -114,7 +123,7 @@ function toToolResult(value) {
 }
 
 /**
- * App v2 主入口。注册 6 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
+ * App v2 主入口。注册 10 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
  */
 export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;

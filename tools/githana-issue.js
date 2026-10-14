@@ -54,7 +54,8 @@ export const description = [
   "action=create / list / view / status / edit / comment / close / reopen / delete / develop",
   "/ transfer / lock / unlock / pin / unpin。",
   "delete / develop / pin / unpin 内部走 GraphQL（REST 没有对应端点）；delete 需 confirm=true。",
-  "只读的取数用 list / view / status；标签管理在 githana_label，其余端点走 githana_api。",
+  "只读的取数用 list / view / status；标签管理在 githana_label，发布在 githana_release，",
+  "CI 在 githana_run / githana_workflow / githana_cache，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 

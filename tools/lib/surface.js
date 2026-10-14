@@ -43,6 +43,7 @@
  */
 import { z } from "zod";
 import { initToolContext } from "./context.js";
+import { recognizedCommands } from "./verbs.js";
 
 /** 宿主注入的调用上下文（callToken / agentId / sessionId…）：只为让 strictObject 放行这个键。 */
 const HOST_CONTEXT = { context: z.unknown().optional() };
@@ -133,17 +134,22 @@ function actionEnumDescription(actions, prefix) {
  * 走错工具时的文案：锚点是**正确工具**（AC5）。锚点缺失时退回自己那张动词表——
  * 那不是猜：动词表就是本工具能接的全集，而收到的值的确不在里面。
  *
- * 同一个动词常常有**多个**持有者（`create` 在 repo / pr / issue / label 上都有）：那时「正确的
- * 工具」取决于要操作的对象，不是这张表能判的，所以把全部持有者列出来让调用方选，而不是随便挑
- * 第一个——挑错等于给一条会再次失败的指路。
+ * 同一个动词常常有**多个**持有者（`create` 在 repo / pr / issue / release / label 上都有）：那时
+ * 「正确的工具」取决于要操作的对象，不是这张表能判的，所以把全部持有者列出来让调用方选，
+ * 而不是随便挑第一个——挑错等于给一条会再次失败的指路。
+ *
+ * 归属判据用 `recognizedCommands`（enum + 保留位）：保留位动词在**别的**工具上被投过来时，
+ * 报「它属于 githana_run」比报「未知 action」有用——顺着指路过去会拿到那个工具自己的「未实现」
+ * 说明。报错文案本身不区分两者（那一段由目标工具负责）。
  *
  * @param {string} name 收到请求的工具
  * @param {string} raw 收到的 action 原值
  * @param {string[]} commands 本工具的动词表
- * @param {Array<{ name: string, commands: string[], usage?: string }>} verbs 其它名词工具的动词表
+ * @param {Array<{ name: string, commands: string[], reserved?: string[], usage?: string }>} verbs
+ *   其它名词工具的动词表（`commands` 是 enum，`reserved` 是保留位）
  */
 function misroutedMessage(name, raw, commands, verbs) {
-  const hits = verbs.filter((v) => Array.isArray(v.commands) && v.commands.includes(raw));
+  const hits = verbs.filter((v) => recognizedCommands(v).includes(raw));
   if (hits.length === 1) {
     const hit = hits[0];
     // usage 是**指名怎么调**的片段：单动词工具没有 action 可填（githana_api），
@@ -174,7 +180,11 @@ function misroutedMessage(name, raw, commands, verbs) {
  * @param {string} spec.description 工具描述（只留路由信息，用法细节在 SKILL 手册）
  * @param {object} spec.permission sessionPermission 声明（v1 形态）
  * @param {Array<{ module: object, options?: object }>} spec.actions action 表（顺序即 enum 顺序）
- * @param {Record<string, string>} [spec.reserved] 保留位 action → 未实现说明
+ * @param {Record<string, string>} [spec.reserved] 保留位 action → 未实现说明。
+ *   **只对不在 `actions` 里的值生效**（见下方 execute：先查 byCommand，查不到才查这里），
+ *   所以「保留位」有两种形态：参数形态已定、只是通道不通的动词进 `actions`（进模型面候选，
+ *   调用时能拿到具体限制），参数契约还没定的动词只留在这里（不进候选——塞进去只是给模型
+ *   一个试错入口，它既说不清怎么用、调用也只能得到「未实现」）。
  * @param {Array<{ name: string, commands: string[] }>} [spec.verbs] 其它名词工具的动词表（跨工具指名用）
  * @param {Record<string, import("zod").ZodType>} [spec.modelFields] 面级的模型面专属字段
  *   （覆盖各 action 的同名项；取值域按工具不同时才需要——如 `pr` 的 method）
@@ -224,7 +234,7 @@ export function createSurface({
         return name + "（action=" + raw + "）执行异常：" + (e && e.message ? e.message : String(e));
       }
     }
-    // 保留位：本期只在 action 表与手册里留位置，不实现。
+    // 保留位：认得出、本期不实现。明确回报「未实现」+ 为什么 + 可用 action，不静默失败。
     if (reserved[raw]) {
       return name + "（action=" + raw + "）未实现：" + reserved[raw] + "\n可用 action：" + commands.join(" / ") + "。";
     }
