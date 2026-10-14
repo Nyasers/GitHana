@@ -10,21 +10,24 @@
  * 看不见它必填）。装配走 tools/lib/surface.js 的 createSingleSurface，不经 dispatch。
  *
  * 权限：external_side_effect——它收全量 HTTP 方法（GET / POST / PATCH / PUT / DELETE），
- * 其中写方法会改 GitHub 远端状态，整体只能按写面声明。只读的长尾查询（issue 列表、release
- * 列表、仓库元数据）也因此要过审：这是单动词逃生门的代价，读专用路径是 githana_pr 的
- * view / status / checks / diff 那几个动词（它们属于同一个工具，无法单独免审）。
+ * 其中写方法会改 GitHub 远端状态，整体只能按写面声明。只读的长尾查询也因此要过审：这是单动词
+ * 逃生门的代价，读专用路径是各名词工具里的只读动词（repo 的 list / view / read-dir / read-file、
+ * pr 的 view / status / diff / checks、issue 的 list / view / status）——它们属于各自的写面工具，
+ * 无法单独免审。
  *
  * 越过 App 权限面的调用由 GitHub 直接拒（403）——手册的「能力边界」一节点明这件事。
  */
 import * as api from "./actions/api.js";
 import { createSingleSurface } from "./lib/surface.js";
+import { otherVerbs } from "./lib/verbs.js";
 
 export const name = "githana_api";
 
 export const description = [
   "GitHana GitHub REST / GraphQL 端点透传（逃生门）：api.github.com 之后的任意 path。",
   "method=GET / POST / PATCH / PUT / DELETE（缺省 GET）；repo 传了就替换 path 里的 {owner}/{repo} 占位符。",
-  "越出 App 权限面的端点会被 GitHub 直接拒（403）；类型化能力在 githana_pr，本地 git 在 githana_git。",
+  "越出 App 权限面的端点会被 GitHub 直接拒（403）；类型化能力在 githana_repo / githana_pr /",
+  "githana_issue / githana_label，本地 git 在 githana_git。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 
@@ -35,16 +38,7 @@ export const sessionPermission = {
 };
 
 /** 其它名词工具的动词表：走错工具时报错指名正确的那一个（见 surface.js 的 misroutedMessage）。 */
-const OTHER_VERBS = [
-  { name: "githana_git", commands: ["exec", "commit", "push"] },
-  {
-    name: "githana_pr",
-    commands: [
-      "create", "list", "view", "status", "diff", "checks", "merge", "review", "comment",
-      "close", "reopen", "revert", "edit", "checkout", "lock", "unlock", "update-branch",
-    ],
-  },
-];
+const OTHER_VERBS = otherVerbs(name);
 
 const surface = createSingleSurface({
   name,

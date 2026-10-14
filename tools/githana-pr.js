@@ -35,6 +35,7 @@ import * as lock from "./actions/pr/lock.js";
 import * as unlock from "./actions/pr/unlock.js";
 import * as updateBranch from "./actions/pr/update-branch.js";
 import { createSurface, sideEffectDescriber } from "./lib/surface.js";
+import { otherVerbs } from "./lib/verbs.js";
 
 export const name = "githana_pr";
 
@@ -42,7 +43,8 @@ export const description = [
   "GitHana GitHub PR：查询与改动 Pull Request。",
   "action=create / list / view / status / diff / checks / merge / review / comment / close / reopen",
   "/ revert / edit / checkout / lock / unlock / update-branch。",
-  "只读的取数用 list / view / status / diff / checks；本地 git 在 githana_git，其余端点走 githana_api。",
+  "只读的取数用 list / view / status / diff / checks；本地 git 在 githana_git，仓库在 githana_repo，",
+  "issue 在 githana_issue，标签在 githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 
@@ -81,10 +83,7 @@ export const sessionPermission = {
 };
 
 /** 其它名词工具的动词表：走错工具时报错指名正确的那一个（见 surface.js 的 misroutedMessage）。 */
-const OTHER_VERBS = [
-  { name: "githana_git", commands: ["exec", "commit", "push"] },
-  { name: "githana_api", commands: ["api"], usage: "githana_api(path=\"/…\")——它是单动词工具，不填 action" },
-];
+const OTHER_VERBS = otherVerbs(name);
 
 const surface = createSurface({
   name,

@@ -132,20 +132,33 @@ function actionEnumDescription(actions, prefix) {
 /**
  * 走错工具时的文案：锚点是**正确工具**（AC5）。锚点缺失时退回自己那张动词表——
  * 那不是猜：动词表就是本工具能接的全集，而收到的值的确不在里面。
+ *
+ * 同一个动词常常有**多个**持有者（`create` 在 repo / pr / issue / label 上都有）：那时「正确的
+ * 工具」取决于要操作的对象，不是这张表能判的，所以把全部持有者列出来让调用方选，而不是随便挑
+ * 第一个——挑错等于给一条会再次失败的指路。
+ *
  * @param {string} name 收到请求的工具
  * @param {string} raw 收到的 action 原值
  * @param {string[]} commands 本工具的动词表
  * @param {Array<{ name: string, commands: string[], usage?: string }>} verbs 其它名词工具的动词表
  */
 function misroutedMessage(name, raw, commands, verbs) {
-  const hit = verbs.find((v) => Array.isArray(v.commands) && v.commands.includes(raw));
-  if (hit) {
+  const hits = verbs.filter((v) => Array.isArray(v.commands) && v.commands.includes(raw));
+  if (hits.length === 1) {
+    const hit = hits[0];
     // usage 是**指名怎么调**的片段：单动词工具没有 action 可填（githana_api），
     // 这时给 `name(action="api")` 是错的指路，所以那种工具在自己的动词表里写明调用形态。
     const call = typeof hit.usage === "string" && hit.usage !== "" ? hit.usage : hit.name + "(action=\"" + raw + "\")";
     return (
       name + "（action=" + raw + "）不接受该动作：" + raw + " 属于 " + hit.name +
       "。请改用 " + call + "。"
+    );
+  }
+  if (hits.length > 1) {
+    const calls = hits.map((h) => h.name + "(action=\"" + raw + "\")").join(" 或 ");
+    return (
+      name + "（action=" + raw + "）不接受该动作：" + raw + " 在 " + hits.map((h) => h.name).join(" / ") +
+      " 上都有。要操作哪个对象就用哪个工具：" + calls + "。"
     );
   }
   return (

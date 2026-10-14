@@ -1,16 +1,59 @@
 ---
 name: githana
-description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_pr / githana_api call — actions, parameters, examples, and the noun-tool split."
+description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_repo / githana_pr / githana_issue / githana_label / githana_api call — actions, parameters, examples, the noun-tool split, and the permission gaps."
 ---
 
 # githana：用法手册
 
 > **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成名词工具：`githana_git`（exec /
-> commit / push）、`githana_pr`（create / list / view / status / diff / checks / merge /
-> review / comment / close / reopen / revert / edit / checkout / lock / unlock / update-branch）、
-> `githana_api`（单动词，**不带 action**，必填 `path`）。下面各节仍按旧的「写面 / 只读面」
-> 两个入口描述，动词名与参数表在改名前后一致（`pr_create` → `githana_pr(action="create")`
-> 等），但**工具名与分面规则已经不对**，以工具自身的 `parameters` 为准。
+> commit / push）、`githana_repo`（create / list / view / clone / fork / sync / gitignore /
+> license / read-dir / read-file）、`githana_pr`（create / list / view / status / diff / checks /
+> merge / review / comment / close / reopen / revert / edit / checkout / lock / unlock /
+> update-branch）、`githana_issue`（create / list / view / status / edit / comment / close /
+> reopen / delete / develop / transfer / lock / unlock / pin / unpin）、`githana_label`（clone /
+> create / edit / delete / list）、`githana_api`（单动词，**不带 action**，必填 `path`）。
+> 下面各节仍按旧的「写面 / 只读面」两个入口描述，动词名与参数表在改名前后一致
+> （`pr_create` → `githana_pr(action="create")` 等），但**工具名与分面规则已经不对**，
+> 以工具自身的 `parameters` 为准。
+
+## 权限缺口（登记）
+
+工具面是权限面的投影：**动词必须有支撑它的已授权权限，权限不在，动词就不在**（不在 zod 定义
+里，因此也不在模型面的 `action` 候选里）。下面这些 gh 能力本 App **做不到**，逐项写明缺哪个
+权限——缺口是登记出来的，不是假装它不存在。
+
+`repo` 组（`githana_repo` 的 zod 定义里**没有**这些值）：
+
+| gh 动词 | 缺哪个权限 | 现在怎么做 |
+|---|---|---|
+| `repo edit`（改简介 / 可见性 / 默认分支） | `administration: write` | 网页操作；`githana_api` 打 `PATCH /repos/{o}/{r}` 会被 GitHub 直接 403 |
+| `repo delete` | `administration: write` | 同上（删仓库在这个 App 里做不到） |
+| `repo rename` | `administration: write` | 同上 |
+| `repo archive` / `repo unarchive` | `administration: write` | 同上 |
+| `repo set-default` | `administration: write` | 同上 |
+| `repo autolink` | `administration: write` | 同上 |
+| `repo deploy-key` | `administration: write` | 同上 |
+| `repo create --org <org>` | `administration: write` + organization 权限 | 只能建在当前登录账号下（`POST /user/repos`）；组织下建仓库要补 `administration` 并重走一次授权 |
+| `repo fork --org <org>` | organization 权限（0 项，从未申请） | 只能 fork 到当前登录账号下 |
+| `repo list` 的组织形态（`/orgs/{org}/repos`） | organization 权限 | 用 `owner="<组织名>"` 走 `/users/{owner}/repos`（只含公开仓库） |
+
+其它组的缺口（这些组**没有对应工具**，全部走 `githana_api`，GitHub 直接 403）：
+
+| gh 组 | 缺哪个权限 |
+|---|---|
+| `secret` · `variable` | `secrets: write` · `actions_variables: write` |
+| `ssh-key` | `keys: write`（account） |
+| `gist` | `gists: write`（account） |
+| `codespace` | `codespaces: write` |
+| `discussion` · `project` | `discussions` · `repository_projects`（都是 GraphQL-only） |
+| `attestation` | `attestations: write` |
+| `webhook` | `repository_hooks: write` |
+| `org` | organization 权限（**未申请**，不是被拒） |
+
+已授权的 8 项 repository（`actions` / `checks` / `contents` / `issues` / `metadata` /
+`pull_requests` / `repository_creation` / `workflows`）+ 1 项 account（`gpg_keys`）见
+`specs/current/gh-cli-parity/spec.md` 的 D7。**改 App 权限后老用户要重走一次 device flow**
+才拿到新范围——不重新授权时新动词会 403。
 
 GitHana 把本地 git 与 GitHub 接进模型工具面，收成**两个入口**：
 
