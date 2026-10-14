@@ -22,46 +22,33 @@
  * github_api 的集合（GET / POST / PATCH / PUT / DELETE）。
  * 白名单由 options.allowMethods 传入，本文件不判断自己在哪个面。
  */
+import { z } from "zod";
 import { getToolSecretToken, getToolOAuthMeta } from "../lib/context.js";
 import { resolveRepo } from "../lib/github.js";
+import * as params from "../lib/params.js";
 import { request, errorDetail } from "../lib/rest.js";
 
 export const command = "api";
 export const summary = "任意 GitHub REST 端点透传";
 
-export const fields = {
-  path: {
-    type: "string",
-    description:
+export const schema = {
+  // 只声明类型：前导斜杠的检查留在 run() 里做——那里先 trim 再判（" /user" 这种带空白的输入
+  // 收敛前是接受的），把判据挪进 schema 会先在未归一的值上拒掉它，属于静默改语义。
+  path: z
+    .string()
+    .describe(
       "api.github.com 之后的路径（带前导斜杠），如 \"/user\"、\"/repos/{owner}/{repo}/issues\"、\"/repos/o/r/pulls?state=open\"",
-  },
-  // 本 action 同时挂在两个面上：只读面按 D7 只接受 GET / HEAD，写面由该面的 sharedFields
-  // 覆盖成完整方法集（POST / PATCH / PUT / DELETE）。运行期白名单由 options.allowMethods 传入。
-  method: {
-    type: "string",
-    enum: ["GET", "HEAD"],
-    description: "HTTP 方法，缺省 GET；本面只接受 GET / HEAD，写操作请改用 githana(action=\"api\")",
-  },
-  repo: {
-    type: "string",
-    description: "可选：仓库 owner/repo；传了就替换 path 里的 {owner}/{repo} 占位符",
-  },
-  body: {
-    type: "object",
-    description: "可选：请求体（JSON 对象），用于 POST / PATCH / PUT",
-  },
-  paginate: {
-    type: "boolean",
-    description: "可选：跟随 Link 分页把数组结果合并（上限 10 页）",
-  },
-  timeoutSec: {
-    type: "integer",
-    minimum: 1,
-    maximum: 600,
-    description: "超时秒数（可选）：默认 60，上限 600",
-  },
+    ),
+  // 本 action 同时挂在两个面上，而**两面的 method 白名单不同**（见 spec D7）：只读面只收
+  // GET / HEAD，写面收全量方法。所以这里只声明"是个字符串"，取值域留给 run() 的 allowMethods
+  // 判——那条拒绝要指向另一个面（边界条件点名的引导），写成 enum 会被参数校验的 issues 抢先，
+  // 丢掉那句指向。模型面那两个取值域由各面的 modelFields 描述（见 tools/githana*.js）。
+  method: z.string().optional().describe("HTTP 方法，缺省 GET；本面的取值域见工具描述"),
+  repo: z.string().optional().describe("可选：仓库 owner/repo；传了就替换 path 里的 {owner}/{repo} 占位符"),
+  body: z.object({}).loose().optional().describe("可选：请求体（JSON 对象），用于 POST / PATCH / PUT"),
+  paginate: z.boolean().optional().describe("可选：跟随 Link 分页把数组结果合并（上限 10 页）"),
+  timeoutSec: params.timeoutSec,
 };
-export const required = ["path"];
 
 /** 把 path 里的 {owner}/{repo} 占位符替换成实际值。 */
 function applyRepoPlaceholders(pathStr, repo) {
@@ -103,10 +90,9 @@ export async function run(input, ctx, { label, allowMethods, writeFaceName }) {
     repo = res;
   }
 
+  // body 的"必须是 JSON 对象"由 schema 保证（见上方 schema）；这里只判它与方法的相容性
+  // （GET / HEAD / DELETE 不接受 body），那是跨字段的业务约束，不是单字段的形状。
   const body = input?.body !== undefined && input?.body !== null ? input.body : undefined;
-  if (body !== undefined && (typeof body !== "object" || Array.isArray(body))) {
-    return label + " 参数错误：body 必须是 JSON 对象（收到：" + typeof body + "）。";
-  }
   if (body !== undefined && (method === "GET" || method === "HEAD" || method === "DELETE")) {
     return label + " 参数错误：method=" + method + " 不接受 body（用 POST / PATCH / PUT）。";
   }

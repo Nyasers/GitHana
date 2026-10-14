@@ -11,25 +11,24 @@
  * 字段以 TAB 分层——%s（首行主题）不可能含换行（git 提交信息首行以换行结束），
  * 因此换行分层天然防分隔符混淆。
  */
+import { z } from "zod";
 import { runCli, checkCwd } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 
 export const command = "log";
 export const summary = "最近提交速览";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-  },
-  n: {
-    type: "integer",
-    minimum: 1,
-    maximum: 100,
-    default: 10,
-    description: "返回条数：默认 10，范围 1~100，越界自动收敛到边界",
-  },
+export const schema = {
+  cwd: params.cwd,
+  // 范围只写在描述里、不写成 min/max：越界在本 action 是**收敛到边界**（见 run()），不是拒绝——
+  // 收敛是既有行为，收紧成拒绝会改语义（见 spec tool-surface 的 Boundary Conditions）。
+  n: z.number().int().optional().describe("返回条数：默认 10，范围 1~100，越界自动收敛到边界"),
 };
-export const required = ["cwd"];
+
+/** 模型面专属（不参与运行期校验）：把范围与默认值写进参数摘要；运行期越界是收敛而不是拒绝。 */
+export const modelFields = {
+  n: z.number().int().min(1).max(100).default(10).describe("返回条数：默认 10，范围 1~100，越界自动收敛到边界"),
+};
 
 export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
@@ -37,11 +36,10 @@ export async function run(input, ctx, { label }) {
   if (cwdErr) return label + " 参数错误：" + cwdErr;
   const cwd = String(cwdParam).trim();
 
-  // n 归一：默认 10，1~100 收敛
+  // n 归一：默认 10，1~100 收敛（形状由 schema 保证，越界在这里收敛而不是拒绝）
   let n = 10;
-  if (input?.n !== undefined && input?.n !== null && input?.n !== "") {
-    const num = Number(input.n);
-    if (Number.isFinite(num)) n = Math.min(100, Math.max(1, Math.floor(num)));
+  if (input?.n !== undefined && input?.n !== null) {
+    n = Math.min(100, Math.max(1, Math.floor(input.n)));
   }
 
   const r = await runCli(

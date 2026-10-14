@@ -13,17 +13,14 @@
  * -c core.quotepath=false 保证中文路径原样显示（不转义为八进制）。
  */
 import { runCli, checkCwd } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 
 export const command = "status";
 export const summary = "仓库状态速览";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-  },
+export const schema = {
+  cwd: params.cwd,
 };
-export const required = ["cwd"];
 
 /** 未合并（冲突）状态码集合 */
 const UNMERGED = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);

@@ -18,7 +18,8 @@
  *   manifest.json / LICENSE / NOTICE
  *   bin/   ← 入口（app.mjs）+ REST worker（rest.worker.mjs）+ 签名 shim（gpg.shim.mjs）
  *            + OpenPGP.js 库文件（openpgp.min.mjs，上游 dist 原样，两个入口运行期 import）
- *         三个入口均为压缩后的单入口 ESM；库文件是唯一例外（合规要求原样）。
+ *            + zod 库文件（zod.min.mjs，由 build-entries 从 node_modules/zod 打成单文件）
+ *         三个入口均为压缩后的单入口 ESM；库文件是唯一例外（openpgp 是上游原样，zod 是打包产物）。
  *   assets/
  *   skills/ ← 随包 SKILL 手册（skills/githana/SKILL.md，App 根目录约定）
  *   ui/    ← 壳页 + 设置页产物平铺（settings.html / settings.bundle.js / .css），**不含 ui/src/**
@@ -47,8 +48,9 @@
  * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
  * 但两个 spawn 出去的独立入口例外：tools/lib/gpg.shim.mjs 与 tools/lib/rest.worker.mjs
  * 均由 build-entries.mjs 打包为 bin/*.mjs，见下）、
- * 以及 OpenPGP.js 库文件（bin/openpgp.min.mjs，从上游 npm dist 原样拷入）：它不进源码树，
- * 由本脚本从 node_modules/openpgp/dist/node/ 投影进来，并以 npm 包的 integrity 断言字节一致。
+ * 以及两份库文件（bin/openpgp.min.mjs 与 bin/zod.min.mjs）：openpgp 从上游 npm dist 原样拷入，
+ * 由本脚本从 node_modules/openpgp/dist/node/ 投影进来，并以 npm 包的 integrity 断言字节一致；
+ * zod 由 build-entries.mjs 从 node_modules/zod 打成单文件，本脚本只断言它在位并报体积。
  * build-deps/（SDK tarball，已迁到 vendor/hana-app-sdk/）、node_modules/、.github/、README.md、
  * SPECS.md、specs/、pnpm-* 清单、releases/、dist-extensions/；以及整个 `vendor/`
  * （构建期缓存与声明，运行时无消费者）。
@@ -155,10 +157,11 @@ function main() {
     total += copyInto(src, join(DIST, name));
   }
 
-  // 2a) bin/ 下的三个入口与一份库文件。入口均由构建脚本产出（见上）；库文件从上游投影。
+  // 2a) bin/ 下的三个入口与两份库文件。入口均由构建脚本产出（见上）；库文件从上游投影。
   //     OpenPGP.js 库文件（openpgp.min.mjs）也从这里投影：两个入口都运行期 import 它。
+  //     zod 库文件（zod.min.mjs）由 build-entries.mjs 打包产出，这里只断言它在位。
   {
-    for (const name of ["app.mjs", "gpg.shim.mjs", "rest.worker.mjs"]) {
+    for (const name of ["app.mjs", "gpg.shim.mjs", "rest.worker.mjs", "zod.min.mjs"]) {
       if (!existsSync(join(DIST, "bin", name))) {
         console.error(`[build-app] 缺 dist/bin/${name}（构建脚本未产出）`);
         process.exit(1);
@@ -186,8 +189,14 @@ function main() {
       process.exit(1);
     }
     log(`bin/${OPENPGP_LIB} 就位（sha256 ${libDigest.slice(0, 12)}…，OpenPGP.js 运行期共享库）`);
+
+    // zod 库文件：由 build-entries.mjs 用 rspack 从 node_modules/zod 打成单文件，运行期由
+    // app.mjs 相对 import 加载（见 build-entries 头注）。这里只报体积——它是产物、不是上游原件，
+    // 没有"与上游逐字节相同"可断言；可复现性由 rspack 单入口配置保证（连跑两次字节相同）。
+    const zodLib = join(DIST, "bin", "zod.min.mjs");
+    log(`bin/zod.min.mjs 就位（${(statSync(zodLib).size / 1024).toFixed(1)} KB，zod 运行期共享库）`);
   }
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/gpg.shim.mjs + bin/rest.worker.mjs + bin/openpgp.min.mjs`);
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/gpg.shim.mjs + bin/rest.worker.mjs + bin/openpgp.min.mjs + bin/zod.min.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，

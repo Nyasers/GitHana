@@ -12,32 +12,24 @@
  * `POST /pulls` 与 `GET /pulls/{n}` 的响应体都不带它，所以创建完成后单独查一次，如实回报
  * （没确认也说明白了，不假装）。
  */
+import { z } from "zod";
 import { runCli } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
 import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../lib/pr.js";
 
 export const command = "pr_create";
 export const summary = "创建 PR";
 
-export const fields = {
-  base: {
-    type: "string",
-    description: "目标分支（缺省取仓库默认分支，如 main）",
-  },
-  title: {
-    type: "string",
-    description: "PR 标题（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺则返回引导）",
-  },
-  body: {
-    type: "string",
-    description: "PR 正文（可选，支持 Markdown 与中文）",
-  },
-  draft: {
-    type: "boolean",
-    description: "以草稿（draft）创建 PR",
-  },
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  base: z.string().optional().describe("目标分支（缺省取仓库默认分支，如 main）"),
+  title: z.string().optional().describe("PR 标题（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺则返回引导）"),
+  body: z.string().optional().describe("PR 正文（可选，支持 Markdown 与中文）"),
+  draft: z.boolean().optional().describe("以草稿（draft）创建 PR"),
+  timeoutSec: params.timeoutSec,
 };
-export const required = [];
 
 export const sideEffect = {
   kind: "github_pr",

@@ -18,14 +18,13 @@
  * - **status / log 保留在只读面**：它们不是治理层，是翻译层——把 git 输出解析成结构化字段，
  *   给模型省 token。这是唯一价值，但确实是真价值。
  */
+import { z } from "zod";
 import * as status from "./actions/status.js";
 import * as log from "./actions/log.js";
 import * as prList from "./actions/pr-list.js";
 import * as prView from "./actions/pr-view.js";
 import * as api from "./actions/api.js";
 import { createSurface } from "./lib/surface.js";
-import * as params from "./lib/params.js";
-
 export const name = "githana_read";
 
 export const description = [
@@ -60,11 +59,14 @@ const surface = createSurface({
   actions: ACTIONS,
   reserved: RESERVED,
   other: { name: "githana", commands: ["exec", "commit", "push", "pr_create", "pr_merge", "api", "ci_watch"] },
-  sharedFields: {
-    cwd: params.cwd,
-    repo: params.repo,
-    timeoutSec: params.timeoutSec,
-    prNumber: params.prNumber,
+  // 面级模型面专属字段（不参与运行期校验）：`api` 的 method 取值域随面变，所以在这里覆盖；
+  // 运行期的白名单拒绝仍在 api 的 run() 里（那条文案要指向 githana），见 tools/actions/api.js。
+  // 各 action 自己的模型面提示（log 的 n、pr_list 的 limit 的上下限）由它们的 modelFields 给。
+  modelFields: {
+    method: z
+      .enum(["GET", "HEAD"])
+      .optional()
+      .describe("HTTP 方法，缺省 GET；本面只接受 GET / HEAD，写操作请改用 githana(action=\"api\")"),
   },
 });
 

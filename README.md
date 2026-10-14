@@ -60,7 +60,7 @@ tools/
   githana-read.js       # 只读面：action 白名单 + sessionPermission { readOnly: true }
   actions/              # 一个 action 一个文件（status / log / pr-list / pr-view / api /
                         #   exec / commit / push / pr-create / pr-merge）
-  lib/                  # 共享层：surface（路由）/ params（共用字段）/ pr（PR 共用 REST 与仓库解析）
+  lib/                  # 共享层：surface（路由 + zod 参数校验的唯一入口）/ params（共用字段的 zod 定义）/ pr（PR 共用 REST 与仓库解析）
                         #   / exec / rest / context / bin / identity / github / sign-shim
 skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文是按 action 的参数与示例）
 ```
@@ -68,6 +68,11 @@ skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文
 路由层（`tools/lib/surface.js`）只认三类边界，两个面共用同一份实现：**缺 action** / **未知 action**
 报错并列出本面可用值；**走错面**（只读面收到 `exec` / `commit` / `push`，或写面收到 `status` /
 `log` / `pr_list` / `pr_view`）报错并指回正确的工具；**保留位** action 报错说明未实现。
+
+同一层还是**参数定义的唯一来源**：每个 action 导出自己的 zod raw shape（不含 `action`），
+`surface.js` 组合成 `z.discriminatedUnion("action", …)`。那份定义长出两样产出——运行期校验
+（失败返回全部 issues 的英文原文 + 一行中文引导），以及模型面的 `parameters`
+（`z.toJSONSchema` 投影成平表；顶层 `oneOf` 会让宿主的参数摘要变空，所以模型面用平表）。
 
 > 收敛是**重构不是改语义**：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
 > `pr_create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
@@ -245,7 +250,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # openpgp / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm install          # openpgp / zod / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（先清空，再依次构建产物 + 拷静态交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
@@ -259,14 +264,16 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 **构建期依赖不进包**：`@rspack/core` 是打包器，只在构建主机上跑，字节不进 `dist/`，
 所以既不用系统上的构建工具（也就没有"构建主机得装对版本"的外部要求），
 也不进第三方通知（只列**代码进交付面**的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
-`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以列在通知里。
+`openpgp` 与 `zod` 与上述不同：它们以**运行期独立库文件**（`bin/openpgp.min.mjs` /
+`bin/zod.min.mjs`）随包，所以列在通知里。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
 ——`bin/` 的语义就是「装到机器上要跑的东西」。三个入口**都是压缩后的单入口 ESM**
-（`build-server` 打 app，`build-entries` 打另两个），形态一致。OpenPGP.js 以一份独立库文件
-（`openpgp.min.mjs`）放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，
-也让 LGPL §4(d)(1) 有落点；它是 `bin/` 下唯一不做压缩的（合规要求原样）。
+（`build-server` 打 app，`build-entries` 打另两个），形态一致。两份库文件以独立文件形态
+放在同层，入口在**运行期** import 它们（不内联）：一份顶多份，也让 LGPL §4(d)(1) 有落点。
+`openpgp.min.mjs` 是 `bin/` 下唯一不做压缩的（上游原件、合规要求原样）；`zod.min.mjs` 则由
+`build-entries` 从 `node_modules/zod` 打成单文件（发行物本体是上百个 ESM 模块的目录树）。
 
 ```
 dist/
@@ -275,6 +282,7 @@ dist/
   bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖，仅用 node 全局）
   bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
   bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
+  bin/zod.min.mjs         ← zod 库文件（build-entries 打成单文件，app.mjs 运行期共享）
   assets/
   ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
 ```
@@ -408,11 +416,13 @@ antd 一个字节都没进包——整份搬运就是陈述不成立的事实。
 
 原文存 `scripts/derive/licenses/`（**开发件，不随包**），拼接时只 `trimEnd()`，不改正文：
 
-- `apache-2.0.txt` / `mit-meta.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
-  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不自带 LICENSE 附属件。
+- `apache-2.0.txt` / `mit-meta.txt` / `mit-zod.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
+  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 与 zod 的库文件不自带 LICENSE 附属件。
 - LGPL 与 GPL 成对：LGPL §4(b) 要求两份正文都在场（LGPL 条文引用 GPL）。
 - 可与实装对齐的已核对过：`mit-meta.txt` 与 react/react-dom/scheduler 的 LICENSE 逐字节相同
-  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同。
+  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同；
+  `mit-zod.txt` 是 zod 的 LICENSE（Copyright (c) 2025 Colin McDonnell），正文同是标准 MIT，
+  差异只在版权行。
 
 ### LGPL 组件（OpenPGP.js）的合规落点
 

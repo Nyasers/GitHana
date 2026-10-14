@@ -78,15 +78,13 @@ const surface = createSurface({
   actions: ACTIONS,
   reserved: RESERVED,
   other: { name: "githana_read", commands: ["status", "log", "pr_list", "pr_view", "api", "ci_status"] },
-  // 本面共用字段：method / body 在这里覆盖成中性描述（api 与 pr_merge / pr_create 同键不同义，
-  // 合并成一张平表后只能这么写；精确分支留给阶段 B 的 discriminatedUnion）。
-  sharedFields: {
-    cwd: params.cwd,
-    repo: params.repo,
-    timeoutSec: params.timeoutSec,
+  // 模型面专属字段（不参与运行期校验）：`method` / `body` 在本面同时服务两个 action，取值域
+  // 不同（api 是 HTTP 方法 / JSON 请求体，pr_merge 是合并方式，pr_create 是正文字符串）。平表里
+  // 只能合并成一份，所以在这里把两种用法都写清；精确的类型与 enum 落在各 action 的 schema 上，
+  // 运行期以那份为准（见 tools/lib/surface.js 头注）。
+  modelFields: {
     method: params.method,
     body: params.body,
-    prNumber: params.prNumber,
   },
 });
 
