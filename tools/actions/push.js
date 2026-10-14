@@ -13,38 +13,24 @@
  *   dryRun=true → --dry-run（只验证不真推）。
  * - 返回推送结果摘要（含远端/分支/参数与 git 原文）。
  */
+import { z } from "zod";
 import { runCli, checkCwd } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 
 export const command = "push";
 export const summary = "推送到远端";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-  },
-  branch: {
-    type: "string",
-    description: "可选：要推送的分支名；缺省 = 当前分支（git rev-parse --abbrev-ref HEAD）",
-  },
-  remote: {
-    type: "string",
-    description: "可选：远端名，默认 origin",
-  },
-  setUpstream: {
-    type: "boolean",
-    description: "可选：带 -u 建立上游跟踪分支（首次推送推荐）",
-  },
-  force: {
-    type: "boolean",
-    description: "可选：强制推送——映射 --force-with-lease（安全 force，拒绝覆盖他人新提交）；裸 --force 请走 githana(action=\"exec\")",
-  },
-  dryRun: {
-    type: "boolean",
-    description: "可选：只做 --dry-run 演练，验证可推送性，不真正更新远端",
-  },
+export const schema = {
+  cwd: params.cwd,
+  branch: z.string().optional().describe("可选：要推送的分支名；缺省 = 当前分支（git rev-parse --abbrev-ref HEAD）"),
+  remote: z.string().optional().describe("可选：远端名，默认 origin"),
+  setUpstream: z.boolean().optional().describe("可选：带 -u 建立上游跟踪分支（首次推送推荐）"),
+  force: z
+    .boolean()
+    .optional()
+    .describe("可选：强制推送——映射 --force-with-lease（安全 force，拒绝覆盖他人新提交）；裸 --force 请走 githana(action=\"exec\")"),
+  dryRun: z.boolean().optional().describe("可选：只做 --dry-run 演练，验证可推送性，不真正更新远端"),
 };
-export const required = ["cwd"];
 
 export const sideEffect = {
   kind: "git_remote",

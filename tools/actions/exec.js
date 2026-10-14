@@ -23,30 +23,23 @@
  * **它不进只读面**（见 spec D7）：git 子命令白名单挡不住 flag——diff --output=<file> 写文件、
  * config 改配置、branch -D 删分支，透传层是风险面，过审合理。
  */
+import { z } from "zod";
 import { runCli, formatCliResult, checkCwd } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 
 export const command = "exec";
 export const summary = "任意 git 子命令透传";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填：仓库上下文显式传参，不做隐式推断",
-  },
-  args: {
-    type: "array",
-    items: { type: "string" },
-    minItems: 1,
-    description: "git 完整参数列表（数组，无 shell 拼接）：首元素为子命令，如 [\"status\",\"--porcelain\"]、[\"add\",\"src/a.js\"]、[\"log\",\"--oneline\",\"-5\"]",
-  },
-  timeoutSec: {
-    type: "integer",
-    minimum: 1,
-    maximum: 600,
-    description: "超时秒数（可选）：默认 120，上限 600；超时终止进程并返回可读错误",
-  },
+export const schema = {
+  cwd: params.cwd,
+  args: z
+    .array(z.string())
+    .min(1)
+    .describe(
+      "git 完整参数列表（数组，无 shell 拼接）：首元素为子命令，如 [\"status\",\"--porcelain\"]、[\"add\",\"src/a.js\"]、[\"log\",\"--oneline\",\"-5\"]",
+    ),
+  timeoutSec: params.timeoutSec,
 };
-export const required = ["cwd", "args"];
 
 export const sideEffect = {
   kind: "git_local",
@@ -73,11 +66,8 @@ export async function run(input, ctx, { label }) {
   if (cwdErr) return label + " 参数错误：" + cwdErr;
 
   const cwd = String(cwdParam).trim();
-  const argsParam = input?.args;
-  if (!Array.isArray(argsParam) || argsParam.length === 0) {
-    return label + " 参数错误：args 必填且至少一个元素（git 子命令，如 [\"status\",\"--porcelain\"]）。";
-  }
-  const args = argsParam.map((a) => String(a));
+  // args 的"非空字符串数组"由 schema 保证（见上方 schema）；这里只做透传。
+  const args = input.args.map((a) => String(a));
   const timeoutSec = input?.timeoutSec;
 
   const result = await runCli("git", args, { cwd, timeoutSec });

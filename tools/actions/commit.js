@@ -22,35 +22,36 @@
  * 签名由隔离 gitconfig 的 user.signingkey + commit.gpgsign=true 驱动，gpg.program 由
  * buildBinEnv 每次 spawn 注入随包的签名 shim（见 tools/lib/sign-shim.js）。
  */
+import { z } from "zod";
 import { runCli, checkCwd } from "../lib/exec.js";
+import * as params from "../lib/params.js";
 
 export const command = "commit";
 export const summary = "提交（自动 CoA + 签名）";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填",
-  },
-  message: {
-    type: "string",
-    description: "提交说明（必填；amend 且需沿用原说明时可传空串）：支持多行（title 与 body 空行分隔）与中文，经 stdin 无损传入",
-  },
-  paths: {
-    type: "array",
-    items: { type: "string" },
-    description: "可选：要提交的相对路径列表（相对 cwd，如 [\"src/a.js\"]）；缺省提交全部已暂存内容",
-  },
-  amend: {
-    type: "boolean",
-    description: "可选：改写最近一次提交（--amend）；message 为空时沿用 HEAD 完整 message 并自动合并署名（已含 Co-authored-by 不重复）",
-  },
-  allowEmpty: {
-    type: "boolean",
-    description: "可选：允许空提交（--allow-empty）；缺省 false——无 paths 且无已暂存内容时不空提交，返回引导提示",
-  },
+export const schema = {
+  cwd: params.cwd,
+  // message 声明为可选：amend 且需沿用上一条提交说明时**整个键可以不给**（run() 会去读 HEAD），
+  // "非 amend 时必须有内容"是业务判断（空串与缺省都要给出引导），留给 run()，schema 只管类型。
+  message: z
+    .string()
+    .optional()
+    .describe(
+      "提交说明（非 amend 时必填；amend 且需沿用原说明时可传空串或省略）：支持多行（title 与 body 空行分隔）与中文，经 stdin 无损传入",
+    ),
+  paths: z
+    .array(z.string())
+    .optional()
+    .describe("可选：要提交的相对路径列表（相对 cwd，如 [\"src/a.js\"]）；缺省提交全部已暂存内容"),
+  amend: z
+    .boolean()
+    .optional()
+    .describe("可选：改写最近一次提交（--amend）；message 为空时沿用 HEAD 完整 message 并自动合并署名（已含 Co-authored-by 不重复）"),
+  allowEmpty: z
+    .boolean()
+    .optional()
+    .describe("可选：允许空提交（--allow-empty）；缺省 false——无 paths 且无已暂存内容时不空提交，返回引导提示"),
 };
-export const required = ["cwd", "message"];
 
 export const sideEffect = {
   kind: "git_local",
@@ -109,12 +110,9 @@ export async function run(input, ctx, { label }) {
   const allowEmpty = input?.allowEmpty === true;
   const userMessage = toLf(input?.message ?? "").trimEnd();
 
-  // paths：数组（允许空数组 = 未提供）
+  // paths："字符串数组"由 schema 保证；这里只做逐项的语义规则（空项、必须相对 cwd）。
   let paths = [];
   if (input?.paths !== undefined && input?.paths !== null) {
-    if (!Array.isArray(input.paths)) {
-      return label + " 参数错误：paths 必须是字符串数组（相对 cwd 的路径）。";
-    }
     for (const p of input.paths) {
       const s = String(p ?? "").trim();
       if (!s) return label + " 参数错误：paths 含空路径项。";

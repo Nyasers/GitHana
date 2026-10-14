@@ -108,6 +108,7 @@ function sdkInlinedVersions(wanted) {
 const TEXT = {
   apache: "apache-2.0.txt",
   mitMeta: "mit-meta.txt",
+  mitZod: "mit-zod.txt",
   lgpl: "lgpl-3.0.txt",
   gpl: "gpl-3.0.txt",
 };
@@ -119,6 +120,7 @@ function licenseSections() {
   return [
     section("Apache License 2.0", licenseText(TEXT.apache)),
     section("MIT License (Copyright (c) Meta Platforms, Inc. and affiliates.)", licenseText(TEXT.mitMeta)),
+    section("MIT License (Copyright (c) 2025 Colin McDonnell)", licenseText(TEXT.mitZod)),
     section("GNU Lesser General Public License v3.0", licenseText(TEXT.lgpl)),
     section("GNU General Public License v3.0", licenseText(TEXT.gpl)),
   ];
@@ -186,6 +188,14 @@ function componentTable() {
         form: "一份**独立、可替换的库文件** `bin/openpgp.min.mjs`（上游 npm 发行物 `dist/node/openpgp.min.mjs` 原样未修改）；由 `bin/app.mjs` 与 `bin/gpg.shim.mjs` 在**运行期**以相对路径 `import` 加载。构建期由 `scripts/build-app.mjs` 从 `node_modules/openpgp/dist/node/` 投影进来，并以 sha256 断言与上游逐字节相同。npm 包自身（含其 `.map` / 类型文件）不随包。",
         source: "https://github.com/openpgpjs/openpgpjs（原样未修改）",
       },
+      {
+        name: "zod",
+        version: installedVersion("zod"),
+        license: "MIT License",
+        purpose: "工具入参的单一来源（`githana` / `githana_read` 各 action 的字段定义）：运行期由它校验参数，模型面的 `parameters` 也由 `z.toJSONSchema` 从同一份定义生成。",
+        form: "一份**独立、可替换的库文件** `bin/zod.min.mjs`；由 `bin/app.mjs` 在**运行期**以相对路径 `import` 加载。构建期由 `scripts/build-entries.mjs` 用 rspack 从 `node_modules/zod` 打成压缩后的单文件（发行物本体是上百个 ESM 模块的目录树，不宜以目录形态随包）。npm 包自身（含其 `src` / 类型文件）不随包。",
+        source: "https://github.com/colinhacks/zod",
+      },
     ],
   };
 }
@@ -249,8 +259,9 @@ function render() {
   //    改交付形态（把库重新内联、或换成静态合并）时这段必须同步重写，否则它就在说假话。
   L.push("## LGPL component and this project", "");
   L.push("包内只有 **OpenPGP.js**（`bin/openpgp.min.mjs`）是 LGPL-3.0-or-later。其余代码分两类：");
-  L.push("本项目自己写的部分是 **MPL-2.0**；另有若干第三方包在**构建期被内联**进设置页产物");
-  L.push("（Apache-2.0 与 MIT，逐项见上表），它们各按自己的条款走，本项目的 MPL-2.0 不覆盖它们。");
+  L.push("本项目自己写的部分是 **MPL-2.0**；另有若干第三方包是 **Apache-2.0 与 MIT**（逐项见上表）——");
+  L.push("一部分在**构建期被内联**进设置页产物，**zod** 则以独立库文件 `bin/zod.min.mjs` 随包。");
+  L.push("它们各按自己的条款走，本项目的 MPL-2.0 不覆盖它们。");
   L.push("OpenPGP.js 与本项目的代码在同一个交付树里共存，但是**独立的作品**：", "");
   L.push("- 本项目的代码与 OpenPGP.js **不共享任何源文件**：它作为一份**独立、可替换的库文件**");
   L.push("  （`bin/openpgp.min.mjs`，上游 npm 发行物 `dist/node/openpgp.min.mjs` 原样未修改）随包，");

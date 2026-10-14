@@ -9,7 +9,9 @@
  *
  * 职责：
  * - repo 参数解析与校验（仅显式 repo 参数，无默认无回落，不依赖工作目录推断）
- * - 数字参数运行时校验（正整数）
+ *
+ * 数字参数（prNumber 等）的校验不在这里：它们的形状由各 action 的 zod schema 声明，运行期由
+ * tools/lib/surface.js 统一校验（见 spec tool-surface D5）。
  */
 
 /**
@@ -38,19 +40,4 @@ export function resolveRepo(repoParam) {
     };
   }
   return { owner: parts[0].trim(), repo: parts[1].trim() };
-}
-
-/**
- * 数字参数运行时校验：必须为正整数（配合 parameters schema 的 integer/minimum 双保险）。
- * @returns {{ ok: true, value: number } | { error: string }}
- */
-export function validatePositiveInt(value, label) {
-  if (value === undefined || value === null || value === "") {
-    return { error: label + " 不能为空。" };
-  }
-  const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) {
-    return { error: label + " 必须是正整数（当前值：" + String(value) + "）。" };
-  }
-  return { ok: true, value: n };
 }

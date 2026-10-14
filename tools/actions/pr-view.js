@@ -10,32 +10,26 @@
  * 审查状态由 `GET /pulls/{n}/reviews` 的评审记录聚合而成（REST 无 reviewDecision，见 lib/pr.js）。
  */
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import { validatePositiveInt } from "../lib/github.js";
+import * as params from "../lib/params.js";
 import { resolveContext, describeFailure, fmtTime, reviewSummary, mergeStateText, currentBranch } from "../lib/pr.js";
 
 export const command = "pr_view";
 export const summary = "PR 详情（含 reviews）";
 
-export const fields = {
-  prNumber: {
-    type: "integer",
-    minimum: 1,
-    description: "PR 编号（正整数）；缺省 = 当前分支关联 PR（需要 cwd）",
-  },
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  prNumber: params.prNumberOptional,
+  timeoutSec: params.timeoutSec,
 };
-export const required = [];
 
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
   const { repo, repoLabel, cwd, timeoutSec } = c;
 
-  let numStr = "";
-  if (input?.prNumber !== undefined && input?.prNumber !== null && input?.prNumber !== "") {
-    const numRes = validatePositiveInt(input.prNumber, "prNumber");
-    if (numRes.error) return label + " 参数错误：" + numRes.error;
-    numStr = String(numRes.value);
-  }
+  // prNumber 的"正整数"由 schema 保证（见上方 schema）：到了这里只需判断给没给。
+  let numStr = input?.prNumber !== undefined && input?.prNumber !== null ? String(input.prNumber) : "";
 
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
