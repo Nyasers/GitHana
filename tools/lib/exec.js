@@ -168,7 +168,7 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
         cwd: cwd !== undefined && cwd !== null && String(cwd).trim() !== "" ? String(cwd).trim() : undefined,
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
-        env: buildBinEnv(process.env, resolved),
+        env: buildBinEnv(process.env, resolved, { bin, args: argList }),
       });
     } catch (err) {
       finish({

@@ -30,6 +30,7 @@ import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import { resolveContext, describeFailure } from "../../lib/pr.js";
+import { GIT_CREDENTIAL_NOTE } from "../../lib/git-cred.js";
 
 export const command = "revert";
 export const summary = "回退已合并的 PR（本地 revert + 新分支 + 开回退 PR）";
@@ -61,7 +62,7 @@ function gitGuide(text) {
   const s = String(text || "");
   if (/not a git repository/i.test(s)) return "当前目录不是 git 仓库：请在仓库目录内执行。";
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败：本 App 不注入 git 凭据，走系统 Git Credential Manager（请确认本机已有该远端凭据）。";
+    return "远端认证失败：" + GIT_CREDENTIAL_NOTE + "。请确认已登录（github.com 的 https 远端）或本机已有该远端的凭据。";
   }
   if (/non-fast-forward|fetch first|rejected/i.test(s)) {
     return "远端拒绝了推送：先拉取合并远端变更再重试。";

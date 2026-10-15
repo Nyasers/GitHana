@@ -15,14 +15,17 @@
  * 目录约定与 gh 一致但更严：`cwd` 是**父目录**（克隆落在 `cwd/<仓库名>`），必须显式给、必须存在；
  * 目标目录已存在就拒绝——不做「克隆进非空目录」这种半途状态，也不覆盖。
  *
- * 凭据：与 githana_git 的 push 同一口径（本 App 不注入 git 凭据，走系统 Git Credential Manager），
- * 私有仓库要求本机已有该远端的凭据。令牌不会出现在命令行、日志或返回值里。
+ * 凭据：与 githana_git 的 push 同一口径——已登录时把 GitHub App 令牌经 credential helper 注入
+ * git 子进程（tools/lib/git-cred.js，只对 github.com 的 https 远端生效）；未登录时不注入，
+ * 回落系统 Git 凭据（Git Credential Manager）。令牌不进命令行、不进 gitconfig、不进远端 URL，
+ * 也不会出现在返回值里。
  */
 import { z } from "zod";
 import path from "node:path";
 import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { parseRepo } from "../../lib/gh.js";
+import { GIT_CREDENTIAL_NOTE } from "../../lib/git-cred.js";
 
 export const command = "clone";
 export const summary = "克隆仓库到本地（跑 git clone）";
@@ -51,7 +54,8 @@ function gitGuide(text) {
   }
   if (/could not read Username|Authentication failed|Repository not found|unable to access/i.test(s)) {
     return (
-      "远端认证失败或仓库不可见：私有仓库需要本机已有该远端的凭据（本 App 不注入 git 凭据，走系统 Git Credential Manager）。\n" +
+      "远端认证失败或仓库不可见：" + GIT_CREDENTIAL_NOTE + "。\n" +
+      "若尚未登录 App，请到 GitHana 设置页点「用 GitHub 登录」；" +
       "若仓库确实存在且公开，请检查 owner/repo 是否写错。"
     );
   }
@@ -98,6 +102,7 @@ export async function run(input, ctx, { label }) {
   if (input?.branch !== undefined && input?.branch !== null && String(input.branch).trim() !== "") {
     args.push("--branch", String(input.branch).trim());
   }
+  // 用 https 形态：凭据经 credential helper 注入（不是 URL 形态）——令牌不进命令行，也不进远端 URL。
   // `--`：URL 与目录名都是**位置参数**，直接拼进去时 `-` 开头的目录名会被 git 当选项
   // （`git clone <url> -evil-dir` → `error: unknown switch 'e'`）。分隔符之后的 token 一律按位置参数解释。
   // 选项（--depth / --branch）必须留在 `--` 之前：`--branch` 之后的 token 由 git 自己吸收为分支名
