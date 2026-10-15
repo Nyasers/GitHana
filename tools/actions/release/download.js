@@ -4,33 +4,42 @@
 /**
  * release/download：把发布资产取到本地。
  *
- * ## 本期做不到「取到本地」——通道挡住了
+ * ## 两跳：先定位资产，再把字节落到盘上
  *
- * 定位与取址那一半是**实现好的**（也确实是 gh 那一半的语义）：按 tag 找到 release、按
- * assetName 找到资产、给出 API 地址与 browser_download_url。卡住的是最后一跳，三条硬限制见
- * tools/lib/transfer.js。其中一条值得单独点出：`GET /repos/{o}/{r}/tarball/{ref}` 的 302 目标
- * `codeload.github.com` **在白名单里**（`REDIRECT_HOSTS`），所以源码归档能过前两条——但它们
- * 仍然是二进制，过不了第三条（响应体按 UTF-8 有界读取，2MB 截断）。
+ * 定位那一跳是纯 JSON（`GET /releases/tags/{tag}` 拿内嵌的 assets），走 api.github.com。
+ * 取字节那一跳是 `GET /repos/{o}/{r}/releases/assets/{asset_id}` 带上
+ * `Accept: application/octet-stream`（不带它返回的是资产的 JSON 元数据）。这一跳会 **302 到
+ * `release-assets.githubusercontent.com`**（实测：一跳 302 → 200）——由 worker 逐跳校验白名单
+ * 并跟随，且离开 api.github.com 后不带走凭据（那是公开下载域，不需要令牌）。
  *
- * ## 为什么不声明 `dir`
+ * ## 字节怎么下来：worker 写盘
  *
- * gh 的 `release download --dir <dir>` 指定落盘目录。本期写不了盘，声明一个只被忽略的参数等于
- * 对模型面撒谎（而且它会被 zod 的多余键判据拒掉，所以只能「声明了却不用」——那更糟）。
- * 写盘通道落地时再加，届时 `dir` 是它自己的参数。
+ * 这里只把**目标路径**交给 worker（请求字段 `toFile`）：它把响应体经 `Readable.fromWeb` 接到
+ * `fs.createWriteStream`，字节原样落盘——不按 UTF-8 解码、不套 2MB 的有界读、不把整个资产读进
+ * 内存。App 进程写不了许可根外的路径，worker 写得（`rest.js` 会按本请求的路径放行那个目录）。
  *
- * ## 取址是给调用方用的
+ * 写盘有两条安全线：`overwrite` 不为 true 且目标已存在时**拒写**（不悄悄盖掉用户手上的文件）；
+ * 响应不是 2xx 时**不落盘**（把 GitHub 的错误原文按文本回报），写了一半失败则把那个半成品删掉
+ * ——宁可没有文件，也不要一份「看着下好了、其实不完整」的资产。
  *
- * 回执里的 URL 可以直接粘给 `gh release download` / curl / 浏览器——**退给调用方**而不是自己
- * 硬塞一条通道，是本动词这一期的正确形态。
+ * ## 目标路径：三种给法，优先级明确
+ *
+ *   · `path`——完整的目标文件路径（最直接）；
+ *   · `dir` + （资产名或 `assetName`）——目录加文件名，对应 gh 的 `--dir`；
+ *   · 都不给——落到本进程 cwd 下的资产名（`gh release download` 缺省就是当前目录）。
+ *
+ * 一次可以取一个资产（`assetName` / `assetId`）或该 release 的**全部**资产（都不给）。
  */
+import path from "node:path";
 import { z } from "zod";
 import * as params from "../../lib/params.js";
-import { resolveContext } from "../../lib/gh.js";
+import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { locateRelease, findAsset, assetLine, formatSize } from "../../lib/release.js";
-import { binaryUnavailableText } from "../../lib/transfer.js";
+import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { normalizeAbsolutePath, transferFailureText, safeFileName } from "../../lib/transfer.js";
 
 export const command = "download";
-export const summary = "下载发布资产（本期只取址：二进制通道不存在）";
+export const summary = "下载发布资产（流式写盘：path 或 dir，可指定 assetName）";
 
 export const schema = {
   repo: params.repo,
@@ -38,25 +47,49 @@ export const schema = {
   tag: params.releaseTag,
   assetName: params.assetNameOptional.describe("可选：要下载的资产名；缺省 = 该 release 的全部资产"),
   assetId: z.number().int().min(1).optional().describe("可选：按数字 id 指定资产（与 assetName 二选一；assetName 优先不用它）"),
+  path: z.string().optional().describe("可选：目标文件绝对路径（只取一个资产时用；与 dir 二选一，path 优先）"),
+  dir: z.string().optional().describe("可选：目标目录（缺省 = 本进程 cwd）；落盘文件名取资产名"),
+  overwrite: z.boolean().optional().describe("可选：目标文件已存在时是否覆盖（缺省 false：不覆盖，报错让你改名或显式覆盖）"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "读取 GitHub 远端发布资产的内容与地址（本期只回报地址，不写本地磁盘）：不修改远端状态，执行前请确认 repo 与 tag",
+    "读取 GitHub 远端发布资产的内容并写入本地磁盘（新建本地文件）：不修改远端状态，但会写本地文件，执行前请确认 repo、tag 与目标路径",
   ruleId: "github-toolkit-release-download",
 };
+
+/** 组目标路径：path 优先；否则 dir（或 cwd）+ 资产名。 */
+function targetPathFor(input, assetName) {
+  const p = input?.path !== undefined && input?.path !== null ? String(input.path).trim() : "";
+  if (p) {
+    const norm = normalizeAbsolutePath(p, "path");
+    return norm.error ? { error: norm.error } : { path: norm.path, fromPath: true };
+  }
+  // 资产名是远端给的（外部输入），落盘文件名要收成安全的一段——见 safeFileName。
+  const safe = safeFileName(assetName, "asset.bin");
+  const d = input?.dir !== undefined && input?.dir !== null ? String(input.dir).trim() : "";
+  if (d) {
+    const norm = normalizeAbsolutePath(d, "dir");
+    if (norm.error) return { error: norm.error };
+    return { path: path.join(norm.path, safe), fromPath: false };
+  }
+  // 都不给：落到本进程 cwd 下的资产名（gh release download 的缺省就是当前目录）。
+  // cwd 是 App 进程的工作目录，在许可根之外——worker 未必写得进去，但那是**可读的**失败，
+  // 报错里会请调用方显式给 path 或 dir。
+  return { path: path.resolve(process.cwd(), safe), fromPath: false };
+}
 
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
-  const { repo, repoLabel } = c;
+  const { repo, repoLabel, timeoutSec } = c;
+  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const located = await locateRelease(input, c, label, { required: true });
   if (located.error) return located.error;
   const rel = located.release;
-  const releaseId = rel.id !== undefined ? String(rel.id) : "";
   const assets = Array.isArray(rel.assets) ? rel.assets : [];
 
   // 目标集：点名一个资产，或该 release 的全部资产。
@@ -75,33 +108,107 @@ export async function run(input, ctx, { label }) {
     targets = [found.asset];
   }
 
-  const out = [
-    label + " 未写盘（本期不下载二进制）：" + repoLabel + " · tag " + (rel.tag_name || "?") +
-    " · 目标 " + targets.length + " 个资产",
-  ];
   if (targets.length === 0) {
-    out.push("这个 release 没有任何资产。");
-    return out.join("\n");
+    return label + "：" + repoLabel + " · tag " + (rel.tag_name || "?") + " 这个 release 没有任何资产。";
   }
 
-  out.push("资产与取得地址：");
-  for (const a of targets) {
-    out.push(assetLine(a));
-    if (releaseId && a.id !== undefined) {
-      // octet-stream 是「取字节」的那条；不带它返回的是资产的 JSON 元数据。
-      out.push("      取字节（需 Accept: application/octet-stream）：GET /repos/" + repo + "/releases/assets/" + a.id);
-    }
-    if (a.browser_download_url) out.push("      浏览器直链：" + String(a.browser_download_url));
-    if (a.size !== undefined) out.push("      体积：" + formatSize(a.size) + "（" + a.size + " 字节）");
-    if (a.digest) out.push("      摘要：" + String(a.digest) + "（可用 verify-asset 与本地文件比对）");
+  // path 只对「取一个资产」有意义：两个资产写同一个文件必然是错的（后者会覆盖前者）。
+  const singlePath = input?.path !== undefined && input?.path !== null && String(input.path).trim() !== "";
+  if (singlePath && targets.length > 1) {
+    return [
+      label + " 参数错误：path 只能配一个资产，而这次选中了 " + targets.length + " 个。",
+      "要么传 assetName / assetId 点名一个，要么改用 dir（每个资产各落在它自己的文件名下）。",
+      "该 release 的资产：",
+      targets.map(assetLine).join("\n"),
+    ].join("\n");
   }
-  out.push("");
-  out.push("本期不下载的原因（三条硬限制）：");
-  out.push(binaryUnavailableText());
-  out.push("其中源码归档（GET /repos/{o}/{r}/tarball/{ref}）的 302 目标 codeload.github.com 在白名单内，但仍过不了第三条。");
-  out.push("本期可行的替代做法：");
-  out.push("  · gh release download " + (rel.tag_name || "<tag>") + " --repo " + repoLabel + (named ? " --pattern \"" + String(input.assetName) + "\"" : "") + "（外部二进制，不受上述限制）；");
-  out.push("  · 或用上面的浏览器直链在浏览器 / curl 里取。");
-  out.push("githana_api 不是逃生门：它走同一条 worker、同一份主机白名单，且响应体同样按 UTF-8 截断读取。");
-  return out.join("\n");
+
+  const overwrite = input?.overwrite === true;
+
+  // 每个资产一个请求，但如果落点重名（同一目录下两个资产同名不可能）就不是问题；
+  // 这里逐个请求，是为了让「哪一个失败了」清楚——一个成、一个败比整批失败有用。
+  const lines = [
+    label + "（" + repoLabel + " · " + (rel.tag_name || "?") + "）：",
+    "目标 " + targets.length + " 个资产" + (overwrite ? "（已允许覆盖同名文件）" : "（目标已存在时不覆盖）"),
+  ];
+
+  let done = 0;
+  let failed = 0;
+  for (const a of targets) {
+    const assetName = a && a.name ? String(a.name) : "";
+    if (!assetName) {
+      lines.push("");
+      lines.push("  ! 资产响应里没有 name，无法确定落盘文件名（id " + (a && a.id !== undefined ? a.id : "?") + "）。");
+      failed += 1;
+      continue;
+    }
+    if (a.id === undefined || a.id === null) {
+      lines.push("");
+      lines.push("  ! " + assetName + "：资产响应里没有 id，无法拼取字节的端点。");
+      failed += 1;
+      continue;
+    }
+
+    const target = targetPathFor(input, assetName);
+    if (target.error) {
+      lines.push("");
+      lines.push("  ! " + assetName + "：" + target.error);
+      failed += 1;
+      continue;
+    }
+
+    const r = await callRest(
+      [
+        {
+          id: "asset-" + String(a.id),
+          // Accept: application/octet-stream 是「取字节」的那条；不带它返回的是资产的 JSON 元数据。
+          headers: { Accept: "application/octet-stream" },
+          url: apiUrl(repo, "/releases/assets/" + encodeURIComponent(String(a.id))),
+          toFile: target.path,
+          overwrite,
+          timeoutMs,
+        },
+      ],
+      { timeoutSec },
+    );
+
+    lines.push("");
+    if (!r.ok) {
+      lines.push("  ! " + assetName + "：执行失败：" + r.message);
+      failed += 1;
+      continue;
+    }
+    const res = r.results[0];
+    const byCode = transferFailureText(res);
+    if (byCode) {
+      lines.push("  ! " + assetName + "：落盘失败 —— " + target.path);
+      lines.push("    " + byCode);
+      failed += 1;
+      continue;
+    }
+    if (!res || !res.ok) {
+      lines.push("  ! " + assetName + "：GitHub 返回 HTTP " + (res ? res.status : "?") + " —— " + describeFailure(res, repoLabel));
+      failed += 1;
+      continue;
+    }
+
+    lines.push("  ✓ " + assetName + " → " + target.path);
+    if (res.bytes !== null && res.bytes !== undefined) lines.push("     写入 " + res.bytes + " 字节（" + formatSize(res.bytes) + "）");
+    if (target.fromPath === false && !singlePath && !input?.dir) {
+      lines.push("     说明：没给 path / dir，落在本进程的当前目录。要指定落点请传 dir 或 path。");
+    }
+    if (a.digest) lines.push("     远端摘要：" + String(a.digest) + "（要核对本地副本用 verify-asset）");
+    done += 1;
+  }
+
+  lines.push("");
+  lines.push(
+    done === targets.length
+      ? "完成：" + done + " 个资产已写盘。"
+      : "完成 " + done + " 个 / 失败 " + failed + " 个（逐条见上）。",
+  );
+  if (done > 0 && !overwrite) {
+    lines.push("说明：这次没有覆盖任何已存在的文件（overwrite 缺省 false）。要覆盖请显式传 overwrite=true。");
+  }
+  return lines.join("\n");
 }

@@ -15,17 +15,15 @@
  * `make_latest`）——`legacy` 不是「取消 latest」，它是「用旧式算法决定哪个 release 是 latest」
  * （见 tools/lib/release.js 的 MAKE_LATEST_VALUES）。标题 / 正文 / 移动 tag 不属这个动词。
  *
- * ## 两个动词进 enum，但「字节进出」那一半做不到
+ * ## `upload` / `download` 是二进制通道的两个方向
  *
- * `upload` / `download` 的参数形态是清楚的，跑不通的是**网络那一半**（二进制通道不存在，三条
- * 硬限制见 tools/lib/transfer.js）：载荷是 JSON 报文（不是 multipart）、`uploads.github.com`
- * 不在 worker 的出站白名单、响应体按 UTF-8 有界读取。两者进 action 表、进候选，调用时给出
- * **具体**的限制与替代路径，而不是让调用方以为工具面根本没有这回事。
+ * `upload` 把本地文件作为资产发到 `uploads.github.com`（worker 用 `fs.createReadStream` 作请求体、
+ * 显式带 `Content-Length`，字节原样发出去）；`download` 把资产流式写进本地路径（worker 用
+ * `fs.createWriteStream`，不按 UTF-8 解码、不截断）。两个方向的机制与边界见 tools/lib/transfer.js。
  *
- * `verify` / `verify-asset` **不受这条限制**（它们只算摘要，不搬字节），但口径与 gh 的同名命令
- * 不同：做的是**发布自身的完整性**核对（GitHub 记录的 `digest` 与本地文件的 sha256），
- * 而「来源证明（attestation）」校验做不到——缺 `attestations` 权限，且 sigstore 验签与
- * 「服务端零 npm 依赖」冲突。这一层差别在回执里明说。
+ * `verify` / `verify-asset` 只算摘要、不搬字节，但口径与 gh 的同名命令不同：做的是**发布自身的
+ * 完整性**核对（GitHub 记录的 `digest` 与本地文件的 sha256），而「来源证明（attestation）」校验
+ * 做不到——缺 `attestations` 权限，且 sigstore 验签与「服务端零 npm 依赖」冲突。这一层差别在回执里明说。
  *
  * 权限：external_side_effect——create / edit / delete / delete-asset / upload 都会改远端状态，
  * 整体按写面声明，只读的 list / view / download / verify / verify-asset 因此也要过审。
@@ -51,7 +49,7 @@ export const name = "githana_release";
 export const description = [
   "GitHana GitHub 发布：查 / 建 / 删 release 与它的资产。",
   "action=create / list / view / edit / delete / upload / download / delete-asset / verify / verify-asset。",
-  "upload 与 download 本期做不到（二进制通道不存在，回执里给限制与替代做法）；",
+  "upload 与 download 走二进制通道：upload 流式发本地文件到 uploads.github.com，download 流式写盘；",
   "verify / verify-asset 做的是发布自身的摘要核对，不做来源证明；",
   "edit 只改状态位（draft / prerelease / latest），改标题与正文走 githana_api。",
   "仓库在 githana_repo，PR 在 githana_pr，issue 在 githana_issue，标签在 githana_label，",
@@ -98,8 +96,8 @@ export const sessionPermission = {
  *     `releaseId` 时才允许都不给（见 actions/release/edit.js 的校验）。平表先出现的是 create 那份。
  *   · `assetName`——delete-asset / verify-asset 上**必填**（要删 / 要核对哪一个），download 与
  *     upload 上可缺省（download 缺省 = 该 release 的全部资产；upload 缺省 = 取文件名）。
- *   · `file`——upload 上是**要上传的文件**（必填），verify-asset 上是**要比对的本地文件**（可选）；
- *     平表先出现的是 upload 那份。
+ *   · `file`——upload 上是**要上传的文件**（必填，绝对路径），verify-asset 上是**要比对的本地文件**
+ *     （可选）；平表先出现的是 upload 那份。
  * 取值域与必填仍以各 action 的 schema / run() 为准，这里只说清"按 action 取义"。
  */
 export const modelFields = {

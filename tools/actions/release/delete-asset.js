@@ -9,8 +9,8 @@
  * 内嵌了 assets 数组，所以按 assetName 找资产**不额外发请求**，删的时候才用它的 id。
  *
  * 与 release/delete 的分界：本动词只动一个资产，发布对象与其余资产、tag 都不受影响。
- * 与 upload 的分界：上传这条通道本期不通，删除是纯 JSON 的 DELETE——它没有载荷，所以不撞
- * 那三条硬限制（见 tools/lib/transfer.js）。这不是不一致：挡住的只是「字节进 / 字节出」。
+ * 与 upload 的分界：删除是纯 JSON 的 DELETE，没有载荷；上传是二进制体（走同一条 worker 的
+ * 二进制通道，见 tools/lib/transfer.js）。这是同一个 release 的两个相反动作，不是两条通道。
  */
 import { z } from "zod";
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
@@ -70,7 +70,7 @@ export async function run(input, ctx, { label }) {
         " · 下载次数：" + (asset.download_count !== undefined ? asset.download_count : "?") +
         (asset.state ? " · 状态：" + asset.state : ""),
       "删除**不可撤销**：文件内容与它的直链一起失效（浏览器直链、API 取字节地址都不再可用），GitHub 没有回收站。",
-      "发布对象与其余资产不受影响；要重建同名资产用 githana_release(action=\"upload\")——但那条通道本期不通（见该动词的回报）。",
+      "发布对象与其余资产不受影响；删掉之后可以用 githana_release(action=\"upload\") 重传同名资产。",
       "确认后请重发同一次调用并带上 confirm=true。",
     ].join("\n");
   }
@@ -95,6 +95,6 @@ export async function run(input, ctx, { label }) {
     "资产：" + (asset.name || "?") + " · id " + assetId +
       (asset.size !== undefined ? " · " + formatSize(asset.size) : "") +
       (asset.download_count !== undefined ? " · 删除前下载 " + asset.download_count + " 次" : ""),
-    "说明：只删了这个资产，发布对象与其余资产仍在。要重建同名资产用 githana_release(action=\"upload\")——那条通道本期不通。",
+    "说明：只删了这个资产，发布对象与其余资产仍在。要重建同名资产用 githana_release(action=\"upload\")。",
   ].join("\n");
 }
