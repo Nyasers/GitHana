@@ -30,6 +30,7 @@ import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import { resolveContext, describeFailure, currentBranch, repoFromCwd } from "../../lib/gh.js";
+import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "sync";
 export const summary = "把 fork 与上游同步（fetch + 合并）";
@@ -57,7 +58,7 @@ export const sideEffect = {
 function gitGuide(text) {
   const s = String(text || "");
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败：本 App 不注入 git 凭据，走系统 Git Credential Manager（请确认本机已有该远端凭据）。";
+    return "远端认证失败：" + GIT_FETCH_AUTH_NOTE + "。";
   }
   if (/CONFLICT|Automatic merge failed/i.test(s)) {
     return "合并有冲突：git 已停下并留下冲突标记。请在 cwd 里手工解决后 git commit（或 git merge --abort 放弃）。";

@@ -48,7 +48,8 @@ export const description = [
   "GitHana GitHub 仓库：查询、新建、fork 与远端内容读取。",
   "action=create / list / view / clone / fork / sync / gitignore / license / read-dir / read-file。",
   "clone 与 sync 是本地 git 语义（跑 git clone / fetch+合并），其余走 REST；",
-  "PR 在 githana_pr，issue 在 githana_issue，标签在 githana_label，本地 git 在 githana_git。",
+  "PR 在 githana_pr，issue 在 githana_issue，发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，",
+  "标签在 githana_label，本地 git 在 githana_git，其余端点走 githana_api。",
   "改删仓库（EDIT / DELETE / 改名 / 归档等）需要 administration 权限，本 App 未授权，故不提供。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
