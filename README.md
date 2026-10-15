@@ -1,9 +1,9 @@
 # GitHana（githana）
 
-把 git / gpg 两条 CLI 与 GitHub REST 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
+把本地 git、GitHub 的 REST / GraphQL 端点与隔离的 OpenPGP 签名身份接进 HanaAgent 的 **App v2**：本地提交与推送、PR / issue / release / Actions 全生命周期、随包纯 JS 的签名链路。
 
-- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 **6 个名词工具**（`githana_git` / `githana_repo` / `githana_pr` / `githana_issue` / `githana_label` / `githana_api`）+ 3 组后端路由（status / settings / actions）
-- 工具面：按**操作对象**分 6 个名词工具，各自用 `action` 路由（`githana_api` 是单动词，不填 action），用法细节在随包手册 `skills/githana/SKILL.md`。**没有只读面 / 免审路径**：每个工具整体声明 `external_side_effect`。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
+- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 **10 个名词工具**（`githana_git` / `repo` / `pr` / `issue` / `release` / `run` / `workflow` / `cache` / `label` / `api`）+ 3 组后端路由（status / settings / actions）
+- 工具面：按 `gh` 的顶层组分成十个名词工具，`action` 是动词（`gh <组> <动词>` 的 App 形态）；用法细节在随包手册 `skills/githana/SKILL.md`。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
 - 服务端零 npm 依赖（设置页 UI 需一步构建）· 签名用随包的纯 JS OpenPGP.js（无外部二进制）· 版本见 `manifest.json`（单一事实源）
 - **GitHub 域不依赖任何外部二进制**：请求由随包的 `bin/rest.worker.mjs` 在子进程里直发（Node 内置 `fetch`），PR 创建稳定带 App 角标
 
@@ -11,64 +11,77 @@
 
 ## 工具面
 
-宿主侧是**六个名词工具**，按**操作对象**分：`githana_git`（本地 git）/ `githana_repo`（仓库）/
-`githana_pr`（Pull Request）/ `githana_issue`（Issue）/ `githana_label`（标签）/
-`githana_api`（逃生门）。工具名不加 `git_` / `gh_` 前缀——名词就是域，再带域前缀是重复标注。
-用法细节、每个 action 的参数与示例都在随包手册
+宿主侧是**十个名词工具**，按 `gh` 的顶层组划分：`githana_git`（本地 git，自有）+
+`gh` 的九个组（`repo` / `pr` / `issue` / `release` / `run` / `workflow` / `cache` / `label`）
++ 逃生门 `githana_api`。用法细节、每个 action 的参数与「什么时候用」都在随包手册
 [skills/githana/SKILL.md](skills/githana/SKILL.md)（工具描述只留路由信息，不写成长墙）。
 
-| 工具 | 权限档 | action |
-|------|--------|--------|
+映射规则（与 gh 一一对应）：
+
+| gh | GitHana |
+|---|---|
+| `gh <组> <动词>` | `githana_<组>(action="<动词>")` |
+| `gh <组> <动词> --flag` | 该 action 的参数 |
+| `gh auth login` / `gh config` | 设置页（App 形态，不走工具面） |
+| `gh api <endpoint>` | `githana_api(path=…)`（逃生门，gh 自己也留着它） |
+| TTY 交互确认 | 审批卡 |
+
+| 工具 | `sessionPermission` | 动词 |
+|---|---|---|
 | `githana_git` | `external_side_effect` | `exec` · `commit` · `push` |
 | `githana_repo` | `external_side_effect` | `create` · `list` · `view` · `clone` · `fork` · `sync` · `gitignore` · `license` · `read-dir` · `read-file` |
-| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
+| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
 | `githana_issue` | `external_side_effect` | `create` · `list` · `view` · `status` · `edit` · `comment` · `close` · `reopen` · `delete` · `develop` · `transfer` · `lock` · `unlock` · `pin` · `unpin` |
+| `githana_release` | `external_side_effect` | `create` · `list` · `view` · `edit` · `delete` · `upload` · `download` · `delete-asset` · `verify` · `verify-asset` |
+| `githana_run` | `external_side_effect` | `list` · `view` · `watch` · `rerun` · `cancel` · `delete` · `download` |
+| `githana_workflow` | `external_side_effect` | `list` · `view` · `run` · `enable` · `disable` |
+| `githana_cache` | `external_side_effect` | `list` · `delete` |
 | `githana_label` | `external_side_effect` | `clone` · `create` · `edit` · `delete` · `list` |
-| `githana_api` | `external_side_effect` | （单动词，**不填 action**）`path` + `method` |
+| `githana_api` | `external_side_effect` | 单动词，**不带 `action`**，必填 `path` |
 
-`githana_api` 是**单动词**工具：值域只有一个时 `action` 只是占位（填了等于没填），所以不声明它，
-`required` 换成真正必填的 `path`。其余五个都是多动词，`action` 是分发键、必填。
+`action` 仅在动词数 ≥ 2 的工具上声明（单数时它只是占位，填了等于没填）；`githana_api` 因此把
+`required` 从 `["action"]` 换成真正必填的 `["path"]`。
 
-### 为什么没有只读豁免（只有一个权限档）
+### 工具面的边界由权限定
 
-宿主对 `sessionPermission` 的声明粒度是**按工具**（`ctx.tools.register` 时声明一次，
-`app.js` 的 `plainPermission` 把它压成一组纯数据）：一个工具只能有一档。
+**每个类型化的动词都有一个支撑它的已授权权限；权限不在，动词就不在**——不在 zod 定义里，
+因此也不在模型面的 `action` 候选里。这条规则管两个粒度：
 
-收敛前的 `gh_pr` 是现成的代价样本：它把 list / view（读）与 create / merge（写）放在一个工具里，
-整体只能声明 `external_side_effect`——于是**读也要过审**。曾经的 `githana` / `githana_read`
-两个入口按「读 / 写」切，想给只读动作一条独立免审通道；PR #23 删掉了这条路径，
-**现在不再有任何只读豁免**：
+- **无权限的动词从定义里删掉**：`administration` 未授权，所以 `repo` 的 edit / delete / rename /
+  archive / set-default / autolink / deploy-key **不在 `githana_repo` 的 `action` 候选里**。
+  zod 是模型面与运行期校验的同一来源，删掉即两边同时消失——比「声明了但短路」少一次注定
+  失败的调用。
+- **权限被永久排除的组不声明工具**：`secret` / `variable` / `ssh-key` / `gist` / `codespace` /
+  `discussion` / `project` / `attestation` / `webhook` / `org` 这些组没有对应工具。
 
-- 六个名词工具**整体都声明 `external_side_effect`**（含只读动词 `view` / `list` / `status` /
-  `diff` / `checks` / `read-dir` / `read-file`）：它们与同工具的写动词共用一个权限档，
-  无法单独免审。
-- 按「对象」切而不是按「读写」切，是因为只读豁免在当前宿主机制下无法落在单个 action 上：
-  想要它就得把读动词从名词工具里再拆出去，那会把同一对象的读写分到两个工具，
-  调用方每次都要先判「这件事算不算读」——形态统一与读免审二者不可兼得，本期选了前者。
-- `githana_api` 作为逃生门收全量 method（`GET` / `HEAD` / `POST` / `PATCH` / `PUT` / `DELETE`），
-  同样整体按写面过审；越出 App 权限面的调用由 GitHub 直接拒（403）。
+两种缺口的去向都写在手册的「能力边界与逃生门」一节（逐项含缺哪个权限、走哪个 REST 端点），
+所以**缺口不靠碰壁才发现**。`githana_api` 是逃生门：越过权限面的端点由 GitHub 直接 403，
+手册标明，工具面透传也越不过去。
+
+### 工具名的形态
+
+工具名是名词、`action` 是动词，两者都不带 `git_` / `gh_` 前缀——工具名已经把域分开了，
+再带域前缀是重复标注。收敛前的「读写两面 + 一张平表 action」形态已作废：那时 `method` 与
+`body` 在平表里同键不同义（`params.js` 自陈），名词分家后每个工具一张自己的参数表，碰撞消失。
+
+`githana_git` **不是** gh 的组：gh 从不管本地 commit，那张表来自 GitHana 自己。
 
 ### 目录形态
 
 ```
 tools/
-  githana-git.js        # 名词工具：ACTION 表 + createSurface + sessionPermission
-  githana-repo.js
-  githana-pr.js
-  githana-issue.js
-  githana-label.js
-  githana-api.js        # 单动词：createSingleSurface（不声明 action）
-  actions/              # 一个 action 一个文件，按名词分目录（git / repo / pr / issue / label / api.js）
-  lib/                  # 共享层：surface（路由 + zod 参数校验的唯一入口）/ params（共用字段的 zod 定义）
-                        #   / verbs（动词总表，跨工具错投指名）/ pr（PR 共用 REST 与仓库解析）
-                        #   / exec / rest / context / bin / identity / github / sign-shim
-skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文是按 action 的参数与示例）
+  githana-*.js          # 十个名词工具入口（name / description / parameters / sessionPermission / execute）
+  actions/              # 一个 action 一个文件，按组分子目录：git/ repo/ pr/ issue/ release/
+                        #   run/ workflow/ cache/ label/ + api.js
+  lib/                  # 共享层：surface（路由 + zod 参数校验的唯一入口）/ verbs（跨工具动词索引）
+                        #   / params / gh / pr / issue / repo / ci / release / label / transfer
+                        #   / exec / rest / rest.worker / context / bin / git-cred / identity / github / sign-shim
+skills/githana/SKILL.md # 随包手册（逐 action 参数 + 什么时候用 + 能力边界与逃生门）
 ```
 
-路由层（`tools/lib/surface.js`）只认三类边界，六个工具共用同一份实现：**缺 action** / **未知 action**
-报错并列出本工具可用值；**走错工具**（如把 `commit` 发给 `githana_repo`）报错并按
-`tools/lib/verbs.js` 的动词总表指名正确的工具（同一动词有多个持有者时列出全部，让调用方按对象选）；
-**保留位** action 报错说明未实现。
+路由层（`tools/lib/surface.js`）只认三类边界，十个工具共用同一份实现：**缺 action** /
+**未知 action** 报错并列出本工具可用值；**走错名词**（在 `githana_pr` 上发 `commit`）报错并
+**指名正确的工具**（`commit 属于 githana_git`）；**保留位** action 报错说明未实现。
 
 同一层还是**参数定义的唯一来源**：每个 action 导出自己的 zod raw shape（不含 `action`），
 `surface.js` 组合成 `z.discriminatedUnion("action", …)`。那份定义长出两样产出——运行期校验
@@ -76,7 +89,24 @@ skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文
 （`z.toJSONSchema` 投影成平表；顶层 `oneOf` 会让宿主的参数摘要变空，所以模型面用平表）。
 
 > 收敛是**重构不是改语义**：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
-> `pr_create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
+> `pr create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
+
+### push 的凭据
+
+`githana_git(action="push")`（以及 `clone` / `sync` / `pr checkout` / `pr revert`）**注入 App 令牌**：
+GitHub App 令牌经 **credential helper** 接进 git 子进程，只对 github.com 的 https 远端生效。
+
+- 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig。它经子进程
+  env 递给一个只回 `username` / `password` 的 helper 片段（`tools/lib/git-cred.js`，走
+  `buildBinEnv` 的 `GIT_CONFIG_*` 机制——与 `gpg.program` 同一套注入口）。
+- 为什么不拼进 URL：git 连不上时会把**完整 URL 打进 stderr**，那是工具返回值的一部分。
+- **只有确实要访问远端的 git 调用才注入**（`push` / `fetch` / `pull` / `clone` / `ls-remote`，
+  且命令行不带 `-c` / `--exec-path` / `ext::` 这类能改写运行环境的形态）：`exec` 是任意参数透传，
+  而凭据助手本身就能把 env 打出来。注入时还会摘掉 git 的 HTTP 调试变量（`GIT_TRACE_CURL` 等会
+  把 `Authorization` 头 dump 进 stderr）。
+- 未登录时**不注入**，git 回落系统 Git Credential Manager，与登录前一致；认证失败给出去设置页
+  登录的引导，不静默失败。
+- 带 `.github/workflows/*` 改动的推送需要 `workflows: write`（已在授权集里，见 D7）。
 
 ### 已从工具面退役的名字
 
@@ -84,17 +114,15 @@ skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文
 要用户点按钮确认）。实现仍在 `tools/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
 `lib/routes/pubkey.js`，原来的 `tools/gpg-pubkey.js` 已删。
 
-`gh_exec` 已由 `api` action 取代：前者透传 gh 的**子命令**（`gh release create` 这类高层动词），
+`gh_exec` 已由 `githana_api` 取代：前者透传 gh 的**子命令**（`gh release create` 这类高层动词），
 后者透传 **REST 端点**。多数高层动词都能由端点组合出来，但组合工作从 CLI 移到了调用方——
 这是能力面的真实变化，不是等价换皮。
 
-### CI（保留位）
+`githana` / `githana_read` 两个旧入口、以及它们那张平表上的 action 名（`ci_status` / `ci_watch` /
+`pr_create` / `pr_list` / `pr_view` / `pr_merge` …）都不再注册：CI 现在是
+`githana_run` / `githana_workflow` / `githana_cache` 三组真实动词，`githana_run(action="watch")`
+就是其中的「等 CI 到终态」。
 
-`ci_status` / `ci_watch` 本期**只留位置**（action 表 + 手册里写明未实现），不实现。理由：
-CI 监听不是「多一个 api 调用」——GitHub 没有面向本地 App 的 webhook，只能轮询；轮询占着工具
-调用会撞宿主回调的 30 秒上限，必须注册后台任务并在完成后唤醒会话。那需要新增
-`app/tasks.manage` 能力声明，且返回契约要能容纳「返回句柄而非结果」这一档。留位是为了让返回
-契约现在就留出这个口。当前可用 `api` 直接查 GitHub 的 check-runs / workflow-runs 端点。
 
 ## 与 v1 插件的关键差异
 
@@ -115,8 +143,9 @@ CI 监听不是「多一个 api 调用」——GitHub 没有面向本地 App 的
 
 ## 清单能力
 
-- `app/tools.expose-to-model` — 让模型能主动调用这六个名词工具（`githana_git` / `githana_repo` / `githana_pr` / `githana_issue` / `githana_label` / `githana_api`）
-- `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gpg，以及随包的 REST worker（**需要用户在安装审阅里批准**）
+- `app/tools.expose-to-model` — 让模型能主动调用这十个名词工具
+- `app/process.spawn` — 开 `--allow-child-process`，跑外部 git 与随包的两个子进程入口（REST worker / 签名 shim）（**需要用户在安装审阅里批准**）
+- `app/tasks.manage` — 宿主后台任务面，给 `githana_run(action="watch")` 的「等 CI 到终态」用（**需要用户在安装审阅里批准**）
 - `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
 - `app/ui.open-external` — 设置页开 GitHub 验证页
 
@@ -188,9 +217,9 @@ CI 监听不是「多一个 api 调用」——GitHub 没有面向本地 App 的
 不报错、不动文件、不参与任何调用；设置页据此提示「旧版记录」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
-删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证本就走系统
-Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而 GPG 公钥上传是 PAT
-本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
+删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证走 App 令牌
+（经 credential helper 注入，见「push 的凭据」），本机凭据只是未登录时的回落；而 GPG 公钥上传
+是 PAT 本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
 
 ### 手动档（用户自助）
 
@@ -542,9 +571,12 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 
 ```
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
-app.js                   # apply(ctx)：注册 6 个名词工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
-tools/                   # 6 个名词工具（githana-{git,repo,pr,issue,label,api}.js）+ actions/（一个 action 一个文件，按名词分目录）+ gpg-keygen.js（仅设置页动作）+ lib/（surface / params / verbs / pr / exec / bin / rest / rest.worker / context / identity / github）
-skills/githana/SKILL.md  # 随包手册：每个 action 的参数、示例与边界（工具描述只留路由信息）
+app.js                   # apply(ctx)：注册 10 个名词工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
+tools/                   # 10 个名词工具入口（githana-git/-repo/-pr/-issue/-release/-run/-workflow/-cache/-label/-api）
+                         #   + actions/（一个 action 一个文件，按组分子目录）+ gpg-keygen.js（仅设置页动作）
+                         #   + lib/（surface / verbs / params / gh / pr / issue / repo / ci / release / label
+                         #     / exec / rest / rest.worker / context / bin / git-cred / identity / github / sign-shim）
+skills/githana/SKILL.md  # 随包手册：逐 action 参数 + 什么时候用 + 能力边界与逃生门（工具描述只留路由信息）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
 lib/gpg-publish.js       # GPG 公钥发布/轮换（先加后删；删除前核对指纹，只动自己那把）
@@ -588,9 +620,11 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
 - **只重试“没到服务端”的连接层错误**：DNS 失败 / 连接被拒 / 连接超时。已拿到响应后的错误
   （包括 `UND_ERR_SOCKET`、超时）不重试——那时代码可能已经生效，重试 POST 会双写。
 - **一次调用一批请求**：worker 无状态，一次工具调用的全部 HTTP 请求打包成数组交给它、顺序执行、
-  返回结果数组（`pr_view` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
+  返回结果数组（`githana_pr(action="view")` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
-- **令牌边界不变**：仍只在 App 进程内存与 worker 之间流转（经 stdin 传，不走子进程 env，更不进宿主 IPC）。
+- **令牌边界不变**：REST 侧仍只在 App 进程内存与 worker 之间流转（经 stdin 传，更不进宿主 IPC）。
+  git 侧的凭据走另一条路（credential helper + 子进程 env，见「push 的凭据」）：两条都不落磁盘明文、
+  不进宿主设置表。
   OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
 
 ### 与 gh CLI 的两处真实行为差异
@@ -609,7 +643,7 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 改用自写 REST 后角标成为稳定行为。
 
 归因字段只在 **issue 表示**上（`GET /issues/{n}`）；`POST /pulls` 与 `GET /pulls/{n}` 的响应体**都不带**
-它（实测）——UI 角标读的就是 issue 表示，所以 `pr_create` 完成后单独查一次。
+它（实测）——UI 角标读的就是 issue 表示，所以 `githana_pr(action="create")` 完成后单独查一次。
 
 ## 提交者身份推导
 
@@ -643,4 +677,5 @@ shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、
 它运行期 import 同目录的 `openpgp.min.mjs`（不内联，见「第三方许可」）。
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
-GitHub 域的令牌也不进子进程 env（经 stdin 传给 REST worker）。
+GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧经子进程 env 递给 credential helper，
+见「push 的凭据」）。
