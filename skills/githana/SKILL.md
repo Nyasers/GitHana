@@ -411,26 +411,30 @@ GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没�
 1 项 account：`gpg_keys`；organization 与 enterprise **各 0 项**。
 **改 App 权限后老用户要重走一次 device flow** 才拿到新范围——不重新授权时新动词会 403。
 
-## 远端凭据（git 子进程）
+## 远端凭据（git 传输层）
 
 访问 github.com 的 git 动作（`push` / `fetch` / `pull` / `clone` / `ls-remote`）走 **本 App 自写的
 git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取远端动作也走它。
 
+- **两个 scheme**：取侧（`ls-remote` / `clone` / `fetch` / `pull`）走 `githana::`
+  （`url.githana::.insteadOf`），helper 报 `stateless-connect`；push 侧走 `githana-push::`
+  （`url.githana-push::.pushInsteadOf`），helper 报 `connect`。**两侧都走 helper**，都不是原生传输。
 - **git 把整条传输层交给 `git-remote-githana`**，helper 自己从 App 数据目录解出令牌、自己发
   HTTPS。**git 全程不接触令牌**——令牌不进命令行、不进 `git remote -v` 可见的配置、
   不进隔离 gitconfig、**不进 git 子进程的 env**。接线在 `tools/lib/remote-helper-shim.js`
-  （`insteadOf` + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，三件事同进同退）。
+  （两条前缀改写 + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，同进同退）。
   所以换台机器、本机没有该远端凭据时也能推/取。
-- helper 报 `connect`（全双工中继）：那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，
-  App 只搬字节 + 加 `Authorization`，所以**读写一条通吃**（报 `push` 是错的——实测 git 在那条
-  路上从不把 packfile 送进 helper 的 stdin）。
+- helper 报的能力是**按侧分**的：取侧 `stateless-connect`（那根 stdin/stdout 是 git 与远端服务
+  之间的原生协议管道，App 只搬字节 + 加 `Authorization`，**读写一条通吃**）；push 侧 `connect`
+  （有状态全双工，packfile 才从 stdin 进来——实测报 `push` 时 git 从不把 packfile 送进 helper 的
+  stdin）。
 - **注入范围**是上面那五条子命令（判据见 `tools/lib/remote-helper-shim.js` 的
   `shouldInjectRemoteHelper`），且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
   这类能改写运行环境的形态。`githana_git(action="exec")` 跑只读命令（`status` / `log` /
   `diff` / `remote -v`）时既没有令牌、也没有 helper 接线。
-- **未登录时**：helper 明确报错并引导「去设置页点『用 GitHub 登录』」，**不静默失败、
-  不回落系统凭据**。
-- **非 github.com 的远端**（GitLab、自建、ssh）：`insteadOf` 只重写前缀匹配的 URL，这些远端
+- **未登录时**：github.com 的远端**不回落系统凭据**——helper 明确报错并引导「去设置页点
+  『用 GitHub 登录』」，**不静默失败**。
+- **非 github.com 的远端**（GitLab、自建、ssh）：前缀改写只匹配 github.com 的 https URL，这些远端
   一律不受影响，走 git 原生路径与系统凭据。
 - 带 `.github/workflows/*` 改动的推送需要 `workflows: write`。它在当前授权集里，**已在位**；
   若被 GitHub 拒，说明令牌是加该权限之前签发的——到设置页重新登录即可。
@@ -449,7 +453,7 @@ git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取�
 | `当前目录不是 git 仓库` | `cwd` 指错了，或目录尚未 `git init` |
 | `git 未配置提交者身份` | 先 `git config user.name / user.email`（可用 `exec`） |
 | `远端拒绝了快进推送` | 先拉取合并，或用 `push` 的 `force=true`（`--force-with-lease`）安全覆盖 |
-| 远端认证失败 | 见上面「远端凭据」：已登录用 App 令牌，未登录走系统凭据；两者都给出对应引导 |
+| 远端认证失败 | 见上面「远端凭据」：github.com 的远端只有 App 令牌一条路，未登录时 helper 给登录引导（**不回落系统凭据**）；非 github 的远端才走系统凭据 |
 | `源分支 … 在远端不存在或没有新提交` | 分支还没推：先 `githana_git(action="push")` 再建 PR |
 | `path 必须以 / 开头` | `api` 的 `path` 是 api.github.com 之后的路径（带前导斜杠） |
 | `要给**绝对**路径` | release `upload` 的 `file` 与 release / run `download` 的 `path` / `dir`：这条路径由 worker 子进程使用，它的工作目录不是你的仓库，相对路径会指向别处 |
@@ -464,8 +468,8 @@ git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取�
 ## 其它约定
 
 - 令牌与私钥**不进**工具返回值、日志与设置页回显。GitHub 请求由随包的 REST worker 在子进程里
-  直发，令牌经 stdin 传给 worker；git 子进程的凭据经 env 递给 credential helper（同样不进
-  命令行与配置文件）。**上传 / 下载的 URL 里也不含令牌**——凭据走 `Authorization` 头。
+  直发，令牌经 stdin 传给 worker；git 侧的令牌由 remote helper 自己读
+  `<dataDir>/credential.json` 解 DPAPI——**git 子进程的 env 里没有它**（同样不进命令行与配置文件）。**上传 / 下载的 URL 里也不含令牌**——凭据走 `Authorization` 头。
 - **二进制通道的读写由 worker 代做**：`rest.js` 在 spawn 时按本请求点名的路径补
   `--allow-fs-read` / `--allow-fs-write`（**按目录**）。所以 App 进程自己读不到的东西
   （许可根之外的资产文件）也能传 / 也能落盘，而放行的范围就是调用方给的那几个目录——

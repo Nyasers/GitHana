@@ -21,7 +21,7 @@ export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTagOptional,
-  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；tag 优先不用它）"),
+  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；两个都给时 releaseId 优先）"),
   timeoutSec: params.timeoutSec,
 };
 

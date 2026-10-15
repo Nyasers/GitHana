@@ -58,14 +58,15 @@ export const sideEffect = {
 };
 
 /**
- * git 错误 → 中文引导。本动词**既 fetch 也 push**，两者走的传输路径不同（push 走 App 的
- * helper，fetch 走 git 原生），所以认证失败时两条都写清，让调用方知道该看哪一条。
+ * git 错误 → 中文引导。本动词**既 fetch 也 push**，两者都走本 App 自写的 remote helper
+ * （取侧 `githana::` 报 stateless-connect、push 侧 `githana-push::` 报 connect），所以认证失败
+ * 时给同一份引导，不把调用方引到两条不同的路上。
  */
 function gitGuide(text) {
   const s = String(text || "");
   if (/not a git repository/i.test(s)) return "当前目录不是 git 仓库：请在仓库目录内执行。";
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败（fetch 与 push 的路径不同）：\n  · push：" + GIT_AUTH_NOTE + "；\n  · fetch：" + GIT_FETCH_AUTH_NOTE + "。";
+    return "远端认证失败（fetch 与 push 都走本 App 的 remote helper）：\n  · " + GIT_AUTH_NOTE + "。\n  · " + GIT_FETCH_AUTH_NOTE + "。";
   }
   if (/non-fast-forward|fetch first|rejected/i.test(s)) {
     return "远端拒绝了推送：先拉取合并远端变更再重试。";

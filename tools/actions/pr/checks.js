@@ -8,8 +8,8 @@
  * gh 的 `pr checks` 就是这一族端点；`/commits/{ref}/status` 那条是老式的 commit status，
  * 与 check-runs 是两套，本动词只报 check-runs，并在输出里说明这一点。
  *
- * 只读：不改远端状态。真正的「等 CI 到终态」是另一件事（要注册后台任务，见 spec 阶段 2），
- * 本动词只回报**此刻**的结论。
+ * 只读：不改远端状态。真正的「等 CI 到终态」是另一件事（要注册后台任务）——那是
+ * `githana_run(action="watch", runId=…)`，本动词只回报**此刻**的结论。
  */
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import * as params from "../../lib/params.js";

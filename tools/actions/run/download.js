@@ -99,7 +99,7 @@ export async function run(input, ctx, { label }) {
   const artifactName = input?.artifactName !== undefined && input?.artifactName !== null ? String(input.artifactName).trim() : "";
   const overwrite = input?.overwrite === true;
   const out = [label + "（" + repoLabel + " · run #" + num + " · " + what + "）："];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, input?.branch));
+  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
 
   if (what === "logs") {
     const target = targetPathFor(input, "run-" + num + "-logs.zip");

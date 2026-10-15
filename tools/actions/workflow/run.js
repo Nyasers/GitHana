@@ -127,6 +127,6 @@ export async function run(input, ctx, { label }) {
   out.push("刚触发时列表里可能还没有它。要找回它：");
   out.push("  githana_run(action=\"list\", repo=\"" + repo + "\", workflow=\"" + wf + "\") 取最新一条（注意竞态）；");
   out.push("  或隔一会儿再列一次，取 created_at 晚于上面那个触发时刻的最新一条。");
-  out.push("「等到终态再回报」是任务型的 githana_run(action=\"watch\")，它属于阶段 2（本期未实现）。");
+  out.push("「等到终态再回报」用任务型的 githana_run(action=\"watch\")：runId 从上面那次 githana_run(action=\"list\", workflow=…) 的结果里拿（返回后台任务句柄，CI 到终态时结论回投本会话）。");
   return out.join("\n");
 }

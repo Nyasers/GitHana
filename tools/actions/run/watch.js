@@ -225,6 +225,9 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     // 但连续读不出（任务面已不可用/权限被撤）时不能无限盯——那时停掉并留一行日志，
     // 因为「结论回投」这条承诺的落点已经没了。
     const rec = await readTaskRecord(taskId);
+    // stop() 只清 pending timer：本次 tick 若已在飞，await 返回后必须自己让路——实例可能已被
+    // dispose，而新实例从 ctx.tasks.list() 恢复了同一条任务、也在 poll，两边同时 settle 会撞。
+    if (state.stopped) return;
     if (rec.error) {
       state.recordErrors += 1;
       taskLog("warn", "读宿主任务记录失败（第 " + state.recordErrors + " 次，task=" + taskId + "）：" + rec.error);
@@ -251,6 +254,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
 
     state.polls += 1;
     const cur = await readRun(repo, repoLabel, runId, timeoutSec);
+    if (state.stopped) return;
     if (cur.error) {
       // 单跳失败（网络抖动 / 限流）不放弃：记下来继续下一跳，到窗口末尾一并如实回报。
       state.readErrors += 1;
@@ -272,6 +276,8 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
         });
         if (u.error) taskLog("warn", "进度回写失败（task=" + taskId + "）：" + u.error);
       }
+      // 这次 await 期间可能已被 stop（dispose / 用户取消）：不再往任务面写结算。
+      if (state.stopped) return;
       if (runIsTerminal(cur.runJson)) {
         const text = conclusionTextFor(repoLabel, cur.runJson, cur.jobs);
         const res = await completeTask(taskId, {
@@ -294,6 +300,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     }
 
     if (Date.now() >= deadlineAt) {
+      if (state.stopped) return;
       const note = state.readErrors
         ? "（这次盯守中有 " + state.readErrors + " 跳读失败——窗口末尾能否到终态因此不确定）"
         : "";
@@ -441,6 +448,6 @@ export async function run(input, ctx, { label }) {
     "中途要停：在会话的后台任务项里取消——轮询器看到任务已终态就停（不会继续取数，也不会再回投）。",
     "要此刻的状态而不等：githana_run(action=\"view\", runId=" + num + ")。",
   ];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, input?.branch));
+  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
   return out.join("\n");
 }

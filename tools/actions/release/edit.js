@@ -46,7 +46,7 @@ export const schema = {
   tag: params.releaseTag
     .optional()
     .describe("要改的发布 tag（如 v1.2.0）。本动词不给「最近一个」的缺省——改状态位要不点名一个（tag 或 releaseId）"),
-  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；tag 优先）"),
+  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；两个都给时 releaseId 优先）"),
   draft: z.boolean().optional().describe("可选：true = 转成草稿，false = 发布出去（草稿不能设为 latest）"),
   prerelease: z.boolean().optional().describe("可选：true = 标为预发布，false = 取消预发布（预发布不能设为 latest）"),
   latest: z

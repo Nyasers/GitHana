@@ -20,7 +20,7 @@
  * `make_latest` 收 `true` / `false` / `legacy`（GitHub 的原话：`legacy` = 「使用旧式算法决定
  * 哪个 release 是 latest」）。`legacy` 不是「删除 latest 标记」——把它当 `false` 处理就改了语义。
  * 取值域的声明在 actions/release/create.js 的 `latest`（enum）；这里只把三个值渲染成可读串。
- * 改状态位的 `edit` 属阶段 2（保留位），所以它不在上文的「都要它」之列。
+ * 改状态位的 `edit` 走 PATCH 端点（按 release id），不经过这一跳，所以它不在上文的「都要它」之列。
  */
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "./rest.js";
 import { describeFailure } from "./gh.js";
