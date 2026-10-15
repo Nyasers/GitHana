@@ -418,18 +418,21 @@ git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取�
 
 - **两个 scheme**：取侧（`ls-remote` / `clone` / `fetch` / `pull`）走 `githana::`
   （`url.githana::.insteadOf`），helper 报 `stateless-connect`；push 侧走 `githana-push::`
-  （`url.githana-push::.pushInsteadOf`），helper 报 `connect`。**两侧都走 helper**，都不是原生传输。
+  （`url.githana-push::.pushInsteadOf` + `url.githana-push::.insteadOf`），helper 报 `connect`。
+  **两侧都走 helper**，都不是原生传输。这几条前缀改写**按子命令只注入对应一侧**：push 时不会
+  注入 `githana::`，否则配了显式 `pushurl` 的仓库会把 push 走到取侧 helper 上（它只会
+  `stateless-connect git-upload-pack`，推不了）。
 - **git 把整条传输层交给 `git-remote-githana`**，helper 自己从 App 数据目录解出令牌、自己发
   HTTPS。**git 全程不接触令牌**——令牌不进命令行、不进 `git remote -v` 可见的配置、
   不进隔离 gitconfig、**不进 git 子进程的 env**。接线在 `tools/lib/remote-helper-shim.js`
-  （两条前缀改写 + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，同进同退）。
+  （按子命令选一侧的前缀改写 + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，同进同退）。
   所以换台机器、本机没有该远端凭据时也能推/取。
 - helper 报的能力是**按侧分**的：取侧 `stateless-connect`（那根 stdin/stdout 是 git 与远端服务
   之间的原生协议管道，App 只搬字节 + 加 `Authorization`，**读写一条通吃**）；push 侧 `connect`
   （有状态全双工，packfile 才从 stdin 进来——实测报 `push` 时 git 从不把 packfile 送进 helper 的
   stdin）。
 - **注入范围**是上面那五条子命令（判据见 `tools/lib/remote-helper-shim.js` 的
-  `shouldInjectRemoteHelper`），且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
+  `remoteHelperSubcommand`），且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
   这类能改写运行环境的形态。`githana_git(action="exec")` 跑只读命令（`status` / `log` /
   `diff` / `remote -v`）时既没有令牌、也没有 helper 接线。
 - **未登录时**：github.com 的远端**不回落系统凭据**——helper 明确报错并引导「去设置页点

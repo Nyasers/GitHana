@@ -46,9 +46,10 @@
  *
  * **GitHub 的远端传输也走这条注入**：确实要访问 github.com 的 git 调用（`push` / `fetch` /
  * `pull` / `clone` / `ls-remote`）接上本 App 自写的 git remote helper
- * （tools/lib/remote-helper-shim.js）——NODE_OPTIONS 追加 `--allow-net`、注入
- * `url.githana::.insteadOf`、把 helper 包装目录前置进 PATH，三件事同进同退。
- * 令牌因此不经 git 子进程的 env（helper 自己从 dataDir 解 DPAPI 密文）。
+ * （tools/lib/remote-helper-shim.js）——NODE_OPTIONS 追加 `--allow-net`、注入**本次子命令那一侧**
+ * 的 URL 重写（取侧 `url.githana::.insteadOf`；push 侧 `url.githana-push::.insteadOf` +
+ * `::.pushInsteadOf`，两组二选一，理由见该文件头注）、把 helper 包装目录前置进 PATH，
+ * 三件事同进同退。令牌因此不经 git 子进程的 env（helper 自己从 dataDir 解 DPAPI 密文）。
  *
  * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
  * gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
@@ -59,7 +60,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
 import { ensureWrapper, ensureTmpDir, keyFilePath } from "./sign-shim.js";
-import { applyRemoteHelper, shouldInjectRemoteHelper } from "./remote-helper-shim.js";
+import { applyRemoteHelper, remoteHelperSubcommand } from "./remote-helper-shim.js";
 
 /**
  * 插件根目录（安装目录）。
@@ -349,7 +350,7 @@ export async function resolveBinExec(bin) {
  * 本 App 也不设它。
  *
  * **只有确实要访问远端的 git 调用才注入**（`credential` / `config` 这类能把 env 打印出来的子命令
- * 拿不到注入；判据见 remote-helper-shim.js 的 shouldInjectRemoteHelper）。不传 bin/args 即不注入。
+ * 拿不到注入；判据见 remote-helper-shim.js 的 remoteHelperSubcommand）。不传 bin/args 即不注入。
  *
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
@@ -389,11 +390,13 @@ export function buildBinEnv(baseEnv, resolved, call) {
     }
   }
   // 远端传输接线**不依赖 dataDir 的隔离配置是否就绪**，但依赖这次调用确实是 git 的取远端动作
-  // （见 shouldInjectRemoteHelper）。它在 gpg.program 之后追加配置对（GIT_CONFIG_* 是
+  // （见 remoteHelperSubcommand）。它在 gpg.program 之后追加配置对（GIT_CONFIG_* 是
   // 「成对追加」的，计数从当前值续），并把 helper 包装目录前置进 PATH——最后前置，所以它排在最前。
+  // 子命令**只解析一次**：它既是「注不注入」的判据，也是「注入取侧还是 push 侧」的选择。
   const callArgs = call && Array.isArray(call.args) ? call.args : null;
-  if (callArgs && shouldInjectRemoteHelper(call && call.bin, callArgs)) {
-    applyRemoteHelper(env);
+  const helperSub = callArgs ? remoteHelperSubcommand(call && call.bin, callArgs) : "";
+  if (helperSub) {
+    applyRemoteHelper(env, helperSub);
   }
   return env;
 }
