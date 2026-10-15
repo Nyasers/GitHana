@@ -32,6 +32,10 @@
  *   - GitHub 域的 HTTPS 也走子进程：REST worker 由 tools/lib/rest.js 用 process.execPath
  *     拉起，**spawn 时显式补 `--allow-net`**（权限模型会经 NODE_OPTIONS 传染给子进程，
  *     而放行项不会跟着走）。这一层不走清单的 network 声明——那是宿主代发，令牌会穿 IPC。
+ *   - 后台任务面：`githana_run(action="watch")` 需要清单能力 `app/tasks.manage`
+ *     （宿主授予后才给 ctx.tasks）。它用 ctx.tasks.create 建会话级任务、把盯守坐标写进
+ *     metadata.githana，并在 apply 阶段用 ctx.tasks.list() 把未终结的任务接回来
+ *     （见 tools/lib/tasks.js）。
  *
  * 数据与配置：
  *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / 加密的签名密钥 / 公钥落盘）。
@@ -55,7 +59,8 @@ import * as githanaApi from "./tools/githana-api.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
-import { setSecretLoader, setFreshChecker, primeToolContext } from "./tools/lib/context.js";
+import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
+import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
 import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
@@ -151,6 +156,11 @@ export function apply(ctx) {
   // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir。
   primeToolContext(appCtx);
 
+  // 宿主后台任务面（`githana_run(action="watch")` 用）：登记一次，工具调用时从单例同步取用。
+  // 宿主只在授予 app/tasks.manage 时才给 ctx.tasks——拿不到就登记 null，调用时会报可读错误
+  // （见 tools/lib/tasks.js 的 taskCapabilityError），不空转。
+  primeTaskSurface(ctx.tasks, log);
+
   // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
   // 解密是异步的，而工具调用需要在发请求前同步知道“有没有令牌”；挂在 initToolContext
   // 首次调用之后，只跑一次。
@@ -158,6 +168,9 @@ export function apply(ctx) {
   // 令牌保活：initToolContext 每次都跑，但只在「剩余有效期不足 5 分钟」时才真正发刷新请求
   // （单飞，失败不抛——无其它凭据可降级，后续调用会如实报未授权）。
   setFreshChecker(() => ensureFresh());
+  // 恢复后台任务前先把上下文初始化一次（首次会跑 DPAPI 解密把令牌放进进程缓存）：
+  // 恢复出来的轮询器第一跳就要发 GitHub 请求，而 apply 阶段还没有任何工具调用替它做这件事。
+  setTaskPreparer(() => initToolContext(appCtx));
 
   const disposers = TOOLS.map((mod) =>
     ctx.tools.register({
@@ -171,6 +184,14 @@ export function apply(ctx) {
     }),
   );
   log("info", `工具注册完成（${TOOLS.length} 个）：${TOOLS.map((m) => m.name).join(", ")}`);
+
+  // 未终结的后台任务（如 `githana_run(action="watch")` 的盯守）在 App 换代后从**宿主任务记录**
+  // 里接回来：坐标写在 metadata.githana，各动词注册的恢复实现按 kind 认领。这**不在回调内等**
+  // （那条纪律只约束工具回调）——但也不必阻塞 apply：恢复失败只记日志，任务记录仍在那里，
+  // 下一个实例还会再试一次。
+  void Promise.resolve()
+    .then(() => resumePendingTasks())
+    .catch((e) => log("warn", "恢复未终结后台任务异常：" + String((e && e.message) || e)));
 
   let unregisterRoutes = null;
   if (ctx.routes && typeof ctx.routes.register === "function") {
@@ -194,6 +215,10 @@ export function apply(ctx) {
   return () => {
     if (disposed) return;
     disposed = true;
+    // 先停进程内的定时器：App 卸载 / 重载后本进程不再有任何东西推进那些任务，
+    // 留着定时器只会往一个已经换代的任务面上写。**宿主任务记录不动**——它是恢复的事实源，
+    // 下一个实例会在 apply 里用 ctx.tasks.list() 把未终结的记录接回去（见 tools/lib/tasks.js）。
+    try { stopAllPollers(); } catch { /* 忽略 */ }
     for (const d of disposers) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }

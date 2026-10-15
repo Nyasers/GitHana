@@ -5,20 +5,21 @@ description: "GitHana: local git and GitHub operations. Read before any githana_
 
 # githana：用法手册
 
-> **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成十个名词工具：`githana_git`（exec /
-> commit / push）、`githana_repo`（create / list / view / clone / fork / sync / gitignore /
+> **本手册正文待重写（阶段 2 的 2b）。** 工具面已按 gh 的组分成十个名词工具：`githana_git`
+> （exec / commit / push）、`githana_repo`（create / list / view / clone / fork / sync / gitignore /
 > license / read-dir / read-file）、`githana_pr`（create / list / view / status / diff / checks /
-> merge / review / comment / close / reopen / revert / edit / checkout / lock / unlock /
+> ready / merge / review / comment / close / reopen / revert / edit / checkout / lock / unlock /
 > update-branch）、`githana_issue`（create / list / view / status / edit / comment / close /
 > reopen / delete / develop / transfer / lock / unlock / pin / unpin）、`githana_release`（create /
-> list / view / delete / upload / download / delete-asset / verify / verify-asset；**edit 是保留位**）、
-> `githana_run`（list / view / rerun / cancel / delete / download；**watch 是保留位**）、
+> list / view / edit / delete / upload / download / delete-asset / verify / verify-asset）、
+> `githana_run`（list / view / watch / rerun / cancel / delete / download）、
 > `githana_workflow`（list / view / run / enable / disable）、`githana_cache`（list / delete）、
 > `githana_label`（clone / create / edit / delete / list）、`githana_api`（单动词，**不带 action**，
 > 必填 `path`）。
 > 下面各节仍按旧的「写面 / 只读面」两个入口描述，动词名与参数表在改名前后一致
 > （`pr_create` → `githana_pr(action="create")` 等），但**工具名与分面规则已经不对**，
-> 以工具自身的 `parameters` 为准。
+> 以工具自身的 `parameters` 为准。三个已补齐的能力空洞（`pr ready` / `release edit` /
+> `run watch`）见下面「已补齐的三个能力空洞」一节。
 
 ## 权限缺口（登记）
 
@@ -310,7 +311,8 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 | `缺少 action` / `未知 action` | 报错会**列出本面可用值**；不猜、不回落默认分支 |
 | `参数校验失败（共 N 处）` | 参数形状不对（多余键、类型不符、超出 enum）。下面是**全部** issues，每行 `字段路径 [code] 英文原文`——`path` 指到具体字段，`code` 是 zod 的错误码；按路径逐条改正后重试 |
 | `它属于另一个面` | 该 action 在另一个入口；报错里直接给出改用的工具与 action |
-| `未实现` | 该 action 是保留位（见下），本期未实现 |
+| `未实现` | 该 action 是保留位（当前为空；见文末「受限动词」一节）。这条通路留着给下一次「认得出但参数契约还没定」的动词 |
+| `无法建立后台任务：宿主没有授予 app/tasks.manage 能力` | `githana_run(action="watch")` 需要宿主后台任务面。用 `githana_run(action="view")` 看此刻状态；要恢复本动词需在宿主里批准该能力后重装 / 重启本 App |
 | `尚未完成 GitHub App 授权` | 到 GitHana 设置页点「用 GitHub 登录」后重试 |
 | `需要重新授权` | 上次令牌刷新失败（refresh_token 失效或授权被撤销），到设置页重新授权 |
 | `当前目录不是 git 仓库` | `cwd` 指错了，或目录尚未 `git init` |
@@ -323,10 +325,104 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 > **每个 action 只接受自己声明的字段。** 参数表由 zod 定义生成、运行期也用同一份校验，
 > 所以多传一个不属于该 action 的键会被当场拒（并列出 issues），不会被静默忽略。
 
-## 保留位与受限动词（本期）
+## 已补齐的三个能力空洞（阶段 2a）
 
-`action` 候选里有几个动词**能定位、能给地址，但取不到字节**；还有两个动词只在保留位里
-（认得出、调用会明确回报「未实现」）。两档的分辨见 `tools/lib/surface.js` 的 `reserved` 与
+这三个动词此前是「认得出但没实现」的保留位，现在都是真实动词、都在各自工具的 `action`
+候选里。它们的共同点是**形态与同工具的其它动词不同**，所以逐个写清怎么调、边界在哪。
+
+### `githana_pr(action="ready")` — 草稿 PR 转 ready（可反向）
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `repo` | 否 | owner/repo；缺省从 `cwd` 推断 |
+| `cwd` | 否 | 仓库绝对路径（`prNumber` 缺省时用它取当前分支） |
+| `prNumber` | 否 | 正整数；缺省 = 当前分支关联的打开 PR（此时需要 `cwd`） |
+| `undo` | 否 | `true` = 反向：把 PR **转回草稿**（`convertPullRequestToDraft`）；缺省 / `false` = 转 ready |
+| `timeoutSec` | 否 | 默认 60，上限 600 |
+
+```jsonc
+{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42 }                    // 草稿 → 可审查
+{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42, "undo": true }       // 可审查 → 草稿
+```
+
+- **不暴露通道差异**：内部先 REST `GET /pulls/{n}` 取 `node_id`，再发 GraphQL 变更
+  （`markPullRequestReadyForReview` / `convertPullRequestToDraft`）。原因是一条实测事实：
+  **un-draft 只有 GraphQL 能做**——REST `PATCH /pulls/{n}` 带 `{draft:false}` 返回 200 但
+  `isDraft` 仍是 `true`（静默不生效），而 `POST /pulls/{n}/ready_for_review` 返回 404。
+- **幂等**：已经是目标状态就不发变更，如实回报「本来就是」，不发一次注定被拒的请求。
+- **什么时候用**：草稿 PR 写完了要请人审查用这个（`undo` 缺省）；写完但还不能合、
+  要先藏起来用 `undo=true`。只是改标题 / 正文用 `edit`，要合并不是它。
+- 支撑权限 `pull_requests: write`。
+
+### `githana_release(action="edit")` — 改发布的状态位
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `repo` / `cwd` / `timeoutSec` | 否 | 同上 |
+| `tag` | 否 | 要改的发布 tag（如 `v1.2.0`）；与 `releaseId` 二选一 |
+| `releaseId` | 否 | 按数字 id 定位（与 `tag` 二选一；`tag` 优先） |
+| `draft` | 否 | `true` = 转成草稿，`false` = 发布出去 |
+| `prerelease` | 否 | `true` = 标为预发布，`false` = 取消预发布 |
+| `latest` | 否 | **三值**：`true` / `false` / `legacy`（旧式算法决定哪个是 latest） |
+
+```jsonc
+{ "action": "edit", "repo": "liliMozi/openhanako", "tag": "v1.3.0", "draft": false }        // 草稿 → 发布
+{ "action": "edit", "repo": "liliMozi/openhanako", "tag": "v1.3.0", "prerelease": true, "latest": "false" }
+{ "action": "edit", "repo": "liliMozi/openhanako", "releaseId": 12345678, "latest": "legacy" }
+```
+
+- **`legacy` 不是「取消 latest」**：它的原文含义是「用旧式算法决定哪个 release 是 latest」
+  （REST 的 `make_latest` 就是这三个值）。把它当 `false` 处理会改掉语义。
+- **一次调用至少给一个状态位**；一个都不给会返回引导，不发一次注定 422 的请求。
+- **不给「最近一个发布」的缺省**：改状态位不吃危险默认值，必须点名 `tag` 或 `releaseId`
+  （`githana_release(action="list")` 看有哪些）。
+- **同时设 `latest=true` 与 `draft` / `prerelease` 会被当场拒**：GitHub 不接受草稿或预发布
+  作为 latest。分两次调用——先定 `draft` / `prerelease`，再单独设 `latest`。
+- **只改状态位**：标题 / 正文 / 移动 tag 是发布**内容**，不属这个动词。要改它们走
+  `githana_api` 打 `PATCH /repos/{owner}/{repo}/releases/{id}`（端点在能力面上），
+  或到 GitHub 网页的 releases 页。
+- 支撑权限 `contents: write`。
+
+### `githana_run(action="watch")` — 盯 CI 到终态（**返回句柄，不返回结论**）
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `repo` / `cwd` | 否 | 同上 |
+| `runId` | 否 | 正整数；缺省 = 最近一次 run（`branch` 过滤，缺省取 `cwd` 的当前分支） |
+| `branch` | 否 | `runId` 缺省时用来挑「最近一次」 |
+| `intervalSec` | 否 | 轮询间隔秒，默认 15（范围 5~300） |
+| `watchSec` | 否 | 盯守窗口秒，默认 3600（范围 60~21600）；到点仍未终结会如实回报，不无限盯 |
+| `timeoutSec` | 否 | 单次 REST 请求的超时，默认 60 |
+
+```jsonc
+{ "action": "watch", "repo": "liliMozi/openhanako", "runId": 1234567890 }
+{ "action": "watch", "repo": "liliMozi/openhanako", "branch": "fix/x", "intervalSec": 30, "watchSec": 7200 }
+```
+
+- **它返回的是一个任务句柄，不是 CI 结论。** 回执里给 `taskId` 与此刻的 run 状态，调用到此
+  结束；CI 到终态时宿主把**结论贴回本会话的下一个输入点**（宿主后台任务的 `next-step` 档位）。
+  所以不要为等它而结束回合、也不要隔一会儿再 `watch` 一次。
+- **为什么不能直接等**：CI 以分钟计，占着工具回调等会堵住宿主通道（工具回调有超时）。
+  本动词因此把「等」放进宿主后台任务：`ctx.tasks.create({ scope: "session",
+  delivery: "next-step", chipVisibility: "show" })`。这条路径需要清单能力 `app/tasks.manage`。
+- **能力未授予时**：返回可读错误，指明缺 `app/tasks.manage` 并给出替代做法（用 `view` 看
+  此刻状态），**不空转**（不会建出一个永远没有东西推进的任务）。
+- **中途要停**：在会话的后台任务项里取消。轮询器每一跳先读宿主任务记录，看到任务已经是终态
+  就停止取数、也不再回投。
+- **App 重载后恢复**：盯守坐标（repo / runId / 间隔 / 截止时刻）写在宿主任务记录的
+  `metadata.githana` 里，App 换代后在 `apply` 阶段用 `ctx.tasks.list()` 把未终结的记录接回去。
+  本 App **不落私有状态文件**——宿主任务记录就是事实源。
+- **到点没终结**：窗口结束时任务结算为失败并给出原文（「盯守窗口已到点」），说明这不是 CI
+  失败、要继续盯就再调一次 `watch`。run 中途被 `delete` 掉同理，会明确说 run 已不存在。
+- **与 `view` 的分界**：`view` 报**此刻**的状态（要「等」就自己隔一会儿再看一次）；
+  `watch` 报**到终态那一刻**的结论，且不占调用方的回合。
+- 支撑权限 `actions: write`（轮询只读 run 与 jobs）。
+
+## 受限动词（本期）
+
+`action` 候选里有几个动词**能定位、能给地址，但取不到字节**。这一档与上面「已补齐的三个能力
+空洞」不同：那些是**没实现**，这些是**通道不存在**——参数形态清楚（文件路径、tag、资产名…），
+调用时给出**具体**的限制与替代路径。两档的分辨见 `tools/lib/surface.js` 的 `reserved` 与
 `tools/actions/release/upload.js` 头注。
 
 **二进制受限期：在 `action` 候选里，调用时给具体限制与替代路径**
@@ -353,29 +449,20 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 > 而 gh 的「来源证明（attestation）」校验做不到：`attestations` 权限不在授权集里，且 sigstore
 > 验签需要一个签名验证实现，与「服务端零 npm 依赖」冲突。要那一层用 `gh attestation verify`。
 
-**保留位：不进 `action` 候选，只留 reserved 文案**（连参数契约都还没定，属阶段 2 能力空洞）
-
-| 工具 | action | 状态 | 现在怎么做 |
-|---|---|---|---|
-| `githana_release` | `edit` | 未实现 | 改 `draft` / `prerelease` / `latest`（`latest` 取 `true\|false\|legacy` 三值）；到网页改，或走 `githana_api` 打 `PATCH /repos/{owner}/{repo}/releases/{id}` |
-| `githana_run` | `watch` | 未实现 | 任务型（返回句柄、CI 到终态回投来源会话），要 `app/tasks.manage`；现在用 `githana_run(action="view")` 隔一会儿看一次 |
-
-这两个动词**在别的工具上被错投时会指名过来**（`githana_cache(action="watch")` → 「watch 属于
-githana_run」），但它们的值不在 `action` 候选里——候选里放一个说不清怎么用的值只是给模型一个
-试错入口。
-
-`run watch` 不是「多一个 api 调用」：GitHub 没有面向本地 App 的 webhook，只能轮询；轮询占着
-工具调用会撞宿主回调的 30 秒上限，必须注册后台任务并在完成后唤醒会话，形状与 DSHana 的
-open / get 同构。那需要新增清单能力声明（D8 的 `app/tasks.manage`），且返回契约要能容纳
-「返回句柄而非结果」这一档——所以留位是为了让返回契约现在就留出这个口。
+**保留位：当前为空。** 前一批的三个能力空洞（`pr ready` / `release edit` / `run watch`）都已
+实现并进 `action` 候选，见上面「已补齐的三个能力空洞」。`createSurface` 的 `reserved` 通路仍然
+留着（`tools/lib/surface.js`），留给下一次出现「认得出、但参数契约还没定」的动词：那种值放进
+候选只是给模型一个试错入口，它既说不清怎么用、调用也只能得到「未实现」。
 
 > 旧的 `githana_read` / `githana` 两个入口上的 `ci_status` / `ci_watch` 保留位随那两个工具一起
-> 移除：CI 现在是 `githana_run` / `githana_workflow` / `githana_cache` 三组真实动词。
+> 移除：CI 现在是 `githana_run` / `githana_workflow` / `githana_cache` 三组真实动词，
+> `githana_run(action="watch")` 就是其中的「等 CI 到终态」。
 
 ## 其它约定
 
 - 令牌与私钥**不进**工具返回值、日志与设置页回显。GitHub 请求由随包的 REST worker 在子进程里
   直发，令牌经 stdin 传给 worker，不出 App 边界。
-- 本 App 只申请 `app/tools.expose-to-model` 与 `app/process.spawn`；没有 `network` 声明
+- 本 App 申请 `app/tools.expose-to-model`、`app/process.spawn` 与 `app/tasks.manage`
+  （最后一项给 `githana_run(action="watch")` 的后台任务用），**没有** `network` 声明
   （那是宿主代发的通道，令牌会穿 IPC）。
 - GPG 的密钥生成与公钥查看**不在工具面**：生成不可逆，只在设置页由用户点按钮触发。

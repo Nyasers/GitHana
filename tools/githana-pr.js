@@ -6,14 +6,16 @@
  *
  * 动词表取自 spec gh-cli-parity D2 的 `githana_pr` 行（gh 手册原文），支撑权限
  * `pull_requests`；merge / revert / update-branch 另需 `contents`，checks 需 `checks`
- * （三项都在 D7 的已授权集里）。`ready` **不在本批**：把草稿 PR 转 ready 只有 GraphQL 能做
- * （REST 的 PATCH draft:false 实测返回 200 但不生效），属于阶段 2 的能力空洞，先不声明。
+ * （三项都在 D7 的已授权集里）。`ready` 是**只有 GraphQL 能做**的动词（把草稿 PR 转 ready：
+ * REST 的 PATCH draft:false 实测返回 200 但不生效、ready_for_review 端点返回 404），
+ * 所以它的动作实现内部两条通道并用（REST 取 node_id → GraphQL 变更），对外仍是一个动词、
+ * 一份返回结构（AC6 / AC11）。
  *
  * 路由与边界（缺少 action / 未知 action / 走错名词）在 tools/lib/surface.js，各动词实现在
  * tools/actions/pr/，用法细节在随包手册 skills/githana/SKILL.md。
  *
  * 权限：external_side_effect——本工具里 create / merge / comment / close / reopen / review /
- * edit / lock / unlock / update-branch / revert / checkout 都会改状态，整体只能按写面声明。
+ * edit / ready / lock / unlock / update-branch / revert / checkout 都会改状态，整体只能按写面声明。
  * （只读的 view / status / diff / checks / list 因此也要过审；读免审那条路在收敛前由独立的
  * 只读面承担，名词分家后按 gh 的组走。）
  */
@@ -23,6 +25,7 @@ import * as view from "./actions/pr/view.js";
 import * as status from "./actions/pr/status.js";
 import * as diff from "./actions/pr/diff.js";
 import * as checks from "./actions/pr/checks.js";
+import * as ready from "./actions/pr/ready.js";
 import * as merge from "./actions/pr/merge.js";
 import * as review from "./actions/pr/review.js";
 import * as comment from "./actions/pr/comment.js";
@@ -41,9 +44,10 @@ export const name = "githana_pr";
 
 export const description = [
   "GitHana GitHub PR：查询与改动 Pull Request。",
-  "action=create / list / view / status / diff / checks / merge / review / comment / close / reopen",
+  "action=create / list / view / status / diff / checks / ready / merge / review / comment / close / reopen",
   "/ revert / edit / checkout / lock / unlock / update-branch。",
-  "只读的取数用 list / view / status / diff / checks；本地 git 在 githana_git，仓库在 githana_repo，",
+  "只读的取数用 list / view / status / diff / checks；ready 改草稿状态位（undo=true 反向转回草稿）。",
+  "本地 git 在 githana_git，仓库在 githana_repo，",
   "issue 在 githana_issue，发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，",
   "标签在 githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
@@ -57,6 +61,7 @@ const ACTIONS = [
   { module: status },
   { module: diff },
   { module: checks },
+  { module: ready },
   { module: merge },
   { module: review },
   { module: comment },
@@ -74,7 +79,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana PR 动作：多数动词会修改 GitHub 远端状态（创建 / 合并 / 评论 / 关闭 / 审查 / 编辑 / 锁定 / 更新分支），revert 与 checkout 还会改动本地仓库，执行前请确认 action 与参数",
+    "GitHana PR 动作：多数动词会修改 GitHub 远端状态（创建 / 合并 / 评论 / 关闭 / 审查 / 编辑 / 锁定 / 更新分支 / 改草稿状态位），revert 与 checkout 还会改动本地仓库，执行前请确认 action 与参数",
   ruleId: "github-toolkit-githana-pr",
 };
 
