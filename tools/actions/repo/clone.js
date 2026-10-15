@@ -98,8 +98,11 @@ export async function run(input, ctx, { label }) {
   if (input?.branch !== undefined && input?.branch !== null && String(input.branch).trim() !== "") {
     args.push("--branch", String(input.branch).trim());
   }
-  // 用 https 形态：本 App 不注入凭据（走系统 Credential Manager），令牌不进命令行。
-  args.push("https://github.com/" + repo + ".git", dirName);
+  // `--`：URL 与目录名都是**位置参数**，直接拼进去时 `-` 开头的目录名会被 git 当选项
+  // （`git clone <url> -evil-dir` → `error: unknown switch 'e'`）。分隔符之后的 token 一律按位置参数解释。
+  // 选项（--depth / --branch）必须留在 `--` 之前：`--branch` 之后的 token 由 git 自己吸收为分支名
+  // （实测 `--branch '-x'` 被当分支名而非注入），挪到 `--` 之后就变成位置参数了。
+  args.push("--", "https://github.com/" + repo + ".git", dirName);
 
   const r = await runCli("git", args, { cwd, timeoutSec: input?.timeoutSec });
   const dest = path.join(cwd, dirName);

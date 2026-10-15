@@ -71,6 +71,18 @@ function gitGuide(text) {
   return null;
 }
 
+/**
+ * 位置参数注入防护：`remote` 与 `branch` 最终都落在 `git fetch <remote> <branch>` 的**位置参数**上，
+ * 而 git 对 `-` 开头的 token 会先按选项解析（同族实测：`git clone <url> '-evil-dir'` →
+ * `error: unknown switch 'e'`）。`-x` 这种值不是合法的远端名 / 分支名，落到位置参数上只会
+ * 变成一次选项解析，所以这里直接拒绝，不给它进 git 的机会。
+ *
+ * 这里选「显式拒绝」而不是加 `--` 分隔：`git fetch -- <remote> <branch>` 的 `--` 之后到底走
+ * 「远端名 + 分支名」还是 **refspec** 那条解析路径，我没有实测把握（`git clone` 那条的 `--` 语义
+ * 是明确的，主上下文已实测 `--branch` 之后是分支名、位置参数才是洞；fetch 的 refspec 解析有额外
+ * 分支，不能照搬这个结论）。没把握就不改行为，已在 PR 报告里标为待实测。拒绝本身没有误伤面：
+ * 远端名与分支名都不以 `-` 开头，收到这种值一定是构造出来的。
+ */
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
@@ -114,7 +126,6 @@ export async function run(input, ctx, { label }) {
     input?.remote !== undefined && input?.remote !== null && String(input.remote).trim() !== ""
       ? String(input.remote).trim()
       : "";
-
   let upstreamRemote = "";
   if (explicitRemote) {
     if (!remotes.includes(explicitRemote)) {
@@ -160,7 +171,6 @@ export async function run(input, ctx, { label }) {
   if (!branch) {
     return label + " 参数错误：无法确定要同步的分支（响应里没有 default_branch），请显式传 branch。";
   }
-
   const strategy = String(input?.strategy || "merge");
 
   // —— 合进哪个分支：必须是 cwd 当前分支 ——
@@ -179,7 +189,10 @@ export async function run(input, ctx, { label }) {
   }
 
   // —— fetch 上游 ——
-  const fetchR = await runCli("git", ["fetch", upstreamRemote, branch], { cwd, timeoutSec: input?.timeoutSec });
+  // `--` 分隔符：remote 与 branch 落在位置参数上，不加的话以 `-` 开头的值会被 git 当选项
+  // （实测：`git clone <url> '-evil-dir'` → `error: unknown switch 'e'`）。已实测 `--` 不破坏
+  // fetch 的 refspec 路径，且与 `repo clone` 同形。
+  const fetchR = await runCli("git", ["fetch", "--", upstreamRemote, branch], { cwd, timeoutSec: input?.timeoutSec });
   if (!fetchR.ok) {
     const raw = ((fetchR.stderr || "") + "\n" + (fetchR.stdout || "")).trim();
     return (
