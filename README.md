@@ -75,7 +75,8 @@ tools/
                         #   run/ workflow/ cache/ label/ + api.js
   lib/                  # 共享层：surface（路由 + zod 参数校验的唯一入口）/ verbs（跨工具动词索引）
                         #   / params / gh / pr / issue / repo / ci / release / label / transfer
-                        #   / exec / rest / rest.worker / context / bin / git-cred / identity / github / sign-shim
+                        #   / exec / rest / rest.worker / context / bin / remote-helper-shim
+                        #   / git-remote-helper / identity / github / sign-shim
 skills/githana/SKILL.md # 随包手册（逐 action 参数 + 什么时候用 + 能力边界与逃生门）
 ```
 
@@ -91,21 +92,32 @@ skills/githana/SKILL.md # 随包手册（逐 action 参数 + 什么时候用 + �
 > 收敛是**重构不是改语义**：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
 > `pr create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
 
-### push 的凭据
+### 远端凭据（git 传输层）
 
-`githana_git(action="push")`（以及 `clone` / `sync` / `pr checkout` / `pr revert`）**注入 App 令牌**：
-GitHub App 令牌经 **credential helper** 接进 git 子进程，只对 github.com 的 https 远端生效。
+访问 github.com 的 git 动作（`push` / `fetch` / `pull` / `clone` / `ls-remote`）走 **本 App 自写的
+git remote helper**：git 把整条传输层交给 `git-remote-githana`（`tools/lib/git-remote-helper.mjs`），
+helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**——这修掉了 credential helper 形态的
+两个洞（本机已有系统凭据时系统那份先应答、push 成功后 git 会把明文令牌交给系统 helper 的 `store`）。
 
-- 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig。它经子进程
-  env 递给一个只回 `username` / `password` 的 helper 片段（`tools/lib/git-cred.js`，走
-  `buildBinEnv` 的 `GIT_CONFIG_*` 机制——与 `gpg.program` 同一套注入口）。
-- 为什么不拼进 URL：git 连不上时会把**完整 URL 打进 stderr**，那是工具返回值的一部分。
-- **只有确实要访问远端的 git 调用才注入**（`push` / `fetch` / `pull` / `clone` / `ls-remote`，
-  且命令行不带 `-c` / `--exec-path` / `ext::` 这类能改写运行环境的形态）：`exec` 是任意参数透传，
-  而凭据助手本身就能把 env 打出来。注入时还会摘掉 git 的 HTTP 调试变量（`GIT_TRACE_CURL` 等会
-  把 `Authorization` 头 dump 进 stderr）。
-- 未登录时**不注入**，git 回落系统 Git Credential Manager，与登录前一致；认证失败给出去设置页
-  登录的引导，不静默失败。
+- helper 报 `connect`（全双工中继），**不报 `push` / `fetch`**：实测报 `push` 时 git 从不把
+  packfile 送进 helper 的 stdin（`list for-push` → `push <src>:<dst>` 之后 12 秒静默、0 字节）。
+  `connect` 之后那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，本项目只搬字节、
+  加 `Authorization`，不解析协议内容——读写因此一条通吃。
+- 接线在 `tools/lib/remote-helper-shim.js`（`buildBinEnv` 调用），三件事**同进同退**：
+  `NODE_OPTIONS` 追加 `--allow-net`（helper 继承权限模型，不给它连不上网）、注入
+  `url.githana::.insteadOf = https://github.com/`、把 helper 包装目录前置进 `PATH`。
+  另把 `<dataDir>` 经 `GITHANA_DATA_DIR` 递给 helper。
+- 包装脚本两个平台都是**无扩展名**的 `#!/bin/sh` 脚本（`<dataDir>/.runtime-tmp/remote-helper/`）。
+  实测 git 找 remote helper 不走 PATHEXT——Windows 上写成 `.cmd` **不会被调起**
+  （报 `git: 'remote-githana' is not a git command`），所以由 git for Windows 自带的 msys sh
+  解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
+- 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
+  **不进** git 子进程的 env：helper 自己读 `<dataDir>/credential.json` 解 DPAPI（`lib/dpapi.js`）。
+- 不改主机文件：`insteadOf` 走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
+  `git remote -v` 看到的仍是原 URL。
+- 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
+  这类能改写运行环境的形态：`exec` 是任意参数透传，而这些形态能把 `insteadOf` 与 `PATH` 一起换掉。
+- 未登录时 helper 给出去设置页登录的引导，**不静默失败、不回落系统凭据**。
 - 带 `.github/workflows/*` 改动的推送需要 `workflows: write`（已在授权集里，见 D7）。
 
 ### 已从工具面退役的名字
@@ -575,7 +587,8 @@ app.js                   # apply(ctx)：注册 10 个名词工具 + 3 组路由�
 tools/                   # 10 个名词工具入口（githana-git/-repo/-pr/-issue/-release/-run/-workflow/-cache/-label/-api）
                          #   + actions/（一个 action 一个文件，按组分子目录）+ gpg-keygen.js（仅设置页动作）
                          #   + lib/（surface / verbs / params / gh / pr / issue / repo / ci / release / label
-                         #     / exec / rest / rest.worker / context / bin / git-cred / identity / github / sign-shim）
+                         #     / exec / rest / rest.worker / context / bin / remote-helper-shim
+                         #     / git-remote-helper / identity / github / sign-shim）
 skills/githana/SKILL.md  # 随包手册：逐 action 参数 + 什么时候用 + 能力边界与逃生门（工具描述只留路由信息）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
@@ -609,11 +622,19 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
   `process.permission` 判在不在。
 - **白名单在 worker 内自查**：`--allow-net=<host>` 的收窄语法在 v26.8.1 **不生效**（实测
   `--allow-net=api.github.com` 下请求 example.com 仍成功）。运行时的门只能全开，所以 worker 把门
-  收窄到 `api.github.com` 与 `github.com`，其余一律在发请求前拒。
+  收窄到 `api.github.com` / `github.com` / `uploads.github.com`（资产上传端点另在一个域），
+  其余一律在发请求前拒。
 - **重定向逐跳校验**：不用 `fetch(..., { redirect: "follow" })`——那等于把起始 URL 的白名单作废，
   任意一个 302 都能把请求引到别处（`/repos/{o}/{r}/tarball/x` 就 302 到 `codeload.github.com`）。
-  改为 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`），跳数上限 5；
+  改为 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`、
+  `release-assets.githubusercontent.com`、`objects.githubusercontent.com`，以及
+  `*.blob.core.windows.net` 这条**后缀**——Azure 存储账号在子域位，精确匹配列不全），跳数上限 5；
   离开 `api.github.com` 后不带走 `Authorization`（内容域不需要凭据）。
+- **二进制通道**：请求带 `file`（本地路径）→ worker 用 `fs.createReadStream` 作 fetch body 并显式带
+  `Content-Length`；请求带 `toFile`（本地路径）→ 响应流式写盘，不按 UTF-8 解码、不截断。
+  这两条路要读写本地文件，所以 `rest.js` 在 spawn 时按请求里的路径补 `--allow-fs-read` /
+  `--allow-fs-write`（**按目录**，与 `--allow-net` 同一个门槛：只在权限模型下合法）。
+  发布资产的 upload / download 与 run 的 download 走的就是它。
 - **无正文响应是一等公民**：204/304/HEAD 没有 body，`res.body` 为 `null`。这类响应按
   `{ ok: true, json: null, text: "" }` 回报，不是错误——DELETE 成功（删评论 / 删分支）本来就是 204，
   当成错误会让调用方去重试一个已经成功的写操作。
