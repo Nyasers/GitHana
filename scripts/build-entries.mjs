@@ -2,14 +2,15 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * scripts/build-entries.mjs — 构建 bin/ 下的独立入口（gpg.shim.mjs / rest.worker.mjs）
- * 与随包库文件（zod.min.mjs）。
+ * scripts/build-entries.mjs — 构建 bin/ 下的独立入口（gpg.shim.mjs / rest.worker.mjs /
+ * git-remote-helper.mjs）与随包库文件（zod.min.mjs）。
  *
  * ## 这一批是什么
  *
  * `bin/` 下的入口分三类：
  *   · `app.mjs` —— App 主体，由 build-server.mjs 单独打（宿主要缓存它，产物要逐字节可复现）；
- *   · `gpg.shim.mjs` / `rest.worker.mjs` —— **被 spawn 出去的独立进程**，各自单文件；
+ *   · `gpg.shim.mjs` / `rest.worker.mjs` / `git-remote-helper.mjs` —— **被 spawn 出去的
+ *     独立进程**，各自单文件；
  *   · `openpgp.min.mjs` —— 随包库文件，上游发行物**原样**拷入（见下）。
  * 本脚本负责第二类。它们与 app.mjs 不共享运行时，也互不共享（各自独立进程），
  * 所以**逐入口分别构建**、不做多入口一次构建（那会切出共享 chunk，让"哪个文件是入口"变模糊）。
@@ -50,7 +51,7 @@
  * 构建脚本每次都会把它打出来（`[build-entries] dist/bin/zod.min.mjs  … KB`），所以这个数字可在
  * 构建输出里复核；它是产物（非上游原件），没有"与上游逐字节相同"可断言。
  *
- * 产物：dist/bin/{gpg.shim,rest.worker,zod.min}.mjs（**直接写交付树**，不经 build/ 中转）。
+ * 产物：dist/bin/{gpg.shim,rest.worker,git-remote-helper,zod.min}.mjs（**直接写交付树**，不经 build/ 中转）。
  *
  * 用法：node scripts/build-entries.mjs
  */
@@ -67,6 +68,11 @@ const outDir = path.join(appDir, "dist", "bin");
 const ENTRIES = {
   "gpg.shim": path.join(appDir, "tools", "lib", "gpg.shim.mjs"),
   "rest.worker": path.join(appDir, "tools", "lib", "rest.worker.mjs"),
+  // git remote helper：由 git 按 PATH 拉起的独立进程（运行期由 remote-helper-shim 生成的
+  // `git-remote-githana` 包装脚本调用）。产物名刻意**不等于** git 要找的那个名字——
+  // git 找的是 PATH 里的 `git-remote-githana`（无扩展名），那是包装脚本的名字；
+  // 这里打的是被包装调用的脚本本身，放在 bin/ 下与其它入口同层。
+  "git-remote-helper": path.join(appDir, "tools", "lib", "git-remote-helper.mjs"),
 };
 
 /**

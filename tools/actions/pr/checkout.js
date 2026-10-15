@@ -27,7 +27,7 @@ import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import { resolveContext, repoFromCwd, describeFailure } from "../../lib/pr.js";
-import { GIT_CREDENTIAL_NOTE } from "../../lib/git-cred.js";
+import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "checkout";
 export const summary = "把 PR 的源分支取到本地并检出";
@@ -60,7 +60,7 @@ function gitGuide(text) {
   const s = String(text || "");
   if (/not a git repository/i.test(s)) return "当前目录不是 git 仓库：请在仓库目录内执行。";
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败：" + GIT_CREDENTIAL_NOTE + "。请确认已登录（github.com 的 https 远端）或本机已有该远端的凭据。";
+    return "远端认证失败：" + GIT_FETCH_AUTH_NOTE + "。";
   }
   if (/couldn't find remote ref/i.test(s)) {
     return "该远端上找不到这个 pull 引用：确认 remote 指向的正是 PR 所在仓库（refs/pull/<n>/head 是每个仓库各自的）。";

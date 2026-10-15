@@ -44,9 +44,11 @@
  * 签名包装脚本也写在那里（它同样是现写现用的产物）。
  * dataDir 未登记时不注入——避免误碰用户默认 ~/.gitconfig。
  *
- * **GitHub 凭据也走这条注入**：已登录时把 App 令牌接成 github.com 的 credential helper
- * （tools/lib/git-cred.js，同一套 GIT_CONFIG_* 机制），令牌只经子进程 env 递、不进文件。
- * 未登录时不注入，git 照旧回落系统 Git 凭据（Git Credential Manager）。
+ * **GitHub 的远端传输也走这条注入**：确实要访问 github.com 的 git 调用（`push` / `fetch` /
+ * `pull` / `clone` / `ls-remote`）接上本 App 自写的 git remote helper
+ * （tools/lib/remote-helper-shim.js）——NODE_OPTIONS 追加 `--allow-net`、注入
+ * `url.githana::.insteadOf`、把 helper 包装目录前置进 PATH，三件事同进同退。
+ * 令牌因此不经 git 子进程的 env（helper 自己从 dataDir 解 DPAPI 密文）。
  *
  * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
  * gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
@@ -57,7 +59,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
 import { ensureWrapper, ensureTmpDir, keyFilePath } from "./sign-shim.js";
-import { applyGitHubCredential, shouldInjectGitCredential } from "./git-cred.js";
+import { applyRemoteHelper, shouldInjectRemoteHelper } from "./remote-helper-shim.js";
 
 /**
  * 插件根目录（安装目录）。
@@ -341,17 +343,17 @@ export async function resolveBinExec(bin) {
 /**
  * 构造子进程 env：在继承 env 基础上注入 bundled 需要的 PATH（git 的 cmd/mingw64/usr）+ 隔离 env。
  *
- * GitHub 域本身仍不走子进程（REST worker 的令牌经 stdin 传入，见 tools/lib/rest.js）；这里注入的
- * 是 **git 自己**访问 github.com 时要用的凭据——已登录时接成 credential helper（见 git-cred.js），
- * 令牌只经 env 递、不进 gitconfig、不进命令行、不进远端 URL。未登录时不注入任何凭据，git 照旧
- * 回落系统 Git 凭据（Git Credential Manager）。git 子进程不读 GH_TOKEN，本 App 也不设它。
+ * GitHub 域本身仍不走子进程（REST worker 的令牌经 stdin 传入，见 tools/lib/rest.js）；这里接的
+ * 是 **git 自己**访问 github.com 时要用的传输层——交给本 App 自写的 remote helper
+ * （见 remote-helper-shim.js），令牌不进 git 子进程的 env。git 子进程不读 GH_TOKEN，
+ * 本 App 也不设它。
  *
  * **只有确实要访问远端的 git 调用才注入**（`credential` / `config` 这类能把 env 打印出来的子命令
- * 拿不到令牌；判据见 git-cred.js 的 shouldInjectGitCredential）。不传 bin/args 即不注入。
+ * 拿不到注入；判据见 remote-helper-shim.js 的 shouldInjectRemoteHelper）。不传 bin/args 即不注入。
  *
  * @param {*} baseEnv 继承的基础 env（process.env 副本）
  * @param {ReturnType<typeof resolveBinExec>} resolved resolveBin 结果（source=bundled 时生效）
- * @param {{ bin?: string, args?: string[] }} [call] 本次调用的 bin 与参数（决定要不要注入令牌）
+ * @param {{ bin?: string, args?: string[] }} [call] 本次调用的 bin 与参数（决定要不要接 helper）
  */
 export function buildBinEnv(baseEnv, resolved, call) {
   const env = { ...baseEnv, GIT_TERMINAL_PROMPT: "0" };
@@ -386,12 +388,12 @@ export function buildBinEnv(baseEnv, resolved, call) {
       env.GITHANA_KEY_FILE = keyFilePath(dataDir);
     }
   }
-  // GitHub 凭据注入**不依赖 dataDir**（令牌是进程内凭据，与隔离 gitconfig 是否就绪无关），
-  // 但依赖这次调用确实是 git 的取远端动作（见 shouldInjectGitCredential）。
-  // 它在 gpg.program 之后追加配置对（GIT_CONFIG_* 是"成对追加"的，计数从当前值续）。
+  // 远端传输接线**不依赖 dataDir 的隔离配置是否就绪**，但依赖这次调用确实是 git 的取远端动作
+  // （见 shouldInjectRemoteHelper）。它在 gpg.program 之后追加配置对（GIT_CONFIG_* 是
+  // 「成对追加」的，计数从当前值续），并把 helper 包装目录前置进 PATH——最后前置，所以它排在最前。
   const callArgs = call && Array.isArray(call.args) ? call.args : null;
-  if (callArgs && shouldInjectGitCredential(call && call.bin, callArgs)) {
-    applyGitHubCredential(env);
+  if (callArgs && shouldInjectRemoteHelper(call && call.bin, callArgs)) {
+    applyRemoteHelper(env);
   }
   return env;
 }

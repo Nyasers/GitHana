@@ -46,8 +46,8 @@
  * 目录：法条与它描述的组件同处一份，读的人不必在两处对照。
  *
  * 不含：scripts/（开发件）、根上的 app.js / lib/ / tools/（已 bundle 进 bin/app.mjs，
- * 但两个 spawn 出去的独立入口例外：tools/lib/gpg.shim.mjs 与 tools/lib/rest.worker.mjs
- * 均由 build-entries.mjs 打包为 bin/*.mjs，见下）、
+ * 但 spawn 出去的独立入口例外：tools/lib/gpg.shim.mjs、tools/lib/rest.worker.mjs 与
+ * tools/lib/git-remote-helper.mjs 均由 build-entries.mjs 打包为 bin/*.mjs，见下）、
  * 以及两份库文件（bin/openpgp.min.mjs 与 bin/zod.min.mjs）：openpgp 从上游 npm dist 原样拷入，
  * 由本脚本从 node_modules/openpgp/dist/node/ 投影进来，并以 npm 包的 integrity 断言字节一致；
  * zod 由 build-entries.mjs 从 node_modules/zod 打成单文件，本脚本只断言它在位并报体积。
@@ -161,7 +161,7 @@ function main() {
   //     OpenPGP.js 库文件（openpgp.min.mjs）也从这里投影：两个入口都运行期 import 它。
   //     zod 库文件（zod.min.mjs）由 build-entries.mjs 打包产出，这里只断言它在位。
   {
-    for (const name of ["app.mjs", "gpg.shim.mjs", "rest.worker.mjs", "zod.min.mjs"]) {
+    for (const name of ["app.mjs", "gpg.shim.mjs", "rest.worker.mjs", "git-remote-helper.mjs", "zod.min.mjs"]) {
       if (!existsSync(join(DIST, "bin", name))) {
         console.error(`[build-app] 缺 dist/bin/${name}（构建脚本未产出）`);
         process.exit(1);
@@ -196,7 +196,7 @@ function main() {
     const zodLib = join(DIST, "bin", "zod.min.mjs");
     log(`bin/zod.min.mjs 就位（${(statSync(zodLib).size / 1024).toFixed(1)} KB，zod 运行期共享库）`);
   }
-  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/gpg.shim.mjs + bin/rest.worker.mjs + bin/openpgp.min.mjs + bin/zod.min.mjs`);
+  log(`契约件与目录就位（${DELIVERY_FILES.length} 文件 + ${DELIVERY_DIRS.length} 目录）+ bin/app.mjs + bin/gpg.shim.mjs + bin/rest.worker.mjs + bin/git-remote-helper.mjs + bin/openpgp.min.mjs + bin/zod.min.mjs`);
 
   // 2b) 内嵌运行时二进制：**从仓库的 vendor/bin/ 直接投影**到交付树的 bin/<platform>/。
   //     vendor/ 本身不进交付面（它是构建期缓存与声明），所以这里读源树、只把二进制平铺过去，
