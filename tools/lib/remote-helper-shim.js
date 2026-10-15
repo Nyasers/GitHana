@@ -28,10 +28,14 @@
  * 所以拆成两个 scheme、两个包装文件，底层同一个 .mjs，用 argv 的模式参数区分：
  *
  *   url.githana::.insteadOf          = https://github.com/   → 取侧
- *   url.githana-push::.pushInsteadOf = https://github.com/   → push 侧
+ *   url.githana-push::.pushInsteadOf = https://github.com/   → push 侧（`remote.<name>.url` 的推送）
+ *   url.githana-push::.insteadOf     = https://github.com/   → push 侧（显示 `pushurl` 时走这条）
  *
- * git 按 `insteadOf` 决定取侧、按 `pushInsteadOf` 决定 push 侧，两边各走各的 scheme，
- * 于是各自拿到对的能力。
+ * git 取侧按 `insteadOf` 选 scheme，push 侧按 `pushInsteadOf`（按 `remote.<name>.url` 推导推送 URL 时）
+ * 或 `insteadOf`（**显示了 `pushurl` 时**只有它参与匹配）选 scheme，两边各走各的包装、各报对的能力。
+ *
+ * 这三条**按本次子命令分侧注入，绝不两套一起注入**——一起注入会让显示 `pushurl` 的仓库
+ * 把 push 走到取侧 helper 上，原因见下面「注入的两组配置」。
  *
  * ## 为什么 Windows 上也是无扩展名 shebang 脚本（实测）
  *
@@ -53,27 +57,40 @@
  * 写盘方式是**内容不同才写 + 临时文件 rename 原子替换**（见 ensureHelperWrapper）：
  * 每次 spawn 都 `writeFileSync` 会先截断，早先 spawn 的 git 可能在截断那一瞬间执行 sh。
  *
- * ## 注入的四件事（同进同退）
+ * ## 注入的三件事（同进同退）
  *
  * buildBinEnv 在 spawn git 时按下面的 applyRemoteHelper 一次做完，任一件单独做都是错的：
  *
  *   1. `NODE_OPTIONS` 追加 `--allow-net`——helper 由 git 启动、继承 Node Permission Model，
  *      不给它就没法联网（实测 fetch 报 ERR_ACCESS_DENIED）；
- *   2. 注入 `url.githana::.insteadOf = https://github.com/`（取侧）与
- *      `url.githana-push::.pushInsteadOf = https://github.com/`（push 侧）——把 github.com 的
- *      https 远端交给本 App 的 helper（走 GIT_CONFIG_* 机制，改不到文件也不脏文件）；
- *   3. `protocol.githana.allow = always` 与 `protocol.githana-push.allow = always`——见下；
- *   4. 把包装目录前置进 PATH——git 才找得到那两个 `git-remote-*`。
+ *   2. 注入**本次子命令那一侧**的 URL 重写（见下「注入的两组配置」）；
+ *   3. 把包装目录前置进 PATH——git 才找得到那两个 `git-remote-*`。
  *
  * 另把 dataDir 经 `GITHANA_DATA_DIR` 递给 helper（路径不是机密，令牌才是；helper 自己读
  * `<dataDir>/credential.json` 解 DPAPI，令牌因此不进任何子进程的 env）。
  *
- * ### 为什么要把两个 scheme 加进 protocol.allow
+ * ### 注入的两组配置（按子命令二选一）
+ *
+ *   · 取侧命令（`ls-remote` / `fetch` / `pull` / `clone`）只注入
+ *     `url.githana::.insteadOf` + `protocol.githana.allow`；
+ *   · push 只注入 `url.githana-push::.insteadOf` + `url.githana-push::.pushInsteadOf`
+ *     + `protocol.githana-push.allow`。
+ *
+ * **为什么不能两套并注入**（CodeRabbit PR #24 Major，已真机复现）：`url.<base>.insteadOf`
+ * 是**通用**重写，git 在 push 时也会对它做匹配，而两条 insteadOf 的前缀都是同一个
+ * `https://github.com/`。仓库配了**显示的 `pushurl`** 时，push 要重写的正是那条 URL，于是
+ * 先匹配上的 `githana::` 抢走它——push 跑去起 `git-remote-githana`（取侧 helper，只会
+ * `stateless-connect git-upload-pack`），既用不了 `git-receive-pack`，也不回落原生凭据。
+ * 实测探针：无显示 `pushurl` → 起 push 侧 helper ✅；显示 `pushurl` → 起取侧 helper ❌。
+ * 所以 push 侧那条 `url.githana-push::.insteadOf` 是**必需的**（显示 `pushurl` 的 URL 不走
+ * `pushInsteadOf`，只走 `insteadOf`），而 `githana::.insteadOf` 在 push 时**必须缺席**。
+ *
+ * ### 为什么要把 scheme 加进 protocol.allow
  *
  * git 默认 `protocol.allow=user`，只放行它认识的传输；自定义 helper scheme 会被先拒掉。
  * 递归子模块场景下 git 会把子模块 URL 重写成 `githana::…`，那条 URL 要能过传输白名单。
- * 这里只放行**我们自己这两个 scheme 名**——helper 内部（git-remote-helper.mjs 的
- * parseRemote）照旧只服务 github.com，主机校验没有放宽。
+ * 这里只放行**本次这一侧**的 scheme 名——helper 内部（git-remote-helper.mjs 的 parseRemote）
+ * 照旧只服务 github.com，主机校验没有放宽。
  *
  * ## `--allow-net` 只在权限模型下追加
  *
@@ -87,12 +104,13 @@
  *
  * ## 触发面（只对确实要取远端的 git 调用）
  *
- * 判据沿用被替换的 credential helper 那一套（见 shouldInjectRemoteHelper）：`exec` 是任意
+ * 判据沿用被替换的 credential helper 那一套（见 remoteHelperSubcommand；判「要不要注入」
+ * 的布尔形态见 shouldInjectRemoteHelper）：`exec` 是任意
  * 参数透传，而 `-c` / `--config-env` / `--exec-path` / `ext::` 这些形态能把 git 的运行环境
  * 整个改写，注入进去等于把 insteadOf 与 PATH 交给一条自己改写自己的调用。
  *
- * 注入的子命令是 spec D5 的五条（`push` / `fetch` / `pull` / `clone` / `ls-remote`）；两个
- * scheme 各自负责哪条路由由 git 按 insteadOf / pushInsteadOf 决定，这里不区分。
+ * 注入的子命令是 spec D5 的五条（`push` / `fetch` / `pull` / `clone` / `ls-remote`）；其中 `push`
+ * 注入 push 侧那一组、其余四条注入取侧那一组（gitSubcommand 解析出的子命令就是判据）。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -115,7 +133,16 @@ export const INSTEAD_OF_KEY = "url." + HELPER_SCHEME + "::.insteadOf";
 /** push 侧配置键：`url.<base>.pushInsteadOf`（git 用它决定 push 走哪个 scheme）。 */
 export const PUSH_INSTEAD_OF_KEY = "url." + HELPER_PUSH_SCHEME + "::.pushInsteadOf";
 
-/** 传输白名单：自定义 scheme 默认被 `protocol.allow=user` 拒掉，两个 scheme 都要显式放行。 */
+/**
+ * push 侧那条**通用** `insteadOf` 键（与 PUSH_INSTEAD_OF_KEY 同在 push 侧注入）。
+ *
+ * 存在的理由：`remote.<name>.pushurl` **显示配置**时，push 要重写的是 `pushurl` 那条 URL，
+ * 而 git 对它的重写只看通用的 `insteadOf`——`pushInsteadOf` 在这条路上不参与匹配。
+ * 缺了它，显示 `pushurl` 的仓库会落到取侧 `githana::` 上（见文件头注）。
+ */
+export const PUSHURL_INSTEAD_OF_KEY = "url." + HELPER_PUSH_SCHEME + "::.insteadOf";
+
+/** 传输白名单：自定义 scheme 默认被 `protocol.allow=user` 拒掉，**本次用到的那一个**要显式放行。 */
 export const PROTOCOL_ALLOW_ALWAYS = "always";
 
 /** dataDir 经 env 递给 helper（与签名 shim 的 GITHANA_KEY_FILE 同一手法）。 */
@@ -187,8 +214,10 @@ export function helperDirPath(dataDir) {
  * 实测 git 找 remote helper 不走 PATHEXT，带扩展名的那个根本不会被调起
  * （报 `git: 'git-remote-githana' is not a git command`）。所以两个平台同名。
  *
- * 两个文件对应两个 scheme：git 按 insteadOf 取、按 pushInsteadOf 推，于是取侧与 push 侧
- * 各自跑到自己那个包装、各报对的能力（见文件头注的能力路由表）。
+ * 两个文件对应两个 scheme——git 按**本次子命令那一侧**注入的 insteadOf / pushInsteadOf 选中
+ * 其中一个，于是取侧与 push 侧各自跑到自己那个包装、各报对的能力（见文件头注的能力路由表）。
+ * 两个文件**始终都写**（只写盘、不注入配置）；本次哪一侧生效由 applyRemoteHelper 注入的那组
+ * 配置决定。
  */
 const WRAPPERS = [
   { name: "git-remote-" + HELPER_SCHEME, mode: "fetch" },
@@ -357,9 +386,8 @@ export function gitSubcommand(args) {
 /**
  * 注入范围：确实要访问 github.com 的全部取远端动作。
  *
- * 取侧走 `githana` scheme（报 stateless-connect）、push 侧走 `githana-push` scheme（报 connect），
- * 两条路由都由 git 按 insteadOf / pushInsteadOf 自己选，所以这里不区分——**表里的五条子命令
- * 一律注入**，具体每条落到哪个 scheme 由 git 决定。
+ * 表里五条子命令**都注入，但注入哪一组配置按子命令分**（见 applyRemoteHelper）：`push` 拿 push
+ * 侧那一组，其余四条拿取侧那一组。两侧各由 git 按 insteadOf / pushInsteadOf 选中自己的 scheme。
  *
  * 表里**刻意不含** `submodule` / `archive` / `request-pull`：那几个能借参数跑任意命令
  * （`submodule foreach` 就是显式跑 shell），接上 helper 等于多给一条通道。`remote` 也不在
@@ -368,20 +396,38 @@ export function gitSubcommand(args) {
 const HELPER_SUBCOMMANDS = new Set(["push", "fetch", "pull", "clone", "ls-remote"]);
 
 /**
- * 这次 git 调用该不该接上 App 的 remote helper。
+ * 这次 git 调用该注入哪一侧的接线；要注入就返回子命令（`"push"` 或其余四条之一），否则返回 ""。
  *
  * 三条都要成立：bin 是 git、子命令在表里、命令行里没有能改写运行环境的全局选项。
- * 任一不成立就不注入——那时 git 走原生路径与系统凭据，不会静默做错事。
+ * 任一不成立就返回 ""——那时 git 走原生路径与系统凭据，不会静默做错事。
+ *
+ * 返回子命令而不是布尔：调用方要把它透传给 applyRemoteHelper 决定注入哪一组，而 gitSubcommand
+ * 的解析带全局选项跳值——**再算一次就多一处可能与判据漂**。判「要不要注入」即非空判断。
+ *
+ * @param {string} bin 可执行文件名（runCli 的 bin）
+ * @param {string[]} args 参数数组（不含可执行文件名）
+ * @returns {string} 子命令；不注入时为 ""
+ */
+export function remoteHelperSubcommand(bin, args) {
+  if (String(bin || "") !== "git") return "";
+  const list = Array.isArray(args) ? args.map((a) => String(a)) : [];
+  if (list.some((a) => NO_INJECT_OPTS.some((re) => re.test(a)))) return "";
+  const sub = gitSubcommand(list);
+  return HELPER_SUBCOMMANDS.has(sub) ? sub : "";
+}
+
+/**
+ * 这次 git 调用该不该接上 App 的 remote helper——remoteHelperSubcommand 的**布尔投影**。
+ *
+ * 只问「要不要注入」而不关心注哪一侧的调用方（含外部探针脚本）用这个；判据只有一份，
+ * 与 remoteHelperSubcommand 不会漂。要决定注哪一组配置时用 remoteHelperSubcommand。
  *
  * @param {string} bin 可执行文件名（runCli 的 bin）
  * @param {string[]} args 参数数组（不含可执行文件名）
  * @returns {boolean}
  */
 export function shouldInjectRemoteHelper(bin, args) {
-  if (String(bin || "") !== "git") return false;
-  const list = Array.isArray(args) ? args.map((a) => String(a)) : [];
-  if (list.some((a) => NO_INJECT_OPTS.some((re) => re.test(a)))) return false;
-  return HELPER_SUBCOMMANDS.has(gitSubcommand(list));
+  return remoteHelperSubcommand(bin, args) !== "";
 }
 
 /** 往 PATH 前置一个目录（保留原有内容）。 */
@@ -391,20 +437,27 @@ function prependPath(env, dir) {
 }
 
 /**
- * 把 remote helper 接进子进程 env（五件事 + dataDir）。
+ * 把 remote helper 接进子进程 env（三件事 + dataDir）。
  *
  * 幂等，可反复调用（每次 spawn 现算）。任一前提不满足（无 dataDir、helper 脚本不在、
  * 包装写不成）就**什么都不改**——那种情况下 git 走原生路径，与接上之前的行为一致，
  * 不会留下「PATH 里有包装、配置里没 insteadOf」这类半截状态。
  *
+ * **按 subcommand 只注入对应侧的那一组**（见文件头注「注入的两组配置」）：push 时不能带上
+ * `url.githana::.insteadOf`，否则显示 `pushurl` 的仓库会被它抢走。
+ *
  * @param {Record<string, string>} env 待注入的 env 对象（原地修改）
+ * @param {string} [subcommand] 本次 git 子命令（remoteHelperSubcommand 的返回值）；
+ *   省略时按取侧处理（保守：只有明确是 `push` 才走 push 侧）
  * @returns {boolean} 是否注入
  */
-export function applyRemoteHelper(env) {
+export function applyRemoteHelper(env, subcommand) {
   const dataDir = getToolDataDir();
   if (!dataDir) return false;
   const dir = ensureHelperWrapper(dataDir);
   if (!dir) return false;
+
+  const isPush = String(subcommand || "") === "push";
 
   // 1) 网络放行：helper 继承权限模型，不给它就连不上 github.com。
   //    只在权限模型下追加（单独给 --allow-net 会 ERR_MISSING_OPTION，实测）。
@@ -415,9 +468,9 @@ export function applyRemoteHelper(env) {
     }
   }
 
-  // 2) 四条配置：取侧 insteadOf + push 侧 pushInsteadOf（各一条 URL 重写），加两个 scheme 的
-  //    传输白名单。GIT_CONFIG_* 是**成对追加**的，计数从当前值续（调用方可能已经放了几条）。
-  //    走这个机制是因为它在所有配置文件之上生效，改不到文件也不脏文件。
+  // 2) URL 重写 + 传输白名单，**只注入本次这一侧**。GIT_CONFIG_* 是成对追加的，
+  //    计数从当前值续（调用方可能已经放了几条）；走这个机制是因为它在所有配置文件之上
+  //    生效，改不到文件也不脏文件。
   const baseCount = Number.parseInt(env.GIT_CONFIG_COUNT || "0", 10);
   let n = Number.isFinite(baseCount) && baseCount >= 0 ? baseCount : 0;
   const putConfig = (key, value) => {
@@ -425,15 +478,23 @@ export function applyRemoteHelper(env) {
     env[`GIT_CONFIG_VALUE_${n}`] = value;
     n += 1;
   };
-  putConfig(INSTEAD_OF_KEY, GITHUB_HTTPS_PREFIX);
-  putConfig(PUSH_INSTEAD_OF_KEY, GITHUB_HTTPS_PREFIX);
-  // git 默认 protocol.allow=user 会先拒掉自定义 scheme（递归子模块会把 URL 重写成
-  // `githana::…`）。只放行我们自己这两个 scheme 名；helper 内部照旧只服务 github.com。
-  putConfig("protocol." + HELPER_SCHEME + ".allow", PROTOCOL_ALLOW_ALWAYS);
-  putConfig("protocol." + HELPER_PUSH_SCHEME + ".allow", PROTOCOL_ALLOW_ALWAYS);
+  if (isPush) {
+    // push 侧两条都要：`PUSHURL_INSTEAD_OF_KEY` 管**显示了 pushurl** 的那条 URL（git 对 pushurl
+    // 只按通用 insteadOf 重写），`PUSH_INSTEAD_OF_KEY` 管没显示 pushurl 时按 remote.url 推导的
+    // 推送 URL（git 优先用 pushInsteadOf 而不是 insteadOf 来选推送侧 scheme）。
+    // 这里绝不注入 `githana::.insteadOf`——两条 insteadOf 同前缀，谁先匹配谁拿走 pushurl。
+    putConfig(PUSHURL_INSTEAD_OF_KEY, GITHUB_HTTPS_PREFIX);
+    putConfig(PUSH_INSTEAD_OF_KEY, GITHUB_HTTPS_PREFIX);
+    putConfig("protocol." + HELPER_PUSH_SCHEME + ".allow", PROTOCOL_ALLOW_ALWAYS);
+  } else {
+    // 取侧只此一条重写；push 侧的 scheme 这次用不上。
+    putConfig(INSTEAD_OF_KEY, GITHUB_HTTPS_PREFIX);
+    putConfig("protocol." + HELPER_SCHEME + ".allow", PROTOCOL_ALLOW_ALWAYS);
+  }
   env.GIT_CONFIG_COUNT = String(n);
 
-  // 3) PATH 前置：git 才找得到 git-remote-githana 与 git-remote-githana-push。
+  // 3) PATH 前置：git 才找得到 git-remote-githana 与 git-remote-githana-push（两个都放，
+  //    只写盘不注入配置；本次哪一侧生效由上面那组配置决定）。
   prependPath(env, dir);
 
   // helper 是独立进程，不知道 dataDir：路径经 env 传它（路径不是机密，令牌才是）。

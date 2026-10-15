@@ -101,8 +101,14 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 
 - **两个 scheme，两个包装脚本**：取侧（`ls-remote` / `clone` / `fetch` / `pull`）走 `githana::`
   （`url.githana::.insteadOf`），helper 报 `stateless-connect`；push 侧走 `githana-push::`
-  （`url.githana-push::.pushInsteadOf`），helper 报 `connect`。两个包装脚本分别把模式作为
+  （`url.githana-push::.pushInsteadOf`，另加一条 `url.githana-push::.insteadOf` 覆盖显式
+  `pushurl` 的情形），helper 报 `connect`。两个包装脚本分别把模式作为
   `argv[0]` 交给同一个 helper 进程，一个进程只报一个能力。
+- 上面三条 URL 重写**按子命令分侧注入，不同时注入**：取侧命令只注入 `githana::` 那一条，
+  push 只注入 `githana-push::` 那两条。原因是 `url.<base>.insteadOf` 是通用重写，git 在 push 时
+  也会拿它匹配——两套同时在场时，仓库若配了**显示的 `pushurl`**，先匹配上的 `githana::`
+  会把那条 URL 抢走，push 于是起取侧 helper（只会 `stateless-connect git-upload-pack`），
+  既用不了 `git-receive-pack` 也不回落系统凭据。`protocol.<scheme>.allow` 同样只放行本次这一侧。
 - 能力分流是实测定的：**报 `connect` 时 fetch 走 connect、报 `stateless-connect` 时 push 落到
   `list`**，而两个都报时 git 一律选 `connect`——所以取侧与 push 侧必须是两个 scheme。
   取侧的 `stateless-connect` 对齐 GitHub 的 smart HTTP（无状态、每轮 POST 自足），push 侧的
@@ -111,8 +117,8 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   0 字节）。`connect` 之后那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，本项目只搬字节、
   加 `Authorization`，不解析协议内容。
 - 接线在 `tools/lib/remote-helper-shim.js`（`buildBinEnv` 调用），三件事**同进同退**：
-  `NODE_OPTIONS` 追加 `--allow-net`（helper 继承权限模型，不给它连不上网）、注入上面那两条前缀
-  改写（两个 scheme 各一条）、把 helper 包装目录前置进 `PATH`。另把 `<dataDir>` 经
+  `NODE_OPTIONS` 追加 `--allow-net`（helper 继承权限模型，不给它连不上网）、注入上面那组前缀
+  改写（**按本次子命令只注入一侧**）、把 helper 包装目录前置进 `PATH`。另把 `<dataDir>` 经
   `GITHANA_DATA_DIR` 递给 helper。
 - 包装脚本两个平台都是**无扩展名**的 `#!/bin/sh` 脚本（`<dataDir>/.runtime-tmp/remote-helper/`）。
   实测 git 找 remote helper 不走 PATHEXT——Windows 上写成 `.cmd` **不会被调起**
@@ -120,7 +126,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
 - 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
   **不进** git 子进程的 env：helper 自己读 `<dataDir>/credential.json` 解 DPAPI（`lib/dpapi.js`）。
-- 不改主机文件：两条前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
+- 不改主机文件：上面那些前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
   `git remote -v` 看到的仍是原 URL。
 - 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
   这类能改写运行环境的形态：`exec` 是任意参数透传，而这些形态能把前缀改写与 `PATH` 一起换掉。
