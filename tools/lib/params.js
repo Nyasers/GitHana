@@ -25,7 +25,7 @@ import { z } from "zod";
 export const cwd = z
   .string()
   .describe(
-    "本地仓库绝对路径（如 E:\\workspace\\my-repo）。仓库上下文一律显式传参、不做隐式推断；哪些动词必填见各 action 的参数说明",
+    "absolute path of the local repository (e.g. E:\\workspace\\my-repo). Repository context is always passed explicitly, never inferred implicitly; which verbs require it is documented with each action's parameters",
   );
 
 /** 工作目录：只作兜底的 GitHub 动作可选（不用它取缺省值；见各 action 的 run()）。 */
@@ -35,7 +35,7 @@ export const cwdOptional = cwd.optional();
 export const repo = z
   .string()
   .optional()
-  .describe("可选：仓库，格式 owner/repo（如 liliMozi/openhanako）；缺省从 cwd 的 git remote 推断");
+  .describe("optional: repository in owner/repo format (e.g. liliMozi/openhanako); when omitted it is inferred from the cwd's git remote");
 
 /** 超时（git 动作默认 120 秒，GitHub 动作默认 60 秒）。 */
 export const timeoutSec = z
@@ -44,15 +44,15 @@ export const timeoutSec = z
   .min(1)
   .max(600)
   .optional()
-  .describe("超时秒数（可选）：git 动作默认 120，GitHub 动作默认 60；上限 600");
+  .describe("timeout in seconds (optional): 120 by default for git actions, 60 for GitHub actions; maximum 600");
 
 /** PR 编号：正整数（merge / revert 等不可撤销的动词必填）。 */
-export const prNumber = z.number().int().min(1).describe("PR 编号（正整数）");
+export const prNumber = z.number().int().min(1).describe("PR number (positive integer)");
 
 /** PR 编号：可缺省 = 当前分支关联 PR（需要 cwd）。 */
 export const prNumberOptional = prNumber
   .optional()
-  .describe("PR 编号（正整数）；缺省 = 当前分支关联 PR（需要 cwd）");
+  .describe("PR number (positive integer); when omitted = the PR associated with the current branch (needs cwd)");
 
 /**
  * issue 编号：正整数，**必填**。
@@ -61,7 +61,7 @@ export const prNumberOptional = prNumber
  * 只有必填一个变体：`prNumberOptional` 的缺省逻辑（按 head 分支过滤）在 issue 上无对应物，
  * 照搬会造出一个语义不成立的参数。
  */
-export const issueNumber = z.number().int().min(1).describe("issue 编号（正整数）");
+export const issueNumber = z.number().int().min(1).describe("issue number (positive integer)");
 
 /**
  * release 的 tag：定位 release 的主键（`GET /releases/tags/{tag}`）。
@@ -73,20 +73,20 @@ export const issueNumber = z.number().int().min(1).describe("issue 编号（正�
  * create / delete / upload / download / delete-asset / verify / verify-asset 都要求点名一个——
  * 「最近一个」在删改类的动作上是个危险的默认值。
  */
-export const releaseTag = z.string().describe("release 的 tag（如 v1.2.0）");
+export const releaseTag = z.string().describe("release tag (e.g. v1.2.0)");
 
 /** release 的 tag：可缺省 = 最近一次发布的 release（latest 只算非草稿、非预发布的）。 */
 export const releaseTagOptional = releaseTag
   .optional()
-  .describe("release 的 tag（如 v1.2.0）；缺省 = 最近一次发布的 release（latest 只算非草稿、非预发布）");
+  .describe("release tag (e.g. v1.2.0); when omitted = the most recently published release (latest counts only non-draft, non-prerelease ones)");
 
 /** release 资产名：release 内唯一定位一个资产（不额外发请求，release 表示里内嵌了 assets）。 */
-export const assetName = z.string().describe("资产文件名（release 里唯一定位一个资产，如 app-v1.2.0-win32-x64.zip）");
+export const assetName = z.string().describe("asset file name (uniquely identifies one asset within a release, e.g. app-v1.2.0-win32-x64.zip)");
 
 /** release 资产名：可缺省 = 该 release 的全部资产（download 用；其余动词必须点名）。 */
 export const assetNameOptional = assetName
   .optional()
-  .describe("资产文件名；缺省 = 该 release 的全部资产");
+  .describe("asset file name; when omitted = every asset of that release");
 
 /**
  * Actions 工作流定位：数字 ID 或文件名，**必填**（只有 list 不需要它——那是列全部工作流）。
@@ -98,12 +98,12 @@ export const assetNameOptional = assetName
  */
 export const workflowRef = z
   .string()
-  .describe("必填：工作流，数字 ID（如 161335）或文件名（如 ci.yml、ci/build.yml），从 githana_workflow(action=\"list\") 取");
+  .describe("required: workflow, either a numeric ID (e.g. 161335) or a file name (e.g. ci.yml, ci/build.yml); get it from githana_workflow(action=\"list\")");
 
 /** Actions run 编号：正整数（GitHub 的 run id 远小于 2^53，用 number 表达无精度问题）。 */
-export const runId = z.number().int().min(1).describe("run 编号（正整数，从 githana_run(action=\"list\") 的 # 后面取）");
+export const runId = z.number().int().min(1).describe("run number (positive integer; take it from after the # in githana_run(action=\"list\"))");
 
 /** Actions run 编号：可缺省 = 最近一次 run（可按 branch 过滤，branch 缺省取 cwd 的当前分支）。 */
 export const runIdOptional = runId
   .optional()
-  .describe("run 编号；缺省 = 最近一次 run（可用 branch 过滤，branch 缺省取 cwd 的当前分支）");
+  .describe("run number; when omitted = the most recent run (can be filtered by branch; branch defaults to the cwd's current branch)");

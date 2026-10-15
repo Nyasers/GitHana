@@ -20,31 +20,31 @@ import { requireAuth, describeFailure } from "../../lib/gh.js";
 import { repoSummary } from "../../lib/repo.js";
 
 export const command = "create";
-export const summary = "新建仓库（当前账号下）";
+export const summary = "Create a repository (under the current account)";
 
 export const schema = {
-  name: z.string().describe("仓库名（不含 owner；如 my-repo）"),
-  description: z.string().optional().describe("可选：仓库简介"),
-  private: z.boolean().optional().describe("可选：true 建私有仓库（默认 false = 公开）"),
-  homepage: z.string().optional().describe("可选：仓库主页 URL"),
-  autoInit: z.boolean().optional().describe("可选：true 建一个带初始提交（README）的仓库；给了 gitignore / license 时自动开启"),
-  gitignore: z.string().optional().describe("可选：按名字套用一个 .gitignore 模板（名字见 githana_repo(action=\"gitignore\") 的列表）"),
-  license: z.string().optional().describe("可选：按 key 套用一个许可证模板（key 见 githana_repo(action=\"license\") 的列表，如 mit）"),
+  name: z.string().describe("Repository name (without owner; e.g. my-repo)"),
+  description: z.string().optional().describe("Optional: repository description"),
+  private: z.boolean().optional().describe("Optional: true creates a private repository (default false = public)"),
+  homepage: z.string().optional().describe("Optional: repository home page URL"),
+  autoInit: z.boolean().optional().describe("Optional: true creates a repository with an initial commit (README); it is turned on automatically when gitignore / license is given"),
+  gitignore: z.string().optional().describe("Optional: apply a .gitignore template by name (see the list from githana_repo(action=\"gitignore\"))"),
+  license: z.string().optional().describe("Optional: apply a license template by key (see the list from githana_repo(action=\"license\"), e.g. mit)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_repo",
   summary:
-    "在 GitHub 当前登录账号下新建一个仓库（公开或私有；可能同时写入初始提交 / .gitignore / 许可证）：修改 GitHub 远端状态且新建的仓库默认公开可见，执行前请确认 name 与 private",
+    "Create a repository under the current GitHub login account (public or private; may also write an initial commit / .gitignore / license): modifies remote GitHub state and the repository it creates is publicly visible by default — confirm name and private before running",
   ruleId: "github-toolkit-repo-create",
 };
 
 export async function run(input, ctx, { label }) {
   const name = input?.name !== undefined && input?.name !== null ? String(input.name).trim() : "";
-  if (!name) return label + " 参数错误：name 必填（仓库名，不含 owner）。";
+  if (!name) return label + " argument error: name is required (the repository name, without owner).";
   if (name.includes("/")) {
-    return label + " 参数错误：name 只写仓库名，不带 owner（收到：" + name + "）。新建的仓库归当前登录账号所有。";
+    return label + " argument error: name must be just the repository name without an owner (received: " + name + "). A newly created repository belongs to the current login account.";
   }
 
   const gitignore = input?.gitignore !== undefined && input?.gitignore !== null ? String(input.gitignore).trim() : "";
@@ -70,32 +70,32 @@ export async function run(input, ctx, { label }) {
     [{ method: "POST", url: apiRoot("/user/repos"), json: payload, timeoutMs: (input?.timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec: input?.timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次创建（422）。常见原因：同名仓库已存在、name 含非法字符、\n" +
-        "或 gitignore / license 的模板名不存在（先用 githana_repo(action=\"gitignore\") / (action=\"license\") 查可用名）。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + " execution failed: GitHub rejected this creation (422). Common causes: a same-named repository already exists, name contains invalid characters,\n" +
+        "or the gitignore / license template name does not exist (look up available names first with githana_repo(action=\"gitignore\") / (action=\"license\")).\n" +
+        "GitHub raw message: " + errorDetail(res)
       );
     }
     if (res && res.status === 403) {
       return (
-        label + " 执行失败：没有建仓库的权限（403）——本 App 靠 repository_creation: write 建仓库，\n" +
-        "且只能建在当前登录账号下（组织下建仓库要 administration，本 App 未授权）。\nGitHub 原文：" + errorDetail(res)
+        label + " execution failed: no permission to create a repository (403) — this App creates repositories via repository_creation: write,\n" +
+        "and can only create them under the current login account (creating one under an organization needs administration, which this App is not authorized for).\nGitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, "");
+    return label + " execution failed: " + describeFailure(res, "");
   }
 
-  const out = [label + " 完成："];
+  const out = [label + " done:"];
   out.push(...repoSummary(res.json));
   if (needsAutoInit && input?.autoInit !== true) {
-    out.push("说明：给了 gitignore / license，已自动带 auto_init=true（GitHub 要求模板与初始提交同时给）。");
+    out.push("note: gitignore / license was given, so auto_init=true was added automatically (GitHub requires a template and an initial commit together).");
   }
-  if (gitignore !== "") out.push("gitignore 模板：" + gitignore);
-  if (license !== "") out.push("license 模板：" + license);
-  out.push("下一步：githana_repo(action=\"clone\", repo=\"" + ((res.json && res.json.full_name) || name) + "\", cwd=\"<父目录>\") 取到本地。");
+  if (gitignore !== "") out.push("gitignore template: " + gitignore);
+  if (license !== "") out.push("license template: " + license);
+  out.push("next step: githana_repo(action=\"clone\", repo=\"" + ((res.json && res.json.full_name) || name) + "\", cwd=\"<parent directory>\") to get it locally.");
   return out.join("\n");
 }

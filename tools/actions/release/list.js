@@ -20,19 +20,19 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { releaseLine } from "../../lib/release.js";
 
 export const command = "list";
-export const summary = "列发布（默认不含草稿）";
+export const summary = "List releases (drafts excluded by default)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 20，上限 100（超过上限收敛到 100）"),
-  includeDrafts: z.boolean().optional().describe("可选：连草稿一起列（端点默认就返回草稿，本动词默认滤掉）"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 20, max 100 (values above the max are clamped to 100)"),
+  includeDrafts: z.boolean().optional().describe("Optional: list drafts as well (the endpoint returns drafts by default; this verb filters them out by default)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 100"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(100).describe("返回条数，默认 20，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).max(100).describe("Number of results, default 20, max 100 (values above the max are clamped to 100)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -48,24 +48,24 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/releases") + "?per_page=" + String(limit), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
-  if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   const raw = Array.isArray(res.json) ? res.json : [];
   const items = includeDrafts ? raw : raw.filter((it) => !(it && it.draft));
   const dropped = raw.length - items.length;
 
-  const scope = repoLabel + (includeDrafts ? " · 含草稿" : " · 不含草稿");
+  const scope = repoLabel + (includeDrafts ? " · including drafts" : " · excluding drafts");
   if (items.length === 0) {
     return (
-      label + "（" + scope + "）：没有匹配的发布。" +
-      (dropped > 0 ? "\n（端点返回的 " + dropped + " 条都是草稿，已按默认口径滤掉；要一起看传 includeDrafts=true。）" : "")
+      label + " (" + scope + "): no matching releases." +
+      (dropped > 0 ? "\n(the " + dropped + " items the endpoint returned are all drafts and were filtered out by the default convention; pass includeDrafts=true to see them too.)" : "")
     );
   }
 
-  const out = [label + "（" + scope + " · " + items.length + " 条 · 按创建时间倒序）："];
+  const out = [label + " (" + scope + " · " + items.length + " · newest first):"];
   for (const it of items) out.push(releaseLine(it));
-  if (dropped > 0) out.push("（另有 " + dropped + " 条草稿已按默认口径滤掉；要一起看传 includeDrafts=true。）");
+  if (dropped > 0) out.push("(" + dropped + " more drafts were filtered out by the default convention; pass includeDrafts=true to see them too.)");
   return out.join("\n");
 }

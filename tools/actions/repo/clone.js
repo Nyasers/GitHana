@@ -28,21 +28,21 @@ import { parseRepo } from "../../lib/gh.js";
 import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "clone";
-export const summary = "克隆仓库到本地（跑 git clone）";
+export const summary = "Clone a repository locally (runs git clone)";
 
 export const schema = {
-  repo: params.repo.describe("必填：要克隆的仓库，格式 owner/repo（本动词不从 cwd 推断）"),
-  cwd: params.cwd.describe("本地**父目录**的绝对路径：克隆落在 cwd/<仓库名> 下（必须已存在）"),
-  directory: z.string().optional().describe("可选：目标目录名（默认取仓库名）；只会建在 cwd 之下"),
-  branch: z.string().optional().describe("可选：克隆后检出的分支（git clone --branch）"),
-  depth: z.number().int().min(1).optional().describe("可选：浅克隆深度（git clone --depth，只取最近 N 个提交）"),
+  repo: params.repo.describe("Required: the repository to clone, in owner/repo form (this verb does not infer it from cwd)"),
+  cwd: params.cwd.describe("Absolute path of the local **parent directory**: the clone lands under cwd/<repository name> (must already exist)"),
+  directory: z.string().optional().describe("Optional: target directory name (defaults to the repository name); it is only ever created under cwd"),
+  branch: z.string().optional().describe("Optional: branch to check out after cloning (git clone --branch)"),
+  depth: z.number().int().min(1).optional().describe("Optional: shallow clone depth (git clone --depth, only the most recent N commits)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "git_local",
   summary:
-    "在本地磁盘上新建一个仓库目录并写入完整历史（跑 git clone，需要网络；浅克隆受 depth 限制）：会占用磁盘并写入 cwd，执行前请确认 repo 与 cwd",
+    "Create a repository directory on the local disk and write the full history into it (runs git clone, needs network; a shallow clone is limited by depth): occupies disk space and writes under cwd — confirm repo and cwd before running",
   ruleId: "github-toolkit-repo-clone",
 };
 
@@ -50,17 +50,17 @@ export const sideEffect = {
 function gitGuide(text) {
   const s = String(text || "");
   if (/destination path .* already exists|already exists and is not an empty directory/i.test(s)) {
-    return "目标目录已存在且非空：git clone 不会覆盖它。请换 directory，或先自己处理那个目录。";
+    return "The target directory already exists and is not empty: git clone will not overwrite it. Use another directory, or deal with that directory yourself first.";
   }
   if (/could not read Username|Authentication failed|Repository not found|unable to access/i.test(s)) {
     return (
-      "远端认证失败或仓库不可见：" + GIT_FETCH_AUTH_NOTE + "。\n" +
-      "若尚未登录 App，请到 GitHana 设置页点「用 GitHub 登录」；" +
-      "若仓库确实存在且公开，请检查 owner/repo 是否写错。"
+      "Remote authentication failed or the repository is not visible: " + GIT_FETCH_AUTH_NOTE + ".\n" +
+      "If you have not signed in to the App yet, go to the GitHana settings page and click \"Sign in with GitHub\"; " +
+      "if the repository really does exist and is public, check whether owner/repo is misspelled."
     );
   }
   if (/not found|Could not resolve host/i.test(s)) {
-    return "远端不可达或仓库不存在：检查网络与 owner/repo。";
+    return "The remote is unreachable or the repository does not exist: check the network and owner/repo.";
   }
   return null;
 }
@@ -69,22 +69,22 @@ export async function run(input, ctx, { label }) {
   // repo 必填且**不做 cwd 推断**：clone 的目标就是 repo 本身，cwd 在这里是落盘位置，
   // 拿它去反推仓库会把两件事混成一件事。
   const repoRes = parseRepo(input?.repo);
-  if (repoRes && repoRes.error) return label + " 参数错误：" + repoRes.error;
+  if (repoRes && repoRes.error) return label + " argument error: " + repoRes.error;
   if (!repoRes) {
     return (
-      label + " 参数错误：repo 必填（格式 owner/repo）。\n" +
-      "本动词的 cwd 是**落盘位置**，不用来推断仓库；要从当前目录反推仓库请用 githana_repo(action=\"view\")。"
+      label + " argument error: repo is required (owner/repo form).\n" +
+      "For this verb cwd is the **destination on disk**, not something used to infer the repository; to infer a repository from the current directory use githana_repo(action=\"view\")."
     );
   }
   const repo = repoRes.owner + "/" + repoRes.repo;
 
   const cwdErr = checkCwd(input?.cwd);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
   const cwd = input?.cwd !== undefined && input?.cwd !== null ? String(input.cwd).trim() : "";
   if (!cwd) {
     return (
-      label + " 参数错误：cwd 必填（本地**父目录**的绝对路径，克隆落在 cwd/<仓库名> 下）。\n" +
-      "本 App 不做工作目录隐式推断，也不接受往系统临时目录里放。"
+      label + " argument error: cwd is required (the absolute path of the local **parent directory**; the clone lands under cwd/<repository name>).\n" +
+      "This App does not infer a working directory implicitly, and it will not put anything in the system temp directory."
     );
   }
 
@@ -94,7 +94,7 @@ export async function run(input, ctx, { label }) {
       : repoRes.repo;
   // 目录名必须是**单层**：带分隔符就跑到 cwd 之外了，那不是这个参数的意思（要别的落点请改 cwd）。
   if (dirName.includes("/") || dirName.includes("\\") || dirName === "." || dirName === "..") {
-    return label + " 参数错误：directory 只能是单层目录名（收到：" + dirName + "）。要换落点请改 cwd。";
+    return label + " argument error: directory can only be a single-level directory name (received: " + dirName + "). To change the destination, change cwd.";
   }
 
   const args = ["clone"];
@@ -116,18 +116,18 @@ export async function run(input, ctx, { label }) {
     const raw = ((r.stderr || "") + "\n" + (r.stdout || "")).trim();
     const guide = gitGuide(raw);
     return (
-      label + " 克隆失败（" + repo + " → " + dest + "）：\n" +
+      label + " clone failed (" + repo + " → " + dest + "):\n" +
       (raw || r.message) + (guide ? "\n" + guide : "")
     );
   }
 
   const out = [
-    label + " 完成：",
-    "仓库：" + repo,
-    "本地路径：" + dest,
+    label + " done:",
+    "repository: " + repo,
+    "local path: " + dest,
   ];
-  if (input?.depth) out.push("浅克隆：--depth " + input.depth);
-  if (input?.branch) out.push("分支：" + String(input.branch).trim());
-  out.push("下一步：githana_git(action=\"exec\", cwd=\"" + dest + "\", args=[\"status\"]) 看工作区。");
+  if (input?.depth) out.push("shallow clone: --depth " + input.depth);
+  if (input?.branch) out.push("branch: " + String(input.branch).trim());
+  out.push("next step: githana_git(action=\"exec\", cwd=\"" + dest + "\", args=[\"status\"]) to see the working tree.");
   return out.join("\n");
 }

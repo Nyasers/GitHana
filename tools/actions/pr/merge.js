@@ -17,22 +17,22 @@ import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
 export const command = "merge";
-export const summary = "合并 PR（不可撤销）";
+export const summary = "Merge a PR (irreversible)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  prNumber: params.prNumber.describe("PR 编号（正整数），必填"),
+  prNumber: params.prNumber.describe("PR number (positive integer), required"),
   // 合并方式：取值域在这里是确定的，所以写成 enum（运行期由 schema 拒绝非法值）。
-  method: z.enum(["merge", "squash", "rebase"]).optional().describe("合并方式（默认 merge）"),
-  deleteBranch: z.boolean().optional().describe("合并后删除源分支（源分支来自 fork 时跳过，不跨仓库删）"),
+  method: z.enum(["merge", "squash", "rebase"]).optional().describe("Merge method (default merge)"),
+  deleteBranch: z.boolean().optional().describe("Delete the source branch after merging (skipped when the source branch comes from a fork; never deletes across repositories)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "合并 GitHub 远端 PR（自写 REST 通道）：不可撤销，会合并代码并可能删除源分支（deleteBranch），执行前请确认 repo 与 prNumber",
+    "Merge a remote GitHub PR (through this App's own REST channel): irreversible; it merges the code and may delete the source branch (deleteBranch) — confirm repo and prNumber before running",
   ruleId: "github-toolkit-pr-merge",
 };
 
@@ -65,7 +65,7 @@ export async function run(input, ctx, { label }) {
     [{ method: "PUT", url: apiUrl(repo, "/pulls/" + num + "/merge"), json: { merge_method: method }, timeoutMs }],
     { timeoutSec },
   );
-  if (!mr.ok) return label + " 执行失败（PR #" + num + "）：" + mr.message;
+  if (!mr.ok) return label + " execution failed (PR #" + num + "): " + mr.message;
   const mres = mr.results[0];
   const mjson = mres && mres.json ? mres.json : null;
   const merged = Boolean(mjson && mjson.merged);
@@ -74,20 +74,20 @@ export async function run(input, ctx, { label }) {
     const detail = errorDetail(mres);
     const st = mres && mres.status;
     if (/already merged/i.test(detail)) {
-      return label + "：PR #" + num + " 已经合并（不可重复合并）。\n" + detail;
+      return label + ": PR #" + num + " is already merged (it cannot be merged twice).\n" + detail;
     }
     if (st === 405) {
-      return label + "：PR #" + num + " 当前不可合并（405）。常见原因：有冲突、必需检查未通过、或缺少必需审查。\nGitHub 原文：" + detail;
+      return label + ": PR #" + num + " is not mergeable right now (405). Common causes: conflicts, a required check that has not passed, or a missing required review.\nGitHub raw message: " + detail;
     }
     if (st === 409) {
-      return label + "：PR #" + num + " 合并冲突（409）：源分支与目标分支有冲突，需先解决。\nGitHub 原文：" + detail;
+      return label + ": PR #" + num + " has a merge conflict (409): the source and target branches conflict and it must be resolved first.\nGitHub raw message: " + detail;
     }
-    return label + " 执行失败（PR #" + num + "）：" + describeFailure(mres, repoLabel);
+    return label + " execution failed (PR #" + num + "): " + describeFailure(mres, repoLabel);
   }
 
   const out = [
-    label + " 已执行（PR #" + num + " · " + repoLabel + " · method=" + method + (deleteBranch ? " · deleteBranch" : "") + "）：",
-    "状态：MERGED（已合并）" + (mjson && mjson.message ? " · " + String(mjson.message) : ""),
+    label + " done (PR #" + num + " · " + repoLabel + " · method=" + method + (deleteBranch ? " · deleteBranch" : "") + "):",
+    "state: MERGED" + (mjson && mjson.message ? " · " + String(mjson.message) : ""),
   ];
 
   // 删源分支：DELETE /repos/{o}/{r}/git/refs/heads/{branch}
@@ -96,13 +96,13 @@ export async function run(input, ctx, { label }) {
     // 与 headRepoFull（GitHub 的 full_name）比较时忽略大小写：两边大小写不保证一致。
     const baseFull = repo;
     if (!headRef) {
-      out.push("源分支删除：未能取到源分支名（跳过删除）。");
+      out.push("source branch deletion: could not fetch the source branch name (deletion skipped).");
     } else if (headRepoFull && headRepoFull.toLowerCase() !== baseFull.toLowerCase()) {
       // fork 来的 PR：head.ref 在源仓库，同名分支在 base 仓库里只是同名而已，
       // 删它等于误删他人分支。不跨仓删。
       out.push(
-        "源分支：" + headRef + " 来自 " + headRepoFull + "（不是本仓库），跳过删除" +
-          "（不跨仓库删分支；如需清理请到源仓库操作）。",
+        "source branch: " + headRef + " comes from " + headRepoFull + " (not this repository), deletion skipped" +
+          " (branches are never deleted across repositories; if you need to clean up, do it in the source repository).",
       );
     } else {
       const dr = await callRest(
@@ -111,9 +111,9 @@ export async function run(input, ctx, { label }) {
       );
       const dres = dr.ok ? dr.results[0] : null;
       if (dres && (dres.ok || dres.status === 404 || dres.status === 422)) {
-        out.push("源分支：" + headRef + " 已删除" + (dres.status === 404 ? "（本来就不存在）" : ""));
+        out.push("source branch: " + headRef + " deleted" + (dres.status === 404 ? " (it did not exist in the first place)" : ""));
       } else {
-        out.push("源分支：" + headRef + " 删除失败——" + (dres ? describeFailure(dres, repoLabel) : dr.message));
+        out.push("source branch: deleting " + headRef + " failed — " + (dres ? describeFailure(dres, repoLabel) : dr.message));
       }
     }
   }
@@ -122,9 +122,9 @@ export async function run(input, ctx, { label }) {
   const conf = await callRest([{ url: apiUrl(repo, "/pulls/" + num), timeoutMs }], { timeoutSec });
   const cp = conf.ok && conf.results[0] && conf.results[0].json ? conf.results[0].json : null;
   if (cp) {
-    out.push("确认：state=" + String(cp.state || "?").toUpperCase() + (cp.merged ? " · merged=true" : "") +
-      (cp.merged_at ? " · 合并于 " + fmtTime(cp.merged_at) : ""));
-    if (cp.html_url) out.push("URL：" + cp.html_url);
+    out.push("confirmation: state=" + String(cp.state || "?").toUpperCase() + (cp.merged ? " · merged=true" : "") +
+      (cp.merged_at ? " · merged at " + fmtTime(cp.merged_at) : ""));
+    if (cp.html_url) out.push("URL: " + cp.html_url);
   }
   return out.join("\n");
 }

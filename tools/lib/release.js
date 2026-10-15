@@ -31,8 +31,8 @@ export const MAKE_LATEST_VALUES = ["true", "false", "legacy"];
 /** `make_latest` 三值 → 可读串。 */
 export function makeLatestText(value) {
   const v = value !== undefined && value !== null ? String(value) : "";
-  const map = { true: "是（true）", false: "否（false）", legacy: "旧式算法（legacy）" };
-  return map[v] || (v || "未提供");
+  const map = { true: "yes (true)", false: "no (false)", legacy: "legacy algorithm (legacy)" };
+  return map[v] || (v || "not provided");
 }
 
 /**
@@ -44,8 +44,8 @@ export function makeLatestText(value) {
 export function releaseFlags(rel) {
   const r = rel && typeof rel === "object" ? rel : {};
   const flags = [];
-  if (r.draft) flags.push("草稿 draft");
-  if (r.prerelease) flags.push("预发布 prerelease");
+  if (r.draft) flags.push("draft");
+  if (r.prerelease) flags.push("prerelease");
   if (r.latest === true) flags.push("latest");
   return flags;
 }
@@ -65,7 +65,7 @@ export function releaseLine(rel) {
   const at = r.published_at || r.created_at;
   return (
     "  " + (r.tag_name || "?") +
-    "  " + (r.name || "（无标题）") +
+    "  " + (r.name || "(untitled)") +
     (flags.length ? "  [" + flags.join(" · ") + "]" : "") +
     (at ? "  " + dateOnly(at) : "")
   );
@@ -84,13 +84,13 @@ export function formatSize(n) {
 export function assetLine(asset) {
   const a = asset && typeof asset === "object" ? asset : {};
   const size = a.size !== undefined ? "  " + formatSize(a.size) : "";
-  const downloads = a.download_count !== undefined ? "  下载 " + a.download_count : "";
+  const downloads = a.download_count !== undefined ? "  downloads " + a.download_count : "";
   return "  " + (a.name || "?") + size + downloads + (a.state && a.state !== "uploaded" ? "  [" + a.state + "]" : "");
 }
 
 /** 资产列表的排版（找不到目标时列出全部，供调用方改参数）。 */
 export function assetListText(list) {
-  if (!Array.isArray(list) || list.length === 0) return "  （这个 release 没有任何资产）";
+  if (!Array.isArray(list) || list.length === 0) return "  (this release has no assets)";
   return list.map(assetLine).join("\n");
 }
 
@@ -104,13 +104,13 @@ export function assetListText(list) {
 export async function fetchReleaseByTag(repo, repoLabel, tag, timeoutSec, label) {
   const url = apiUrl(repo, "/releases/tags/" + tag.split("/").map(encodeURIComponent).join("/"));
   const r = await callRest([{ url, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }], { timeoutSec });
-  if (!r.ok) return { error: label + " 执行失败：" + r.message };
+  if (!r.ok) return { error: label + " failed: " + r.message };
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return { error: label + "：仓库 " + repoLabel + " 里没有 tag 为 " + tag + " 的 release。", notFound: true };
+      return { error: label + ": repository " + repoLabel + " has no release with tag " + tag + ".", notFound: true };
     }
-    return { error: label + " 执行失败：" + describeFailure(res, repoLabel) };
+    return { error: label + " failed: " + describeFailure(res, repoLabel) };
   }
   return { release: res.json && typeof res.json === "object" ? res.json : {} };
 }
@@ -132,11 +132,11 @@ export async function locateRelease(input, c, label, opts = {}) {
 
   if (releaseId) {
     const r = await callRest([{ url: apiUrl(repo, "/releases/" + encodeURIComponent(releaseId)), timeoutMs }], { timeoutSec });
-    if (!r.ok) return { error: label + " 执行失败：" + r.message };
+    if (!r.ok) return { error: label + " failed: " + r.message };
     const res = r.results[0];
     if (!res || !res.ok) {
-      if (res && res.status === 404) return { error: label + "：仓库 " + repoLabel + " 里没有 id 为 " + releaseId + " 的 release。" };
-      return { error: label + " 执行失败：" + describeFailure(res, repoLabel) };
+      if (res && res.status === 404) return { error: label + ": repository " + repoLabel + " has no release with id " + releaseId + "." };
+      return { error: label + " failed: " + describeFailure(res, repoLabel) };
     }
     return { release: res.json && typeof res.json === "object" ? res.json : {} };
   }
@@ -145,23 +145,23 @@ export async function locateRelease(input, c, label, opts = {}) {
     if (opts.required) {
       return {
         error:
-          label + " 参数错误：tag 必填（要操作哪个 release）。\n" +
-          "先看有哪些：githana_release(action=\"list\")。",
+          label + " invalid arguments: tag is required (which release to operate on).\n" +
+          "to see what exists: githana_release(action=\"list\").",
       };
     }
     // 缺省取**最近一次发布**（`/releases/latest` 只算非 draft 非 prerelease 的，没有就 404）。
     const r = await callRest([{ url: apiUrl(repo, "/releases/latest"), timeoutMs }], { timeoutSec });
-    if (!r.ok) return { error: label + " 执行失败：" + r.message };
+    if (!r.ok) return { error: label + " failed: " + r.message };
     const res = r.results[0];
     if (!res || !res.ok) {
       if (res && res.status === 404) {
         return {
           error:
-            label + "：仓库 " + repoLabel + " 没有「最近发布的」release（latest 只算非草稿、非预发布的）。\n" +
-            "请显式传 tag。",
+            label + ": repository " + repoLabel + " has no \"most recently published\" release (latest counts only non-draft, non-prerelease ones).\n" +
+            "pass tag explicitly.",
         };
       }
-      return { error: label + " 执行失败：" + describeFailure(res, repoLabel) };
+      return { error: label + " failed: " + describeFailure(res, repoLabel) };
     }
     return { release: res.json && typeof res.json === "object" ? res.json : {} };
   }
@@ -184,13 +184,13 @@ export function findAsset(release, input) {
 
   if (assetId) {
     const hit = list.find((a) => a && String(a.id) === assetId);
-    if (!hit) return { error: "assetId " + assetId + " 不在这个 release 的资产列表里。", list };
+    if (!hit) return { error: "assetId " + assetId + " is not in this release's asset list.", list };
     return { asset: hit, list };
   }
   if (name) {
     const hit = list.find((a) => a && String(a.name) === name);
-    if (!hit) return { error: "这个 release 里没有名为 " + name + " 的资产。", list };
+    if (!hit) return { error: "this release has no asset named " + name + ".", list };
     return { asset: hit, list };
   }
-  return { error: "需要 assetName（或 assetId）来指定是哪个资产。", list };
+  return { error: "assetName (or assetId) is required to say which asset is meant.", list };
 }

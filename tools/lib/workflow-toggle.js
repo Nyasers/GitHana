@@ -46,51 +46,51 @@ export async function toggleWorkflow(input, c, label, mode) {
   const isEnable = mode === "enable";
 
   const wf = input?.workflow !== undefined && input?.workflow !== null ? String(input.workflow).trim() : "";
-  if (!wf) return label + " 参数错误：workflow 必填（数字 ID 或文件名，从 githana_workflow(action=\"list\") 取）。";
+  if (!wf) return label + " invalid arguments: workflow is required (numeric ID or file name; get it from githana_workflow(action=\"list\")).";
   const path = "/actions/workflows/" + workflowPath(wf);
 
   const r = await callRest(
     [{ method: isEnable ? "PUT" : "DELETE", url: apiUrl(repo, path + (isEnable ? "/enable" : "/disable")), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（这一对端点不返回正文）。
   if (!res || (!res.ok && res.status !== 204)) {
     if (res && res.status === 404) {
       return (
-        label + " 执行失败：仓库 " + repoLabel + " 里没有工作流 " + wf + "（数字 ID 与文件名都认）。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + " failed: repository " + repoLabel + " has no workflow " + wf + " (both numeric IDs and file names are accepted).\n" +
+        "GitHub response: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " failed: " + describeFailure(res, repoLabel);
   }
 
   // 回读一次现状：204 只说明请求被接受，state 才是能被核对的那一面。
   const after = await callRest([{ url: apiUrl(repo, path), timeoutMs }], { timeoutSec });
-  const out = [label + " 已" + (isEnable ? "启用" : "停用") + "（" + repoLabel + " · " + wf + "）："];
+  const out = [label + " " + (isEnable ? "enabled" : "disabled") + " (" + repoLabel + " · " + wf + "):"];
   const ares = after.ok ? after.results[0] : null;
   if (ares && ares.ok && ares.json && typeof ares.json === "object") {
     const w = ares.json;
-    out.push("工作流：" + (w.name || "（无名）") + " · 路径 " + (w.path || "?") + " · 状态 " + workflowStateText(w.state));
+    out.push("workflow: " + (w.name || "(unnamed)") + " · path " + (w.path || "?") + " · state " + workflowStateText(w.state));
     const want = isEnable ? "active" : "disabled_manually";
     if (String(w.state || "") !== want) {
       out.push(
-        "注意：请求返回成功（204），但回读到的状态是 " + workflowStateText(w.state) + "，不是预期的 " +
-        (isEnable ? "启用（active）" : "停用（disabled_manually）") + "——请以这个回读值为准。",
+        "note: the request returned success (204), but the state read back is " + workflowStateText(w.state) + ", not the expected " +
+        (isEnable ? "enabled (active)" : "disabled (disabled_manually)") + " — treat this read-back value as authoritative.",
       );
     }
-    if (w.html_url) out.push("URL：" + w.html_url);
+    if (w.html_url) out.push("URL: " + w.html_url);
   } else {
     out.push(
-      "（请求返回 204 成功，但回读工作流状态失败——" + (after.ok ? "结果不可用" : after.message) +
-      "；请用 githana_workflow(action=\"view\") 核对。）",
+      "(the request returned 204 success, but reading the workflow state back failed — " + (after.ok ? "result unavailable" : after.message) +
+      "; verify with githana_workflow(action=\"view\").)",
     );
   }
   out.push(
     isEnable
-      ? "说明：启用只改状态位——之后该工作流的自然触发（push / pull_request / schedule…）恢复生效。要立刻手动跑一次用 githana_workflow(action=\"run\")。"
-      : "说明：停用后**自然触发**（push / pull_request / schedule…）不再启动它，但 workflow_dispatch（githana_workflow(action=\"run\")）仍可手动触发；已经跑着的 run 不受影响。",
+      ? "note: enabling only flips the state bit — afterwards the workflow's natural triggers (push / pull_request / schedule…) take effect again. To run it once right away use githana_workflow(action=\"run\")."
+      : "note: after disabling, its **natural triggers** (push / pull_request / schedule…) no longer start it, but workflow_dispatch (githana_workflow(action=\"run\")) can still trigger it manually; runs already in flight are unaffected.",
   );
   return out.join("\n");
 }

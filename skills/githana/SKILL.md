@@ -3,17 +3,19 @@ name: githana
 description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_repo / githana_pr / githana_issue / githana_release / githana_run / githana_workflow / githana_cache / githana_label / githana_api call — per-action parameters, when to use each action, examples, the capability boundary with its escape hatch, and the permission gaps."
 ---
 
-# githana：用法手册
+# githana: usage manual
 
-GitHana 是 **gh CLI 的 App 形态实现**：`gh <组> <动词>` 对应 `githana_<组>(action="<动词>")`，
-`--flag` 对应该 action 的参数；`gh auth` / `gh config` 由设置页接管，TTY 交互由审批卡接管。
-工具面按 **gh 的组**分成十个名词工具——每个工具一张自己的参数表。
+GitHana is an **App-shaped implementation of the gh CLI**: `gh <group> <verb>` corresponds to
+`githana_<group>(action="<verb>")`, and `--flag` corresponds to that action's parameter; `gh auth` /
+`gh config` are taken over by the settings page, and TTY interaction is taken over by the approval
+card. The tool surface is split by **gh's groups** into ten noun tools — each tool has its own
+parameter table.
 
-## 工具面
+## Tool surface
 
-| 工具 | 权限档 | 动词 |
+| Tool | Permission tier | Verbs |
 |---|---|---|
-| `githana_git` | `external_side_effect`（过审） | `exec` · `commit` · `push` |
+| `githana_git` | `external_side_effect` (approval required) | `exec` · `commit` · `push` |
 | `githana_repo` | `external_side_effect` | `create` · `list` · `view` · `clone` · `fork` · `sync` · `gitignore` · `license` · `read-dir` · `read-file` |
 | `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
 | `githana_issue` | `external_side_effect` | `create` · `list` · `view` · `status` · `edit` · `comment` · `close` · `reopen` · `delete` · `develop` · `transfer` · `lock` · `unlock` · `pin` · `unpin` |
@@ -22,462 +24,547 @@ GitHana 是 **gh CLI 的 App 形态实现**：`gh <组> <动词>` 对应 `githan
 | `githana_workflow` | `external_side_effect` | `list` · `view` · `run` · `enable` · `disable` |
 | `githana_cache` | `external_side_effect` | `list` · `delete` |
 | `githana_label` | `external_side_effect` | `clone` · `create` · `edit` · `delete` · `list` |
-| `githana_api` | `external_side_effect` | 单动词，**不带 `action`**，必填 `path` |
+| `githana_api` | `external_side_effect` | single verb, **takes no `action`**, `path` required |
 
-`githana_git` **不是** gh 的组，是自有工具（本地 git；gh 从不管本地 commit）。`githana_api`
-是逃生门（`gh api` 的对应物，gh 自己也留着它）。
+`githana_git` is **not** a gh group; it is our own tool (local git; gh never handles local commits).
+`githana_api` is the escape hatch (the counterpart of `gh api`, which gh keeps for itself too).
 
-调用形态是「工具名 + action + 该 action 的参数」：
+The call shape is "tool name + action + that action's parameters":
 
 ```jsonc
 { "action": "status", "repo": "liliMozi/openhanako", "prNumber": 21 }        // githana_pr
 { "action": "commit", "cwd": "E:\\workspace\\my-repo", "message": "…" }      // githana_git
-{ "path": "/user/repos?per_page=50", "paginate": true }                      // githana_api（无 action）
+{ "path": "/user/repos?per_page=50", "paginate": true }                      // githana_api (no action)
 ```
 
-`action` 仅在动词数 ≥ 2 的工具上声明；`githana_api` 只有 `path` 必填。
+`action` is declared only on tools with ≥ 2 verbs; for `githana_api` only `path` is required.
 
-## 逐 action：什么时候用
+## Per action: when to use it
 
-工具面在每个新上下文里都被重新读一遍，没有积累下来的习惯可依赖——所以每个动词给的是
-**取值选择依据**（不是参数清单的复述）。参数形状以工具自身的 `parameters` 为准。
+The tool surface is re-read in every new context, and there are no accumulated habits to rely on —
+so what each verb gets here is the **basis for choosing a value** (not a restatement of the
+parameter list). Parameter shapes are whatever the tool's own `parameters` say.
 
-### githana_git（本地 git）
+### githana_git (local git)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `exec` | 任意 git 子命令透传：常见动词覆盖不到的本机操作（`pull` / `stash` / `checkout -b` / `show` / `log --stat`）。**它不追加署名**，纯透传 | `cwd` 必填；`args` 必填（数组，无 shell 拼接） |
-| `commit` | 要产生提交时**一律走它**（`exec` 不追加 Co-authored-by）。自动 CoA + OpenPGP 签名 | `cwd` 必填；`message` 必填（经 stdin，多行/中文无损）；`paths` / `amend` / `allowEmpty` |
-| `push` | 要把本地提交送上远端时。已登录时用 App 令牌认证（见下面「远端凭据」） | `cwd` 必填；`branch` / `remote` / `setUpstream` / `force` / `dryRun` |
+| `exec` | Passthrough for any git subcommand: local operations the common verbs do not cover (`pull` / `stash` / `checkout -b` / `show` / `log --stat`). **It appends no signature**, pure passthrough | `cwd` required; `args` required (array, no shell interpolation) |
+| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Automatic CoA + OpenPGP signing | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` |
+| `push` | When local commits are to be sent to the remote. Authenticates with the App token when logged in (see "Remote credentials" below) | `cwd` required; `branch` / `remote` / `setUpstream` / `force` / `dryRun` |
 
-`commit` 与 `exec` 的分界是**署名治理**：要 CoA 与签名就用 `commit`，要 git 原样行为就用 `exec`。
-要 `git diff` 这类只读细节也是 `exec`（`commit` 不带 diff 输出）。
+The dividing line between `commit` and `exec` is **signature governance**: to get CoA and signing use
+`commit`, to get git's raw behaviour use `exec`. Read-only details such as `git diff` also go through
+`exec` (`commit` carries no diff output).
 
-### githana_repo（仓库）
+### githana_repo (repositories)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `view` | 看**一个已知仓库**的元数据（默认分支、可见性、fork 关系）。要从当前目录反推仓库时用它 | `repo` 或 `cwd` |
-| `list` | **找**仓库 / 列一批（自己的、某 owner 的）。想知道「有哪些」而不是「这个是什么」 | `owner` / `visibility` / `limit`；**不吃 `repo`** |
-| `create` | 新建仓库（**只在当前登录账号下**）。组织下建仓库不在能力面，见「能力边界」 | `name` 必填；`private` / `autoInit` / `gitignore` / `license` / `homepage` / `description` |
-| `clone` | 要把仓库**落到本机磁盘**（唯一能产生「可继续 commit / push 的本地仓库」的手段）。注意 `cwd` 在这里是**父目录** | `repo` 必填（不推断）；`cwd` 必填；`directory` / `branch` / `depth` |
-| `fork` | 把别人的仓库 fork 到**自己账号下**。fork 到组织不在能力面 | `repo` 或 `cwd`；`name` / `defaultBranchOnly` |
-| `sync` | fork 与上游对齐（本地 `fetch` + 合并）。**只动本地克隆，不推送** —— 之后还要 `push` | `cwd` 必填；`branch` / `strategy`（`merge` / `ff-only` / `rebase`）/ `remote` |
-| `gitignore` | 建仓库前查 `.gitignore` 模板名（不给 `template` 列全部名，给了看该模板正文） | `template` 可选；别的键都不吃 |
-| `license` | 建仓库前查许可证模板 key（`create` 的 `license` 参数取这里的值，如 `mit`） | `full`（默认只列 key / 名称 / SPDX ID 三列，`true` 打完整响应）；`timeoutSec` |
-| `read-dir` | 读**远端**仓库某目录的文件清单（不用先 clone） | `repo` 或 `cwd`；`path` / `ref` |
-| `read-file` | 读**远端**仓库某文件正文（不用先 clone） | `repo` 或 `cwd`；`path` 必填；`ref` |
+| `view` | Look at the metadata of **one known repository** (default branch, visibility, fork relationship). Use it to derive the repository from the current directory | `repo` or `cwd` |
+| `list` | **Find** repositories / list a batch (your own, or a given owner's). When you want to know "what exists" rather than "what this one is" | `owner` / `visibility` / `limit`; **does not accept `repo`** |
+| `create` | Create a new repository (**only under the currently logged-in account**). Creating repositories under an organization is outside the capability surface, see "Capability boundary and escape hatch" | `name` required; `private` / `autoInit` / `gitignore` / `license` / `homepage` / `description` |
+| `clone` | When the repository is to **land on local disk** (the only way to produce "a local repository you can keep committing / pushing from"). Note that `cwd` here is the **parent directory** | `repo` required (not inferred); `cwd` required; `directory` / `branch` / `depth` |
+| `fork` | Fork someone else's repository into **your own account**. Forking into an organization is outside the capability surface | `repo` or `cwd`; `name` / `defaultBranchOnly` |
+| `sync` | Align a fork with upstream (local `fetch` + merge). **Touches only the local clone, does not push** — you still need `push` afterwards | `cwd` required; `branch` / `strategy` (`merge` / `ff-only` / `rebase`) / `remote` |
+| `gitignore` | Look up `.gitignore` template names before creating a repository (without `template` it lists all names; with it, it shows that template's body) | `template` optional; no other keys accepted |
+| `license` | Look up license template keys before creating a repository (the `license` parameter of `create` takes a value from here, e.g. `mit`) | `full` (by default lists only the three columns key / name / SPDX ID; `true` prints the full response); `timeoutSec` |
+| `read-dir` | Read the file listing of a directory in a **remote** repository (no need to clone first) | `repo` or `cwd`; `path` / `ref` |
+| `read-file` | Read the body of a file in a **remote** repository (no need to clone first) | `repo` or `cwd`; `path` required; `ref` |
 
-`view` / `list` 常被混用：**找用 `list`，看用 `view`**。`list` 不接受 `repo`（它列的是集合），
-`view` 要一个具体仓库。`read-dir` / `read-file` 与 `clone` 的分界是**要不要本地副本**：
-只看内容用前者，要改代码用后者。
+`view` / `list` are often confused: **use `list` to find, `view` to look**. `list` does not accept
+`repo` (what it lists is a set), while `view` needs one specific repository. The dividing line between
+`read-dir` / `read-file` and `clone` is **whether you need a local copy**: to read content only use
+the former, to change code use the latter.
 
-### githana_pr（Pull Request）
+### githana_pr (Pull Requests)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `view` | **看**一个 PR 的详情（含 reviews）：要正文、审查状态、合并状态 | `prNumber`（缺省 = 当前分支关联 PR，此时要 `cwd`） |
-| `list` | **找** PR：列一批按状态过滤，还不知道编号 | `state` / `limit`；不接受 `prNumber` |
-| `status` | PR **状态速览**（含审查与检查计数）：只要一眼结论、不要正文 | `prNumber` 可缺省 |
-| `diff` | 要看**补丁正文**（改了什么） | `prNumber`；`format`（`diff` / `patch`） |
-| `checks` | 只看 **CI 检查**状态（不看代码、不看审查） | `prNumber` 可缺省 |
-| `create` | 开新 PR。**不自动推分支**：head 分支没推上去会显式报错并引导先 `push` | `cwd` 实际必填（取 head 与缺省 title）；`base` 缺省取默认分支；`title` / `body` / `draft` |
-| `ready` | 草稿 PR ↔ 可审查的**状态位切换**（`undo=true` 反向转回草稿）。改标题/正文不是它 | `prNumber`；`undo` |
-| `merge` | 合并（**不可撤销**）。要放弃改动请用 `close` | `prNumber` 必填；`method`（`merge` / `squash` / `rebase`）；`deleteBranch` |
-| `review` | 提交**审查结论**（批准 / 请求修改 / 留意见），可带行内意见 | `event` 必填；`body`（`request-changes` 必填）；`comments[]` |
-| `comment` | 只在时间线上**留一条评论**（不是审查结论，不影响 reviewDecision） | `body` 必填 |
-| `close` | 关闭 PR（可 `reopen` 还原）。**不删分支与历史** | `prNumber` 可缺省 |
-| `reopen` | 重开已关闭的 PR | `prNumber` 可缺省 |
-| `edit` | 改 PR 的**元数据**：标题 / 正文 / 目标分支 / 状态位 | `title` / `body` / `base` / `state` 至少给一个 |
-| `revert` | 回退**已合并**的 PR（本地 revert + 新分支 + 开回退 PR）。没合并没有可回退的东西 | `cwd` 必填；`prNumber` 必填；`branch` / `title` / `body` / `draft` / `remote` |
-| `checkout` | 把 PR 的源分支**取到本地并检出**（要在本机改这个 PR 的代码时） | `cwd` 必填；`prNumber` 必填；`branch` / `remote` / `force` |
-| `lock` / `unlock` | 锁定 / 解锁对话（挡非协作者评论） | `prNumber`；`lock` 另有 `reason` |
-| `update-branch` | 把**目标分支合进 PR 源分支**（「Update branch」按钮的等价物） | `prNumber`；`expectedHeadSha`（乐观并发保护） |
+| `view` | **Look at** one PR's details (including reviews): when you need the body, review state, merge state | `prNumber` (default = the PR associated with the current branch, in which case `cwd` is needed) |
+| `list` | **Find** PRs: list a batch filtered by state, when you do not know the number yet | `state` / `limit`; does not accept `prNumber` |
+| `status` | PR **status at a glance** (including review and check counts): when you only want a one-line conclusion, not the body | `prNumber` may be omitted |
+| `diff` | When you need the **patch body** (what changed) | `prNumber`; `format` (`diff` / `patch`) |
+| `checks` | Only the **CI check** status (no code, no reviews) | `prNumber` may be omitted |
+| `create` | Open a new PR. **Does not push the branch automatically**: if the head branch has not been pushed it reports an explicit error and points you to `push` first | `cwd` effectively required (used to take head and the default title); `base` defaults to the default branch; `title` / `body` / `draft` |
+| `ready` | The **state-bit toggle** between draft PR ↔ ready for review (`undo=true` flips it back to a draft). Changing the title/body is not it | `prNumber`; `undo` |
+| `merge` | Merge (**irreversible**). To abandon the changes use `close` | `prNumber` required; `method` (`merge` / `squash` / `rebase`); `deleteBranch` |
+| `review` | Submit a **review verdict** (approve / request changes / leave comments), optionally with inline comments | `event` required; `body` (required for `request-changes`); `comments[]` |
+| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required |
+| `close` | Close a PR (restorable with `reopen`). **Deletes neither the branch nor history** | `prNumber` may be omitted |
+| `reopen` | Reopen a closed PR | `prNumber` may be omitted |
+| `edit` | Change a PR's **metadata**: title / body / base branch / state bit | `title` / `body` / `base` / `state` — give at least one |
+| `revert` | Revert a **merged** PR (local revert + new branch + open the revert PR). If it was never merged there is nothing to revert | `cwd` required; `prNumber` required; `branch` / `title` / `body` / `draft` / `remote` |
+| `checkout` | **Fetch the PR's source branch to local and check it out** (when you need to change this PR's code on this machine) | `cwd` required; `prNumber` required; `branch` / `remote` / `force` |
+| `lock` / `unlock` | Lock / unlock the conversation (blocks comments from non-collaborators) | `prNumber`; `lock` additionally has `reason` |
+| `update-branch` | **Merge the base branch into the PR's source branch** (the equivalent of the "Update branch" button) | `prNumber`; `expectedHeadSha` (optimistic concurrency guard) |
 
-四个易混分界：**找 `list` / 看 `view` / 速览 `status` / 补丁 `diff`**。
-要「等 CI 到终态」用 `githana_run(action="watch")`，不是 `checks`（后者只报此刻）。
+Four easily confused dividing lines: **find `list` / look `view` / glance `status` / patch `diff`**.
+To "wait for CI to reach a terminal state" use `githana_run(action="watch")`, not `checks` (the
+latter reports only this moment).
 
-### githana_issue（Issue）
+### githana_issue (Issues)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `view` | 看 issue 详情（含评论） | `issueNumber` 必填；`comments` |
-| `list` | 列 issue（默认**不含 PR**；要 PR 用 `githana_pr(action="list")`） | `state` / `labels` / `assignee` / `includePrs` / `limit` |
-| `status` | issue 状态速览（只报状态，不拉正文与评论） | `issueNumber` 必填 |
-| `create` | 新建 issue | `title` 必填；`body` / `labels` / `assignees` |
-| `edit` | 改标题 / 正文 / 标签 / 指派 / 里程碑 | `issueNumber` 必填；`labels`（整体替换）与 `addLabels` / `removeLabels` 互斥 |
-| `comment` | 给 issue 加评论 | `body` 必填 |
-| `close` / `reopen` | 关闭 / 重开（可选附一条说明评论，先评论再改状态） | `issueNumber`；`comment` |
-| `delete` | 删除 issue（**不可撤销**，需 `confirm=true`） | `issueNumber` 必填；`confirm` |
-| `develop` | 从 issue **建关联开发分支**（分支名缺省 `<编号>-<标题短横线形式>`） | `issueNumber` 必填；`name` / `base` |
-| `transfer` | 把 issue 转到**另一个仓库** | `issueNumber` 必填；`targetRepo` 必填 |
-| `lock` / `unlock` | 锁定 / 解锁对话 | `issueNumber`；`lock` 另有 `reason` |
-| `pin` / `unpin` | 固定 / 解除固定到仓库顶部 | `issueNumber` 必填 |
+| `view` | View an issue's details (including comments) | `issueNumber` required; `comments` |
+| `list` | List issues (by default **excludes PRs**; for PRs use `githana_pr(action="list")`) | `state` / `labels` / `assignee` / `includePrs` / `limit` |
+| `status` | Issue status at a glance (reports state only, does not fetch the body or comments) | `issueNumber` required |
+| `create` | Create a new issue | `title` required; `body` / `labels` / `assignees` |
+| `edit` | Change title / body / labels / assignees / milestone | `issueNumber` required; `labels` (whole replacement) is mutually exclusive with `addLabels` / `removeLabels` |
+| `comment` | Add a comment to an issue | `body` required |
+| `close` / `reopen` | Close / reopen (optionally with one explanatory comment attached; comments first, then changes the state) | `issueNumber`; `comment` |
+| `delete` | Delete an issue (**irreversible**, requires `confirm=true`) | `issueNumber` required; `confirm` |
+| `develop` | **Create a linked development branch** from the issue (branch name defaults to `<number>-<title-in-hyphenated-form>`) | `issueNumber` required; `name` / `base` |
+| `transfer` | Transfer the issue to **another repository** | `issueNumber` required; `targetRepo` required |
+| `lock` / `unlock` | Lock / unlock the conversation | `issueNumber`; `lock` additionally has `reason` |
+| `pin` / `unpin` | Pin / unpin to the top of the repository | `issueNumber` required |
 
-`comment` 与 `edit` 的分界：`comment` 只往时间线追加，`edit` 改的是 issue 本体字段。
+The dividing line between `comment` and `edit`: `comment` only appends to the timeline, while `edit`
+changes the issue's own fields.
 
-### githana_release（发布）
+### githana_release (releases)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `view` | 看**一个**发布的详情（含资产清单） | `tag` 缺省 = 最近一次发布的（不含草稿/预发布）；或 `releaseId` |
-| `list` | 列发布（默认**滤掉草稿**；要草稿传 `includeDrafts=true`） | `limit` / `includeDrafts` |
-| `create` | 新建发布（tag 不存在时按 `target` 新建） | `tag` 必填；`name` / `body` / `draft` / `prerelease` / `target` / `generateNotes` / `latest` |
-| `edit` | 只改**状态位**：`draft` / `prerelease` / `latest`（改标题正文不属它） | 至少给一个状态位；`tag` 或 `releaseId` **必须点名** |
-| `delete` | 删除发布（**不可撤销**，需 `confirm=true`；**不删 tag**） | `tag` 必填；`confirm` |
-| `upload` | 把本地文件作为发布资产传上去（发布链路的最后一步）。**流式发字节**到 `uploads.github.com` | `tag` + `file` 必填（`file` 要**绝对**路径）；`assetName` / `contentType` / `assetLabel` |
-| `download` | 把发布资产**取到本地磁盘**。缺省取该 release 的全部资产 | `tag` 必填；`assetName` / `assetId`；`path`（单个文件）或 `dir`（目录）；`overwrite` |
-| `delete-asset` | 删发布里的一个资产（**不可撤销**，需 `confirm=true`） | `tag` + `assetName` 必填 |
-| `verify` | 核对发布的**完整性**：资产 sha256 清单，可选与本地文件比对 | `tag` 必填；`files[]` |
-| `verify-asset` | 核对**一个**资产的摘要（可选与本地文件比对） | `tag` + `assetName` 必填；`file` |
+| `view` | View the details of **one** release (including the asset list) | `tag` defaults to the most recent release (excluding drafts/prereleases); or `releaseId` |
+| `list` | List releases (by default **filters out drafts**; pass `includeDrafts=true` for drafts) | `limit` / `includeDrafts` |
+| `create` | Create a release (if the tag does not exist, creates it from `target`) | `tag` required; `name` / `body` / `draft` / `prerelease` / `target` / `generateNotes` / `latest` |
+| `edit` | Change only the **state bits**: `draft` / `prerelease` / `latest` (changing the title/body is not it) | give at least one state bit; `tag` or `releaseId` **must be named explicitly** |
+| `delete` | Delete a release (**irreversible**, requires `confirm=true`; **does not delete the tag**) | `tag` required; `confirm` |
+| `upload` | Upload a local file as a release asset (the last step of the release pipeline). **Streams bytes** to `uploads.github.com` | `tag` + `file` required (`file` must be an **absolute** path); `assetName` / `contentType` / `assetLabel` |
+| `download` | **Fetch release assets to local disk**. By default fetches all assets of that release | `tag` required; `assetName` / `assetId`; `path` (single file) or `dir` (directory); `overwrite` |
+| `delete-asset` | Delete one asset in a release (**irreversible**, requires `confirm=true`) | `tag` + `assetName` required |
+| `verify` | Verify a release's **integrity**: the asset sha256 listing, optionally compared against local files | `tag` required; `files[]` |
+| `verify-asset` | Verify **one** asset's digest (optionally compared against a local file) | `tag` + `assetName` required; `file` |
 
-`list` 与 `view` 的取舍同 PR：列一批用 `list`，看一个用 `view`。
-`verify` 核的是**发布自身完整性**（GitHub 记录的 `digest` vs 本地 sha256），**不是** gh 的
-「来源证明（attestation）」校验——那一层做不到（见「能力边界」）。
+The `list` vs `view` trade-off is the same as for PRs: use `list` to enumerate a batch, `view` to look
+at one. What `verify` checks is the **release's own integrity** (the `digest` GitHub records vs the
+local sha256), **not** gh's "attestation" verification — that layer is out of reach (see "Capability
+boundary and escape hatch").
 
-### githana_run（Actions run）
+### githana_run (Actions runs)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `view` | 看**此刻**一个 run 的详情（含各作业状态）。要「等它跑完」用 `watch` | `runId` 或 `branch`；`job`（按名字过滤） |
-| `list` | 列 run（按分支 / 状态 / 工作流 / 触发人过滤） | `branch` / `workflow` / `actor` / `limit` |
-| `watch` | 要**等 CI 到终态**并拿结论。**返回后台任务句柄，不返回结论** | `runId` 或 `branch`；`intervalSec` / `watchSec` |
-| `rerun` | 重跑（`failedOnly=true` 只重跑失败作业） | `runId` 或 `branch`；`failedOnly` / `debugLogging` |
-| `cancel` | 取消进行中的 run（尽力而为） | `runId` 或 `branch` |
-| `delete` | 删除 run 记录（**不可撤销**，需 `confirm=true`） | `runId` **必填**（不吃「最近一个」缺省）；`confirm` |
-| `download` | 把 run 的日志 / 产物**取到本地磁盘**（zip 字节流，流式写盘） | `runId` 或 `branch`；`what`（`logs` / `artifacts`）/ `artifactName`；`path` 或 `dir`；`overwrite` |
+| `view` | View a run's details **at this moment** (including each job's status). To "wait for it to finish" use `watch` | `runId` or `branch`; `job` (filter by name) |
+| `list` | List runs (filter by branch / status / workflow / actor) | `branch` / `workflow` / `actor` / `limit` |
+| `watch` | When you need to **wait for CI to reach a terminal state** and get the conclusion. **Returns a background task handle, not the conclusion** | `runId` or `branch`; `intervalSec` / `watchSec` |
+| `rerun` | Re-run (`failedOnly=true` re-runs only the failed jobs) | `runId` or `branch`; `failedOnly` / `debugLogging` |
+| `cancel` | Cancel an in-progress run (best effort) | `runId` or `branch` |
+| `delete` | Delete a run record (**irreversible**, requires `confirm=true`) | `runId` **required** (no "most recent one" default accepted); `confirm` |
+| `download` | **Fetch a run's logs / artifacts to local disk** (zip byte stream, streamed to disk) | `runId` or `branch`; `what` (`logs` / `artifacts`) / `artifactName`; `path` or `dir`; `overwrite` |
 
-`view` 与 `watch` 的分界是**要不要等**：`view` 报此刻（要更新就自己再看一次），
-`watch` 报到终态那一刻的结论、且不占调用方的回合。`watch` 的细节见
-下面「三个形态特殊的动词」。
+The dividing line between `view` and `watch` is **whether you need to wait**: `view` reports this
+moment (to get an update, just look again yourself), while `watch` reports the conclusion at the
+moment of the terminal state and does not occupy the caller's turn. For details on `watch`, see
+"Three verbs with unusual shapes" below.
 
-### githana_workflow（工作流）
+### githana_workflow (workflows)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `list` | 列仓库里的工作流（默认含被停用的；只看启用的传 `enabledOnly=true`） | `enabledOnly` / `limit` |
-| `view` | 看**一个**工作流的定义（不含 YAML 正文） | `workflow` 必填（数字 ID 或文件名） |
-| `run` | **手动触发**（`workflow_dispatch`）。同步触发、**不等 CI**（要等就接着 `githana_run(action="watch")`） | `workflow` 必填；`ref` |
-| `enable` | 启用（恢复它的自然触发） | `workflow` 必填 |
-| `disable` | 停用（挡自然触发，**不挡手动 dispatch**） | `workflow` 必填 |
+| `list` | List the repository's workflows (disabled ones included by default; pass `enabledOnly=true` for enabled only) | `enabledOnly` / `limit` |
+| `view` | View **one** workflow's definition (without the YAML body) | `workflow` required (numeric ID or file name) |
+| `run` | **Trigger manually** (`workflow_dispatch`). Triggers synchronously and **does not wait for CI** (to wait, follow up with `githana_run(action="watch")`) | `workflow` required; `ref` |
+| `enable` | Enable (restores its natural triggers) | `workflow` required |
+| `disable` | Disable (blocks natural triggers, **does not block a manual dispatch**) | `workflow` required |
 
-`workflow run` 与 `run rerun` 的分界：前者按**工作流**起一次新的，后者按**已有 run 编号**再来一遍。
+The dividing line between `workflow run` and `run rerun`: the former starts a new one by **workflow**,
+the latter goes again by **an existing run number**.
 
-### githana_cache（构建缓存）
+### githana_cache (build caches)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `list` | 看仓库有哪些缓存（按 key / ref 过滤、按大小或时间排序，通常为了腾配额） | `key` / `ref` / `sort` / `direction` / `limit` |
-| `delete` | 删缓存：按 `id` 删一条，或按 `key`（+`ref`）删一族 | `id` 或 `key`；按 key 且不给 `ref` 时需 `confirm=true` |
+| `list` | See which caches a repository has (filter by key / ref, sort by size or time — usually to free up quota) | `key` / `ref` / `sort` / `direction` / `limit` |
+| `delete` | Delete caches: one entry by `id`, or a whole family by `key` (+`ref`) | `id` or `key`; by key without `ref` requires `confirm=true` |
 
-### githana_label（标签）
+### githana_label (labels)
 
-| action | 什么时候用 | 关键参数 |
+| action | When to use | Key parameters |
 |---|---|---|
-| `list` | 列仓库标签（拿准名字，别的动词要按名字引用标签） | `limit` |
-| `create` | 新建标签（同名已存在会 422） | `name` 必填；`color` / `description` |
-| `edit` | 改**现有**标签（改名用 `newName`） | `name` 必填（定位用）；`newName` / `color` / `description` |
-| `delete` | 删除标签（会从所有已打它的 issue / PR 上摘掉；需 `confirm=true`） | `name` 必填；`confirm` |
-| `clone` | 把**另一个仓库**的标签整套搬过来 | `fromRepo` **必填**（源）；`repo`（目标，缺省从 cwd 推断） |
+| `list` | List the repository's labels (to get the exact names; other verbs reference labels by name) | `limit` |
+| `create` | Create a label (an existing name returns 422) | `name` required; `color` / `description` |
+| `edit` | Change an **existing** label (rename with `newName`) | `name` required (used to locate it); `newName` / `color` / `description` |
+| `delete` | Delete a label (it is removed from every issue / PR that carries it; requires `confirm=true`) | `name` required; `confirm` |
+| `clone` | Copy **another repository**'s whole label set over | `fromRepo` **required** (source); `repo` (target, defaults to what is inferred from cwd) |
 
-### githana_api（逃生门，单动词）
+### githana_api (escape hatch, single verb)
 
-| 什么时候用 | 关键参数 |
+| When to use | Key parameters |
 |---|---|
-| 类型化动词覆盖不到的长尾能力（见「能力边界」的端点表）。**不填 `action`** | `path` 必填（api.github.com 之后的路径，带前导斜杠）；`method`（缺省 `GET`）；`body`（JSON，`POST` / `PATCH` / `PUT`）；`repo`（替换 `path` 里的 `{owner}` / `{repo}` 占位符）；`paginate`（跟随 Link 分页，上限 10 页） |
+| Long-tail capabilities the typed verbs do not cover (see the endpoint tables in "Capability boundary and escape hatch"). **Do not fill in `action`** | `path` required (the path after api.github.com, with a leading slash); `method` (default `GET`); `body` (JSON, `POST` / `PATCH` / `PUT`); `repo` (replaces the `{owner}` / `{repo}` placeholders in `path`); `paginate` (follows Link pagination, capped at 10 pages) |
 
-查询串直接拼在 `path` 里（`/repos/o/r/issues?state=all&per_page=50`）。它**不做 cwd 推断**：
-`repo` 只用于替换占位符。`POST /graphql` 走同一个 `path`（GraphQL 与 REST 都是端点，
-动作内部按「哪个能实现」选，对外不暴露通道差异）。
+The query string goes directly into `path` (`/repos/o/r/issues?state=all&per_page=50`). It **does no
+cwd inference**: `repo` is only used to replace placeholders. `POST /graphql` goes through the same
+`path` (both GraphQL and REST are endpoints; the action picks internally by "which one can implement
+it" and does not expose the channel difference to the outside).
 
-## 三个形态特殊的动词
+**Which endpoint to hit — read `references/`.** `api` has no parameter surface of its own: you have
+to know the path and the permission it needs. This skill's `references/` directory holds one file per
+category, listing every endpoint this App's permission set can actually reach, with the supporting
+permission and the action's read/write level:
 
-这三个的形态与同工具其它动词不同，容易按惯性调错，所以单独写清。
+| Read | When |
+|---|---|
+| `references/INDEX.md` | First stop: category → endpoint count → file name. |
+| `references/<category>.md` | Before composing a call you are not sure about. Each file is small enough to read in one go, and marks entries that already have a typed verb (`prefer \`githana_pr\``) so you do not hand-roll a call the tool already covers. |
 
-### `githana_pr(action="ready")` — 草稿 PR 转 ready（可反向）
+These files are generated from GitHub's official permission table filtered by this App's authorized
+permissions (`node scripts/derive/index.mjs api-reference`). An endpoint **absent** from them needs a
+permission this App does not declare, so `api` gets a 403 there — the absence is the answer, not an
+oversight. The tables in "Capability boundary" below record the *gaps* (what is missing and what to
+do instead); `references/` records the *reachable surface*.
+
+## Three verbs with unusual shapes
+
+These three have shapes different from the other verbs in their tools, and are easy to call wrong out
+of habit, so they are spelled out separately.
+
+### `githana_pr(action="ready")` — turn a draft PR ready (reversible)
 
 ```jsonc
-{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42 }              // 草稿 → 可审查
-{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42, "undo": true } // 可审查 → 草稿
+{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42 }              // draft → ready for review
+{ "action": "ready", "repo": "liliMozi/openhanako", "prNumber": 42, "undo": true } // ready for review → draft
 ```
 
-- **不暴露通道差异**：内部先 REST `GET /pulls/{n}` 取 `node_id`，再发 GraphQL 变更
-  （`markPullRequestReadyForReview` / `convertPullRequestToDraft`）。原因是一条实测事实：
-  **un-draft 只有 GraphQL 能做**——REST `PATCH /pulls/{n}` 带 `{draft:false}` 返回 200 但
-  `isDraft` 仍是 `true`（静默不生效），而 `POST /pulls/{n}/ready_for_review` 返回 404。
-- **幂等**：已经是目标状态就不发变更，如实回报「本来就是」，不发一次注定被拒的请求。
-- **什么时候用**：草稿写完了要请人审查用这个（`undo` 缺省）；写完但还不能合、要先藏起来用
-  `undo=true`。改标题 / 正文用 `edit`，要合并不是它。
-- 支撑权限 `pull_requests: write`。
+- **Does not expose the channel difference**: internally it first does REST `GET /pulls/{n}` to get
+  `node_id`, then sends a GraphQL mutation (`markPullRequestReadyForReview` /
+  `convertPullRequestToDraft`). The reason is a measured fact: **un-drafting can only be done with
+  GraphQL** — REST `PATCH /pulls/{n}` with `{draft:false}` returns 200 but `isDraft` is still `true`
+  (silently has no effect), while `POST /pulls/{n}/ready_for_review` returns 404.
+- **Idempotent**: if it is already in the target state it sends no mutation and honestly reports "it
+  already was", rather than sending a request that is bound to be rejected.
+- **When to use it**: use this when the draft is finished and you want someone to review it (`undo`
+  default); use `undo=true` when it is finished but cannot be merged yet and should be hidden first.
+  Use `edit` to change the title / body; merging is not it.
+- Supporting permission `pull_requests: write`.
 
-### `githana_release(action="edit")` — 改发布的状态位
+### `githana_release(action="edit")` — change a release's state bits
 
 ```jsonc
-{ "action": "edit", "repo": "liliMozi/openhanako", "tag": "v1.3.0", "draft": false }        // 草稿 → 发布
+{ "action": "edit", "repo": "liliMozi/openhanako", "tag": "v1.3.0", "draft": false }        // draft → published
 { "action": "edit", "repo": "liliMozi/openhanako", "tag": "v1.3.0", "prerelease": true, "latest": "false" }
 { "action": "edit", "repo": "liliMozi/openhanako", "releaseId": 12345678, "latest": "legacy" }
 ```
 
-- **`legacy` 不是「取消 latest」**：原文含义是「用旧式算法决定哪个 release 是 latest」
-  （REST 的 `make_latest` 就是这三个值）。把它当 `false` 处理会改掉语义。
-- **一次调用至少给一个状态位**；一个都不给会返回引导，不发一次注定 422 的请求。
-- **不给「最近一个发布」的缺省**：改状态位不吃危险默认值，必须点名 `tag` 或 `releaseId`。
-- **同时设 `latest=true` 与 `draft` / `prerelease` 会被当场拒**：GitHub 不接受草稿或预发布
-  作为 latest。分两次调用。
-- **只改状态位**：标题 / 正文 / 移动 tag 是发布**内容**，走 `githana_api` 打
-  `PATCH /repos/{owner}/{repo}/releases/{id}`（端点在能力面上）。
-- 支撑权限 `contents: write`。
+- **`legacy` is not "unset latest"**: its literal meaning is "use the legacy algorithm to decide
+  which release is latest" (REST's `make_latest` takes exactly these three values). Treating it as
+  `false` would change the semantics.
+- **One call needs at least one state bit**; giving none returns guidance rather than sending a
+  request that is bound to 422.
+- **There is no "most recent release" default**: changing state bits does not take dangerous
+  defaults — you must name `tag` or `releaseId`.
+- **Setting `latest=true` together with `draft` / `prerelease` is rejected on the spot**: GitHub does
+  not accept a draft or prerelease as latest. Split it into two calls.
+- **State bits only**: title / body / moving the tag are release **content** and go through
+  `githana_api` hitting `PATCH /repos/{owner}/{repo}/releases/{id}` (the endpoint is on the
+  capability surface).
+- Supporting permission `contents: write`.
 
-### `githana_run(action="watch")` — 盯 CI 到终态（**返回句柄，不返回结论**）
+### `githana_run(action="watch")` — watch CI to a terminal state (**returns a handle, not a conclusion**)
 
 ```jsonc
 { "action": "watch", "repo": "liliMozi/openhanako", "runId": 1234567890 }
 { "action": "watch", "repo": "liliMozi/openhanako", "branch": "fix/x", "intervalSec": 30, "watchSec": 7200 }
 ```
 
-- **它返回的是一个任务句柄，不是 CI 结论。** 回执里给 `taskId` 与此刻的 run 状态，调用到此
-  结束；CI 到终态时宿主把**结论贴回本会话的下一个输入点**（宿主后台任务的 `next-step` 档位）。
-  所以不要为等它而结束回合、也不要隔一会儿再 `watch` 一次。
-- **为什么不能直接等**：CI 以分钟计，占着工具回调等会堵住宿主通道（工具回调有超时）。
-  本动词因此把「等」放进宿主后台任务：`ctx.tasks.create({ scope: "session",
-  delivery: "next-step", chipVisibility: "show" })`。这条路径需要清单能力 `app/tasks.manage`。
-- **能力未授予时**：返回可读错误，指明缺 `app/tasks.manage` 并给出替代做法（用 `view` 看
-  此刻状态），**不空转**。
-- **中途要停**：在会话的后台任务项里取消。轮询器每一跳先读宿主任务记录，看到任务已经是终态
-  就停止取数、也不再回投。
-- **App 重载后恢复**：盯守坐标写在宿主任务记录的 `metadata.githana` 里，App 换代后在 `apply`
-  阶段用 `ctx.tasks.list()` 把未终结的记录接回去。本 App **不落私有状态文件**。
-- **到点没终结**：窗口结束时任务结算为失败并给出原文（「盯守窗口已到点」），说明这不是 CI
-  失败、要继续盯就再调一次 `watch`。
-- 支撑权限 `actions: write`（轮询只读 run 与 jobs）。
+- **What it returns is a task handle, not a CI conclusion.** The receipt gives `taskId` and the run
+  state at this moment, and the call ends there; when CI reaches a terminal state the host posts the
+  **conclusion back to this session's next input point** (the host background task's `next-step`
+  slot). So do not end your turn in order to wait for it, and do not `watch` again after a while.
+- **Why it cannot simply wait**: CI is measured in minutes, and holding the tool callback to wait
+  would block the host channel (tool callbacks have a timeout). This verb therefore puts the
+  "waiting" into a host background task: `ctx.tasks.create({ scope: "session",
+  delivery: "next-step", chipVisibility: "show" })`. This path needs the manifest capability
+  `app/tasks.manage`.
+- **When the capability is not granted**: it returns a readable error that names the missing
+  `app/tasks.manage` and gives an alternative (use `view` to see the state at this moment),
+  **without spinning idle**.
+- **Stopping it midway**: cancel it in the session's background task entry. Each poll first reads the
+  host task record, and once the task is already terminal it stops fetching data and stops posting
+  back.
+- **Recovery after an App reload**: the watch coordinates are written into the host task record's
+  `metadata.githana`, and after an App generation change the `apply` phase reattaches unfinished
+  records with `ctx.tasks.list()`. This App **writes no private state file**.
+- **Window elapsed without a terminal state**: at the end of the window the task settles as failed
+  and gives the original text (`watch window elapsed`), explaining that this is not a CI failure and
+  that to keep watching you call `watch` again.
+- Supporting permission `actions: write` (polling only reads runs and jobs).
 
-## cwd 约定
+## The cwd convention
 
-`cwd` 一律是**仓库的绝对路径**（如 `E:\\workspace\\my-repo`），不做工作目录隐式推断。
+`cwd` is always the **absolute path of the repository** (e.g. `E:\\workspace\\my-repo`); there is no
+implicit working-directory inference.
 
-| 动词 | cwd |
+| Verb | cwd |
 |---|---|
-| `githana_git` 的 `exec` / `commit` / `push` | **必填** |
-| `githana_repo` 的 `clone`（**父目录**）/ `sync` | **必填** |
-| `githana_pr` 的 `checkout` / `revert` | **必填**（要在本地做 git 操作） |
-| `githana_pr` 的 `create` | 实际必填（head 取它的当前分支；`title` 缺省也读它） |
-| `githana_pr` 的 `view` / `status` / `ready` 等 | 可选，但要拿「当前分支关联 PR」这个缺省时必填 |
-| 其余 GitHub 动词 | 可选（仅在没传 `repo` 时用来从 git remote 推断仓库） |
-| `githana_api` | **不接受**：它只按 `path` 打端点，`repo` 只用于替换占位符 |
+| `githana_git`'s `exec` / `commit` / `push` | **required** |
+| `githana_repo`'s `clone` (**parent directory**) / `sync` | **required** |
+| `githana_pr`'s `checkout` / `revert` | **required** (git operations are to be done locally) |
+| `githana_pr`'s `create` | effectively required (head takes its current branch; the `title` default reads it too) |
+| `githana_pr`'s `view` / `status` / `ready` etc. | optional, but required when you want the "PR associated with the current branch" default |
+| the remaining GitHub verbs | optional (used only when `repo` was not passed, to infer the repository from the git remote) |
+| `githana_api` | **not accepted**: it hits endpoints purely by `path`, and `repo` is only used to replace placeholders |
 
-GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没传就从 `cwd` 的 git remote 推断；
-两者都没有 → 报错并给引导，不猜（`githana_api` 例外）。
+Repository context for GitHub actions: **an explicit `repo` (owner/repo) wins**; if not passed it is
+inferred from the git remote at `cwd`; if neither is available → it reports an error with guidance
+rather than guessing (`githana_api` excepted).
 
-### 本地路径：相对路径在这里没有意义
+### Local paths: relative paths are meaningless here
 
-`githana_release(action="upload" / "download")` 与 `githana_run(action="download")` 收**本地路径**，
-一律要**绝对**路径（`C:\...` / `/...`）：
+`githana_release(action="upload" / "download")` and `githana_run(action="download")` take **local
+paths**, and always require **absolute** paths (`C:\...` / `/...`):
 
-| 参数 | 用在 | 含义 |
+| Parameter | Used on | Meaning |
 |---|---|---|
-| `file` | release `upload` | 要上传的本地文件（**必填**，绝对路径） |
-| `path` | release / run `download` | 目标**文件**路径（只配一个资产 / 产物；与 `dir` 二选一，`path` 优先） |
-| `dir` | release / run `download` | 目标**目录**；文件名取资产名（run 日志取 `run-<id>-logs.zip`，产物取 `<产物名>.zip`） |
-| `overwrite` | release / run `download` | 目标已存在时是否覆盖（缺省 **false = 不覆盖**，那种情况报错让你改名或显式覆盖） |
+| `file` | release `upload` | the local file to upload (**required**, absolute path) |
+| `path` | release / run `download` | target **file** path (configures only one asset / artifact; mutually exclusive with `dir`, and `path` wins) |
+| `dir` | release / run `download` | target **directory**; the file name is taken from the asset name (for run logs `run-<id>-logs.zip`, for artifacts `<artifact name>.zip`) |
+| `overwrite` | release / run `download` | whether to overwrite when the target already exists (default **false = do not overwrite**; in that case it errors and tells you to rename or overwrite explicitly) |
 
-`path` / `dir` 都不给时落到**本进程的当前目录**（`gh release download` 缺省也是当前目录）。
-但那个目录未必在 worker 的可写范围里，所以那种失败会明确报出来并请你显式给 `dir`——
-**能写盘的位置由调用方说了算**，工具不猜。
+When neither `path` nor `dir` is given it lands in **this process's current directory** (`gh release
+download` also defaults to the current directory). But that directory is not necessarily within the
+worker's writable range, so that failure is reported explicitly and asks you to give `dir`
+explicitly — **where bytes can be written is the caller's call**, and the tool does not guess.
 
-## 能力边界与逃生门
+## Capability boundary and escape hatch
 
-工具面的边界由 **App 权限**定：每个类型化的动词都有一个支撑它的已授权权限。所以
-「gh 有而我们没有」（无权限 / 无对应语义）都逐项登记在下，分五档——**缺什么、怎么绕，
-都能在这里查到**，不必靠碰壁。第四档现在记的不是缺口，而是**二进制通道的用法与边界**
-（它的形态与别的动词不同：要本地路径、会写盘、单文件有硬限）。
+The tool surface's boundary is set by the **App permissions**: every typed verb has an authorized
+permission supporting it. So everything "gh has but we do not" (no permission / no corresponding
+semantics) is registered item by item below, in five tiers — **what is missing and how to work around
+it can both be looked up here**, without having to learn by hitting walls. Tier four now records not
+a gap but the **usage and boundaries of the binary channel** (its shape differs from other verbs: it
+needs local paths, writes to disk, and has a hard per-file limit).
 
-逃生门是 `githana_api`：它把 `path` 直接打到 `api.github.com`。**端点的路径、参数与返回形状
-以 GitHub REST 文档为准**（`https://docs.github.com/rest`）——下面的端点是定位用的索引，
-不是契约的替代品。**越出权限面的端点会被 GitHub 直接拒（403）**，`api` 透传也越不过去。
+The escape hatch is `githana_api`: it hits `path` directly against `api.github.com`. **Endpoint
+paths, parameters and response shapes follow the GitHub REST documentation**
+(`https://docs.github.com/rest`) — the endpoints below are an index for locating things, not a
+substitute for the contract. **Endpoints beyond the permission surface are rejected directly by
+GitHub (403)**, and `api` passthrough does not get past that either.
 
-### 一、未类型化：有 gh 语义，但我们不为它声明工具（走 `githana_api`）
+**This section records the gaps; `references/` records the reachable surface.** Before composing an
+`api` call, `references/INDEX.md` → `references/<category>.md` lists every endpoint the App's
+permissions actually cover. The tiers below are what is *missing* and what to do instead.
 
-| gh 组 | 主要 REST 端点 | 缺的权限 |
+### 1. Untyped: gh semantics exist, but we declare no tool for them (use `githana_api`)
+
+| gh group | Main REST endpoints | Missing permission |
 |---|---|---|
-| `secret` | `PUT /repos/{o}/{r}/actions/secrets/{name}`、`GET …/actions/secrets` | `secrets: write` |
+| `secret` | `PUT /repos/{o}/{r}/actions/secrets/{name}`, `GET …/actions/secrets` | `secrets: write` |
 | `variable` | `POST/PATCH/DELETE /repos/{o}/{r}/actions/variables` | `actions_variables: write` |
-| `ssh-key` | `GET/POST /user/keys`、`DELETE /user/keys/{id}` | `keys: write`（account） |
-| `gist` | `GET/POST /gists`、`PATCH/DELETE /gists/{id}` | `gists: write`（account） |
-| `codespace` | `GET/POST /user/codespaces`、`POST …/{name}/start` | `codespaces: write` |
-| `webhook` | `GET/POST /repos/{o}/{r}/hooks`、`PATCH/DELETE …/hooks/{id}` | `repository_hooks: write` |
-| `attestation` | `GET /repos/{o}/{r}/attestations/{subject_digest}` | `attestations: write`（端点仍是 Preview） |
-| `discussion` | GraphQL：`repository.discussions`（REST 覆盖很少） | `discussions` |
-| `project` | GraphQL：`POST /graphql`（Projects V2） | `repository_projects` |
-| `ruleset` | `GET/POST /repos/{o}/{r}/rulesets` | 部分无需权限（只读公开仓库可用） |
-| `gpg-key` | `GET/POST /user/gpg_keys`、`DELETE /user/gpg_keys/{id}` | **有** `gpg_keys: write`——但已由设置页链路接管（见下） |
-| `licenses` | `GET /licenses`、`GET /licenses/{license}` | 无（公开端点）；已类型化为 `githana_repo(action="license")` |
-| `org` | `GET /orgs/{org}`、`GET /orgs/{org}/repos` | organization 权限 **0 项（从未申请）** |
-| `status` | `GET /repos/{o}/{r}/commits/{ref}/status` | `statuses` 未授权 |
+| `ssh-key` | `GET/POST /user/keys`, `DELETE /user/keys/{id}` | `keys: write` (account) |
+| `gist` | `GET/POST /gists`, `PATCH/DELETE /gists/{id}` | `gists: write` (account) |
+| `codespace` | `GET/POST /user/codespaces`, `POST …/{name}/start` | `codespaces: write` |
+| `webhook` | `GET/POST /repos/{o}/{r}/hooks`, `PATCH/DELETE …/hooks/{id}` | `repository_hooks: write` |
+| `attestation` | `GET /repos/{o}/{r}/attestations/{subject_digest}` | `attestations: write` (the endpoint is still Preview) |
+| `discussion` | GraphQL: `repository.discussions` (very little REST coverage) | `discussions` |
+| `project` | GraphQL: `POST /graphql` (Projects V2) | `repository_projects` |
+| `ruleset` | `GET/POST /repos/{o}/{r}/rulesets` | some need no permission (read-only works on public repositories) |
+| `gpg-key` | `GET/POST /user/gpg_keys`, `DELETE /user/gpg_keys/{id}` | **yes** `gpg_keys: write` — but already taken over by a settings-page pipeline (see below) |
+| `licenses` | `GET /licenses`, `GET /licenses/{license}` | none (public endpoint); already typed as `githana_repo(action="license")` |
+| `org` | `GET /orgs/{org}`, `GET /orgs/{org}/repos` | organization permissions **0 items (never requested)** |
+| `status` | `GET /repos/{o}/{r}/commits/{ref}/status` | `statuses` not authorized |
 
-`gpg-key` 是这一档里唯一的例外：**它有权限，但不进工具面**——密钥生成与公钥发布由设置页
-一条链路做完（生成 = 生成 + 上传，移除 = 远端删 + 本地清），比拆成动词让模型分步调更安全。
-要直接看 / 补公钥用上面两个端点。
+`gpg-key` is the only exception in this tier: **it has permissions but does not enter the tool
+surface** — key generation and public-key publication are done by one settings-page pipeline
+(generate = generate + upload, remove = delete remotely + clear locally), which is safer than
+splitting them into verbs the model calls step by step. To look at / add a public key directly, use
+the two endpoints above.
 
-### 二、无权限的动词：从 zod 定义里删掉了（`action` 候选里没有它们）
+### 2. Verbs without permission: deleted from the zod definition (they are absent from the `action` candidates)
 
-已授权集里**没有** `administration`，所以仓库本体操作不在能力面上。这些动词**不在**
-`githana_repo` 的 `action` 候选里（zod 是模型面与运行期校验的同一来源，删掉即两边同时消失），
-因此调用它们会被报成「未知 action」——那是刻意的：省掉一次注定 403 的调用。
+The authorized set contains **no** `administration`, so operations on the repository entity itself
+are outside the capability surface. These verbs are **not** among `githana_repo`'s `action`
+candidates (zod is the single source for both the model surface and runtime validation, so deleting
+them makes them disappear from both at once), and calling them is therefore reported as
+`unknown action` — that is deliberate: it saves a call that is bound to 403.
 
-| gh 动词 | 缺哪个权限 | 现在怎么做 |
+| gh verb | Which permission is missing | What to do now |
 |---|---|---|
-| `repo edit`（改简介 / 可见性 / 默认分支） | `administration: write` | 网页操作；`githana_api` 打 `PATCH /repos/{o}/{r}` 也会被 403 |
-| `repo delete` / `rename` | `administration: write` | 同上（删仓库、改仓库名在这个 App 里做不到） |
-| `repo archive` / `unarchive` | `administration: write` | 同上 |
-| `repo set-default` / `autolink` / `deploy-key` | `administration: write` | 同上 |
-| `repo create --org <org>` | `administration: write` + organization 权限 | 只能建在当前登录账号下（`POST /user/repos`） |
-| `repo fork --org <org>` | organization 权限（0 项） | 只能 fork 到当前登录账号下 |
-| `repo list` 的组织形态 | organization 权限 | 用 `owner="<组织名>"` 走 `/users/{owner}/repos`（只含公开仓库） |
+| `repo edit` (change description / visibility / default branch) | `administration: write` | Do it on the web; `githana_api` hitting `PATCH /repos/{o}/{r}` also gets 403 |
+| `repo delete` / `rename` | `administration: write` | same as above (deleting a repository or renaming one cannot be done in this App) |
+| `repo archive` / `unarchive` | `administration: write` | same as above |
+| `repo set-default` / `autolink` / `deploy-key` | `administration: write` | same as above |
+| `repo create --org <org>` | `administration: write` + organization permissions | can only create under the currently logged-in account (`POST /user/repos`) |
+| `repo fork --org <org>` | organization permissions (0 items) | can only fork into the currently logged-in account |
+| the organization form of `repo list` | organization permissions | use `owner="<org name>"` against `/users/{owner}/repos` (public repositories only) |
 
-这一档与第一档的**区别在动作**：第一档是「工具不存在，用 `api` 打端点」；这一档是「工具存在，
-但那个动词被删了，用 `api` 打端点会 403」。两档的共同点是缺口都写在这里，不伪装成不存在。
+The **difference between this tier and tier one is the action**: tier one is "the tool does not
+exist, use `api` to hit the endpoint"; this tier is "the tool exists, but that verb was deleted, so
+hitting the endpoint with `api` gets 403". What the two tiers share is that the gaps are all written
+down here rather than disguised as nonexistence.
 
-### 三、丢弃：无对应远端语义或已由 App 形态接管（**不适用**，不必找）
+### 3. Discarded: no corresponding remote semantics, or already taken over by the App shape (**not applicable**, no need to look)
 
-| gh 组 | 为什么 |
+| gh group | Why |
 |---|---|
-| `auth` · `config` | 设置页接管（登录 / 签名身份 / 运行环境） |
-| `alias` | 动词表固定，没有别名需求 |
-| `completion` · `extension` · `preview` · `copilot` | gh 的 CLI 本机特性，无远端语义 |
-| `browse` | 开浏览器是 UI 插槽的事 |
-| `skill` | Hana 侧有自己的 skill 体系 |
+| `auth` · `config` | taken over by the settings page (login / signing identity / runtime environment) |
+| `alias` | the verb table is fixed; there is no need for aliases |
+| `completion` · `extension` · `preview` · `copilot` | gh CLI local-machine features, with no remote semantics |
+| `browse` | opening a browser is the UI slot's business |
+| `skill` | the Hana side has its own skill system |
 
-### 四、二进制通道：**已可用**（曾经的「取不到字节」已消掉）
+### 4. Binary channel: **available** (the former "cannot fetch bytes" is gone)
 
-发布资产的 upload / download 与 run 的 download 都真的搬字节了。它们**不再**是能力缺口——
-登记在这里是为了说清这条通道**怎么用、边界在哪**，因为它的形态与别的动词不同（要本地路径、
-会写盘、单文件有硬限）。
+Release asset upload / download and run download really do move bytes now. They are **no longer**
+capability gaps — they are registered here to make clear **how this channel is used and where its
+boundaries are**, because its shape differs from other verbs (it needs local paths, writes to disk,
+and has a hard per-file limit).
 
-| 工具 | action | 做什么 | 关键约束 |
+| Tool | action | What it does | Key constraints |
 |---|---|---|---|
-| `githana_release` | `upload` | 本地文件 → `uploads.github.com`，**流式发**，回 201 | `file` 要**绝对**路径；单文件必须 **< 2 GiB**（超限**上传前**就拒，不白传）；同名资产已存在回 422 |
-| `githana_release` | `download` | 资产 → 本地磁盘，**流式写** | 目标已存在时**不覆盖**（除非 `overwrite=true`）；`path` 一次只配一个资产 |
-| `githana_run` | `download` | run 日志（`what=logs`，整个 run 一个 zip）/ 产物（`what=artifacts`，每个产物一个 zip）→ 本地磁盘 | 产物 zip 会 302 到 `*.blob.core.windows.net`（已放行）；过期的产物取不到内容 |
+| `githana_release` | `upload` | local file → `uploads.github.com`, **streamed**, returns 201 | `file` must be an **absolute** path; a single file must be **< 2 GiB** (over the limit it is rejected **before upload**, nothing is uploaded for nothing); an asset with the same name already existing returns 422 |
+| `githana_release` | `download` | asset → local disk, **streamed writes** | when the target already exists it is **not overwritten** (unless `overwrite=true`); `path` configures only one asset at a time |
+| `githana_run` | `download` | run logs (`what=logs`, one zip for the whole run) / artifacts (`what=artifacts`, one zip per artifact) → local disk | artifact zips 302 to `*.blob.core.windows.net` (already allowlisted); expired artifacts return no content |
 
 ```jsonc
-// 传一个产物上去（tag 必填，file 要绝对路径）
+// upload an artifact (tag required, file must be an absolute path)
 { "action": "upload", "repo": "o/r", "tag": "v1.2.0", "file": "E:\\build\\app.zip" }
-// 取回来：单个文件走 path，多个走 dir
+// fetch it back: a single file goes through path, several go through dir
 { "action": "download", "repo": "o/r", "tag": "v1.2.0", "assetName": "app.zip", "path": "E:\\dl\\app.zip" }
-{ "action": "download", "repo": "o/r", "tag": "v1.2.0", "dir": "E:\\dl" }        // 全部资产
+{ "action": "download", "repo": "o/r", "tag": "v1.2.0", "dir": "E:\\dl" }        // all assets
 { "action": "download", "repo": "o/r", "runId": 123, "what": "logs", "dir": "E:\\dl" }
 ```
 
-机制（逐条可在源码里核对）：
+Mechanism (each item can be checked against the source):
 
-1. **二进制请求体**：worker 收 `file`（本地路径）形态，用 `fs.createReadStream` 作 fetch 的 body
-   并**显式带 `Content-Length`**——文件不进内存、不走分块编码。发布资产端点要的是原始二进制体
-   （不是 multipart）。
-2. **二进制响应体**：worker 收 `toFile`（本地路径）形态，把响应流式写进那个文件，不按 UTF-8 解码、
-   不套那个 2MB 的有界读。写了一半失败（网络断）会把半成品删掉，**不假装成功**。
-3. **白名单**：出站白名单含上传端点 `uploads.github.com`；重定向白名单含
-   `release-assets.githubusercontent.com` / `objects.githubusercontent.com`，以及
-   `*.blob.core.windows.net` 这条**后缀**（Azure 存储账号在子域位，列不全）。
-   逐跳校验不变，离开 `api.github.com` 后**不带走凭据**。
-4. **目录放行**：worker 是我们 spawn 的，所以宿主的许可根不约束它——但要由 `rest.js` 按本请求的
-   路径补 `--allow-fs-read` / `--allow-fs-write`（按**目录**，node 的旗标只收目录）。
-   所以「传 / 收哪个文件」这件事是调用方说了算的，路径写错就是可读的失败，不是静默的。
-5. **没有分片、没有断点续传**：GitHub 的资产 API 没有这个语义，重试即重传。单文件上限 < 2 GiB
-   也翻不过去（所以超限在发请求前就拒）。
+1. **Binary request body**: the worker accepts the `file` (local path) form, uses
+   `fs.createReadStream` as the fetch body and **explicitly sends `Content-Length`** — the file does
+   not enter memory and chunked encoding is not used. The release asset endpoint wants a raw binary
+   body (not multipart).
+2. **Binary response body**: the worker accepts the `toFile` (local path) form, streams the response
+   into that file, without UTF-8 decoding and without that 2MB bounded read. If it fails halfway (the
+   network drops) it deletes the partial file and **does not pretend success**.
+3. **Allowlist**: the outbound allowlist includes the upload endpoint `uploads.github.com`; the
+   redirect allowlist includes `release-assets.githubusercontent.com` /
+   `objects.githubusercontent.com`, plus the **suffix** `*.blob.core.windows.net` (Azure storage
+   accounts sit in the subdomain position and cannot all be listed). Per-hop validation is unchanged,
+   and **credentials are not carried along** after leaving `api.github.com`.
+4. **Directory grants**: the worker is spawned by us, so the host's permission roots do not constrain
+   it — but `rest.js` must add `--allow-fs-read` / `--allow-fs-write` for the paths this request
+   names (by **directory**; node's flags only accept directories). So "which file gets sent /
+   received" is the caller's call, and a wrong path is a readable failure, not a silent one.
+5. **No chunks, no resumable transfer**: GitHub's asset API has no such semantics, and a retry is a
+   resend. The < 2 GiB per-file cap cannot be worked around either (which is why over-limit is
+   rejected before the request is sent).
 
-**大文件要给大超时**：`timeoutSec` 的缺省是 60 秒（所有 GitHub 动作共用），而几百 MB 的上传 /
-下载在这个窗口里常常跑不完——那会被终止，且**已经传了一半**（超时不会回滚远端那半）。
-传 / 收大资产时显式给 `timeoutSec`（上限 600）。
+**Large files need a large timeout**: `timeoutSec` defaults to 60 seconds (shared by all GitHub
+actions), and uploads / downloads of hundreds of MB often do not finish in that window — they get
+terminated, and **half the transfer has already happened** (a timeout does not roll back the remote
+half). Give `timeoutSec` explicitly when sending / receiving large assets (max 600).
 
-`githana_api` **不搬字节**：它的载荷是 JSON / 文本，二进制进出的活由上面三个动词做。
+`githana_api` **does not move bytes**: its payload is JSON / text, and the binary in/out work is done
+by the three verbs above.
 
-> `githana_release` 的 `verify` / `verify-asset` 口径与 gh 那个同名命令不同——核对的是
-> **发布自身的完整性**（GitHub 记录的 `digest` 与本地文件的 sha256），
-> 而 gh 的「来源证明（attestation）」校验做不到：`attestations` 权限不在授权集里，且 sigstore
-> 验签需要一个签名验证实现，与「服务端零 npm 依赖」冲突。要那一层用 `gh attestation verify`。
+> `githana_release`'s `verify` / `verify-asset` have a different scope from gh's same-named command —
+> what they check is the **release's own integrity** (the `digest` GitHub records against the local
+> file's sha256), whereas gh's "attestation" verification is not achievable: the `attestations`
+> permission is not in the authorized set, and sigstore signature verification would need a signature
+> verification implementation, which conflicts with "zero npm dependencies on the server side". For
+> that layer use `gh attestation verify`.
 
-### 五、保留位：当前为空
+### 5. Reserved slots: currently empty
 
-`createSurface` 的 `reserved` 通路仍然留着（`tools/lib/surface.js`），留给下一次出现
-「认得出、但参数契约还没定」的动词：那种值放进候选只是给模型一个试错入口，它既说不清怎么用、
-调用也只能得到「未实现」。旧 `githana_read` / `githana` 两个入口上的 `ci_status` / `ci_watch`
-保留位随那两个工具一起移除——CI 现在是 `githana_run` / `githana_workflow` / `githana_cache`
-三组真实动词。
+`createSurface`'s `reserved` channel is still kept (`tools/lib/surface.js`), for the next time a verb
+appears that is "recognizable, but whose parameter contract is not settled yet": putting such a value
+into the candidates only gives the model a trial-and-error entry point, since it neither explains how
+to use it nor returns anything but `not implemented`. The `ci_status` / `ci_watch` reserved slots on
+the old `githana_read` / `githana` entry points were removed together with those two tools — CI is now
+the three real verb groups `githana_run` / `githana_workflow` / `githana_cache`.
 
-### 对照面：已授权的权限（上面五档按它核）
+### Reference table: the authorized permissions (the five tiers above are checked against it)
 
-8 项 repository：`actions` / `checks` / `contents` / `issues` / `metadata` /
-`pull_requests` / `repository_creation` / `workflows`（write/read 见 spec D7）；
-1 项 account：`gpg_keys`；organization 与 enterprise **各 0 项**。
-**改 App 权限后老用户要重走一次 device flow** 才拿到新范围——不重新授权时新动词会 403。
+8 repository items: `actions` / `checks` / `contents` / `issues` / `metadata` / `pull_requests` /
+`repository_creation` / `workflows` (for write/read see spec D7); 1 account item: `gpg_keys`;
+organization and enterprise are **0 items each**. **After the App's permissions are changed, existing
+users must go through the device flow again** to get the new scopes — without re-authorizing, the new
+verbs will 403.
 
-## 远端凭据（git 传输层）
+## Remote credentials (git transport layer)
 
-访问 github.com 的 git 动作（`push` / `fetch` / `pull` / `clone` / `ls-remote`）走 **本 App 自写的
-git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取远端动作也走它。
+Git actions that access github.com (`push` / `fetch` / `pull` / `clone` / `ls-remote`) go through a
+**git remote helper written by this App**; the remote-fetching actions inside `clone` / `sync` /
+`pr checkout` / `pr revert` go through it too.
 
-- **两个 scheme**：取侧（`ls-remote` / `clone` / `fetch` / `pull`）走 `githana::`
-  （`url.githana::.insteadOf`），helper 报 `stateless-connect`；push 侧走 `githana-push::`
-  （`url.githana-push::.pushInsteadOf` + `url.githana-push::.insteadOf`），helper 报 `connect`。
-  **两侧都走 helper**，都不是原生传输。这几条前缀改写**按子命令只注入对应一侧**：push 时不会
-  注入 `githana::`，否则配了显式 `pushurl` 的仓库会把 push 走到取侧 helper 上（它只会
-  `stateless-connect git-upload-pack`，推不了）。
-- **git 把整条传输层交给 `git-remote-githana`**，helper 自己从 App 数据目录解出令牌、自己发
-  HTTPS。**git 全程不接触令牌**——令牌不进命令行、不进 `git remote -v` 可见的配置、
-  不进隔离 gitconfig、**不进 git 子进程的 env**。接线在 `tools/lib/remote-helper-shim.js`
-  （按子命令选一侧的前缀改写 + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，同进同退）。
-  所以换台机器、本机没有该远端凭据时也能推/取。
-- helper 报的能力是**按侧分**的：取侧 `stateless-connect`（那根 stdin/stdout 是 git 与远端服务
-  之间的原生协议管道，App 只搬字节 + 加 `Authorization`，**读写一条通吃**）；push 侧 `connect`
-  （有状态全双工，packfile 才从 stdin 进来——实测报 `push` 时 git 从不把 packfile 送进 helper 的
-  stdin）。
-- **注入范围**是上面那五条子命令（判据见 `tools/lib/remote-helper-shim.js` 的
-  `remoteHelperSubcommand`），且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
-  这类能改写运行环境的形态。`githana_git(action="exec")` 跑只读命令（`status` / `log` /
-  `diff` / `remote -v`）时既没有令牌、也没有 helper 接线。
-- **未登录时**：github.com 的远端**不回落系统凭据**——helper 明确报错并引导「去设置页点
-  『用 GitHub 登录』」，**不静默失败**。
-- **非 github.com 的远端**（GitLab、自建、ssh）：前缀改写只匹配 github.com 的 https URL，这些远端
-  一律不受影响，走 git 原生路径与系统凭据。
-- 带 `.github/workflows/*` 改动的推送需要 `workflows: write`。它在当前授权集里，**已在位**；
-  若被 GitHub 拒，说明令牌是加该权限之前签发的——到设置页重新登录即可。
+- **Two schemes**: the fetch side (`ls-remote` / `clone` / `fetch` / `pull`) uses `githana::`
+  (`url.githana::.insteadOf`) and the helper advertises `stateless-connect`; the push side uses
+  `githana-push::` (`url.githana-push::.pushInsteadOf` + `url.githana-push::.insteadOf`) and the
+  helper advertises `connect`. **Both sides go through the helper**; neither is a native transport.
+  These prefix rewrites are **injected only for the corresponding side per subcommand**: on push,
+  `githana::` is not injected, otherwise a repository with an explicit `pushurl` would send the push
+  to the fetch-side helper (which only does `stateless-connect git-upload-pack` and cannot push).
+- **git hands the whole transport layer to `git-remote-githana`**, and the helper resolves the token
+  from the App data directory itself and makes the HTTPS request itself. **git never touches the
+  token** — the token does not enter the command line, the configuration visible via `git remote -v`,
+  the isolated gitconfig, or **the git subprocess's env**. The wiring is in
+  `tools/lib/remote-helper-shim.js` (per-subcommand selection of one side's prefix rewrites + `PATH`
+  prefixing + appending `--allow-net` to `NODE_OPTIONS`, all going in and out together). So you can
+  push/fetch even on another machine that has no credentials for that remote.
+- The capabilities the helper advertises are **split per side**: the fetch side `stateless-connect`
+  (that stdin/stdout is the native protocol pipe between git and the remote service; the App only
+  moves bytes + adds `Authorization`, **one pipe handling both reading and writing**); the push side
+  `connect` (stateful full duplex, so the packfile comes in on stdin — in practice, when advertising
+  `push`, git never sends the packfile into the helper's stdin).
+- The **injection scope** is the five subcommands above (the criterion is `remoteHelperSubcommand` in
+  `tools/lib/remote-helper-shim.js`), and the command line carries none of the forms that can rewrite
+  the runtime environment, such as `-c` / `--config-env` / `--exec-path` / `ext::`. When
+  `githana_git(action="exec")` runs read-only commands (`status` / `log` / `diff` / `remote -v`)
+  there is neither a token nor helper wiring.
+- **When not logged in**: github.com remotes **do not fall back to system credentials** — the helper
+  reports an explicit error and points you to "go to the settings page and click 'Sign in with
+  GitHub'", **without failing silently**.
+- **Remotes that are not github.com** (GitLab, self-hosted, ssh): the prefix rewrites match only
+  github.com https URLs, so these remotes are entirely unaffected and go through git's native path
+  with system credentials.
+- A push carrying `.github/workflows/*` changes needs `workflows: write`. It is in the current
+  authorized set and is **already in place**; if GitHub rejects it, that means the token was issued
+  before that permission was added — log in again from the settings page.
 
-## 错误引导
+## Error guidance
 
-| 现象 | 含义与做法 |
+| Symptom | Meaning and what to do |
 |---|---|
-| `缺少 action` / `未知 action` | 报错会**列出本工具的可用值**；不猜、不回落默认分支 |
-| `… 属于 githana_x` | 跨名词错投：该 action 在**另一个工具**上，报错里直接给出该用的工具（同名的动词有多处时全部列出，按要操作的对象选） |
-| `参数校验失败（共 N 处）` | 参数形状不对（多余键、类型不符、超出 enum）。下面是**全部** issues，每行 `字段路径 [code] 英文原文`——按路径逐条改正后重试 |
-| `未实现` | 该 action 是保留位（当前为空，见「能力边界」第五节） |
-| `无法建立后台任务：宿主没有授予 app/tasks.manage 能力` | `githana_run(action="watch")` 需要宿主后台任务面。用 `githana_run(action="view")` 看此刻状态 |
-| `尚未完成 GitHub App 授权` | 到 GitHana 设置页点「用 GitHub 登录」后重试 |
-| `需要重新授权` | 上次令牌刷新失败（refresh_token 失效或授权被撤销），到设置页重新授权 |
-| `当前目录不是 git 仓库` | `cwd` 指错了，或目录尚未 `git init` |
-| `git 未配置提交者身份` | 先 `git config user.name / user.email`（可用 `exec`） |
-| `远端拒绝了快进推送` | 先拉取合并，或用 `push` 的 `force=true`（`--force-with-lease`）安全覆盖 |
-| 远端认证失败 | 见上面「远端凭据」：github.com 的远端只有 App 令牌一条路，未登录时 helper 给登录引导（**不回落系统凭据**）；非 github 的远端才走系统凭据 |
-| `源分支 … 在远端不存在或没有新提交` | 分支还没推：先 `githana_git(action="push")` 再建 PR |
-| `path 必须以 / 开头` | `api` 的 `path` 是 api.github.com 之后的路径（带前导斜杠） |
-| `要给**绝对**路径` | release `upload` 的 `file` 与 release / run `download` 的 `path` / `dir`：这条路径由 worker 子进程使用，它的工作目录不是你的仓库，相对路径会指向别处 |
-| `目标文件已存在` | `download` 缺省不覆盖已有文件。要覆盖传 `overwrite=true`，或换个 `path` / `dir` |
-| `超过 GitHub 的单文件硬限（< 2 GiB）` | 上传前就拒了，**没有白传一遍**。这是 GitHub 的硬限，没有分片 / 续传可绕——拆成多个小文件，或先裁掉大件 |
-| `落盘失败 —— <路径>` | worker 写不进那个位置（父目录不存在 / 无写权限 / 路径是个目录）。显式传一个可写的 `dir` 或 `path` |
-| GitHub 403 | 越过 App 权限面了：查「能力边界」看该端点缺哪个权限，别重试 |
+| `missing action` / `unknown action` | The error **lists this tool's available values**; it does not guess and does not fall back to a default branch |
+| `… belongs to githana_x` | Cross-noun misrouting: that action lives on **another tool**, and the error names the tool you should use directly (when a same-named verb appears in several places they are all listed — pick by the object you want to act on) |
+| `parameter validation failed (N issues)` | The parameter shape is wrong (extra keys, wrong type, out of enum range). What follows is **all** the issues, one per line in the form `field path [code] original English message` — fix them one by one by path and retry |
+| `not implemented` | That action is a reserved slot (currently empty, see tier 5 of "Capability boundary and escape hatch") |
+| `cannot create a background task: the host has not granted the app/tasks.manage capability` | `githana_run(action="watch")` needs the host's background task surface. Use `githana_run(action="view")` to see the state at this moment |
+| `GitHub App authorization not completed` | Go to the GitHana settings page, click "Sign in with GitHub", and retry |
+| `re-authorization required` | The last token refresh failed (the refresh_token expired or the authorization was revoked); re-authorize on the settings page |
+| `the current directory is not a git repository` | `cwd` points to the wrong place, or the directory has not been `git init`-ed yet |
+| `git committer identity is not configured` | First `git config user.name / user.email` (you can use `exec`) |
+| `the remote rejected the fast-forward push` | Fetch and merge first, or use `push`'s `force=true` (`--force-with-lease`) to overwrite safely |
+| Remote authentication failure | See "Remote credentials" above: for github.com remotes the App token is the only path, and when not logged in the helper gives sign-in guidance (**no fallback to system credentials**); only non-github remotes use system credentials |
+| `the source branch … does not exist on the remote or has no new commits` | The branch has not been pushed yet: `githana_git(action="push")` first, then create the PR |
+| `path must start with /` | `api`'s `path` is the path after api.github.com (with a leading slash) |
+| `must be given an **absolute** path` | release `upload`'s `file` and release / run `download`'s `path` / `dir`: this path is used by the worker subprocess, whose working directory is not your repository, so a relative path would point somewhere else |
+| `the target file already exists` | `download` does not overwrite existing files by default. To overwrite, pass `overwrite=true`, or use a different `path` / `dir` |
+| `exceeds GitHub's per-file hard limit (< 2 GiB)` | It is rejected before upload, **so nothing is uploaded for nothing**. This is GitHub's hard limit and there is no chunking / resumption to work around it — split it into several smaller files, or trim the big parts first |
+| `write to disk failed — <path>` | The worker cannot write to that location (parent directory missing / no write permission / the path is a directory). Pass a writable `dir` or `path` explicitly |
+| GitHub 403 | You have crossed the App's permission surface: consult "Capability boundary and escape hatch" to see which permission that endpoint is missing, and do not retry |
 
-> **每个 action 只接受自己声明的字段。** 参数表由 zod 定义生成、运行期也用同一份校验，
-> 所以多传一个不属于该 action 的键会被当场拒（并列出 issues），不会被静默忽略。
+> **Every action accepts only the fields it declares.** The parameter table is generated from the zod
+> definition and runtime validation uses the same one, so passing an extra key that does not belong to
+> that action is rejected on the spot (with the issues listed) rather than silently ignored.
 
-## 其它约定
+## Other conventions
 
-- 令牌与私钥**不进**工具返回值、日志与设置页回显。GitHub 请求由随包的 REST worker 在子进程里
-  直发，令牌经 stdin 传给 worker；git 侧的令牌由 remote helper 自己读
-  `<dataDir>/credential.json` 解 DPAPI——**git 子进程的 env 里没有它**（同样不进命令行与配置文件）。**上传 / 下载的 URL 里也不含令牌**——凭据走 `Authorization` 头。
-- **二进制通道的读写由 worker 代做**：`rest.js` 在 spawn 时按本请求点名的路径补
-  `--allow-fs-read` / `--allow-fs-write`（**按目录**）。所以 App 进程自己读不到的东西
-  （许可根之外的资产文件）也能传 / 也能落盘，而放行的范围就是调用方给的那几个目录——
-  不是整块磁盘。这条**不新增清单能力**，是 node 运行时的旗标（与 `--allow-net` 同一档）。
-- 本 App 申请 `app/tools.expose-to-model`、`app/process.spawn` 与 `app/tasks.manage`
-  （最后一项给 `githana_run(action="watch")` 的后台任务用），**没有** `network` 声明
-  （那是宿主代发的通道，令牌会穿 IPC）。
-- GPG 的密钥生成与公钥查看**不在工具面**：生成不可逆，只在设置页由用户点按钮触发。
+- Tokens and private keys **do not enter** tool return values, logs or settings-page echoes. GitHub
+  requests are sent directly in a subprocess by the bundled REST worker, with the token passed to the
+  worker over stdin; on the git side the token is read by the remote helper itself from
+  `<dataDir>/credential.json` and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
+  the command line or config files either). **Upload / download URLs contain no token either** —
+  credentials go in the `Authorization` header.
+- **The binary channel's reads and writes are done on the App's behalf by the worker**: at spawn time
+  `rest.js` adds `--allow-fs-read` / `--allow-fs-write` for the paths this request names (**by
+  directory**). So things the App process itself cannot read (asset files outside the permission
+  roots) can still be sent / written to disk, and the allowed scope is exactly the directories the
+  caller gave — not the whole disk. This **adds no manifest capability**; it is a node runtime flag
+  (the same tier as `--allow-net`).
+- This App requests `app/tools.expose-to-model`, `app/process.spawn` and `app/tasks.manage` (the last
+  one for `githana_run(action="watch")`'s background task), and has **no** `network` declaration
+  (that is a host-sent channel, where the token would cross IPC).
+- GPG key generation and public-key viewing are **not on the tool surface**: generation is
+  irreversible and is triggered only by the user clicking a button on the settings page.

@@ -20,23 +20,23 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure, prStateText } from "../../lib/pr.js";
 
 export const command = "edit";
-export const summary = "改 PR 的标题 / 正文 / 目标分支 / 状态";
+export const summary = "Edit a PR's title / body / base branch / state";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   prNumber: params.prNumberOptional,
-  title: z.string().optional().describe("可选：新的 PR 标题"),
-  body: z.string().optional().describe("可选：新的 PR 正文（支持 Markdown 与中文；传空串即清空正文）"),
-  base: z.string().optional().describe("可选：新的目标分支（改这个会把 PR 转向另一个分支，GitHub 会重算可合并性）"),
-  state: z.enum(["open", "closed"]).optional().describe("可选：open（重开）/ closed（关闭）；与 close / reopen 等价"),
+  title: z.string().optional().describe("Optional: new PR title"),
+  body: z.string().optional().describe("Optional: new PR body (supports Markdown and Chinese; pass an empty string to clear the body)"),
+  base: z.string().optional().describe("Optional: new target branch (changing this redirects the PR to another branch; GitHub recomputes mergeability)"),
+  state: z.enum(["open", "closed"]).optional().describe("Optional: open (reopen) / closed (close); equivalent to close / reopen"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "修改 GitHub 远端 PR 的标题 / 正文 / 目标分支 / 状态：会改写 PR 在 GitHub 上的内容（改 base 会重算可合并性），执行前请确认 repo、prNumber 与要改的字段",
+    "Modify a remote GitHub PR's title / body / base branch / state: rewrites the PR's content on GitHub (changing base recomputes mergeability), confirm repo, prNumber and the fields to change before running",
   ruleId: "github-toolkit-pr-edit",
 };
 
@@ -54,7 +54,7 @@ export async function run(input, ctx, { label }) {
   const changed = [];
   if (input?.title !== undefined && input?.title !== null) {
     const v = String(input.title).trim();
-    if (!v) return label + " 参数错误：title 不能为空串（要清空标题请到网页操作；GitHub 不允许空标题）。";
+    if (!v) return label + " argument error: title cannot be an empty string (to clear the title do it on the web; GitHub does not allow an empty title).";
     patch.title = v;
     changed.push("title");
   }
@@ -65,7 +65,7 @@ export async function run(input, ctx, { label }) {
   }
   if (input?.base !== undefined && input?.base !== null) {
     const v = String(input.base).trim();
-    if (!v) return label + " 参数错误：base 不能为空串。请给出目标分支名（如 main）。";
+    if (!v) return label + " argument error: base cannot be an empty string. Give the target branch name (e.g. main).";
     patch.base = v;
     changed.push("base=" + v);
   }
@@ -76,8 +76,8 @@ export async function run(input, ctx, { label }) {
 
   if (changed.length === 0) {
     return (
-      label + " 参数错误：至少要给一个要改的字段（title / body / base / state）。\n" +
-      "只改状态可以用 githana_pr(action=\"close\") 或 githana_pr(action=\"reopen\")。"
+      label + " argument error: at least one field to change is required (title / body / base / state).\n" +
+      "To change only the state you can use githana_pr(action=\"close\") or githana_pr(action=\"reopen\")."
     );
   }
 
@@ -85,26 +85,26 @@ export async function run(input, ctx, { label }) {
     [{ method: "PATCH", url: apiUrl(repo, "/pulls/" + numStr), json: patch, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次修改（422）。常见原因：base 分支不存在、或改动与 PR 当前状态冲突。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + " execution failed: GitHub rejected this edit (422). Common causes: the base branch does not exist, or the change conflicts with the PR's current state.\n" +
+        "GitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const pr = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：",
-    "改动：" + changed.join(" · "),
-    "现标题：" + (pr.title || "（无标题）"),
-    "状态：" + prStateText(pr) + " · 分支：" + ((pr.head && pr.head.ref) || "?") + " → " + ((pr.base && pr.base.ref) || "?"),
+    label + " done (PR #" + numStr + " · " + repoLabel + "):",
+    "changes: " + changed.join(" · "),
+    "current title: " + (pr.title || "(untitled)"),
+    "state: " + prStateText(pr) + " · branch: " + ((pr.head && pr.head.ref) || "?") + " → " + ((pr.base && pr.base.ref) || "?"),
   ];
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   return out.join("\n");
 }

@@ -20,7 +20,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
 
 export const command = "update-branch";
-export const summary = "把目标分支合进 PR 源分支";
+export const summary = "Merge the base branch into the PR's source branch";
 
 export const schema = {
   repo: params.repo,
@@ -29,14 +29,14 @@ export const schema = {
   expectedHeadSha: z
     .string()
     .optional()
-    .describe("可选：源分支的预期 HEAD sha（乐观并发保护）；不符时 GitHub 返回 422，不在已变化的分支上动手"),
+    .describe("Optional: the expected HEAD sha of the source branch (optimistic concurrency protection); on a mismatch GitHub returns 422 rather than acting on a branch that has already changed"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "让 GitHub 把 PR 的目标分支合进源分支（可能产生一个合并提交并改写源分支）：修改 GitHub 远端状态，执行前请确认 repo、prNumber 与 expectedHeadSha",
+    "Have GitHub merge the PR's base branch into its source branch (may produce a merge commit and rewrite the source branch): modifies remote GitHub state, confirm repo, prNumber and expectedHeadSha before running",
   ruleId: "github-toolkit-pr-update-branch",
 };
 
@@ -59,50 +59,50 @@ export async function run(input, ctx, { label }) {
     [{ method: "PUT", url: apiUrl(repo, "/pulls/" + numStr + "/update-branch"), json: payload, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   const detail = errorDetail(res);
 
   // 202 = 已受理（更新是异步落地的）；422 分两种：已经在最新 / 有冲突。
   if (res && res.status === 202) {
     const out = [
-      label + " 已受理（PR #" + numStr + " · " + repoLabel + "）：",
-      "GitHub 已开始把目标分支合进源分支（异步落地，稍后用 view / status 看结果）。",
-      res.json && res.json.message ? "原文：" + String(res.json.message) : "",
+      label + " accepted (PR #" + numStr + " · " + repoLabel + "):",
+      "GitHub has started merging the base branch into the source branch (asynchronous; check the result shortly with view / status).",
+      res.json && res.json.message ? "raw message: " + String(res.json.message) : "",
     ];
     return out.filter(Boolean).join("\n");
   }
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 422) {
       if (/up.to.date|no new commits|already/i.test(detail)) {
-        return label + "：PR #" + numStr + " 的源分支已经是目标分支的最新状态，无需更新（不是错误）。\nGitHub 原文：" + detail;
+        return label + ": the source branch of PR #" + numStr + " is already up to date with the base branch; no update is needed (this is not an error).\nGitHub raw message: " + detail;
       }
       if (/merge conflict|conflict/i.test(detail)) {
         return (
-          label + "：PR #" + numStr + " 与目标分支有冲突，GitHub 不做自动合并。\n" +
-          "请在本地解决冲突后推到源分支，或用 githana_pr(action=\"view\") 看冲突状态。\nGitHub 原文：" + detail
+          label + ": PR #" + numStr + " conflicts with the base branch, and GitHub does not merge automatically.\n" +
+          "Resolve the conflict locally and push to the source branch, or check the conflict state with githana_pr(action=\"view\").\nGitHub raw message: " + detail
         );
       }
       if (/expected_head_sha|head sha/i.test(detail)) {
         return (
-          label + "：PR #" + numStr + " 的源分支 HEAD 已不是 expectedHeadSha（有人在期间推了新提交）。\n" +
-          "请重新读一次 PR 确认最新 sha 再决定。\nGitHub 原文：" + detail
+          label + ": the source branch HEAD of PR #" + numStr + " is no longer expectedHeadSha (someone pushed new commits in the meantime).\n" +
+          "Read the PR again to confirm the latest sha, then decide.\nGitHub raw message: " + detail
         );
       }
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
-  const out = [label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：", "状态：目标分支已合入源分支"];
-  if (res.json && res.json.message) out.push("原文：" + String(res.json.message));
+  const out = [label + " done (PR #" + numStr + " · " + repoLabel + "):", "state: the base branch has been merged into the source branch"];
+  if (res.json && res.json.message) out.push("raw message: " + String(res.json.message));
 
   // 取一次终态确认（更新也是异步落地的）。
   const conf = await callRest([{ url: apiUrl(repo, "/pulls/" + numStr), timeoutMs }], { timeoutSec });
   const cp = conf.ok && conf.results[0] && conf.results[0].ok ? conf.results[0].json : null;
   if (cp) {
     const headSha = cp.head && cp.head.sha ? String(cp.head.sha) : "";
-    out.push("确认：state=" + String(cp.state || "?").toUpperCase() + (headSha ? " · 源分支 HEAD " + headSha.slice(0, 7) : ""));
+    out.push("confirmation: state=" + String(cp.state || "?").toUpperCase() + (headSha ? " · source branch HEAD " + headSha.slice(0, 7) : ""));
   }
   return out.join("\n");
 }

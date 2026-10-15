@@ -37,13 +37,13 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_workflow";
 
 export const description = [
-  "GitHana GitHub Actions 工作流：列 / 看 / 手动触发 / 启用 / 停用。",
-  "action=list / view / run / enable / disable。",
-  "run 是**同步触发**（workflow_dispatch，回执写「已触发」+ 触发时刻，不等也不返回 run 编号）；",
-  "view 看的是定义（name / path / state），YAML 正文走 githana_repo(action=\"read-file\")。",
-  "某次运行的列表 / 详情 / 重跑在 githana_run，缓存清理由 githana_cache，发布在 githana_release，",
-  "仓库 / PR / issue / 标签在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub Actions workflows: list / view / manually trigger / enable / disable.",
+  "action=list / view / run / enable / disable.",
+  "run is a **synchronous trigger** (workflow_dispatch; the receipt says \"triggered\" + the trigger time, and it neither waits for nor returns the run number);",
+  "view shows the definition (name / path / state); the YAML body goes through githana_repo(action=\"read-file\").",
+  "The list / details / rerun of a particular run are in githana_run, cache cleanup in githana_cache, releases in githana_release,",
+  "repository / PR / issue / label in githana_repo / githana_pr / githana_issue / githana_label, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -59,7 +59,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 工作流动作（list / view / run / enable / disable）：run 会真的把 CI 跑起来（可能推送 / 部署 / 占用额度），enable 与 disable 改的是状态位（影响之后的自然触发），执行前请确认 action 与 workflow",
+    "GitHana workflow actions (list / view / run / enable / disable): run really starts CI (it may push / deploy / consume quota), and enable and disable change the state bits (affecting later natural triggers) — confirm action and workflow before executing",
   ruleId: "github-toolkit-githana-workflow",
 };
 

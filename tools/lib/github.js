@@ -27,16 +27,16 @@ export function resolveRepo(repoParam) {
   if (!raw) {
     return {
       error:
-        "未指定仓库：Agent 需显式传入 repo（格式 owner/repo），本插件无默认仓库配置。",
+        "no repository specified: the Agent must pass repo explicitly (format owner/repo); this plugin has no default repository configured.",
     };
   }
   const parts = raw.split("/");
   if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
     return {
       error:
-        'repo 参数格式非法："' +
+        'invalid repo argument format: "' +
         raw +
-        '"。要求格式为 owner/repo（正好一个斜杠，如 liliMozi/openhanako）。',
+        '". The required format is owner/repo (exactly one slash, e.g. liliMozi/openhanako).',
     };
   }
   return { owner: parts[0].trim(), repo: parts[1].trim() };

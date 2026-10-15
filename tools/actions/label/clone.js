@@ -22,23 +22,23 @@ import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure } from "../../lib/gh.js";
 
 export const command = "clone";
-export const summary = "把另一个仓库的标签整套搬过来";
+export const summary = "Copy another repository's whole label set over";
 
 export const schema = {
-  repo: params.repo.describe("可选：**目标**仓库（标签落到这里），格式 owner/repo；缺省从 cwd 推断"),
+  repo: params.repo.describe("Optional: the **target** repository (labels land here), in owner/repo form; defaults to inferring from cwd"),
   cwd: params.cwdOptional,
-  fromRepo: z.string().describe("必填：**源**仓库，格式 owner/repo（从它取标签）"),
+  fromRepo: z.string().describe("Required: the **source** repository, in owner/repo form (labels are taken from it)"),
   force: z
     .boolean()
     .optional()
-    .describe("可选：true 时把目标仓库已有的同名标签也改成与源一致（颜色 / 描述）；默认只建缺失的，已有的跳过"),
+    .describe("Optional: when true, also rewrite same-named labels already present in the target repository to match the source (color / description); by default only missing ones are created and existing ones are skipped"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "把源仓库的标签整套搬进目标仓库（新建缺失的标签；force=true 时会改写目标仓库已有的同名标签）：批量修改 GitHub 远端状态，执行前请确认源与目标仓库",
+    "Copy the source repository's whole label set into the target repository (missing labels are created; with force=true, same-named labels already in the target repository are rewritten): bulk-modifies remote GitHub state, confirm the source and target repositories before running",
   ruleId: "github-toolkit-label-clone",
 };
 
@@ -48,14 +48,14 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const fromRaw = input?.fromRepo !== undefined && input?.fromRepo !== null ? String(input.fromRepo).trim() : "";
-  if (!fromRaw) return label + " 参数错误：fromRepo 必填（源仓库，格式 owner/repo）。";
+  if (!fromRaw) return label + " argument error: fromRepo is required (the source repository, in owner/repo form).";
   const parts = fromRaw.split("/");
   if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
-    return label + " 参数错误：fromRepo 格式非法（收到：" + fromRaw + "）。要求 owner/repo。";
+    return label + " argument error: fromRepo is malformed (received: " + fromRaw + "). Expected owner/repo.";
   }
   const source = parts[0].trim() + "/" + parts[1].trim();
   if (source.toLowerCase() === repo.toLowerCase()) {
-    return label + " 参数错误：fromRepo 与 repo 是同一个仓库（" + source + "），没有可搬的东西。";
+    return label + " argument error: fromRepo and repo are the same repository (" + source + "); there is nothing to copy.";
   }
 
   const force = input?.force === true;
@@ -69,18 +69,18 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!first.ok) return label + " 执行失败：" + first.message;
+  if (!first.ok) return label + " execution failed: " + first.message;
   const srcRes = first.results.find((x) => x.id === "src");
   const dstRes = first.results.find((x) => x.id === "dst");
   if (!srcRes || !srcRes.ok) {
-    if (srcRes && srcRes.status === 404) return label + "：源仓库 " + source + " 不存在或令牌不可见。";
-    return label + " 执行失败（读源仓库标签）：" + describeFailure(srcRes, source);
+    if (srcRes && srcRes.status === 404) return label + ": source repository " + source + " does not exist or is not visible to the token.";
+    return label + " execution failed (reading source repository labels): " + describeFailure(srcRes, source);
   }
-  if (!dstRes || !dstRes.ok) return label + " 执行失败（读目标仓库标签）：" + describeFailure(dstRes, repoLabel);
+  if (!dstRes || !dstRes.ok) return label + " execution failed (reading target repository labels): " + describeFailure(dstRes, repoLabel);
 
   const srcLabels = Array.isArray(srcRes.json) ? srcRes.json : [];
   const dstLabels = Array.isArray(dstRes.json) ? dstRes.json : [];
-  if (srcLabels.length === 0) return label + "：源仓库 " + source + " 没有任何标签，没有可搬的。";
+  if (srcLabels.length === 0) return label + ": source repository " + source + " has no labels at all; there is nothing to copy.";
 
   const dstByName = new Map();
   for (const l of dstLabels) if (l && l.name) dstByName.set(String(l.name).toLowerCase(), l);
@@ -96,9 +96,9 @@ export async function run(input, ctx, { label }) {
 
   if (toCreate.length === 0 && toUpdate.length === 0) {
     return [
-      label + "：无需改动（" + repoLabel + " 已经与 " + source + " 一致）。",
-      "源标签 " + srcLabels.length + " 个 · 目标已有 " + dstLabels.length + " 个" +
-      (force ? "" : "（已有的同名标签默认跳过；要改成与源一致请传 force=true）") + "。",
+      label + ": no changes needed (" + repoLabel + " already matches " + source + ").",
+      "source labels: " + srcLabels.length + " · target already has " + dstLabels.length +
+      (force ? "" : " (same-named labels already present are skipped by default; to rewrite them to match the source pass force=true)") + ".",
     ].join("\n");
   }
 
@@ -124,7 +124,7 @@ export async function run(input, ctx, { label }) {
   }
 
   const second = await callRest(batch, { timeoutSec });
-  if (!second.ok) return label + " 执行失败：" + second.message;
+  if (!second.ok) return label + " execution failed: " + second.message;
 
   const okIds = second.results.filter((x) => x.ok).map((x) => x.id);
   const failed = second.results.filter((x) => !x.ok);
@@ -132,18 +132,18 @@ export async function run(input, ctx, { label }) {
   const updatedOk = okIds.filter((id) => id.startsWith("update:")).length;
 
   const out = [
-    label + " 已执行（" + source + " → " + repoLabel + "）：",
-    "新建 " + createdOk + " / " + toCreate.length + " 个 · 更新 " + updatedOk + " / " + toUpdate.length + " 个（force=" + force + "）",
-    "跳过 " + (srcLabels.length - toCreate.length - toUpdate.length) + " 个目标仓库已有的同名标签。",
+    label + " done (" + source + " → " + repoLabel + "):",
+    "created " + createdOk + " / " + toCreate.length + " · updated " + updatedOk + " / " + toUpdate.length + " (force=" + force + ")",
+    "skipped " + (srcLabels.length - toCreate.length - toUpdate.length) + " same-named labels already present in the target repository.",
   ];
   if (failed.length) {
-    out.push("失败 " + failed.length + " 个：");
+    out.push(failed.length + " failed:");
     for (const f of failed.slice(0, 10)) {
-      out.push("  · " + f.id + "：HTTP " + f.status + " " + errorDetail(f));
+      out.push("  · " + f.id + ": HTTP " + f.status + " " + errorDetail(f));
     }
-    if (failed.length > 10) out.push("  ·（其余 " + (failed.length - 10) + " 个略）");
-    out.push("提示：新建失败常见原因是同名标签已存在（并发下目标仓库刚被别处建好）或颜色格式不合法。");
+    if (failed.length > 10) out.push("  · (" + (failed.length - 10) + " more omitted)");
+    out.push("hint: creations usually fail because a same-named label already exists (the target repository may have just been given one concurrently) or because the color format is invalid.");
   }
-  out.push("核对：githana_label(action=\"list\", repo=\"" + repo + "\")。");
+  out.push("verify with: githana_label(action=\"list\", repo=\"" + repo + "\").");
   return out.join("\n");
 }

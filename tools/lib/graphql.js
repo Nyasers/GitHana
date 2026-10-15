@@ -47,18 +47,18 @@ export async function graphql(query, variables, { timeoutSec } = {}) {
   );
 
   // 基础设施失败（worker 缺失 / 网络层 / 白名单拒绝）：status 为 null。
-  if (r.status === null) return { status: null, error: "GraphQL 调用失败：" + (r.error || "未知错误") };
+  if (r.status === null) return { status: null, error: "GraphQL call failed: " + (r.error || "unknown error") };
 
   const body = r.json && typeof r.json === "object" ? r.json : null;
 
   // HTTP 层失败：GraphQL 在鉴权/限流失败时返回非 2xx，响应体是 REST 那套 `{ message }`。
   if (!r.ok) {
-    return { status: r.status, error: "GraphQL 被拒绝（HTTP " + r.status + "）：" + errorDetail(r) };
+    return { status: r.status, error: "GraphQL rejected (HTTP " + r.status + "): " + errorDetail(r) };
   }
   if (!body) {
     return {
       status: r.status,
-      error: "GraphQL 响应不是 JSON（HTTP " + r.status + "）：" + String(r.text || "").slice(0, 300),
+      error: "GraphQL response is not JSON (HTTP " + r.status + "): " + String(r.text || "").slice(0, 300),
     };
   }
 
@@ -66,15 +66,15 @@ export async function graphql(query, variables, { timeoutSec } = {}) {
   const errors = Array.isArray(body.errors) ? body.errors : [];
   if (errors.length) {
     const lines = errors.map((e) => {
-      const path = Array.isArray(e && e.path) ? "（path: " + e.path.join(".") + "）" : "";
-      return "  · " + String((e && e.message) || "未知错误") + path;
+      const path = Array.isArray(e && e.path) ? " (path: " + e.path.join(".") + ")" : "";
+      return "  · " + String((e && e.message) || "unknown error") + path;
     });
     return {
       status: r.status,
       errors,
       error:
-        "GraphQL 返回 " + errors.length + " 条错误：\n" + lines.join("\n") +
-        "\n（GraphQL 的字段与输入形状以 GitHub GraphQL 文档为准；确需自行构造时可用 githana_api 打 /graphql。）",
+        "GraphQL returned " + errors.length + " error(s):\n" + lines.join("\n") +
+        "\n(field and input shapes are defined by the GitHub GraphQL docs; if you really must build one yourself, use githana_api against /graphql.)",
     };
   }
   return { status: r.status, data: body.data };

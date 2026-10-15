@@ -242,7 +242,7 @@ export function hostGitCandidates() {
 /** 宿主内嵌候选：目前宿主只捆绑 git。 */
 function hostCandidates(bin) {
   if (bin !== "git") return [];
-  return hostGitCandidates().map((c) => ({ ...c, label: "宿主内嵌 git", host: true }));
+  return hostGitCandidates().map((c) => ({ ...c, label: "host-bundled git", host: true }));
 }
 
 /** 随包 vendor 候选（路径拼接，不碰 fs）。 */
@@ -251,7 +251,7 @@ function vendorCandidates(bin) {
   if (!layout) return [];
   return vendorRoots(bin).map((root) => ({
     path: path.join(root, layout.exe),
-    label: `内嵌 ${bin}`,
+    label: `bundled ${bin}`,
     root,
   }));
 }

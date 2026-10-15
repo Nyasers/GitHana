@@ -138,7 +138,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 ### 已从工具面退役的名字
 
 `gpg_keygen` / `gpg_pubkey` 不在工具面：GPG 的密钥生成与公钥查看都只在设置页（生成不可逆，
-要用户点按钮确认）。实现仍在 `tools/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
+要用户点按钮确认）。实现在 `lib/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
 `lib/routes/pubkey.js`，原来的 `tools/gpg-pubkey.js` 已删。
 
 `gh_exec` 已由 `githana_api` 取代：前者透传 gh 的**子命令**（`gh release create` 这类高层动词），
@@ -252,7 +252,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 ### 手动档（用户自助）
 
 同一个设置页里另有一组手动入口：**实现只有一份**——端点直接调同一份模块本体
-（`tools/gpg-keygen.js` 的 `execute`、`lib/routes/pubkey.js` 的公钥读取），不另写并行逻辑。
+（`lib/gpg-keygen.js` 的 `execute`、`lib/routes/pubkey.js` 的公钥读取），不另写并行逻辑。
 
 | 入口 | 端点 | 实现 |
 |------|------|------|
@@ -261,7 +261,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 | 查询登录结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
 | 退出登录 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth` |
 | GitHub 账号信息 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
-| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `tools/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
+| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `lib/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
 | 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
 | 补传公钥（本地有、账号没有时） | `POST /routes/actions/gpg/publish` | `lib/gpg-publish.js` |
 | 从 GitHub 移除（本机密钥一并清除） | `POST /routes/actions/gpg/unpublish` | `lib/gpg-publish.js` |
@@ -690,7 +690,7 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 `login = ProjectNyaser`、`name = Nyaser` 时，隔离 gitconfig 写 `user.name = Nyaser`；
 邮箱固定为 `{id}+{login}@users.noreply.github.com`。同一组纯函数（`tools/lib/identity.js` 的
-`deriveNameFromUser`）同时供 `tools/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
+`deriveNameFromUser`）同时供 `lib/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
 两处不会跑偏。
 
 ## 签名隔离机制
@@ -698,7 +698,7 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 私钥只落 `app-data/githana/gpg.key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
 任何 gpg 二进制：
 
-1. **keygen 侧**：`tools/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
+1. **keygen 侧**：`lib/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
    加密落盘（与 `credential.json` 同一套后端抽象，见 `lib/secret.js` / `lib/dpapi.js`）。
 2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，
    由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入，同时注入

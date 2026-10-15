@@ -20,13 +20,13 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { contentsUrl, entryLine, formatBytes } from "../../lib/repo.js";
 
 export const command = "read-dir";
-export const summary = "列远端仓库某目录的内容";
+export const summary = "List the contents of a directory in a remote repository";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  path: z.string().optional().describe("可选：仓库内目录路径（相对仓库根，如 src/lib；缺省 = 仓库根）"),
-  ref: z.string().optional().describe("可选：分支 / 标签 / 提交 SHA（缺省取默认分支）"),
+  path: z.string().optional().describe("Optional: directory path inside the repository (relative to the repository root, e.g. src/lib; default = repository root)"),
+  ref: z.string().optional().describe("Optional: branch / tag / commit SHA (defaults to the default branch)"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -43,30 +43,30 @@ export async function run(input, ctx, { label }) {
     [{ url: contentsUrl(repo, path, ref), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
       return (
-        label + "：路径不存在或令牌不可见（" + repoLabel + (shownPath ? " · " + shownPath : " · 仓库根") + (ref ? " · ref=" + ref : "") + "）。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + ": the path does not exist or is not visible to the token (" + repoLabel + (shownPath ? " · " + shownPath : " · repository root") + (ref ? " · ref=" + ref : "") + ").\n" +
+        "GitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   // contents 端点：目录回数组，文件回对象。收到对象说明 path 指到了文件——直接给引导，不假装成目录。
   if (!Array.isArray(res.json)) {
     const obj = res.json && typeof res.json === "object" ? res.json : {};
     return (
-      label + "：path 指向的是一个**文件**，不是目录（" + (obj.name || shownPath) + "）。\n" +
-      "要看它的内容请用 githana_repo(action=\"read-file\", path=\"" + (obj.path || shownPath) + "\"" + (ref ? ", ref=\"" + ref + "\"" : "") + ")。"
+      label + ": path points at a **file**, not a directory (" + (obj.name || shownPath) + ").\n" +
+      "To see its content use githana_repo(action=\"read-file\", path=\"" + (obj.path || shownPath) + "\"" + (ref ? ", ref=\"" + ref + "\"" : "") + ")."
     );
   }
 
   const items = res.json;
-  const head = label + "（" + repoLabel + " · " + (shownPath || "仓库根") + (ref ? " · ref=" + ref : "") + " · " + items.length + " 项）：";
-  if (items.length === 0) return head + "\n（这个目录是空的。）";
+  const head = label + " (" + repoLabel + " · " + (shownPath || "repository root") + (ref ? " · ref=" + ref : "") + " · " + items.length + " items):";
+  if (items.length === 0) return head + "\n(this directory is empty.)";
 
   const out = [head];
   const dirs = items.filter((x) => x && x.type === "dir");
@@ -76,6 +76,6 @@ export async function run(input, ctx, { label }) {
 
   let total = 0;
   for (const it of files) if (it && it.type === "file" && Number.isFinite(Number(it.size))) total += Number(it.size);
-  out.push("本层文件合计：" + formatBytes(total) + "（" + files.length + " 个文件 · " + dirs.length + " 个子目录）");
+  out.push("files at this level total: " + formatBytes(total) + " (" + files.length + " files · " + dirs.length + " subdirectories)");
   return out.join("\n");
 }

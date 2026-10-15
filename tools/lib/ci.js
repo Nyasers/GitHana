@@ -35,15 +35,15 @@ export function conclusionText(conclusion) {
   const c = conclusion !== undefined && conclusion !== null ? String(conclusion) : "";
   if (!c) return "";
   const map = {
-    success: "通过",
-    failure: "失败",
-    neutral: "中性",
-    cancelled: "已取消",
-    skipped: "跳过",
-    timed_out: "超时",
-    action_required: "需要操作",
-    stale: "过期",
-    startup_failure: "启动失败",
+    success: "passed",
+    failure: "failed",
+    neutral: "neutral",
+    cancelled: "cancelled",
+    skipped: "skipped",
+    timed_out: "timed out",
+    action_required: "action required",
+    stale: "stale",
+    startup_failure: "startup failure",
   };
   return map[c] || c;
 }
@@ -88,10 +88,10 @@ export function formatBytes(n) {
 /** run 一行的排版（list 用；view 的头部也复用它）。 */
 export function runLine(run) {
   const id = run && run.id !== undefined ? String(run.id) : "?";
-  const name = (run && (run.name || run.display_title)) || "（无名）";
+  const name = (run && (run.name || run.display_title)) || "(unnamed)";
   const branch = run && run.head_branch ? String(run.head_branch) : "?";
   const event = run && run.event ? String(run.event) : "?";
-  const attempt = run && Number(run.run_attempt) > 1 ? " · 第 " + run.run_attempt + " 次尝试" : "";
+  const attempt = run && Number(run.run_attempt) > 1 ? " · attempt " + run.run_attempt : "";
   return (
     "#" + id + " [" + stateText(run) + "] " + name +
     " · " + branch + " · " + event +
@@ -110,11 +110,11 @@ export function actorText(run) {
 export function workflowStateText(state) {
   const s = state !== undefined && state !== null ? String(state) : "";
   const map = {
-    active: "启用（active）",
-    disabled_manually: "手动停用（disabled_manually）",
-    disabled_inactivity: "因长期未用被停用（disabled_inactivity）",
-    disabled_fork: "因 fork 停用（disabled_fork）",
-    deleted: "已删除（deleted）",
+    active: "enabled (active)",
+    disabled_manually: "disabled manually (disabled_manually)",
+    disabled_inactivity: "disabled after inactivity (disabled_inactivity)",
+    disabled_fork: "disabled because of fork (disabled_fork)",
+    deleted: "deleted (deleted)",
   };
   return map[s] || (s || "?");
 }
@@ -159,17 +159,17 @@ export async function resolveRunId(input, c, label) {
   if (branch) query.push("branch=" + encodeURIComponent(branch));
   const url = apiUrl(repo, "/actions/runs") + "?" + query.join("&");
   const r = await callRest([{ url, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }], { timeoutSec });
-  if (!r.ok) return { error: label + " 执行失败：" + r.message };
+  if (!r.ok) return { error: label + " failed: " + r.message };
   const res = r.results[0];
-  if (!res || !res.ok) return { error: label + " 执行失败：" + describeFailure(res, repoLabel) };
+  if (!res || !res.ok) return { error: label + " failed: " + describeFailure(res, repoLabel) };
 
   const runs = res.json && Array.isArray(res.json.workflow_runs) ? res.json.workflow_runs : [];
   if (runs.length === 0) {
     return {
       error:
-        label + " 无法确定 run 编号：仓库 " + repoLabel +
-        (branch ? " 的分支 " + branch : "") +
-        " 没有任何 workflow run。请显式传 runId，或先用 githana_run(action=\"list\") 看有哪些 run。",
+        label + " cannot determine the run id: repository " + repoLabel +
+        (branch ? " (branch " + branch + ")" : "") +
+        " has no workflow run at all. Pass runId explicitly, or use githana_run(action=\"list\") first to see which runs exist.",
     };
   }
   const picked = runs[0];
@@ -180,7 +180,8 @@ export async function resolveRunId(input, c, label) {
 export function pickedNote(picked, branch) {
   if (!picked) return "";
   return (
-    "run 编号是推断的（未显式传 runId）：取仓库" + (branch ? "分支 " + branch + " " : "") +
-    "最近一次 run —— " + runLine(picked) + "。要指定别的 run 请显式传 runId。"
+    "the run id was inferred (runId was not passed explicitly): using the most recent run of the repository" +
+    (branch ? " on branch " + branch : "") +
+    " — " + runLine(picked) + ". Pass an explicit runId to target a different run."
   );
 }

@@ -15,7 +15,7 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { repoSummary } from "../../lib/repo.js";
 
 export const command = "view";
-export const summary = "仓库详情";
+export const summary = "Repository details";
 
 export const schema = {
   repo: params.repo,
@@ -32,22 +32,22 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, ""), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return label + "：仓库 " + repoLabel + " 不存在或令牌不可见（私有仓库需要令牌有访问权）。";
+      return label + ": repository " + repoLabel + " does not exist or is not visible to the token (a private repository requires the token to have access).";
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
-  const out = [label + " 详情："];
+  const out = [label + " details:"];
   out.push(...repoSummary(res.json));
   const perms = res.json && res.json.permissions;
   if (perms && typeof perms === "object") {
     const yes = Object.entries(perms).filter(([, v]) => v === true).map(([k]) => k);
-    out.push("令牌的仓库内权限（GitHub 返回的 permissions）：" + (yes.length ? yes.join(" / ") : "无"));
-    out.push("说明：这一行是 GitHub 按令牌算的实权，与手册里 App 权限的登记口径不同，以后者为准。");
+    out.push("the token's permissions within the repository (the permissions GitHub returns): " + (yes.length ? yes.join(" / ") : "none"));
+    out.push("note: this line is the effective power GitHub computes for the token, which differs from how the App's permissions are registered in the manual; the latter is authoritative.");
   }
   return out.join("\n");
 }
