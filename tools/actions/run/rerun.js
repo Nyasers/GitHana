@@ -10,7 +10,7 @@
  * 它不会等到 CI 跑完（跑完要几分钟）。所以本动词回执里写的是「已触发」，不是「已通过」——
  * 这一点与 `run watch`（任务型，返回句柄、到终态回投会话）是**两种返回契约**，不能混。
  * 要知道结果：隔一会儿 `githana_run(action="view", runId=<同一个>)` 看结论；
- * 自动等终态是阶段 2 的 watch。
+ * 要自动等终态用 `githana_run(action="watch", runId=<同一个>)`（任务型，返回句柄、到终态回投会话）。
  *
  * ## `debugLogging` 的语义要说清
  *
@@ -101,7 +101,7 @@ export async function run(input, ctx, { label }) {
     "详细日志：" + (input?.debugLogging === true ? "这一次重跑会打（enable_debug_logging）" : "否"),
     "HTTP " + res.status + "（GitHub 已收下这次重跑，**不是**「已经跑完」）",
   ];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, input?.branch));
+  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
 
   // 触发后取一次现状：让回执里带上这一跑的基线（GitHub 的重跑会新建一次 attempt，状态立刻变）。
   const after = await callRest(
@@ -115,6 +115,6 @@ export async function run(input, ctx, { label }) {
   }
 
   out.push("说明：这是**同步触发**——回执写的是「已触发」。要看结果用 githana_run(action=\"view\", runId=" + num + ")；");
-  out.push("「等到终态再回报」是任务型的 githana_run(action=\"watch\")，它属于阶段 2（本期未实现）。");
+  out.push("「等到终态再回报」用任务型的 githana_run(action=\"watch\", runId=" + num + ")（返回后台任务句柄，CI 到终态时结论回投本会话）。");
   return out.join("\n");
 }

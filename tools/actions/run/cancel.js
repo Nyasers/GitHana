@@ -80,7 +80,7 @@ export async function run(input, ctx, { label }) {
     label + " 已请求取消（" + repoLabel + " · run #" + num + "）：",
     "HTTP " + res.status + "（GitHub 收下了取消请求——它是**尽力而为**：跑起来的步骤可能把当前这一步做完，终态是 cancelled）",
   ];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, input?.branch));
+  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
 
   // 取消是异步落地的：取一次现状，让调用方看到它是不是已经变 cancelled。
   const after = await callRest(

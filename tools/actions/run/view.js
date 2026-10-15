@@ -81,7 +81,7 @@ export async function run(input, ctx, { label }) {
       " · 耗时 " + fmtDuration(runJson.run_started_at || runJson.created_at, runJson.updated_at),
   );
   if (runJson.html_url) out.push("URL：" + runJson.html_url);
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, input?.branch));
+  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
 
   // 作业列表：CI 出问题时看的是这一层。
   const jobFilter = input?.job !== undefined && input?.job !== null ? String(input.job).trim() : "";

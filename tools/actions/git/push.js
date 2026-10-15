@@ -14,10 +14,10 @@
  * - 返回推送结果摘要（含远端/分支/参数与 git 原文）。
  *
  * 凭据：GitHub App 令牌由**本 App 自写的 git remote helper** 使用（tools/lib/remote-helper-shim.js
- * 在 spawn git 时注入 insteadOf 与 PATH）。helper 自己从 dataDir 解 DPAPI 密文、自己发 HTTPS，
- * 所以令牌不进命令行、不进远端 URL、不进 gitconfig、**不进 git 子进程的 env**——
- * `git remote -v` 里看不到它，git 的 stderr 里也不会回显。未登录时 helper 会给可读引导，
- * 不静默失败、也不回落系统凭据。
+ * 在 spawn git 时注入 `githana-push::` 前缀改写与 PATH）。helper 自己从 dataDir 解 DPAPI 密文、
+ * 自己发 HTTPS，所以令牌不进命令行、不进远端 URL、不进 gitconfig、**不进 git 子进程的 env**——
+ * `git remote -v` 里看不到它，git 的 stderr 里也不会回显。github.com 的远端不回落系统凭据：
+ * 未登录时 helper 会给可读引导，不静默失败。
  */
 import { z } from "zod";
 import { runCli, checkCwd } from "../../lib/exec.js";
@@ -81,10 +81,15 @@ export async function run(input, ctx, { label }) {
   }
 
   // 远端 URL：只用来判定这次推送走哪条传输路径（github.com 的 https 才接 App 的 helper），
-  // 以及让「远端不存在」在推送前就说清楚。remote 也可能直接写成 URL（那时 get-url 会失败），
-  // 所以取不到就退回 remote 本身——探测失败不拦推送，注入与否由 remote-helper-shim 按子命令判定。
+  // 以及让「远端不存在」在推送前就说清楚。取 **--push** 那一份：git 的 `get-url` 会展开
+  // `insteadOf` / `pushInsteadOf`，配了单独的 `pushurl` 时推送去的 host 更可能与 fetch URL 不同——
+  // 用 fetch URL 判定会把引导与成功文案都指错侧。
+  // 本探测的子命令是 `remote`，不在 helper 的注入范围（见 shouldInjectRemoteHelper），所以
+  // 它读到的只有仓库自己配置的那一份，不含本 App 为 push 注入的 `githana-push::` 前缀。
+  // remote 也可能直接写成 URL（那时 get-url 会失败），所以取不到就退回 remote 本身——
+  // 探测失败不拦推送，注入与否由 remote-helper-shim 按子命令判定。
   const token = getToolSecretToken();
-  const urlR = await runCli("git", ["remote", "get-url", remote], { cwd, timeoutSec: 30 });
+  const urlR = await runCli("git", ["remote", "get-url", "--push", remote], { cwd, timeoutSec: 30 });
   const remoteUrl = urlR.ok ? String(urlR.stdout || "").trim() : remote;
   const githubTarget = isGitHubHttpsUrl(remoteUrl);
 

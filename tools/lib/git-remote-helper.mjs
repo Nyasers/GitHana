@@ -7,59 +7,76 @@
  * ## 它是什么
  *
  * git 把 URL 形如 `<transport>::<address>` 的远端交给 `git-remote-<transport>` 这个
- * **外部程序**处理（见 gitremote-helpers(7)）。本文件就是 scheme 为 `githana` 的那一个，
- * 随包进 `bin/git-remote-helper.mjs`，运行期由 tools/lib/remote-helper-shim.js 生成的
- * `git-remote-githana` 包装脚本拉起。
+ * **外部程序**处理（见 gitremote-helpers(7)）。本文件就是 `githana` 与 `githana-push` 两个
+ * scheme 共用的底层实现，随包进 `bin/git-remote-helper.mjs`，运行期由
+ * tools/lib/remote-helper-shim.js 生成的两个包装脚本拉起（各传一个模式参数）。
  *
  * 于是 github.com 的 https 远端整条传输层落在本进程里：**令牌只在这里**，git 全程不接触它
  * （不进 git 子进程 env、不进命令行、不进远端 URL、不进 gitconfig、不进任何文件）。
  *
- * ## 为什么是 `connect` 而不是 `push` / `fetch`（实测）
+ * ## 两条路：取侧 `stateless-connect`，push 侧 `connect`
  *
- * gitremote-helpers(7) 给 `push` / `fetch` 这两个能力规定的交互里，**packfile 根本不从 helper
- * 的 stdin 进来**——那两条路是「helper 自己生成 / 消费对象」，helper 只报 ref 表与逐条成败。
- * 实测证实：桩 helper 报 `push` 时，git 依次发 `list for-push`、`push <src>:<dst>`，
- * 然后 stdin 上**再无一个字节**（12 秒静默、bytes=0），git 从不送 packfile。
+ * 本文件由两个包装脚本拉起（`git-remote-githana` 传 `fetch`、`git-remote-githana-push` 传
+ * `push`，见 tools/lib/remote-helper-shim.js），argv 里的模式决定它报哪个能力、走哪条中继。
+ * 能力路由实测（这就是必须两个 scheme 的原因）：
  *
- * `connect` 才是「全双工、原生协议字节」那条：git 说 `connect git-receive-pack`（或
- * `git-upload-pack`），helper 回一个空行表示连接已建立，**此后这根 stdin/stdout 就是 git 与
- * 远端服务之间的原生协议管道**——git 自己按 native 协议写 update-request + packfile、
- * 读 report-status，本项目只负责把字节搬过 HTTP。实测：报 `connect` 后 git 立刻发
- * 106B + 1299B(PACK…) + 20B 的原生字节。
+ *   connect                     → fetch 走 connect ❌；push 走 connect ✅
+ *   stateless-connect           → fetch 走 stateless-connect ✅；push 落到 list ❌
+ *   connect + stateless-connect → git 一律选 connect（单 scheme 报两个能力没用）
  *
- * 所以本 helper 是**一条双向中继**，不做任何协议解析：
+ * **取侧报 `stateless-connect`**：它是 git 为**无状态传输**（smart HTTP 那类）设计的能力，与
+ * GitHub 的 smart HTTP 一一对应；而 `connect` 是有状态全双工，git 在需再谈时的第二轮只发一个
+ * `done`，无状态服务端无从自足处理。参考 git 自带的 `git-remote-http`：它报
+ * `stateless-connect/fetch/get/option/push/check-connectivity/object-format`，**不报 connect**。
  *
- *   capabilities        → 回 `connect`
- *   connect <service>   → 回空行，然后中继这一个 service（read/write 都走它）
+ * **push 侧仍报 `connect`**：receive-pack 协议没有协商阶段（客户端一次发完命令 + packfile，
+ * 服务端回一次 report-status 就结束），单轮下 `connect` 是对的，而且只有这条形态能让 git 的
+ * 原生 send-pack 把 packfile 经 stdin 送进来。gitremote-helpers(7) 的 `push` / `fetch` 能力
+ * 是另一条路——**packfile 根本不从 helper 的 stdin 进来**（实测：桩 helper 报 `push` 时 git 只
+ * 发 `list for-push` / `push <src>:<dst>`，stdin 上再无一个字节），所以那条路不能用。
  *
- * 好处是读写用同一条路：push 与 fetch / clone / pull / ls-remote 全部由 git 自己的原生实现
- * 驱动，本进程只搬字节——没有「helper 自己生成 pack」「自己解 report-status」这些活。
+ * 取侧的交互（实测跑通的最小形状）：
  *
- * ## 中继怎么走（smart HTTP 两步）
+ *   capabilities                              → 回 `stateless-connect`
+ *   stateless-connect git-upload-pack         → 回空行，然后逐轮：
+ *     GET  <base>/info/refs?service=git-upload-pack（带 `Git-Protocol: version=2`）→ 广告写 stdout
+ *     读请求直到 **flush-pkt（`0000`）** → POST <base>/git-upload-pack
+ *     响应体整段写 stdout → 再写一个 **`0002`（response-end-pkt）**
+ *     请求读到 EOF / 空 → 会话结束，退出
  *
- *   GET  <base>/info/refs?service=<service>   拿 ref 广告 → 写 stdout
- *   读 git 的请求体（update-request + packfile，或 want/have/done）→ POST
- *   POST <base>/<service>                     响应体 → 写 stdout
+ * pkt-line 定界符（gprotocol-v2）：`0000` = flush、`0001` = delim、`0002` = response-end。
+ * 该写 `0002` 的地方写成 `0001`，git 报 `expected response end packet`。
+ *
+ * 不带 `Git-Protocol: version=2` 头拿到的是 v1 广告，git 会报
+ * `expected response end packet after ref listing`——**GET 与 POST 都要带**。
+ *
+ * push 侧的交互：
+ *
+ *   capabilities                          → 回 `connect`
+ *   connect git-receive-pack              → 回空行，然后：
+ *     GET  <base>/info/refs?service=git-receive-pack（**不带** version=2，receive-pack 无 v2）
+ *     读请求体直到 **EOF** → POST <base>/git-receive-pack → 响应写 stdout → 退出
  *
  * **广告要剥掉 HTTP 专有的前缀**：smart HTTP 的广告以 pkt-line 包着一行
  * `# service=<service>\n` 加一个 `0000` 开头（实测 34 字节）。那是 HTTP 传输层的东西，
  * 原生协议里没有它——不剥，git 直接报
  * `fatal: protocol error: unexpected '# service=git-upload-pack'`。剥法是读长度、看内容是不是
  * `# service=` 起头，是就跳过并按需跨过紧随的 `0000`（**不硬编码 34**，见 stripServicePreamble）。
+ * 剥完直接写 stdout，广告后**不需要**额外的 end packet。
  *
  * 广告与响应都**原样写 stdout**（Buffer 直写，不经过 UTF-8 字符串）。响应可能很大
  * （实测 12MB 的 PACK），所以按块流式写、绝不截断。
  *
- * push 一轮（receive-pack 没有协商），fetch 可多轮（upload-pack 的 multi_ack 协商）——
- * 详见 relay。
+ * ## 请求体怎么定界（不再靠静默窗口）
  *
- * ## 请求体读多久（本方案唯一的启发式）
+ * 两个 service 都改成**结构定界**，没有任何「连续 N 秒无字节就算写完」的启发式：
  *
- * git 把请求写到本进程 stdin 之后**未必**关管道（实测：真 GitHub 的 clone 是「写完静默」结束，
- * 本地 receive-pack 中继则是 EOF 结束），所以两个终止条件都要：
- *   · EOF → 立即返回；
- *   · 连续静默超过窗口 → 认为写完。
- * 详见 StdinReader.readBody 与 STALL_UPLOAD_MS / STALL_RECEIVE_MS。
+ *   · 取侧：按 pkt-line 结构读到 flush-pkt（`0000`）为止；
+ *   · push 侧：读到 **EOF**。实测 push 的请求体形态是
+ *     `198B（命令 pkt-line + flush-pkt）→ 23448B（PACK…）→ 20B → stdin EOF`，
+ *     三种 push 形态（建分支带 pack / 删分支无 pack / 重复删除）**全部 EOF 可靠到达**，
+ *     块间最大间隔仅 141ms。原先按「连续 15s 无字节」定界会在 git 生成 packfile 停顿超
+ *     15s 时把请求体截断成半个 pack，远端报 unpack 失败。
  *
  * ## 凭据从哪来
  *
@@ -97,49 +114,50 @@ const DPAPI_ALG = "dpapi-current-user";
 /** 请求 GitHub 时的 User-Agent（GitHub 要求非空）。 */
 const USER_AGENT = "githana-git-remote-helper";
 
-/** 本 helper 接受的两个 service（git 在 connect 里给的 service 名）。 */
+/** 本 helper 接受的两个 service（git 在 connect / stateless-connect 里给的 service 名）。 */
 const SERVICE_RECEIVE = "git-receive-pack";
 const SERVICE_UPLOAD = "git-upload-pack";
 
 /**
- * `connect` 之后等 git 送请求体**首字节**的窗口（毫秒）。
+ * 运行模式，argv[0]（包装脚本传入；见 tools/lib/remote-helper-shim.js）。
  *
- * git 收到空行后基本立刻开始写（它只是在生成请求），这个窗口只用来把「git 其实没打算在
- * 这根管道上写东西」变成一句可读诊断，而不是让整个操作挂死。
+ * 取侧与 push 侧是两个 scheme、两个包装脚本，所以模式是**进程级的常量**，不是运行时判断的：
+ * 一个进程只服务一种形态，报一个能力。
+ */
+const MODE_FETCH = "fetch";
+const MODE_PUSH = "push";
+
+/**
+ * 两个能力名：取侧报 stateless-connect（无状态，对齐 GitHub 的 smart HTTP），
+ * push 侧报 connect（有状态全双工，让 git 的 send-pack 把 packfile 经 stdin 送进来）。
+ */
+const CAP_STATELESS_CONNECT = "stateless-connect";
+const CAP_CONNECT = "connect";
+
+/** 取侧的协议版本头：不带会拿到 v1 广告，git 报 `expected response end packet after ref listing`。 */
+const GIT_PROTOCOL_V2 = { "Git-Protocol": "version=2" };
+
+/** response-end-pkt（gprotocol-v2）：取侧每轮 POST 的响应之后要写它（`0001` 是 delim，写错 git 报错）。 */
+const RESPONSE_END_PKT = Buffer.from("0002", "ascii");
+
+/**
+ * 连接建立后等 git 送请求体**首字节**的窗口（毫秒）。
+ *
+ * git 收到空行后基本立刻开始写（它只是在发命令），这个窗口只用来把「git 其实没打算在这根
+ * 管道上写东西」变成一句可读诊断，而不是让整个操作挂死。**它只覆盖首字节**——请求体的其余
+ * 部分由结构定界（取侧到 flush-pkt，push 侧到 EOF），不受这个值影响。
  */
 const REQUEST_FIRST_BYTE_TIMEOUT_MS = 15000;
 
 /**
- * 请求体「写完」的静默窗口（毫秒），**按 service 分档**。
+ * push 侧请求体的**防御上限**（毫秒）：只防「git 一直不关管道」这种意外形态，**不参与定界**。
  *
- * **这是本方案唯一依赖启发式的地方。** git 把请求写完之后未必关管道（实测：真 GitHub 的
- * clone 就是「写完静默」结束），靠 EOF 判断会挂死；而「停止吐字节」在两种形态下都是同一个
- * 信号，所以连续静默这么久就认为写完了。
- *
- * 分档的理由是两边请求体的性质完全不同：
- *
- *   · `git-upload-pack`（fetch / clone）：请求体是 want / have / done 清单，实测一次 clone
- *     只有 199B，**瞬间写完**；但断流窗口同时是「还有没有下一轮」的判断依据，所以给小值，
- *     否则每次 clone 白等。
- *   · `git-receive-pack`（push）：请求体里含**整个 packfile**，由 pack-objects 边生成边吐，
- *     大仓库/慢磁盘上对象之间出现秒级停顿是正常的。窗口给小了会把请求体**截断成半个 pack**，
- *     远端报 unpack 失败。而 push 只有一轮（见 relay 的说明），所以给小值的收益也不存在，
- *     干脆给足。
+ * 定界一律是 EOF（见 StdinReader.readToEof）。取 10 分钟是因为实测正常的 packfile 生成停顿
+ * 最多 141ms，而大仓库/慢磁盘上秒级停顿是正常的——10 分钟不可能是正常停顿，撞到它就是
+ * 「管道不会结束」，那时**报错退出**，绝不把那截请求体当完整请求发出去（截断半个 pack 会被
+ * 远端报 unpack 失败，正是要修掉的行为）。
  */
-const STALL_UPLOAD_MS = 2000;
-const STALL_RECEIVE_MS = 15000;
-
-/**
- * 写完一轮响应后，等「git 是否还有下一轮请求」的窗口（毫秒），只用于 upload-pack。
- *
- * 多轮只出现在 fetch 的协商里（multi_ack / multi_ack_detailed：没找到共同基点时再送一轮
- * have）。git 处理完我们的响应、决定继续谈之后是**立刻**写下一轮的，所以这个窗口只需覆盖
- * git 解析响应 + 组下一批 have 的时间，给 2 秒足够宽松。
- *
- * push 不走这里：receive-pack 的协议没有协商阶段（客户端一次发完命令 + pack，服务端回一次
- * report-status 就结束），多轮等待只会让每次推送白白慢这么久。所以那个分支不循环。
- */
-const NEXT_ROUND_MS = 2000;
+const PUSH_BODY_IDLE_LIMIT_MS = 600000;
 
 /** 诊断一律走 stderr，stdout 只走协议。 */
 function warn(msg) {
@@ -271,16 +289,16 @@ function authHeader(token) {
  * 从 git 给的远端地址里认出 `owner/repo`，并拼回 https 基址。
  *
  * 收得下的形态：
- *   · `Nyasers/GitHana.git`        —— 配置好的远端经 insteadOf 重写后的 `<address>`
- *   · `githana::Nyasers/GitHana`   —— 命令行直写时 git 也可能原样传
- *   · `https://github.com/o/r.git` —— 万一没经重写（或用户直写完整地址）
+ *   · `Nyasers/GitHana.git`             —— 配置好的远端经 insteadOf / pushInsteadOf 重写后的 `<address>`
+ *   · `githana::Nyasers/GitHana`        —— 取侧命令行直写时 git 也可能原样传（push 侧是 `githana-push::`）
+ *   · `https://github.com/o/r.git`      —— 万一没经重写（或用户直写完整地址）
  *
  * 非 github.com 的地址一律拒绝：本 helper 的凭据只对 github.com 有意义，硬发出去是把令牌
  * 送给别人的服务器。
  */
 function parseRemote(remoteUrl) {
   let s = String(remoteUrl || "").trim();
-  if (!s) fail("git 没有给出远端地址（argv 为空）。");
+  if (!s) fail("git 没有给出远端地址（argv 里只有模式参数，没有 <repository> / <URL>）。");
   const schemeForm = /^[A-Za-z][A-Za-z0-9+.-]*::(.*)$/.exec(s);
   if (schemeForm) s = schemeForm[1];
   const httpForm = /^https?:\/\/[^/]+\/(.*)$/i.exec(s);
@@ -345,12 +363,15 @@ function stripServicePreamble(buf) {
  *
  * **不给 Buffer body 传 `duplex: "half"`**：undici 对非流式 body 加这个选项会挂死（实测）。
  * 本文件只在 body 是 Buffer 时发请求，所以一律不传。
+ *
+ * `headers` 是额外请求头（取侧用它带 `Git-Protocol: version=2`）；它与 Authorization /
+ * User-Agent 合并，不覆盖这两个。
  */
-async function githubFetch(url, token, { method = "GET", accept, contentType, body, redirect = "follow" } = {}) {
-  const headers = {
-    Authorization: authHeader(token),
-    "User-Agent": USER_AGENT,
-  };
+async function githubFetch(url, token, { method = "GET", accept, contentType, body, headers: extraHeaders, redirect = "follow" } = {}) {
+  // 额外头先放，认证与 UA 后放：令牌头不允许被调用方传的头覆盖掉。
+  const headers = extraHeaders ? { ...extraHeaders } : {};
+  headers.Authorization = authHeader(token);
+  headers["User-Agent"] = USER_AGENT;
   if (accept) headers.Accept = accept;
   if (contentType) headers["Content-Type"] = contentType;
 
@@ -512,7 +533,8 @@ async function pipeBodyToStdout(body) {
  * 回调本来就是「数据到了才回调」。命令阶段与中继阶段因此共用同一份缓冲与同一条路径。
  *
  * 读到的字节一律先落进 `buf`，`readLine` 只在缓冲里找 LF——所以「命令」与「命令之后 git
- * 立刻发来的协议字节」不会被两个读者各读走一半：中继阶段的 `readBody` 从缓冲里接着拿。
+ * 立刻发来的协议字节」不会被两个读者各读走一半：中继阶段的 `readToEof` / `readUntilFlushPkt`
+ * 从缓冲里接着拿。
  */
 class StdinReader {
   constructor(fd) {
@@ -527,9 +549,8 @@ class StdinReader {
    * 再补一块进缓冲；返回是否读到数据（false = EOF）。
    *
    * **`pending` 记的是「一次 fill」而不是「一次 read」**：同一时刻只允许一次底层读在飞，
-   * 且**只有那一次**会把读到的字节并进 buf。这一点是必需的——`peek` 的超时与 `readBody` 的
-   * 静默窗口都可能在底层读还没返回时就放行，随后又发起下一次 fill；若两个调用各持同一份
-   * 字节各并一次，缓冲里就会出现重复字节，直接破坏协议流。
+ * 超时（peek 判首字节、readToEof 的防御上限）时都可能在底层读还没返回时就放行；若两个调用
+ * 各持同一份字节各并一次，缓冲里就会出现重复字节，直接破坏协议流。
    */
   fill() {
     if (this.eof) return Promise.resolve(false);
@@ -591,128 +612,157 @@ class StdinReader {
   }
 
   /**
-   * 读请求体：直到 **EOF**，或**连续 stallMs 没有新字节**。
+   * 读请求体：**直到 EOF**（push 侧的定界方式）。
    *
-   * 两个终止条件都要，因为它们对应 git 两种收尾方式（实测都出现过）：
-   *   · 本地 receive-pack 中继：git 写完就关管道 → EOF 立即返回；
-   *   · 真 GitHub 的 clone：git 写完 `want … done` 后**不关** stdin，转去读响应 →
-   *     纯等 EOF 会挂死，靠静默窗口收尾。
+   * git 把整个请求（命令 pkt-line + flush-pkt + PACK… + 收尾）写完就关管道，实测三种 push
+   * 形态（建分支带 pack / 删分支无 pack / 重复删除）的 EOF 都**可靠到达**，块间最大间隔
+   * 141ms。所以这里只认 EOF，不看内容、不算长度。
    *
-   * 不按协议结构去算长度（want/have 流、packfile 的对象数与 zlib 流）——那正是本方案要避开的
-   * 「解析重构」。这里只认流的行为，不认流的内容。
+   * `idleLimitMs > 0` 时另设一个**防御上限**：撞到它就报错退出，**绝不**把那截字节当完整请求
+   * 发出去——截断半个 pack 会被远端报 unpack 失败（那正是静默窗口定界的老毛病）。
    *
-   * @param {number} stallMs 连续无字节多久算写完
+   * @param {number} idleLimitMs 防御上限（毫秒）；<= 0 表示不限
    */
-  async readBody(stallMs) {
+  async readToEof(idleLimitMs) {
     const parts = [this.buf];
     this.buf = Buffer.alloc(0);
+    // 防御上限设 <= 0 就是「不限」：那时不挂定时器（不能给 setTimeout 传 0——那会立刻触发）。
+    const guard = idleLimitMs > 0;
     for (;;) {
       let timer = null;
-      const stalled = new Promise((resolve) => {
-        timer = setTimeout(() => resolve("stall"), stallMs);
-      });
-      const which = await Promise.race([this.fill().then((ok) => (ok ? "data" : "eof")), stalled]);
+      const which = await Promise.race([
+        this.fill().then((ok) => (ok ? "data" : "eof")),
+        guard
+          ? new Promise((resolve) => {
+              timer = setTimeout(() => resolve("idle"), idleLimitMs);
+            })
+          : new Promise(() => {}),
+      ]);
       if (timer) clearTimeout(timer);
       if (which === "eof") {
         this.eof = true;
         break;
       }
-      if (which === "stall") break;
+      if (which === "idle") {
+        fail(
+          "push 的请求体在 " + Math.round(idleLimitMs / 1000) + " 秒内既没有新字节、也没有结束（EOF）。\n" +
+            "本 helper 按 EOF 定界请求体，不会把没收完的 packfile 发出去（截断的 pack 会被远端拒绝）。\n" +
+            "若这次推送确实需要更久，请重试；反复出现请报给 GitHana 维护者。",
+        );
+      }
       parts.push(this.buf);
       this.buf = Buffer.alloc(0);
     }
     return Buffer.concat(parts);
   }
+
+  /**
+   * 读请求体：**直到 flush-pkt（`0000`）**，返回并消费整段请求（含那个 `0000`）。
+   *
+   * 取侧（stateless-connect）的请求体就是一组 pkt-line，**结构定界**：按 4 字节长度字段
+   * 一包一包走，走到 `0000` 就是请求结束。`0001`（delim）/ `0002`（response-end）是无载荷的
+   * 特殊包，占 4 字节。
+   *
+   * 返回 `null` 表示对端关了管道且**没给出 flush-pkt**（git 没有下一轮了）——调用方据此收工。
+   * 这不是错误：一次会话正常就是以这种方式结束的。
+   *
+   * 长度字段非法（不是十六进制）时报错退出：那时继续读只会把垃圾当请求 POST 出去，把一次
+   * 可读的失败变成一次远端的怪错。
+   */
+  async readUntilFlushPkt() {
+    let off = 0;
+    for (;;) {
+      if (this.buf.length - off < 4) {
+        if (!(await this.fill())) return null; // EOF 且没有 flush-pkt：会话结束
+        continue;
+      }
+      const hex = this.buf.toString("ascii", off, off + 4);
+      const len = Number.parseInt(hex, 16);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+        fail("取侧请求体里出现了非 pkt-line 字节（在偏移 " + off + " 读到 \"" + hex + "\"）：无法定界请求。");
+      }
+      if (len === 0) {
+        // flush-pkt：请求到此结束，把它一起发出去（smart HTTP 的请求体含这个 0000）。
+        const body = this.buf.subarray(0, off + 4);
+        this.buf = this.buf.subarray(off + 4);
+        return Buffer.from(body);
+      }
+      if (len < 4) {
+        off += 4; // 0001 / 0002 / 0003：无载荷的特殊包
+        continue;
+      }
+      if (this.buf.length - off < len) {
+        if (!(await this.fill())) return null;
+        continue;
+      }
+      off += len;
+    }
+  }
 }
 
-// ───────────────────────────── 中继 ─────────────────────────────
+// ───────────────────────────── 取侧：stateless-connect ─────────────────────────────
 
 /**
- * 中继一个 service：GET 广告 → 读 git 请求体 → POST → 响应写回。
+ * 取侧中继：GET 广告 → 逐轮「读一个请求 → POST → 写回 + response-end-pkt」。
  *
- * 这就是 helper 的全部工作：**搬字节 + 加 Authorization**，不解析、不重构任何协议内容。
- * git 在那根管道后面跑的就是它自己的原生实现（send-pack / fetch-pack），
- * 所以 push 与 fetch 走的是同一段代码。
+ * 这就是取侧的全部工作：**搬字节 + 加 Authorization**，不解析协议内容。git 在那根管道后面
+ * 跑的是它自己的 fetch-pack / ls-refs 实现。
  *
- * ## 一轮还是多轮
+ * ## 为什么能处理多轮
  *
- * smart HTTP 是无状态的：一轮 = 一次 POST = 一次 HTTP 请求。而原生协议在**同一根管道**上
- * 可以来回多轮——upload-pack 的协商（multi_ack / multi_ack_detailed）在没有找到共同基点时
- * 会再发一轮 have；协议 v2 也是 ls-refs、fetch 分轮走。git 在 `connect` 形态下不知道自己
- * 后面接的是 HTTP，只当那是根全双工管道，所以会**接着往 stdin 写下一轮请求**。
+ * `stateless-connect` 就是 git 为无状态传输设计的形态（git 自带的 `git-remote-http` 走的就是
+ * 它）：git 知道每一轮都要**自足**，所以它每轮发的是一个完整的请求（v2 的 ls-refs / fetch
+ * 各自带全自己的参数），而不是 `connect` 那种「服务端记得上一轮」的增量——第二轮只发一个
+ * `done` 的形态不再出现。实测：分叉场景下 `ls-refs` 2 轮 + `fetch` 命令 8 次跳 5 个 POST、
+ * `have` 124 次，exit=0，FETCH_HEAD 正确。
  *
- * 两个 service 的形状不同，所以分支处理：
+ * 广告在会话开头发一次，之后每轮一个请求对一个 POST。
  *
- *   · `git-receive-pack`（push）：协议**没有协商**——客户端一次发完命令 + pack，服务端回一次
- *     report-status 就结束。所以只跑一轮，然后退出；不设「等下一轮」的窗口，免得每次推送
- *     白等一次。
- *   · `git-upload-pack`（fetch / clone）：可能多轮，所以循环。实测的 clone 是单轮
- *     （`want … done` 一次到底），循环是单轮的严格超集——只跑一轮时，第二轮会因 git 关管道
- *     （EOF）立即结束，或按 NEXT_ROUND_MS 静默收尾。
- *
- * 收工判据（两种都要，理由同 StdinReader.readBody）：
- *   · git 关掉 stdin（EOF）→ 结束；
- *   · git 静默超过窗口 → 认为没有下一轮了，结束。
- *
- * @param {string} service git-receive-pack（push）或 git-upload-pack（fetch）
  * @param {{base: string}} remote
  * @param {string} token
  */
-async function relay(service, remote, token) {
-  const forPush = service === SERVICE_RECEIVE;
-  // —— 1) ref 广告（整个会话只发一次） ——
-  const advertUrl = remote.base + "/info/refs?service=" + service;
+async function relayFetch(remote, token) {
+  // v2 广告：不带 Git-Protocol 头拿到的是 v1 广告，git 会报
+  // `expected response end packet after ref listing`。GET 与 POST 都要带。
+  const advertUrl = remote.base + "/info/refs?service=" + SERVICE_UPLOAD;
   const advertRes = await githubFetch(advertUrl, token, {
-    accept: "application/x-" + service + "-advertisement",
+    accept: "application/x-" + SERVICE_UPLOAD + "-advertisement",
+    headers: GIT_PROTOCOL_V2,
   });
   const advertBuf = Buffer.from(await advertRes.arrayBuffer());
   if (!advertRes.ok) {
     await failWithRemoteError("GET", advertUrl, advertRes, advertBuf);
   }
   // 剥掉 HTTP 专有的 `# service=…` 前缀后原样转给 git（不剥 git 会报 protocol error）。
+  // 广告后不需要额外的 end packet。
   writeOut(stripServicePreamble(advertBuf));
 
-  // 请求体写完的静默窗口按 service 分档（push 的请求体含整个 packfile，停顿更长）。
-  const stallMs = forPush ? STALL_RECEIVE_MS : STALL_UPLOAD_MS;
-  const postUrl = remote.base + "/" + service;
-
-  for (let round = 0; ; round += 1) {
-    // 首轮等得宽些（git 收到广告后基本立刻开始写）；后续轮只在 git 确实还要谈时才有，
-    // 而 push 根本不进后续轮。
-    const waitMs = round === 0 ? REQUEST_FIRST_BYTE_TIMEOUT_MS : NEXT_ROUND_MS;
-    if (!(await stdin.peek(waitMs))) {
-      if (round === 0) {
+  const postUrl = remote.base + "/" + SERVICE_UPLOAD;
+  // 首轮等首字节（读完之后 git 立刻发请求）；后续轮由 stateless-connect 的语义保证：
+  // git 有下一轮就马上写，没有就关管道（readUntilFlushPkt 返回 null）。
+  let firstRound = true;
+  for (;;) {
+    if (firstRound) {
+      if (!(await stdin.peek(REQUEST_FIRST_BYTE_TIMEOUT_MS))) {
         fail(
-          "connect " + service + " 之后 git 没有送来任何请求字节（等待 " +
+          "stateless-connect " + SERVICE_UPLOAD + " 之后 git 没有送来任何请求字节（等待 " +
             REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms 超时）。\n" +
-            "本 helper 走的是全双工中继形态；若 git 没在这根管道上写东西，远端服务无从发起。",
+            "本 helper 走的是无状态中继形态；若 git 没在这根管道上写东西，远端服务无从发起。",
         );
       }
-      return; // 没有下一轮：会话结束
+      firstRound = false;
     }
-    // git **确实**还要再谈一轮：这在 connect + 无状态 HTTP 下跑不通，立即报可读的错
-    // （不能放着挂死，也不能发出一个服务端无法自足处理的请求）。
-    // 单轮操作不受影响——它们在 round 0 就把响应送达，下一轮 peek 会因 git 关管道而返回 false。
-    if (round >= 1 && !forPush) {
-      fail(
-        "这次取远端需要多轮协商，而当前传输形态提供不了。\n" +
-          "helper 走的是 `connect`（把 git 的原生协议整个中继给 GitHub）——它在**单轮**操作下是对的\n" +
-          "（普通 clone / fetch / pull / ls-remote / push 均已验证），但 git 在还需再谈时会按「服务端\n" +
-          "记得上一轮」的有状态语义只发一个 `done`，而 GitHub 的 smart HTTP 是**无状态**的（每轮 POST\n" +
-          "自足），两边对不上。\n" +
-          "触发它的典型操作：浅克隆（`--depth`）、`--deepen`。绕过：去掉 `--depth` 做完整克隆，\n" +
-          "或改用本机 git 原生凭据跑这些操作。",
-      );
-    }
-    const body = await stdin.readBody(stallMs);
-    if (body.length === 0) return; // 空请求 = 收工
+    // 结构定界：读到 flush-pkt（0000）为止。null = 对端关管道且没有 flush-pkt → 会话结束。
+    const body = await stdin.readUntilFlushPkt();
+    if (body === null || body.length === 0) return;
 
     // redirect 用 manual：POST 遇 301/302 时 fetch 会把请求**降级成 GET**（并丢掉 body），
-    // 那会把一次推送悄悄变成一次空读。仓库改名/搬家这类重定向如实按状态码报出来更好。
+    // 那会把一次请求悄悄变成一次空读。仓库改名/搬家这类重定向如实按状态码报出来更好。
     const res = await githubFetch(postUrl, token, {
       method: "POST",
-      accept: "application/x-" + service + "-result",
-      contentType: "application/x-" + service + "-request",
+      accept: "application/x-" + SERVICE_UPLOAD + "-result",
+      contentType: "application/x-" + SERVICE_UPLOAD + "-request",
+      headers: GIT_PROTOCOL_V2,
       body,
       redirect: "manual",
     });
@@ -721,27 +771,99 @@ async function relay(service, remote, token) {
       await failWithRemoteError("POST", postUrl, res, errBuf);
     }
     await pipeBodyToStdout(res.body);
-
-    // push 没有协商阶段：这一轮就是全部，响应已送达，收工。
-    if (forPush) return;
+    // 每轮响应之后必须有 response-end-pkt（0002）：git 靠它判「这一轮完了」。
+    // 写成 0001（delim）git 报 `expected response end packet`。
+    writeOut(RESPONSE_END_PKT);
   }
-  // 连接结束，helper 退出（gitremote-helpers(7) 的 'connect' 一节：连接结束后 helper 退出）。
+}
+
+// ───────────────────────────── push 侧：connect ─────────────────────────────
+
+/**
+ * push 侧中继：GET 广告 → 读请求体到 **EOF** → POST → 响应写回 → 退出。
+ *
+ * receive-pack 协议**没有协商阶段**（客户端一次发完命令 + packfile，服务端回一次
+ * report-status 就结束），所以只跑一轮。这条路上 git 的 send-pack 是原生的：
+ * 它按 native 协议写 update-request + packfile 到 stdin，本项目只把字节搬过 HTTP。
+ *
+ * 广告**不带** `Git-Protocol: version=2`：receive-pack 没有 v2。
+ *
+ * @param {{base: string}} remote
+ * @param {string} token
+ */
+async function relayPush(remote, token) {
+  const advertUrl = remote.base + "/info/refs?service=" + SERVICE_RECEIVE;
+  const advertRes = await githubFetch(advertUrl, token, {
+    accept: "application/x-" + SERVICE_RECEIVE + "-advertisement",
+  });
+  const advertBuf = Buffer.from(await advertRes.arrayBuffer());
+  if (!advertRes.ok) {
+    await failWithRemoteError("GET", advertUrl, advertRes, advertBuf);
+  }
+  writeOut(stripServicePreamble(advertBuf));
+
+  if (!(await stdin.peek(REQUEST_FIRST_BYTE_TIMEOUT_MS))) {
+    fail(
+      "connect " + SERVICE_RECEIVE + " 之后 git 没有送来任何请求字节（等待 " +
+        REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms 超时）。\n" +
+        "本 helper 走的是全双工中继形态；若 git 没在这根管道上写东西，远端服务无从发起。",
+    );
+  }
+  // 只认 EOF：git 写完命令 + packfile 就关管道。不能按静默窗口定界——那会在 pack-objects
+  // 停顿超窗时截断 pack（远端报 unpack 失败）。防御上限设得极长，撞到即报错、不发半截请求。
+  const body = await stdin.readToEof(PUSH_BODY_IDLE_LIMIT_MS);
+  if (body.length === 0) return; // 空请求 = 收工
+
+  const postUrl = remote.base + "/" + SERVICE_RECEIVE;
+  const res = await githubFetch(postUrl, token, {
+    method: "POST",
+    accept: "application/x-" + SERVICE_RECEIVE + "-result",
+    contentType: "application/x-" + SERVICE_RECEIVE + "-request",
+    body,
+    redirect: "manual",
+  });
+  if (!res.ok) {
+    const errBuf = Buffer.from(await res.arrayBuffer());
+    await failWithRemoteError("POST", postUrl, res, errBuf);
+  }
+  await pipeBodyToStdout(res.body);
 }
 
 // ───────────────────────────── 命令循环 ─────────────────────────────
 
+/**
+ * 解析 argv：包装脚本传 `<mode> <repository> [<URL>]`。
+ *
+ * mode 是**必需**的：没有它就无法决定报哪个能力，而报错能力会让 git 走错传输形态。
+ * 缺 mode 时报可读的错，而不是猜一个默认值。
+ */
+function parseArgs(argv) {
+  const mode = String(argv[0] || "");
+  if (mode !== MODE_FETCH && mode !== MODE_PUSH) {
+    fail(
+      "没有收到运行模式（argv 第一个参数应为 \"" + MODE_FETCH + "\" 或 \"" + MODE_PUSH + "\"，收到：" +
+        (argv.length ? JSON.stringify(argv[0]) : "（空）") + "）。\n" +
+        "本 helper 由 git-remote-githana / git-remote-githana-push 包装脚本拉起，模式由它传入。\n" +
+        "请从 GitHana 的工具面发起操作（包装脚本由 tools/lib/remote-helper-shim.js 生成）。",
+    );
+  }
+  // git 传 <repository> [<URL>]：有第二个就用第二个，否则第一个本身就是地址。
+  const rest = argv.slice(1);
+  const remoteUrl = rest.length >= 2 ? rest[1] : rest[0];
+  return { mode, remoteUrl };
+}
+
 /** 逐条处理 git 的命令流。 */
 async function main() {
-  const argv = process.argv.slice(2);
-  // git 传 <repository> [<URL>]：有第二个就用第二个，否则第一个本身就是地址。
-  const remoteUrl = argv.length >= 2 ? argv[1] : argv[0];
+  const { mode, remoteUrl } = parseArgs(process.argv.slice(2));
   const remote = parseRemote(remoteUrl);
-  // 凭据只在真正要连远端时解（capabilities 不需要，connect 才需要），解不开的引导即时报出。
+  // 凭据只在真正要连远端时解（capabilities 不需要），解不开的引导即时报出。
   let token = null;
   const tokenOnce = () => {
     if (token === null) token = loadToken();
     return token;
   };
+  const pushMode = mode === MODE_PUSH;
 
   for (;;) {
     const line = await stdin.readLine();
@@ -750,28 +872,38 @@ async function main() {
     if (cmd === "") continue;
 
     if (cmd === "capabilities") {
-      // 只报 connect：它一条通吃读写（push / fetch / clone / pull / ls-remote 都由 git 自己
-      // 的原生实现驱动）。报 push/fetch 会走「helper 自己生成 pack」那条路——实测 git 在那条
-      // 路上从不把 packfile 送进来。
-      writeOut(Buffer.from("connect\n\n", "utf8"));
+      // 取侧只报 stateless-connect（无状态，对齐 GitHub 的 smart HTTP，多轮协商成立）；
+      // push 侧只报 connect（有状态全双工，packfile 才从 stdin 进来）。
+      // **一个进程只报一个**：实测同时报两个时 git 一律选 connect。
+      writeOut(Buffer.from((pushMode ? CAP_CONNECT : CAP_STATELESS_CONNECT) + "\n\n", "utf8"));
       continue;
     }
 
-    if (cmd.startsWith("connect ")) {
-      const service = cmd.slice("connect ".length).trim();
-      if (service !== SERVICE_RECEIVE && service !== SERVICE_UPLOAD) {
-        // 未实现的 service：按协议退出并说明（不回 fallback——本 helper 没有 dumb 传输可退）。
-        fail("不支持的 service：" + service + "（本 helper 只做 " + SERVICE_RECEIVE + " / " + SERVICE_UPLOAD + "）。");
+    if (pushMode) {
+      if (cmd.startsWith("connect ")) {
+        const service = cmd.slice("connect ".length).trim();
+        if (service !== SERVICE_RECEIVE) {
+          fail("push 侧只做 " + SERVICE_RECEIVE + "（收到：" + service + "）。");
+        }
+        // 空行 = 连接已建立；此后这根 stdin/stdout 就是 git 与远端服务之间的原生协议管道。
+        writeOut(Buffer.from("\n", "utf8"));
+        await relayPush(remote, tokenOnce());
+        // 会话结束就**显式退出**：peek 可能留了一次底层 fs.read 在飞，而 git 那边未必会关掉
+        // 管道——不退出的话事件循环会一直等那个读，helper 就挂在那里不结束。
+        process.exit(0);
       }
-      // 空行 = 连接已建立；此后这根 stdin/stdout 就是 git 与远端服务之间的原生协议管道。
+    } else if (cmd.startsWith("stateless-connect ")) {
+      const service = cmd.slice("stateless-connect ".length).trim();
+      if (service !== SERVICE_UPLOAD) {
+        fail("取侧只做 " + SERVICE_UPLOAD + "（收到：" + service + "）。");
+      }
+      // 空行 = 连接已建立。
       writeOut(Buffer.from("\n", "utf8"));
-      await relay(service, remote, tokenOnce());
-      // 会话结束就**显式退出**：peek 的超时可能留了一次底层 fs.read 在飞，而 git 那边未必
-      // 会关掉管道——不退出的话事件循环会一直等那个读，helper 就挂在那里不结束。
+      await relayFetch(remote, tokenOnce());
       process.exit(0);
     }
 
-    // 没广告 option / list / push / fetch，git 正常不会发这些；发了就记一条，不断流。
+    // 没收到的命令 git 正常不会发；发了就记一条，不断流。
     warn("收到未广告的命令：" + cmd + "（已忽略，连接继续）。");
   }
 }

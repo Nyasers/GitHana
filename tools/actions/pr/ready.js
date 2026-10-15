@@ -94,6 +94,21 @@ export async function run(input, ctx, { label }) {
   }
   const pr = res.json && typeof res.json === "object" ? res.json : {};
 
+  // 状态位只在 open 的 PR 上有意义：已关闭 / 已合并的 PR 不在 review 状态，报「无需操作」会让
+  // 调用方以为它还在评审队列里。所以这一条排在幂等分支（以及 node_id 的形状检查）**之前**，
+  // 并按状态给不同去处。
+  if (String(pr.state || "") !== "open") {
+    const next =
+      pr.merged === true
+        ? "它已经合并了，改动已在目标分支上——要撤销请用 githana_pr(action=\"revert\", prNumber=" + numStr + ")。"
+        : "要让它重新进入评审请先重开：githana_pr(action=\"reopen\", prNumber=" + numStr + ")。";
+    return [
+      label + " 无法改状态位（PR #" + numStr + " · " + repoLabel + "）：",
+      "它的状态是 " + prStateText(pr) + "，不在 open 的评审流程里——状态位只在 open 的 PR 上有意义。",
+      next,
+    ].join("\n");
+  }
+
   const nodeId = pr.node_id ? String(pr.node_id) : "";
   if (!nodeId) {
     return (

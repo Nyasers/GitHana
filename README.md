@@ -96,28 +96,37 @@ skills/githana/SKILL.md # 随包手册（逐 action 参数 + 什么时候用 + �
 
 访问 github.com 的 git 动作（`push` / `fetch` / `pull` / `clone` / `ls-remote`）走 **本 App 自写的
 git remote helper**：git 把整条传输层交给 `git-remote-githana`（`tools/lib/git-remote-helper.mjs`），
-helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**——这修掉了 credential helper 形态的
-两个洞（本机已有系统凭据时系统那份先应答、push 成功后 git 会把明文令牌交给系统 helper 的 `store`）。
+helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**不触达 git 的凭据子系统**——
+所以本机已有系统凭据时不会有另一份先应答，push 成功后也不会有任何 helper 的 `store` 被调用。
 
-- helper 报 `connect`（全双工中继），**不报 `push` / `fetch`**：实测报 `push` 时 git 从不把
-  packfile 送进 helper 的 stdin（`list for-push` → `push <src>:<dst>` 之后 12 秒静默、0 字节）。
-  `connect` 之后那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，本项目只搬字节、
-  加 `Authorization`，不解析协议内容——读写因此一条通吃。
+- **两个 scheme，两个包装脚本**：取侧（`ls-remote` / `clone` / `fetch` / `pull`）走 `githana::`
+  （`url.githana::.insteadOf`），helper 报 `stateless-connect`；push 侧走 `githana-push::`
+  （`url.githana-push::.pushInsteadOf`），helper 报 `connect`。两个包装脚本分别把模式作为
+  `argv[0]` 交给同一个 helper 进程，一个进程只报一个能力。
+- 能力分流是实测定的：**报 `connect` 时 fetch 走 connect、报 `stateless-connect` 时 push 落到
+  `list`**，而两个都报时 git 一律选 `connect`——所以取侧与 push 侧必须是两个 scheme。
+  取侧的 `stateless-connect` 对齐 GitHub 的 smart HTTP（无状态、每轮 POST 自足），push 侧的
+  `connect` 是唯一能让 git 的 send-pack 把 packfile 经 stdin 送进来的形态（实测报 `push` 时
+  git 从不把 packfile 送进 helper 的 stdin：`list for-push` → `push <src>:<dst>` 之后 12 秒静默、
+  0 字节）。`connect` 之后那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，本项目只搬字节、
+  加 `Authorization`，不解析协议内容。
 - 接线在 `tools/lib/remote-helper-shim.js`（`buildBinEnv` 调用），三件事**同进同退**：
-  `NODE_OPTIONS` 追加 `--allow-net`（helper 继承权限模型，不给它连不上网）、注入
-  `url.githana::.insteadOf = https://github.com/`、把 helper 包装目录前置进 `PATH`。
-  另把 `<dataDir>` 经 `GITHANA_DATA_DIR` 递给 helper。
+  `NODE_OPTIONS` 追加 `--allow-net`（helper 继承权限模型，不给它连不上网）、注入上面那两条前缀
+  改写（两个 scheme 各一条）、把 helper 包装目录前置进 `PATH`。另把 `<dataDir>` 经
+  `GITHANA_DATA_DIR` 递给 helper。
 - 包装脚本两个平台都是**无扩展名**的 `#!/bin/sh` 脚本（`<dataDir>/.runtime-tmp/remote-helper/`）。
   实测 git 找 remote helper 不走 PATHEXT——Windows 上写成 `.cmd` **不会被调起**
   （报 `git: 'remote-githana' is not a git command`），所以由 git for Windows 自带的 msys sh
   解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
 - 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
   **不进** git 子进程的 env：helper 自己读 `<dataDir>/credential.json` 解 DPAPI（`lib/dpapi.js`）。
-- 不改主机文件：`insteadOf` 走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
+- 不改主机文件：两条前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
   `git remote -v` 看到的仍是原 URL。
 - 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
-  这类能改写运行环境的形态：`exec` 是任意参数透传，而这些形态能把 `insteadOf` 与 `PATH` 一起换掉。
-- 未登录时 helper 给出去设置页登录的引导，**不静默失败、不回落系统凭据**。
+  这类能改写运行环境的形态：`exec` 是任意参数透传，而这些形态能把前缀改写与 `PATH` 一起换掉。
+- 未登录时 helper 给出去设置页登录的引导，**不静默失败、不回落系统凭据**——github.com 的远端
+  只有 App 令牌这一条路。只有**非 github.com 的远端**（GitLab / 自建 / ssh）才走 git 原生路径与
+  系统凭据。
 - 带 `.github/workflows/*` 改动的推送需要 `workflows: write`（已在授权集里，见 D7）。
 
 ### 已从工具面退役的名字
@@ -229,9 +238,10 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**——�
 不报错、不动文件、不参与任何调用；设置页据此提示「旧版记录」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
-删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证走 App 令牌
-（经 credential helper 注入，见「push 的凭据」），本机凭据只是未登录时的回落；而 GPG 公钥上传
-是 PAT 本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
+删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证走 App 自写的
+**git remote helper**（见「远端凭据（git 传输层）」）——github.com 的远端**不回落系统凭据**，
+未登录时 helper 直接给「去设置页登录」的引导；只有非 github.com 的远端才走 git 原生路径与系统凭据。
+而 GPG 公钥上传是 PAT 本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
 
 ### 手动档（用户自助）
 
@@ -644,8 +654,8 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
   返回结果数组（`githana_pr(action="view")` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
 - **令牌边界不变**：REST 侧仍只在 App 进程内存与 worker 之间流转（经 stdin 传，更不进宿主 IPC）。
-  git 侧的凭据走另一条路（credential helper + 子进程 env，见「push 的凭据」）：两条都不落磁盘明文、
-  不进宿主设置表。
+  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `<dataDir>/credential.json` 解 DPAPI，
+  见「远端凭据（git 传输层）」）：两条都不落磁盘明文、不进宿主设置表。
   OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
 
 ### 与 gh CLI 的两处真实行为差异
@@ -698,5 +708,5 @@ shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、
 它运行期 import 同目录的 `openpgp.min.mjs`（不内联，见「第三方许可」）。
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
-GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧经子进程 env 递给 credential helper，
-见「push 的凭据」）。
+GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧由 remote helper 自读
+`<dataDir>/credential.json` 解 DPAPI，见「远端凭据（git 传输层）」）。
