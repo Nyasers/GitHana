@@ -2,46 +2,43 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_list：列出仓库的 PR（只读面 action）。
+ * pr/list：列出仓库的 PR（githana_pr 动词）。
  *
  * 走 REST `GET /repos/{o}/{r}/pulls?state=&sort=created&direction=desc&per_page=`；
  * 输出编号/标题/分支/state/时间列表。只读，不改远端状态。
  */
-import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import { resolveContext, describeFailure, fmtTime } from "../lib/pr.js";
+import { z } from "zod";
+import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
-export const command = "pr_list";
+export const command = "list";
 export const summary = "列出 PR";
 
-export const fields = {
-  state: {
-    type: "string",
-    enum: ["open", "closed", "all"],
-    description: "PR 状态过滤，默认 open",
-  },
-  limit: {
-    type: "integer",
-    minimum: 1,
-    maximum: 50,
-    description: "返回条数，默认 10，上限 50",
-  },
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  state: z.enum(["open", "closed", "all"]).optional().describe("PR 状态过滤，默认 open"),
+  // 上限 50 不写成 max：超过上限在 run() 是**收敛到 50**（不是拒绝），收紧成拒绝会改语义。
+  limit: z.number().int().min(1).optional().describe("返回条数，默认 10，上限 50（超过上限收敛到 50）"),
+  timeoutSec: params.timeoutSec,
 };
-export const required = [];
+
+/** 模型面专属（不参与运行期校验）：补上"上限 50"这个提示；运行期超过上限是收敛而不是拒绝。 */
+export const modelFields = {
+  limit: z.number().int().min(1).max(50).describe("返回条数，默认 10，上限 50（超过上限收敛到 50）"),
+};
 
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
 
-  const state = input?.state !== undefined && input?.state !== null ? String(input.state).trim() : "open";
-  if (!["open", "closed", "all"].includes(state)) {
-    return label + " 参数错误：state 必须是 open / closed / all（收到：" + state + "）。";
-  }
+  // state 的取值域由 schema 保证（enum）；limit 只做"收敛到 50"（见上方 schema 的注释）。
+  const state = input?.state !== undefined && input?.state !== null ? String(input.state) : "open";
   let limit = 10;
-  if (input?.limit !== undefined && input?.limit !== null && input?.limit !== "") {
-    const n = Number(input.limit);
-    if (!Number.isInteger(n) || n <= 0) return label + " 参数错误：limit 必须是正整数。";
-    limit = Math.min(50, n);
+  if (input?.limit !== undefined && input?.limit !== null) {
+    limit = Math.min(50, input.limit);
   }
 
   const url =

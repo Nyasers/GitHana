@@ -2,58 +2,63 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/params.js — 跨 action 共用的参数片段（JSON Schema）。
+ * tools/lib/params.js — 跨 action 共用的字段定义（zod）。
  *
- * 工具的 parameters 是把各 action 的 fields **合并成的一张平表**（与收敛前的 gh_pr 同形），
- * 同键只留第一次出现的那份。字段若在多个 action 里各写一份，生效的只是"表里靠前的那个"，
- * 另一份会静默丢掉——所以被两个以上 action 用到的键在这里定义一次，各 action 只 import。
+ * 被两个以上 action 用到的键在这里定义一次，各 action 只 import，避免同一个键在几处各写一份
+ * 后各自漂移。字段的**形状**（类型 / 枚举 / 范围）在这里与各 action 的 schema 里是唯一来源：
+ * 工具的 `parameters` 由 `z.toJSONSchema` 从同一份定义生成，运行期校验也用同一份
+ * （见 tools/lib/surface.js）。
  *
- * 合并成平表带来两处**同键不同义**，都不带 type / enum，只把两种用法写进描述；取值校验仍由
- * 各 action 的 run() 按收敛前的口径做（逐条不变）。把逐 action 的精确 schema（oneOf 分支、
- * 各自的 enum）恢复出来是阶段 B 的 discriminatedUnion（见 spec D5）：
- *   · method：api 是 HTTP 方法；pr_merge 是合并方式
- *   · body：api 是 JSON 对象；pr_create 是 PR 正文字符串
- * 同理 cwd 在两个面上语义不同（git 动作必填、GitHub 动作可选），合并后的描述把两种都说清，
- * 必填与否由各 action 自己校验。
+ * 名词分家后，同一个键在不同工具里有不同含义的情形消失了：`method` 只属于 `githana_api`
+ * 的 HTTP 方法，`body` 在 `githana_api` 上是 JSON 对象、在 `githana_pr` 的 create / comment /
+ * review 上是 Markdown 正文字符串——两者已不在同一个参数表里，各自的取值域写在各自 action 的
+ * schema 上（那才是运行期生效的那份），不必再在这里合并成一份中性描述。
+ *
+ * 必填与否**不在这里一刀切**：同一个键在不同 action 上要求不同（cwd 对 git 动作必填、对
+ * `githana_pr` 的多数动词可选；prNumber 对 merge / revert 必填、对 view 可缺省）。所以同一个键
+ * 给出两个变体，名字表明形态，各 action 取自己要的那个——必填这件事写在用它的地方，不靠合并
+ * 顺序去猜。
  */
+import { z } from "zod";
 
-/** 工作目录：git 动作必填，GitHub 动作用来推断仓库 / 取当前分支（可选）。 */
-export const cwd = {
-  type: "string",
-  description:
-    "本地仓库绝对路径（如 E:\\workspace\\my-repo）：status / log / exec / commit / push 必填（仓库上下文显式传参，不做隐式推断）；pr_* 可选（从 git remote 推断仓库兜底，pr_create / pr_view 另用它取当前分支与缺省值）",
-};
+/** 工作目录（仓库绝对路径）：仓库上下文一律显式传参，不做工作目录隐式推断。 */
+export const cwd = z
+  .string()
+  .describe(
+    "本地仓库绝对路径（如 E:\\workspace\\my-repo）。仓库上下文一律显式传参、不做隐式推断；哪些动词必填见各 action 的参数说明",
+  );
 
-/** 仓库上下文（api / pr_create / pr_list / pr_view / pr_merge 共用）。 */
-export const repo = {
-  type: "string",
-  description:
-    "可选：仓库，格式 owner/repo（如 liliMozi/openhanako）；api 传了就替换 path 里的 {owner}/{repo} 占位符；pr_* 显式传则优先于 cwd 推断",
-};
+/** 工作目录：只作兜底的 GitHub 动作可选（不用它取缺省值；见各 action 的 run()）。 */
+export const cwdOptional = cwd.optional();
+
+/** 仓库上下文（githana_repo / pr / issue / label 的各动词共用）。 */
+export const repo = z
+  .string()
+  .optional()
+  .describe("可选：仓库，格式 owner/repo（如 liliMozi/openhanako）；缺省从 cwd 的 git remote 推断");
 
 /** 超时（git 动作默认 120 秒，GitHub 动作默认 60 秒）。 */
-export const timeoutSec = {
-  type: "integer",
-  minimum: 1,
-  maximum: 600,
-  description: "超时秒数（可选）：git 动作默认 120，GitHub 动作默认 60；上限 600",
-};
+export const timeoutSec = z
+  .number()
+  .int()
+  .min(1)
+  .max(600)
+  .optional()
+  .describe("超时秒数（可选）：git 动作默认 120，GitHub 动作默认 60；上限 600");
 
-/** method：api 的 HTTP 方法 与 pr_merge 的合并方式（同键不同义，见文件头注）。 */
-export const method = {
-  description:
-    "api：HTTP 方法，缺省 GET（githana 接受 GET / POST / PATCH / PUT / DELETE；githana_read 只接受 GET / HEAD）；pr_merge：合并方式，默认 merge（merge / squash / rebase）",
-};
+/** PR 编号：正整数（merge / revert 等不可撤销的动词必填）。 */
+export const prNumber = z.number().int().min(1).describe("PR 编号（正整数）");
 
-/** body：api 的 JSON 请求体 与 pr_create 的 PR 正文（同键不同义，见文件头注）。 */
-export const body = {
-  description:
-    "api：请求体（JSON 对象），用于 POST / PATCH / PUT；pr_create：PR 正文（字符串，可选，支持 Markdown 与中文）",
-};
+/** PR 编号：可缺省 = 当前分支关联 PR（需要 cwd）。 */
+export const prNumberOptional = prNumber
+  .optional()
+  .describe("PR 编号（正整数）；缺省 = 当前分支关联 PR（需要 cwd）");
 
-/** PR 编号（pr_view 可缺省 = 当前分支关联 PR；pr_merge 必填）。 */
-export const prNumber = {
-  type: "integer",
-  minimum: 1,
-  description: "pr_view / pr_merge：PR 编号（正整数）；pr_view 缺省 = 当前分支关联 PR；pr_merge 必填",
-};
+/**
+ * issue 编号：正整数，**必填**。
+ *
+ * 与 prNumber 不同，issue 没有「当前分支关联 issue」这回事——那个概念只对 PR 成立。所以这里
+ * 只有必填一个变体：`prNumberOptional` 的缺省逻辑（按 head 分支过滤）在 issue 上无对应物，
+ * 照搬会造出一个语义不成立的参数。
+ */
+export const issueNumber = z.number().int().min(1).describe("issue 编号（正整数）");

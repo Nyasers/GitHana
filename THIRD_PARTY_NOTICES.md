@@ -23,6 +23,7 @@ reach the artifact are not listed.
 | react-is | 19.2.8 | MIT License | 构建期内联 |
 | use-sync-external-store | 1.6.0 | MIT License | 构建期内联 |
 | openpgp（OpenPGP.js） | 6.3.2 | GNU LGPL v3.0 or later | 随包独立库（运行期加载） |
+| zod | 4.6.5 | MIT License | 随包独立库（运行期加载） |
 
 ## Bundled at build time
 
@@ -70,10 +71,17 @@ These are inlined into `ui/settings.bundle.js` at build time. Their original pac
 
 ### openpgp（OpenPGP.js） 6.3.2
 
-- Purpose: 签名与验签（设置页的密钥生成、`githana(action="commit")` 的 `gpgsig`）—— 顶替原先随包的 GnuPG。
+- Purpose: 签名与验签（设置页的密钥生成、`githana_git(action="commit")` 的 `gpgsig`）—— 顶替原先随包的 GnuPG。
 - Form: 一份**独立、可替换的库文件** `bin/openpgp.min.mjs`（上游 npm 发行物 `dist/node/openpgp.min.mjs` 原样未修改）；由 `bin/app.mjs` 与 `bin/gpg.shim.mjs` 在**运行期**以相对路径 `import` 加载。构建期由 `scripts/build-app.mjs` 从 `node_modules/openpgp/dist/node/` 投影进来，并以 sha256 断言与上游逐字节相同。npm 包自身（含其 `.map` / 类型文件）不随包。
 - Source: https://github.com/openpgpjs/openpgpjs（原样未修改）
 - License: GNU LGPL v3.0 or later（正文见本文件末尾）
+
+### zod 4.6.5
+
+- Purpose: 工具入参的单一来源（`githana_git` / `githana_pr` / `githana_api` 各动词的字段定义）：运行期由它校验参数，模型面的 `parameters` 也由 `z.toJSONSchema` 从同一份定义生成。
+- Form: 一份**独立、可替换的库文件** `bin/zod.min.mjs`；由 `bin/app.mjs` 在**运行期**以相对路径 `import` 加载。构建期由 `scripts/build-entries.mjs` 用 rspack 从 `node_modules/zod` 打成压缩后的单文件（发行物本体是上百个 ESM 模块的目录树，不宜以目录形态随包）。npm 包自身（含其 `src` / 类型文件）不随包。
+- Source: https://github.com/colinhacks/zod
+- License: MIT License（正文见本文件末尾）
 
 ## Runtime not shipped with this package
 
@@ -86,8 +94,9 @@ These are inlined into `ui/settings.bundle.js` at build time. Their original pac
 ## LGPL component and this project
 
 包内只有 **OpenPGP.js**（`bin/openpgp.min.mjs`）是 LGPL-3.0-or-later。其余代码分两类：
-本项目自己写的部分是 **MPL-2.0**；另有若干第三方包在**构建期被内联**进设置页产物
-（Apache-2.0 与 MIT，逐项见上表），它们各按自己的条款走，本项目的 MPL-2.0 不覆盖它们。
+本项目自己写的部分是 **MPL-2.0**；另有若干第三方包是 **Apache-2.0 与 MIT**（逐项见上表）——
+一部分在**构建期被内联**进设置页产物，**zod** 则以独立库文件 `bin/zod.min.mjs` 随包。
+它们各按自己的条款走，本项目的 MPL-2.0 不覆盖它们。
 OpenPGP.js 与本项目的代码在同一个交付树里共存，但是**独立的作品**：
 
 - 本项目的代码与 OpenPGP.js **不共享任何源文件**：它作为一份**独立、可替换的库文件**
@@ -339,6 +348,32 @@ MIT License (Copyright (c) Meta Platforms, Inc. and affiliates.)
 MIT License
 
 Copyright (c) Meta Platforms, Inc. and affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+MIT License (Copyright (c) 2025 Colin McDonnell)
+
+MIT License
+
+Copyright (c) 2025 Colin McDonnell
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

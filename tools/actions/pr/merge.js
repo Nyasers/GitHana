@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_merge：合并 PR（写面 action，不可撤销）。
+ * pr/merge：合并 PR（githana_pr 动词，不可撤销）。
  *
  * prNumber 必填 + method?（merge 默认/squash/rebase）+ deleteBranch?（合并后删源分支）。
  * 走 REST `PUT /pulls/{n}/merge`，成功后再取一次终态确认（合并是异步落地，取一次更可靠）。
@@ -11,30 +11,23 @@
  * 的**来源仓库**：源分支可能来自 fork，而删的是 base 仓库的 refs——只看 head.ref 就删，会在
  * 同名的无关分支上动手（fork PR 的常见情形）。所以跨仓一律不删。
  */
-import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import { validatePositiveInt } from "../lib/github.js";
-import { resolveContext, describeFailure, fmtTime } from "../lib/pr.js";
+import { z } from "zod";
+import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import * as params from "../../lib/params.js";
+import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
-export const command = "pr_merge";
+export const command = "merge";
 export const summary = "合并 PR（不可撤销）";
 
-export const fields = {
-  prNumber: {
-    type: "integer",
-    minimum: 1,
-    description: "PR 编号（正整数），必填",
-  },
-  method: {
-    type: "string",
-    enum: ["merge", "squash", "rebase"],
-    description: "合并方式（默认 merge）",
-  },
-  deleteBranch: {
-    type: "boolean",
-    description: "合并后删除源分支（源分支来自 fork 时跳过，不跨仓库删）",
-  },
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  prNumber: params.prNumber.describe("PR 编号（正整数），必填"),
+  // 合并方式：取值域在这里是确定的，所以写成 enum（运行期由 schema 拒绝非法值）。
+  method: z.enum(["merge", "squash", "rebase"]).optional().describe("合并方式（默认 merge）"),
+  deleteBranch: z.boolean().optional().describe("合并后删除源分支（源分支来自 fork 时跳过，不跨仓库删）"),
+  timeoutSec: params.timeoutSec,
 };
-export const required = ["prNumber"];
 
 export const sideEffect = {
   kind: "github_pr",
@@ -48,14 +41,9 @@ export async function run(input, ctx, { label }) {
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
 
-  const numRes = validatePositiveInt(input?.prNumber, "prNumber");
-  if (numRes.error) return label + " 参数错误：" + numRes.error + "（merge 必须指定要合并的 PR 编号）。";
-  const num = numRes.value;
-
-  const method = input?.method !== undefined && input?.method !== null ? String(input.method).trim() : "merge";
-  if (!["merge", "squash", "rebase"].includes(method)) {
-    return label + " 参数错误：method 必须是 merge / squash / rebase（收到：" + method + "）。";
-  }
+  // prNumber / method 的形状由 schema 保证（正整数；merge / squash / rebase）。
+  const num = input.prNumber;
+  const method = input?.method !== undefined && input?.method !== null ? String(input.method) : "merge";
   const deleteBranch = input?.deleteBranch === true;
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 

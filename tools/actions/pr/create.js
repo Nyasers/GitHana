@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * pr_create：创建 PR（写面 action）。
+ * pr/create：创建 PR（githana_pr 动词）。
  *
  * base?（缺省取仓库默认分支）、title?（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺 → 引导）、
  * body?、draft?；head 取 cwd 的当前分支（REST 必填）。输出新建 PR 的 URL 与编号。
@@ -12,32 +12,24 @@
  * `POST /pulls` 与 `GET /pulls/{n}` 的响应体都不带它，所以创建完成后单独查一次，如实回报
  * （没确认也说明白了，不假装）。
  */
-import { runCli } from "../lib/exec.js";
-import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../lib/rest.js";
-import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../lib/pr.js";
+import { z } from "zod";
+import { runCli } from "../../lib/exec.js";
+import * as params from "../../lib/params.js";
+import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../../lib/pr.js";
 
-export const command = "pr_create";
+export const command = "create";
 export const summary = "创建 PR";
 
-export const fields = {
-  base: {
-    type: "string",
-    description: "目标分支（缺省取仓库默认分支，如 main）",
-  },
-  title: {
-    type: "string",
-    description: "PR 标题（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺则返回引导）",
-  },
-  body: {
-    type: "string",
-    description: "PR 正文（可选，支持 Markdown 与中文）",
-  },
-  draft: {
-    type: "boolean",
-    description: "以草稿（draft）创建 PR",
-  },
+export const schema = {
+  repo: params.repo,
+  cwd: params.cwdOptional,
+  base: z.string().optional().describe("目标分支（缺省取仓库默认分支，如 main）"),
+  title: z.string().optional().describe("PR 标题（缺省取 cwd 内 HEAD commit 首行；cwd 与 title 均缺则返回引导）"),
+  body: z.string().optional().describe("PR 正文（可选，支持 Markdown 与中文）"),
+  draft: z.boolean().optional().describe("以草稿（draft）创建 PR"),
+  timeoutSec: params.timeoutSec,
 };
-export const required = [];
 
 export const sideEffect = {
   kind: "github_pr",
@@ -113,7 +105,7 @@ export async function run(input, ctx, { label }) {
     if (notPushed) {
       return (
         label + " 执行失败：源分支 " + head + " 在远端不存在或没有新提交。\n" +
-        "REST 创建 PR 要求分支已推送到远端（本 action 不做自动推送）：请先 githana(action=\"push\") 该分支，再重试。\n" +
+        "REST 创建 PR 要求分支已推送到远端（本动词不做自动推送）：请先 githana_git(action=\"push\") 该分支，再重试。\n" +
         "GitHub 原文：" + detail
       );
     }

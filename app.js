@@ -7,14 +7,16 @@
  * 形态：宿主在隔离的 AppHost 子进程里加载本文件并调用 apply(ctx)（入口契约兼容具名
  * apply / default.apply / 默认函数，两种都导出）。apply 完成注册后立即返回，不等任何长活。
  *
- * 工具面是两个入口：githana（写面）与 githana_read（只读面）。收敛前是 7 个平铺工具，
- * 其中 gh_pr 把读与写放在一起，整体只能声明 external_side_effect，读也要过审；拆成两面
- * 后只读动作拿到独立免审通道（见 tools/githana-read.js 头注与随包手册）。
+ * 工具面按 gh 的组分成名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr
+ * （Pull Request）/ githana_issue（Issue）/ githana_label（标签）/ githana_api（任意 REST 与
+ * GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body` 在平表里同键
+ * 不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity D1 / D2 与
+ * tools/lib/surface.js 的装配路径）。
  *
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
  *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
- *   因此本文件把 tools/ 下的模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
+ *   因此本文件把 tools/ 下的入口模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
  *   并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给既有的 v1 工具实现，
  *   让 tools/ 与 lib/ 的代码基本零改动复用（见 tools/lib/context.js 的契约）。
  *
@@ -36,8 +38,12 @@
  *     后端落 dataDir（lib/secret.js），经进程缓存供工具同步读；剩余有效期不足时在
  *     initToolContext 里自动用 refresh_token 换新（lib/oauth.js）。
  */
-import * as githana from "./tools/githana.js";
-import * as githanaRead from "./tools/githana-read.js";
+import * as githanaGit from "./tools/githana-git.js";
+import * as githanaRepo from "./tools/githana-repo.js";
+import * as githanaPr from "./tools/githana-pr.js";
+import * as githanaIssue from "./tools/githana-issue.js";
+import * as githanaLabel from "./tools/githana-label.js";
+import * as githanaApi from "./tools/githana-api.js";
 
 // 路由模块放 lib/routes/：顶层 routes/ 是 v2 保留目录（形态互斥的另一种路由源），
 // 本项目统一用 ctx.routes.register 单 bundle 形态，故顶层不放 routes/。
@@ -61,19 +67,21 @@ function resolveInstallDir() {
 }
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
- *  两个入口：githana（写面）与 githana_read（只读面，sessionPermission { readOnly: true }）。
- *  action 表与路由在 tools/lib/surface.js，实现按 action 拆在 tools/actions/。
+ *  本批六个名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr（Pull Request）
+ *  / githana_issue（Issue）/ githana_label（标签）/ githana_api（逃生门）。
+ *  action 表与路由在 tools/lib/surface.js，跨工具的动词索引在 tools/lib/verbs.js，
+ *  实现按动词拆在 tools/actions/{git,repo,pr,issue,label}/。
+ *  下批（1c）：githana_release / githana_run / githana_workflow / githana_cache。
  *  GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
-const TOOLS = [githana, githanaRead];
+const TOOLS = [githanaGit, githanaRepo, githanaPr, githanaIssue, githanaLabel, githanaApi];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
- * 跨进程只认 readOnly / kind / auto / description / sideEffect，函数字段过不来；
+ * 跨进程只认 kind / auto / description / sideEffect 这些纯数据，函数字段过不来；
  * 这里主动剥掉 describeSideEffect 等函数，避免宿主把整条声明当非法降级。
  */
 function plainPermission(perm) {
   if (!perm || typeof perm !== "object") return undefined;
-  if (perm.readOnly === true) return { readOnly: true };
   const out = {};
   if (typeof perm.kind === "string") out.kind = perm.kind;
   if (typeof perm.auto === "string") out.auto = perm.auto;
@@ -106,7 +114,7 @@ function toToolResult(value) {
 }
 
 /**
- * App v2 主入口。注册 2 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
+ * App v2 主入口。注册 6 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
  */
 export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;

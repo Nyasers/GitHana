@@ -2,8 +2,8 @@
 
 把 git / gpg 两条 CLI 与 GitHub REST 接进 HanaAgent 的 **App v2** 重制版：仓库状态与提交、GitHub PR 生命周期、隔离 GPG 签名身份。
 
-- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 **2 个工具**（`githana` / `githana_read`）+ 3 组后端路由（status / settings / actions）
-- 工具面：两个入口按 action 路由（`githana` 写面 / `githana_read` 只读面），用法细节在随包手册 `skills/githana/SKILL.md`。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
+- 形态：Hana App v2（`manifestVersion: 2`），`apply(ctx)` 单入口注册 **6 个名词工具**（`githana_git` / `githana_repo` / `githana_pr` / `githana_issue` / `githana_label` / `githana_api`）+ 3 组后端路由（status / settings / actions）
+- 工具面：按**操作对象**分 6 个名词工具，各自用 `action` 路由（`githana_api` 是单动词，不填 action），用法细节在随包手册 `skills/githana/SKILL.md`。**没有只读面 / 免审路径**：每个工具整体声明 `external_side_effect`。**GPG 不在工具面**：密钥生成与公钥查看都只在设置页
 - 服务端零 npm 依赖（设置页 UI 需一步构建）· 签名用随包的纯 JS OpenPGP.js（无外部二进制）· 版本见 `manifest.json`（单一事实源）
 - **GitHub 域不依赖任何外部二进制**：请求由随包的 `bin/rest.worker.mjs` 在子进程里直发（Node 内置 `fetch`），PR 创建稳定带 App 角标
 
@@ -11,63 +11,69 @@
 
 ## 工具面
 
-宿主侧**只有一个工具目录里的两个入口**：`githana`（写面）与 `githana_read`（只读面）。
-action 按**能力**命名、不带 `git_` / `gh_` 前缀——两个入口已经把域分开了（只读 / 写），
-再带域前缀是重复标注。用法细节、每个 action 的参数与示例都在随包手册
+宿主侧是**六个名词工具**，按**操作对象**分：`githana_git`（本地 git）/ `githana_repo`（仓库）/
+`githana_pr`（Pull Request）/ `githana_issue`（Issue）/ `githana_label`（标签）/
+`githana_api`（逃生门）。工具名不加 `git_` / `gh_` 前缀——名词就是域，再带域前缀是重复标注。
+用法细节、每个 action 的参数与示例都在随包手册
 [skills/githana/SKILL.md](skills/githana/SKILL.md)（工具描述只留路由信息，不写成长墙）。
 
-| 工具 | 权限档 | action | 语义 |
-|------|--------|--------|------|
-| `githana_read` | `{ readOnly: true }`（**免审**） | `status` | 工作区 / 分支速览 |
-| | | `log` | 最近提交速览（默认 10，1~100） |
-| | | `pr_list` | PR 列表 |
-| | | `pr_view` | PR 详情（含 reviews） |
-| | | `api` | 任意 GitHub REST 端点，**仅 GET / HEAD** |
-| | | `ci_status` | （保留位，本期未实现） |
-| `githana` | `external_side_effect` | `exec` | 任意 git 子命令透传 |
-| | | `commit` | 提交（自动 Co-authored-by + OpenPGP 签名） |
-| | | `push` | 推送（force 映射 `--force-with-lease`） |
-| | | `pr_create` | 创建 PR（缺 base 取默认分支） |
-| | | `pr_merge` | 合并 PR（不可撤销，可删源分支） |
-| | | `api` | 任意 GitHub REST 端点，全量方法 |
-| | | `ci_watch` | （保留位，本期未实现） |
+| 工具 | 权限档 | action |
+|------|--------|--------|
+| `githana_git` | `external_side_effect` | `exec` · `commit` · `push` |
+| `githana_repo` | `external_side_effect` | `create` · `list` · `view` · `clone` · `fork` · `sync` · `gitignore` · `license` · `read-dir` · `read-file` |
+| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
+| `githana_issue` | `external_side_effect` | `create` · `list` · `view` · `status` · `edit` · `comment` · `close` · `reopen` · `delete` · `develop` · `transfer` · `lock` · `unlock` · `pin` · `unpin` |
+| `githana_label` | `external_side_effect` | `clone` · `create` · `edit` · `delete` · `list` |
+| `githana_api` | `external_side_effect` | （单动词，**不填 action**）`path` + `method` |
 
-### 为什么是两个入口，而不是一个
+`githana_api` 是**单动词**工具：值域只有一个时 `action` 只是占位（填了等于没填），所以不声明它，
+`required` 换成真正必填的 `path`。其余五个都是多动词，`action` 是分发键、必填。
+
+### 为什么没有只读豁免（只有一个权限档）
 
 宿主对 `sessionPermission` 的声明粒度是**按工具**（`ctx.tools.register` 时声明一次，
 `app.js` 的 `plainPermission` 把它压成一组纯数据）：一个工具只能有一档。
 
 收敛前的 `gh_pr` 是现成的代价样本：它把 list / view（读）与 create / merge（写）放在一个工具里，
-整体只能声明 `external_side_effect`——于是**读也要过审**。收成一个 `githana` 会把这个代价从
-一处扩到全部。只读动作独立成 `githana_read` 后，查状态、看提交、列 PR 拿到**独立免审通道**。
-两个入口是当前宿主机制下唯一能同时拿到「形态统一」和「读免审」的形状。
+整体只能声明 `external_side_effect`——于是**读也要过审**。曾经的 `githana` / `githana_read`
+两个入口按「读 / 写」切，想给只读动作一条独立免审通道；PR #23 删掉了这条路径，
+**现在不再有任何只读豁免**：
 
-### 只读面的边界
-
-- **`api` 进只读面，但只接受 GET / HEAD**：HTTP method 是可靠的读写判据，GET / HEAD 按语义是
-  安全动词。长尾只读查询（issue 列表、release 列表、仓库元数据）不该每次过审。其它 method 当场
-  拒绝并指向 `githana(action="api")`。
-- **`exec` 不进只读面**：git 子命令白名单挡不住 flag——`diff --output=<file>` 写文件、`config`
-  改配置、`branch -D` 删分支。透传层是风险面，过审合理。需要任意只读 git 命令时走 `githana`。
-- **`status` / `log` 留在只读面**：它们不是治理层，是翻译层——把 git 输出解析成结构化字段，
-  给模型省 token。
+- 六个名词工具**整体都声明 `external_side_effect`**（含只读动词 `view` / `list` / `status` /
+  `diff` / `checks` / `read-dir` / `read-file`）：它们与同工具的写动词共用一个权限档，
+  无法单独免审。
+- 按「对象」切而不是按「读写」切，是因为只读豁免在当前宿主机制下无法落在单个 action 上：
+  想要它就得把读动词从名词工具里再拆出去，那会把同一对象的读写分到两个工具，
+  调用方每次都要先判「这件事算不算读」——形态统一与读免审二者不可兼得，本期选了前者。
+- `githana_api` 作为逃生门收全量 method（`GET` / `HEAD` / `POST` / `PATCH` / `PUT` / `DELETE`），
+  同样整体按写面过审；越出 App 权限面的调用由 GitHub 直接拒（403）。
 
 ### 目录形态
 
 ```
 tools/
-  githana.js            # 写面：action 路由 + sessionPermission
-  githana-read.js       # 只读面：action 白名单 + sessionPermission { readOnly: true }
-  actions/              # 一个 action 一个文件（status / log / pr-list / pr-view / api /
-                        #   exec / commit / push / pr-create / pr-merge）
-  lib/                  # 共享层：surface（路由）/ params（共用字段）/ pr（PR 共用 REST 与仓库解析）
+  githana-git.js        # 名词工具：ACTION 表 + createSurface + sessionPermission
+  githana-repo.js
+  githana-pr.js
+  githana-issue.js
+  githana-label.js
+  githana-api.js        # 单动词：createSingleSurface（不声明 action）
+  actions/              # 一个 action 一个文件，按名词分目录（git / repo / pr / issue / label / api.js）
+  lib/                  # 共享层：surface（路由 + zod 参数校验的唯一入口）/ params（共用字段的 zod 定义）
+                        #   / verbs（动词总表，跨工具错投指名）/ pr（PR 共用 REST 与仓库解析）
                         #   / exec / rest / context / bin / identity / github / sign-shim
 skills/githana/SKILL.md # 随包手册（frontmatter name + description，正文是按 action 的参数与示例）
 ```
 
-路由层（`tools/lib/surface.js`）只认三类边界，两个面共用同一份实现：**缺 action** / **未知 action**
-报错并列出本面可用值；**走错面**（只读面收到 `exec` / `commit` / `push`，或写面收到 `status` /
-`log` / `pr_list` / `pr_view`）报错并指回正确的工具；**保留位** action 报错说明未实现。
+路由层（`tools/lib/surface.js`）只认三类边界，六个工具共用同一份实现：**缺 action** / **未知 action**
+报错并列出本工具可用值；**走错工具**（如把 `commit` 发给 `githana_repo`）报错并按
+`tools/lib/verbs.js` 的动词总表指名正确的工具（同一动词有多个持有者时列出全部，让调用方按对象选）；
+**保留位** action 报错说明未实现。
+
+同一层还是**参数定义的唯一来源**：每个 action 导出自己的 zod raw shape（不含 `action`），
+`surface.js` 组合成 `z.discriminatedUnion("action", …)`。那份定义长出两样产出——运行期校验
+（失败返回全部 issues 的英文原文 + 一行中文引导），以及模型面的 `parameters`
+（`z.toJSONSchema` 投影成平表；顶层 `oneOf` 会让宿主的参数摘要变空，所以模型面用平表）。
 
 > 收敛是**重构不是改语义**：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
 > `pr_create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
@@ -109,7 +115,7 @@ CI 监听不是「多一个 api 调用」——GitHub 没有面向本地 App 的
 
 ## 清单能力
 
-- `app/tools.expose-to-model` — 让模型能主动调用这两个入口（`githana` / `githana_read`）
+- `app/tools.expose-to-model` — 让模型能主动调用这六个名词工具（`githana_git` / `githana_repo` / `githana_pr` / `githana_issue` / `githana_label` / `githana_api`）
 - `app/process.spawn` — 开 `--allow-child-process`，跑外部 git / gpg，以及随包的 REST worker（**需要用户在安装审阅里批准**）
 - `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
 - `app/ui.open-external` — 设置页开 GitHub 验证页
@@ -245,7 +251,7 @@ Git Credential Manager（`credential.helper = manager`），与 PAT 无关；而
 由 `scripts/build-app.mjs` 以**白名单**组装；`pack.mjs` 只从 `dist/` 出包。
 
 ```bash
-pnpm install          # openpgp / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
+pnpm install          # openpgp / zod / react 19.2.4 / react-dom 19.2.4 / @rspack/core / @hana/app-sdk（仓库内 tgz 快照）
 pnpm run build        # 组装 dist/（先清空，再依次构建产物 + 拷静态交付件）
 pnpm run build:ui     # 只构建设置页产物：ui/src/settings.jsx → dist/ui/settings.bundle.*
 pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mjs
@@ -259,14 +265,16 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 **构建期依赖不进包**：`@rspack/core` 是打包器，只在构建主机上跑，字节不进 `dist/`，
 所以既不用系统上的构建工具（也就没有"构建主机得装对版本"的外部要求），
 也不进第三方通知（只列**代码进交付面**的组件，见 `scripts/derive/thirdparty.mjs` 的边界）。
-`openpgp` 与上述不同：它以**运行期独立库文件**（`bin/openpgp.min.mjs`）随包，所以列在通知里。
+`openpgp` 与 `zod` 与上述不同：它们以**运行期独立库文件**（`bin/openpgp.min.mjs` /
+`bin/zod.min.mjs`）随包，所以列在通知里。
 
 **交付树是「单入口 + bin」形态**：服务端代码打成 `bin/app.mjs` 一个文件，
 入口与另两个 spawn 出去的独立入口（`rest.worker.mjs` / `gpg.shim.mjs`）同层
 ——`bin/` 的语义就是「装到机器上要跑的东西」。三个入口**都是压缩后的单入口 ESM**
-（`build-server` 打 app，`build-entries` 打另两个），形态一致。OpenPGP.js 以一份独立库文件
-（`openpgp.min.mjs`）放在同层，两个入口在**运行期** import 它（不内联）：一份顶两份，
-也让 LGPL §4(d)(1) 有落点；它是 `bin/` 下唯一不做压缩的（合规要求原样）。
+（`build-server` 打 app，`build-entries` 打另两个），形态一致。两份库文件以独立文件形态
+放在同层，入口在**运行期** import 它们（不内联）：一份顶多份，也让 LGPL §4(d)(1) 有落点。
+`openpgp.min.mjs` 是 `bin/` 下唯一不做压缩的（上游原件、合规要求原样）；`zod.min.mjs` 则由
+`build-entries` 从 `node_modules/zod` 打成单文件（发行物本体是上百个 ESM 模块的目录树）。
 
 ```
 dist/
@@ -275,6 +283,7 @@ dist/
   bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖，仅用 node 全局）
   bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
   bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
+  bin/zod.min.mjs         ← zod 库文件（build-entries 打成单文件，app.mjs 运行期共享）
   assets/
   ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
 ```
@@ -408,11 +417,13 @@ antd 一个字节都没进包——整份搬运就是陈述不成立的事实。
 
 原文存 `scripts/derive/licenses/`（**开发件，不随包**），拼接时只 `trimEnd()`，不改正文：
 
-- `apache-2.0.txt` / `mit-meta.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
-  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 的库文件不自带 LICENSE 附属件。
+- `apache-2.0.txt` / `mit-meta.txt` / `mit-zod.txt` / `lgpl-3.0.txt` / `gpl-3.0.txt` —— 由仓库持有。
+  上游不提供或不随包：SDK tarball 无 Apache 正文；react 不随包；OpenPGP.js 与 zod 的库文件不自带 LICENSE 附属件。
 - LGPL 与 GPL 成对：LGPL §4(b) 要求两份正文都在场（LGPL 条文引用 GPL）。
 - 可与实装对齐的已核对过：`mit-meta.txt` 与 react/react-dom/scheduler 的 LICENSE 逐字节相同
-  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同。
+  （同是 Meta 那份 1088 字节），`lgpl-3.0.txt` 与 OpenPGP.js 的 LICENSE 逐字节相同；
+  `mit-zod.txt` 是 zod 的 LICENSE（Copyright (c) 2025 Colin McDonnell），正文同是标准 MIT，
+  差异只在版权行。
 
 ### LGPL 组件（OpenPGP.js）的合规落点
 
@@ -531,8 +542,8 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 
 ```
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
-app.js                   # apply(ctx)：注册 2 个工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
-tools/                   # 2 个工具入口（githana / githana-read）+ actions/（一个 action 一个文件）+ gpg-keygen.js（仅设置页动作）+ lib/（surface / params / pr / exec / bin / rest / rest.worker / context / identity / github）
+app.js                   # apply(ctx)：注册 6 个名词工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
+tools/                   # 6 个名词工具（githana-{git,repo,pr,issue,label,api}.js）+ actions/（一个 action 一个文件，按名词分目录）+ gpg-keygen.js（仅设置页动作）+ lib/（surface / params / verbs / pr / exec / bin / rest / rest.worker / context / identity / github）
 skills/githana/SKILL.md  # 随包手册：每个 action 的参数、示例与边界（工具描述只留路由信息）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
