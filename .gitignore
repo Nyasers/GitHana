@@ -4,9 +4,12 @@ dist/
 dist-extensions/
 releases/
 
-# 临时目录与日志（.tmp* 覆盖 .tmp / .tmp-verify / .tmp-check 等全部临时形态）
-.tmp*/
+# 临时目录与日志（.tmp* 同时覆盖 .tmp / .tmp-verify 这类目录与 .tmp-xxx.mjs 这类文件）
+.tmp*
 *.log
+
+# 本地验证用的 App 数据目录（工具实跑时 ctx.dataDir 落在仓库内，会产生签名 shim 等运行期文件）
+/.nonexistent-data/
 
 # 内嵌运行时：二进制不入库，按 vendor/sources.json 声明式重建（scripts/fetch-vendor.mjs）。
 # 二进制统一收在 vendor/bin/ 下，与元数据分层——所以这里只需一行，不必逐条翻案。

@@ -2,15 +2,12 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/pr.js — PR 四个 action（create / list / view / merge）共用的 REST 调用与仓库解析。
+ * tools/lib/pr.js — githana_pr 各动词共用的 REST 调用与仓库解析。
  *
- * 只放**真正共用**的部分：仓库上下文解析、默认分支查询、失败说明、时间与审查状态渲染。
- * 每个 action 自己那份请求编排与输出格式留在 tools/actions/pr-*.js。
- *
- * ## 仓库上下文（收敛前 gh_pr 的口径，逐条不变）
- *
- * repo（owner/repo）显式优先；cwd 可选（从 git remote 推断仓库兜底，create 另用它取当前分支）。
- * 两者都没有 → 报错并给引导，不猜。
+ * 跨名词共用的那部分（仓库上下文、默认分支、失败说明、时间渲染）在 tools/lib/gh.js；本模块
+ * 把它们原样转出，好让 pr 的动词只 import 一处。这里只放 **PR 专有**的部分：PR 编号解析、
+ * 审查状态聚合、检查计数、状态渲染。每个动词自己那份请求编排与输出格式留在
+ * tools/actions/pr/<verb>.js。
  *
  * ## 与 gh CLI 的两处真实行为差异（不藏）
  *
@@ -19,93 +16,46 @@
  * 2. **reviewDecision 是推导的**：那是 GraphQL 专有字段，REST 没有等价单值。这里由
  *    `GET /pulls/{n}/reviews` 的评审记录聚合出「审查状态」，并注明它是推导值。
  */
-import { runCli, checkCwd } from "./exec.js";
-import { getToolSecretToken, getToolOAuthMeta } from "./context.js";
-import { resolveRepo } from "./github.js";
-import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "./rest.js";
+import { currentBranch, describeFailure } from "./gh.js";
+import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "./rest.js";
 
-/** 缺仓库上下文时的引导（各 action 拼在自己的错误文案后面）。 */
-export const CONTEXT_GUIDANCE =
-  "需要 GitHub 仓库上下文：请显式传 repo（格式 owner/repo）或在 git 仓库 cwd 内执行。";
+// 跨名词共用（定义在 gh.js）：各动词从本模块 import 同一份，不必知道它其实住在 gh.js。
+// 本地已经用到的那两个（currentBranch / describeFailure）按本地绑定转出，其余走 re-export——
+// 同一个名字既有本地绑定又 `export … from` 虽然合法，但读起来像两份东西，不必留这个歧义。
+export {
+  AUTH_GUIDANCE,
+  CONTEXT_GUIDANCE,
+  defaultBranch,
+  fmtTime,
+  parseRepo,
+  repoFromCwd,
+  resolveContext,
+} from "./gh.js";
+export { currentBranch, describeFailure };
 
-/** 无凭据时的统一引导（只有 OAuth 一条路，没有 keyring 兜底）。 */
-export const AUTH_GUIDANCE =
-  "尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）：请到 GitHana 设置页点「用 GitHub 登录」后重试。";
-
-/** repo 解析：显式提供则必须合法；空/缺省 → null（走 cwd 推断）。 */
-export function parseRepo(repoParam) {
-  const raw = repoParam !== undefined && repoParam !== null ? String(repoParam).trim() : "";
-  if (!raw) return null;
-  const res = resolveRepo(raw);
-  if (res.error) return { error: res.error };
-  return res;
+/** REST PR state → 中文可读（status / close / reopen / view 共用同一份渲染）。 */
+export function prStateText(pr) {
+  const state = String((pr && pr.state) || "?");
+  if (pr && pr.merged === true) return "MERGED（已合并）";
+  if (state === "open") return "OPEN（打开）" + (pr && pr.draft ? " · 草稿（draft）" : "");
+  if (state === "closed") return "CLOSED（已关闭）";
+  return state.toUpperCase();
 }
 
-/** 从 cwd 的 git remote 推断 owner/repo（github.com 的 https 或 ssh 形态）。 */
-export async function repoFromCwd(cwd) {
-  const r = await runCli("git", ["remote", "get-url", "origin"], { cwd, timeoutSec: 30 });
-  if (!r.ok) return null;
-  const url = String(r.stdout || "").trim();
-  if (!url) return null;
-  const m =
-    /github\.com[:/]([^/]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url) ||
-    /^([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
-  if (!m) return null;
-  return { owner: m[1], repo: m[2] };
-}
-
-/** 从 cwd 取当前分支名。 */
-export async function currentBranch(cwd) {
-  const r = await runCli("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeoutSec: 30 });
-  if (!r.ok) return { error: (r.message || "读取当前分支失败").split("\n")[0] };
-  const name = String(r.stdout || "").trim();
-  if (!name || name === "HEAD") {
-    return { error: "当前处于分离 HEAD 状态，无法确定分支名：请显式在目标分支上操作，或先切到具名分支。" };
-  }
-  return { branch: name };
-}
-
-/** 取仓库默认分支。 */
-export async function defaultBranch(repo, timeoutSec) {
-  const r = await callRest(
-    [{ url: apiUrl(repo, ""), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
-    { timeoutSec },
-  );
-  if (!r.ok) return { error: r.message };
-  const res = r.results[0];
-  if (!res || !res.ok) return { error: describeFailure(res, repo) };
-  const db = res.json && res.json.default_branch;
-  if (!db) return { error: "无法确定仓库默认分支（响应里没有 default_branch）。" };
-  return { branch: String(db) };
-}
-
-/** 状态码 → 可读失败说明（含认证引导）。 */
-export function describeFailure(res, repoLabel) {
-  const status = res && res.status;
-  const detail = errorDetail(res);
-  if (status === 401) {
-    return "GitHub 拒绝（401）：OAuth 令牌无效或已过期。" + AUTH_GUIDANCE + "\nGitHub 原文：" + detail;
-  }
-  if (status === 403) {
-    return "GitHub 拒绝（403）：令牌权限不足或触发了速率限制。\nGitHub 原文：" + detail;
-  }
-  if (status === 404) {
-    return "GitHub 返回 404：" + (repoLabel ? "仓库 " + repoLabel + " 不存在或令牌不可见。" : "目标资源不存在。") +
-      "\nGitHub 原文：" + detail;
-  }
-  if (status === null) {
-    return "请求未完成：" + detail;
-  }
-  return "GitHub 调用失败（HTTP " + status + "）：" + detail;
-}
-
-/** 格式化时间 ISO → 本地 yyyy-MM-dd HH:mm */
-export function fmtTime(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const p = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+/** REST mergeable_state → 中文可读。 */
+export function mergeStateText(v) {
+  const map = {
+    behind: "落后于目标分支（behind）",
+    blocked: "被阻断（blocked）",
+    clean: "可合并（clean）",
+    dirty: "有冲突（dirty）",
+    draft: "草稿（draft）",
+    has_hooks: "含钩子（has_hooks）",
+    unknown: "未知（GitHub 尚在计算，稍后重试）",
+    unstable: "检查未通过（unstable）",
+  };
+  if (v === null || v === undefined || v === "") return "无合并状态";
+  return map[String(v).toLowerCase()] || String(v);
 }
 
 /**
@@ -139,66 +89,90 @@ export function reviewSummary(reviews) {
   return { key: "NONE", text: "无审查数据（REST 无 reviewDecision，此为评审记录聚合）" };
 }
 
-/** REST mergeable_state → 中文可读。 */
-export function mergeStateText(v) {
-  const map = {
-    behind: "落后于目标分支（behind）",
-    blocked: "被阻断（blocked）",
-    clean: "可合并（clean）",
-    dirty: "有冲突（dirty）",
-    draft: "草稿（draft）",
-    has_hooks: "含钩子（has_hooks）",
-    unknown: "未知（GitHub 尚在计算，稍后重试）",
-    unstable: "检查未通过（unstable）",
-  };
-  if (v === null || v === undefined || v === "") return "无合并状态";
-  return map[String(v).toLowerCase()] || String(v);
+/**
+ * check-runs 响应的**渲染**（`checks` 与 `status` 两个动词都要报检查现状，所以收在这里一处）。
+ *
+ * conclusion 为空表示还没跑完（status 仍是 queued / in_progress）；success / neutral / skipped
+ * 都算通过——neutral 与 skipped 不是失败，把它们算进失败会让「能不能合」判错。
+ *
+ * ## 截断：用 `total_count` 如实说话，不为此加分页
+ *
+ * 两个调用方都请求 `?per_page=100` 且不分页，所以 `check_runs` 最多 100 条。GitHub 在这个
+ * 信封里给了权威的 `total_count`（总条数，与当前页无关）。超过一页时**不能**把本页计数当成全量：
+ * 第 101 条之后的失败会被漏掉，汇总数偏低——极端情况下把失败报成 0，让「能不能合」判反。
+ *
+ * 所以：`total_count` 大于本页条数时，注里写明「共 N 条、本页只统计了前 M 条」。这里**不引入
+ * 分页循环**——那会把一次调用变成多次，代价与收益不成比例；如实标注截断、让调用方自己决定
+ * 要不要用 `githana_api(paginate=true)` 深挖，比悄悄给一个偏低的数好。
+ *
+ * @param {*} json `GET /commits/{ref}/check-runs` 的响应体
+ * @returns {{ text: string, runs: Array<object>, failed: number, pending: number, truncated: boolean, totalCount: number }}
+ */
+export function summarizeCheckRuns(json) {
+  const runs = json && Array.isArray(json.check_runs) ? json.check_runs : [];
+  // total_count 缺省/非法时回落到本页条数（旧形态与异常响应都不因为缺这个字段而报错）。
+  const rawTotal = json && json.total_count !== undefined && json.total_count !== null ? Number(json.total_count) : NaN;
+  const totalCount = Number.isFinite(rawTotal) && rawTotal >= 0 ? Math.floor(rawTotal) : runs.length;
+  const truncated = totalCount > runs.length;
+
+  if (runs.length === 0) {
+    return { text: "无检查（check-runs 为空）", runs, failed: 0, pending: 0, truncated: false, totalCount };
+  }
+
+  let failed = 0;
+  let pending = 0;
+  let passed = 0;
+  for (const run of runs) {
+    const conclusion = run && run.conclusion ? String(run.conclusion) : "";
+    if (!conclusion) pending += 1;
+    else if (conclusion === "success" || conclusion === "neutral" || conclusion === "skipped") passed += 1;
+    else failed += 1;
+  }
+  const text =
+    "共 " + runs.length + " 项（通过 " + passed + " · 失败 " + failed + " · 未完成 " + pending + "）" +
+    (truncated
+      ? "（GitHub 共 " + totalCount + " 条，本次只取了前 " + runs.length + " 条，上面的计数不含其余 " +
+        (totalCount - runs.length) + " 条）"
+      : "");
+  return { text, runs, failed, pending, truncated, totalCount };
 }
 
 /**
- * 解析仓库上下文（repo 显式优先，否则从 cwd 的 git remote 推断）。
+ * 解析要操作的 PR 编号（prNumber 缺省 = 当前分支关联 PR）。
  *
- * @returns {{ error: string } | { repo: string, repoLabel: string, cwd: string, timeoutSec: * }}
+ * REST 没有「当前分支关联 PR」的语义，所以缺省时先取当前分支、再按 head 过滤；这正是
+ * `pr_view` 原本就地做的那件事，其余动词按同一口径共用它。
+ *
+ * @returns {{ error: string } | { num: number, prNumber: string, branch: string }}
  */
-export async function resolveContext(input, label) {
-  const repoRes = parseRepo(input?.repo);
-  if (repoRes && repoRes.error) return { error: label + " 参数错误：" + repoRes.error };
+export async function resolvePrNumber(input, label, c = {}) {
+  const { repo, repoLabel, cwd, timeoutSec } = c;
+  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
-  // cwd 可选：传了必须存在且为目录
-  let cwd = "";
-  const cwdParam = input?.cwd;
-  if (cwdParam !== undefined && cwdParam !== null && String(cwdParam).trim() !== "") {
-    const cwdErr = checkCwd(cwdParam);
-    if (cwdErr) return { error: label + " 参数错误：" + cwdErr };
-    cwd = String(cwdParam).trim();
+  // prNumber 的"正整数"由 schema 保证：这里只需判断给没给。
+  const given = input?.prNumber !== undefined && input?.prNumber !== null ? String(input.prNumber) : "";
+  if (given) return { num: Number(given), prNumber: given, branch: "" };
+
+  if (!cwd) {
+    return {
+      error:
+        label + " 参数错误：未传 prNumber，而缺省值需要 cwd 来确定当前分支（REST 无「当前分支关联 PR」语义）。\n" +
+        "请传 prNumber，或在 git 仓库 cwd 内执行。",
+    };
   }
-  const timeoutSec = input?.timeoutSec;
+  const cur = await currentBranch(cwd);
+  if (cur.error) return { error: label + " 无法确定当前分支：" + cur.error };
 
-  let repo = repoRes ? repoRes.owner + "/" + repoRes.repo : "";
-  let repoLabel = repo || "（cwd 推断）";
-  if (!repo) {
-    if (!cwd) {
-      return { error: label + " 参数错误：未提供任何仓库上下文。\n" + CONTEXT_GUIDANCE };
-    }
-    const inferred = await repoFromCwd(cwd);
-    if (!inferred) {
-      return { error: label + " 无法从 cwd 推断仓库：git remote 里没有可解析的 GitHub 地址。\n" + CONTEXT_GUIDANCE };
-    }
-    repo = inferred.owner + "/" + inferred.repo;
-    repoLabel = repo;
+  const listUrl =
+    apiUrl(repo, "/pulls") +
+    "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
+  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
+  if (!lr.ok) return { error: label + " 执行失败：" + lr.message };
+  const lres = lr.results[0];
+  if (!lres || !lres.ok) return { error: label + " 执行失败：" + describeFailure(lres, repoLabel) };
+  const arr = Array.isArray(lres.json) ? lres.json : [];
+  if (arr.length === 0) {
+    return { error: label + "：当前分支（" + cur.branch + "）没有打开的关联 PR。可显式传 prNumber 查看指定 PR。" };
   }
-
-  // 凭据前置检查：令牌由 rest.js 从进程缓存取（DPAPI 解密结果）。这里先判一次，
-  // 好给出比 HTTP 401 更直接的引导——只有 OAuth 一条路，没有 keyring 兜底。
-  if (!getToolSecretToken()) {
-    const meta = getToolOAuthMeta();
-    if (meta && meta.needsReauth === true) {
-      return {
-        error: label + " 需要重新授权：上次令牌刷新失败（refresh_token 已失效或授权被撤销），请到 GitHana 设置页重新点「用 GitHub 登录」。",
-      };
-    }
-    return { error: label + " " + AUTH_GUIDANCE };
-  }
-
-  return { repo, repoLabel, cwd, timeoutSec };
+  return { num: Number(arr[0].number), prNumber: String(arr[0].number), branch: cur.branch };
 }

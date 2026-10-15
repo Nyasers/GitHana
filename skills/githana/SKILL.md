@@ -1,9 +1,59 @@
 ---
 name: githana
-description: "GitHana: local git and GitHub operations. Read before any githana / githana_read call — actions, parameters, examples, and the read/write split."
+description: "GitHana: local git and GitHub operations. Read before any githana_git / githana_repo / githana_pr / githana_issue / githana_label / githana_api call — actions, parameters, examples, the noun-tool split, and the permission gaps."
 ---
 
 # githana：用法手册
+
+> **本手册正文待重写（阶段 2）。** 工具面已按 gh 的组分成名词工具：`githana_git`（exec /
+> commit / push）、`githana_repo`（create / list / view / clone / fork / sync / gitignore /
+> license / read-dir / read-file）、`githana_pr`（create / list / view / status / diff / checks /
+> merge / review / comment / close / reopen / revert / edit / checkout / lock / unlock /
+> update-branch）、`githana_issue`（create / list / view / status / edit / comment / close /
+> reopen / delete / develop / transfer / lock / unlock / pin / unpin）、`githana_label`（clone /
+> create / edit / delete / list）、`githana_api`（单动词，**不带 action**，必填 `path`）。
+> 下面各节仍按旧的「写面 / 只读面」两个入口描述，动词名与参数表在改名前后一致
+> （`pr_create` → `githana_pr(action="create")` 等），但**工具名与分面规则已经不对**，
+> 以工具自身的 `parameters` 为准。
+
+## 权限缺口（登记）
+
+工具面是权限面的投影：**动词必须有支撑它的已授权权限，权限不在，动词就不在**（不在 zod 定义
+里，因此也不在模型面的 `action` 候选里）。下面这些 gh 能力本 App **做不到**，逐项写明缺哪个
+权限——缺口是登记出来的，不是假装它不存在。
+
+`repo` 组（`githana_repo` 的 zod 定义里**没有**这些值）：
+
+| gh 动词 | 缺哪个权限 | 现在怎么做 |
+|---|---|---|
+| `repo edit`（改简介 / 可见性 / 默认分支） | `administration: write` | 网页操作；`githana_api` 打 `PATCH /repos/{o}/{r}` 会被 GitHub 直接 403 |
+| `repo delete` | `administration: write` | 同上（删仓库在这个 App 里做不到） |
+| `repo rename` | `administration: write` | 同上 |
+| `repo archive` / `repo unarchive` | `administration: write` | 同上 |
+| `repo set-default` | `administration: write` | 同上 |
+| `repo autolink` | `administration: write` | 同上 |
+| `repo deploy-key` | `administration: write` | 同上 |
+| `repo create --org <org>` | `administration: write` + organization 权限 | 只能建在当前登录账号下（`POST /user/repos`）；组织下建仓库要补 `administration` 并重走一次授权 |
+| `repo fork --org <org>` | organization 权限（0 项，从未申请） | 只能 fork 到当前登录账号下 |
+| `repo list` 的组织形态（`/orgs/{org}/repos`） | organization 权限 | 用 `owner="<组织名>"` 走 `/users/{owner}/repos`（只含公开仓库） |
+
+其它组的缺口（这些组**没有对应工具**，全部走 `githana_api`，GitHub 直接 403）：
+
+| gh 组 | 缺哪个权限 |
+|---|---|
+| `secret` · `variable` | `secrets: write` · `actions_variables: write` |
+| `ssh-key` | `keys: write`（account） |
+| `gist` | `gists: write`（account） |
+| `codespace` | `codespaces: write` |
+| `discussion` · `project` | `discussions` · `repository_projects`（都是 GraphQL-only） |
+| `attestation` | `attestations: write` |
+| `webhook` | `repository_hooks: write` |
+| `org` | organization 权限（**未申请**，不是被拒） |
+
+已授权的 8 项 repository（`actions` / `checks` / `contents` / `issues` / `metadata` /
+`pull_requests` / `repository_creation` / `workflows`）+ 1 项 account（`gpg_keys`）见
+`specs/current/gh-cli-parity/spec.md` 的 D7。**改 App 权限后老用户要重走一次 device flow**
+才拿到新范围——不重新授权时新动词会 403。
 
 GitHana 把本地 git 与 GitHub 接进模型工具面，收成**两个入口**：
 
@@ -46,10 +96,11 @@ GitHana 把本地 git 与 GitHub 接进模型工具面，收成**两个入口**�
 |---|---|
 | `status` / `log` / `exec` / `commit` / `push` | **必填** |
 | `pr_create` / `pr_view` | 可选，但要拿缺省值（`pr_create` 的 head 与缺省 title、`pr_view` 的「当前分支关联 PR」）时就必填 |
-| `pr_list` / `pr_merge` / `api` | 可选（仅在没传 `repo` 时用来从 git remote 推断仓库） |
+| `pr_list` / `pr_merge` | 可选（仅在没传 `repo` 时用来从 git remote 推断仓库） |
+| `api` | **不接受**：它只按 `path` 打端点，`repo` 也只用于替换 `path` 里的占位符，不做 cwd 推断 |
 
 GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没传就从 `cwd` 的 git remote 推断；
-两者都没有 → 报错并给引导，不猜。
+两者都没有 → 报错并给引导，不猜（`api` 例外：它不做推断，见上表）。
 
 ## githana_read 的参数与示例
 
@@ -253,6 +304,7 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 | 现象 | 含义与做法 |
 |---|---|
 | `缺少 action` / `未知 action` | 报错会**列出本面可用值**；不猜、不回落默认分支 |
+| `参数校验失败（共 N 处）` | 参数形状不对（多余键、类型不符、超出 enum）。下面是**全部** issues，每行 `字段路径 [code] 英文原文`——`path` 指到具体字段，`code` 是 zod 的错误码；按路径逐条改正后重试 |
 | `它属于另一个面` | 该 action 在另一个入口；报错里直接给出改用的工具与 action |
 | `未实现` | 该 action 是保留位（见下），本期未实现 |
 | `尚未完成 GitHub App 授权` | 到 GitHana 设置页点「用 GitHub 登录」后重试 |
@@ -263,6 +315,9 @@ PR 生命周期请用 `pr_*` 动作；issue / release / 仓库管理等长尾操
 | `源分支 … 在远端不存在或没有新提交` | 分支还没推：先 `githana(action="push")` 再建 PR |
 | `path 必须以 / 开头` | `api` 的 `path` 是 api.github.com 之后的路径（带前导斜杠） |
 | `method 只能是 GET / HEAD` | 只读面的 `api` 只收安全动词；写操作改用 `githana(action="api")` |
+
+> **每个 action 只接受自己声明的字段。** 参数表由 zod 定义生成、运行期也用同一份校验，
+> 所以多传一个不属于该 action 的键会被当场拒（并列出 issues），不会被静默忽略。
 
 ## 保留位：CI（本期未实现）
 

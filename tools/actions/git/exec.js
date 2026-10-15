@@ -2,12 +2,12 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * exec：通用 git CLI 透传（写面 action）。
+ * git/exec：通用 git CLI 透传（githana_git 动词）。
  *
  * 把任意 git 子命令以参数数组透传给本地 git CLI：args 全量透传（首元素为子命令，
  * 如 ["status", "--porcelain"]、["add", "src/a.js"]、["log", "--oneline", "-3"]），
  * 无 shell 拼接（spawn 参数数组），适用于透传层覆盖不到的长尾操作
- * （rebase 等需交互 TTY 的流程除外——本 action 非交互参数化执行）。
+ * （rebase 等需交互 TTY 的流程除外——本动词非交互参数化执行）。
  *
  * 语义：
  * - cwd 必填（绝对路径），仓库上下文一律显式传参，不做工作目录隐式推断；
@@ -17,36 +17,26 @@
  * - cwd 不存在/非目录、git 不在 PATH、超时 → 中文可读错误；
  * - cwd 非 git 仓库时透传 git 原始错误并附中文引导。
  *
- * 本 action 是纯净透传（无隐式 Co-authored-by），提交自动署名请走 githana(action="commit")。
+ * 本动词是纯净透传（无隐式 Co-authored-by），提交自动署名请走 githana_git(action="commit")。
  * 可执行文件经 lib/bin.js 解析（内嵌 MinGit 优先，见 lib/exec.js runCli）。
- *
- * **它不进只读面**（见 spec D7）：git 子命令白名单挡不住 flag——diff --output=<file> 写文件、
- * config 改配置、branch -D 删分支，透传层是风险面，过审合理。
  */
-import { runCli, formatCliResult, checkCwd } from "../lib/exec.js";
+import { z } from "zod";
+import { runCli, formatCliResult, checkCwd } from "../../lib/exec.js";
+import * as params from "../../lib/params.js";
 
 export const command = "exec";
 export const summary = "任意 git 子命令透传";
 
-export const fields = {
-  cwd: {
-    type: "string",
-    description: "git 仓库绝对路径（如 E:\\workspace\\my-repo），必填：仓库上下文显式传参，不做隐式推断",
-  },
-  args: {
-    type: "array",
-    items: { type: "string" },
-    minItems: 1,
-    description: "git 完整参数列表（数组，无 shell 拼接）：首元素为子命令，如 [\"status\",\"--porcelain\"]、[\"add\",\"src/a.js\"]、[\"log\",\"--oneline\",\"-5\"]",
-  },
-  timeoutSec: {
-    type: "integer",
-    minimum: 1,
-    maximum: 600,
-    description: "超时秒数（可选）：默认 120，上限 600；超时终止进程并返回可读错误",
-  },
+export const schema = {
+  cwd: params.cwd,
+  args: z
+    .array(z.string())
+    .min(1)
+    .describe(
+      "git 完整参数列表（数组，无 shell 拼接）：首元素为子命令，如 [\"status\",\"--porcelain\"]、[\"add\",\"src/a.js\"]、[\"log\",\"--oneline\",\"-5\"]",
+    ),
+  timeoutSec: params.timeoutSec,
 };
-export const required = ["cwd", "args"];
 
 export const sideEffect = {
   kind: "git_local",
@@ -62,7 +52,7 @@ function gitGuidance(stderr) {
     return "目录不是 git 仓库：git 无法在此执行。请在仓库目录内运行（或先 git init 初始化后重试）。";
   }
   if (/Please tell me who you are|unable to auto-detect email|user\.name|user\.email/i.test(s)) {
-    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana(action=\"exec\") 配置）。";
+    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana_git(action=\"exec\") 配置）。";
   }
   return null;
 }
@@ -73,11 +63,8 @@ export async function run(input, ctx, { label }) {
   if (cwdErr) return label + " 参数错误：" + cwdErr;
 
   const cwd = String(cwdParam).trim();
-  const argsParam = input?.args;
-  if (!Array.isArray(argsParam) || argsParam.length === 0) {
-    return label + " 参数错误：args 必填且至少一个元素（git 子命令，如 [\"status\",\"--porcelain\"]）。";
-  }
-  const args = argsParam.map((a) => String(a));
+  // args 的"非空字符串数组"由 schema 保证（见上方 schema）；这里只做透传。
+  const args = input.args.map((a) => String(a));
   const timeoutSec = input?.timeoutSec;
 
   const result = await runCli("git", args, { cwd, timeoutSec });
