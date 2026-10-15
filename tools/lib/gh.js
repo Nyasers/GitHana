@@ -21,11 +21,11 @@ import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "./rest.
 
 /** 缺仓库上下文时的引导（各 action 拼在自己的错误文案后面）。 */
 export const CONTEXT_GUIDANCE =
-  "需要 GitHub 仓库上下文：请显式传 repo（格式 owner/repo）或在 git 仓库 cwd 内执行。";
+  "GitHub repository context required: pass repo explicitly (format owner/repo) or run inside a git repository cwd.";
 
 /** 无凭据时的统一引导（只有 OAuth 一条路，没有 keyring 兜底）。 */
 export const AUTH_GUIDANCE =
-  "尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）：请到 GitHana 设置页点「用 GitHub 登录」后重试。";
+  "GitHub App authorization is not complete yet (no OAuth token in this process): go to the GitHana settings page, click \"Sign in with GitHub\", and retry.";
 
 /** repo 解析：显式提供则必须合法；空/缺省 → null（走 cwd 推断）。 */
 export function parseRepo(repoParam) {
@@ -56,10 +56,10 @@ export async function repoFromCwd(cwd, remote = "origin") {
 /** 从 cwd 取当前分支名。 */
 export async function currentBranch(cwd) {
   const r = await runCli("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeoutSec: 30 });
-  if (!r.ok) return { error: (r.message || "读取当前分支失败").split("\n")[0] };
+  if (!r.ok) return { error: (r.message || "failed to read the current branch").split("\n")[0] };
   const name = String(r.stdout || "").trim();
   if (!name || name === "HEAD") {
-    return { error: "当前处于分离 HEAD 状态，无法确定分支名：请显式在目标分支上操作，或先切到具名分支。" };
+    return { error: "HEAD is detached, so the branch name cannot be determined: operate on a named branch explicitly, or switch to one first." };
   }
   return { branch: name };
 }
@@ -74,7 +74,7 @@ export async function defaultBranch(repo, timeoutSec) {
   const res = r.results[0];
   if (!res || !res.ok) return { error: describeFailure(res, repo) };
   const db = res.json && res.json.default_branch;
-  if (!db) return { error: "无法确定仓库默认分支（响应里没有 default_branch）。" };
+  if (!db) return { error: "cannot determine the repository default branch (the response has no default_branch)." };
   return { branch: String(db) };
 }
 
@@ -83,19 +83,19 @@ export function describeFailure(res, repoLabel) {
   const status = res && res.status;
   const detail = errorDetail(res);
   if (status === 401) {
-    return "GitHub 拒绝（401）：OAuth 令牌无效或已过期。" + AUTH_GUIDANCE + "\nGitHub 原文：" + detail;
+    return "GitHub rejected the request (401): the OAuth token is invalid or has expired. " + AUTH_GUIDANCE + "\nGitHub response: " + detail;
   }
   if (status === 403) {
-    return "GitHub 拒绝（403）：令牌权限不足或触发了速率限制。\nGitHub 原文：" + detail;
+    return "GitHub rejected the request (403): the token lacks the required permission, or a rate limit was hit.\nGitHub response: " + detail;
   }
   if (status === 404) {
-    return "GitHub 返回 404：" + (repoLabel ? "仓库 " + repoLabel + " 不存在或令牌不可见。" : "目标资源不存在。") +
-      "\nGitHub 原文：" + detail;
+    return "GitHub returned 404: " + (repoLabel ? "repository " + repoLabel + " does not exist or is not visible to the token." : "the target resource does not exist.") +
+      "\nGitHub response: " + detail;
   }
   if (status === null) {
-    return "请求未完成：" + detail;
+    return "the request did not complete: " + detail;
   }
-  return "GitHub 调用失败（HTTP " + status + "）：" + detail;
+  return "GitHub call failed (HTTP " + status + "): " + detail;
 }
 
 /** 格式化时间 ISO → 本地 yyyy-MM-dd HH:mm */
@@ -115,7 +115,7 @@ export function requireAuth(label) {
   if (getToolSecretToken()) return null;
   const meta = getToolOAuthMeta();
   if (meta && meta.needsReauth === true) {
-    return label + " 需要重新授权：上次令牌刷新失败（refresh_token 已失效或授权被撤销），请到 GitHana 设置页重新点「用 GitHub 登录」。";
+    return label + " requires re-authorization: the last token refresh failed (the refresh_token is no longer valid or the authorization was revoked). Go to the GitHana settings page and click \"Sign in with GitHub\" again.";
   }
   return label + " " + AUTH_GUIDANCE;
 }
@@ -127,27 +127,27 @@ export function requireAuth(label) {
  */
 export async function resolveContext(input, label) {
   const repoRes = parseRepo(input?.repo);
-  if (repoRes && repoRes.error) return { error: label + " 参数错误：" + repoRes.error };
+  if (repoRes && repoRes.error) return { error: label + " invalid arguments: " + repoRes.error };
 
   // cwd 可选：传了必须存在且为目录
   let cwd = "";
   const cwdParam = input?.cwd;
   if (cwdParam !== undefined && cwdParam !== null && String(cwdParam).trim() !== "") {
     const cwdErr = checkCwd(cwdParam);
-    if (cwdErr) return { error: label + " 参数错误：" + cwdErr };
+    if (cwdErr) return { error: label + " invalid arguments: " + cwdErr };
     cwd = String(cwdParam).trim();
   }
   const timeoutSec = input?.timeoutSec;
 
   let repo = repoRes ? repoRes.owner + "/" + repoRes.repo : "";
-  let repoLabel = repo || "（cwd 推断）";
+  let repoLabel = repo || "(inferred from cwd)";
   if (!repo) {
     if (!cwd) {
-      return { error: label + " 参数错误：未提供任何仓库上下文。\n" + CONTEXT_GUIDANCE };
+      return { error: label + " invalid arguments: no repository context was provided.\n" + CONTEXT_GUIDANCE };
     }
     const inferred = await repoFromCwd(cwd);
     if (!inferred) {
-      return { error: label + " 无法从 cwd 推断仓库：git remote 里没有可解析的 GitHub 地址。\n" + CONTEXT_GUIDANCE };
+      return { error: label + " cannot infer the repository from cwd: the git remote has no parsable GitHub URL.\n" + CONTEXT_GUIDANCE };
     }
     repo = inferred.owner + "/" + inferred.repo;
     repoLabel = repo;

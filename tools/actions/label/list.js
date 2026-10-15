@@ -16,18 +16,18 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { labelLine } from "../../lib/label.js";
 
 export const command = "list";
-export const summary = "列出仓库标签";
+export const summary = "List repository labels";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 50，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 50, max 100 (values above the max are clamped to 100)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 100"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(100).describe("返回条数，默认 50，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).max(100).describe("Number of results, default 50, max 100 (values above the max are clamped to 100)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -47,15 +47,15 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
-  if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   const items = Array.isArray(res.json) ? res.json : [];
-  if (items.length === 0) return label + "（" + repoLabel + "）：仓库里还没有标签。";
-  const out = [label + "（" + repoLabel + " · " + items.length + " 个）："];
+  if (items.length === 0) return label + " (" + repoLabel + "): the repository has no labels yet.";
+  const out = [label + " (" + repoLabel + " · " + items.length + "):"];
   for (const it of items) out.push(labelLine(it));
-  out.push("说明：改一个用 githana_label(action=\"edit\")，删一个用 githana_label(action=\"delete\")；");
-  out.push("从别的仓库搬一整套用 githana_label(action=\"clone\")。");
+  out.push("note: to edit one use githana_label(action=\"edit\"), to delete one use githana_label(action=\"delete\");");
+  out.push("to copy a whole set from another repository use githana_label(action=\"clone\").");
   return out.join("\n");
 }

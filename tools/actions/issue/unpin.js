@@ -13,7 +13,7 @@ import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 import { graphql } from "../../lib/graphql.js";
 
 export const command = "unpin";
-export const summary = "解除 issue 的固定";
+export const summary = "Unpin an issue";
 
 export const schema = {
   repo: params.repo,
@@ -25,7 +25,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "解除 GitHub 远端 issue 的固定（该 issue 不再出现在仓库顶部，会改动仓库首页对所有人的展示）：修改 GitHub 远端状态",
+    "Unpin a remote GitHub issue (the issue no longer appears at the top of the repository; changes what everyone sees on the repository home page): modifies remote GitHub state",
   ruleId: "github-toolkit-issue-unpin",
 };
 
@@ -52,19 +52,19 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "PR 的固定不在工具面上（githana_pr 没有 unpin）；确需操作可走 githana_api 的 GraphQL /graphql（unpinIssue 接受 PR 的 node_id）。",
+      "Pinning PRs is not on the tool surface (githana_pr has no unpin); if you really need it, go through githana_api's GraphQL /graphql (unpinIssue accepts a PR's node_id).",
     );
   }
 
   const issue = cur.issue;
   const nodeId = issue.node_id ? String(issue.node_id) : "";
-  if (!nodeId) return label + "：issue #" + numStr + " 的响应里没有 node_id，无法走 GraphQL 解除固定。";
+  if (!nodeId) return label + ": the response for issue #" + numStr + " has no node_id, so it cannot be unpinned via GraphQL.";
 
   const g = await graphql(UNPIN_MUTATION, { id: nodeId }, { timeoutSec });
-  if (g.error) return label + " 执行失败：" + g.error;
+  if (g.error) return label + " execution failed: " + g.error;
 
   return [
-    label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：",
-    "状态：已解除固定（unpinned）· 标题：「" + (issue.title || "（无标题）") + "」",
+    label + " done (issue #" + numStr + " · " + repoLabel + "):",
+    "state: unpinned · title: \"" + (issue.title || "(untitled)") + "\"",
   ].join("\n");
 }

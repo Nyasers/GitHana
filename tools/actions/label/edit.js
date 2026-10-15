@@ -20,26 +20,26 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { labelLine } from "../../lib/label.js";
 
 export const command = "edit";
-export const summary = "改标签的名字 / 颜色 / 描述";
+export const summary = "Edit a label's name / color / description";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  name: z.string().describe("要改的**现有**标签名（定位用；改名请同时传 newName）"),
-  newName: z.string().optional().describe("可选：新名字（改名时用；不给则名字不变）"),
+  name: z.string().describe("The **existing** label name to edit (used for locating; to rename, also pass newName)"),
+  newName: z.string().optional().describe("Optional: new name (used when renaming; if omitted the name is unchanged)"),
   color: z
     .string()
     .regex(/^#?[0-9a-fA-F]{6}$/)
     .optional()
-    .describe("可选：新的六位十六进制颜色，可带前导 #（如 0e8a16）"),
-  description: z.string().optional().describe("可选：新的描述（传空串即清空描述）"),
+    .describe("Optional: new six-digit hexadecimal color, an optional leading # is allowed (e.g. 0e8a16)"),
+  description: z.string().optional().describe("Optional: new description (pass an empty string to clear the description)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "修改 GitHub 远端仓库标签的名字 / 颜色 / 描述（改名会让所有已打该标签的 issue / PR 一起换名）：会改写该仓库的标签面，执行前请确认 repo、现有名与要改的字段",
+    "Modify the name / color / description of a label in a remote GitHub repository (renaming renames it on every issue / PR carrying it): rewrites the repository's label surface, confirm repo, existing name and the fields to change before running",
   ruleId: "github-toolkit-label-edit",
 };
 
@@ -49,32 +49,32 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const name = input?.name !== undefined && input?.name !== null ? String(input.name).trim() : "";
-  if (!name) return label + " 参数错误：name 必填（要改的现有标签名）。";
+  if (!name) return label + " argument error: name is required (the existing label name to edit).";
 
   const patch = {};
   const changed = [];
   if (input?.newName !== undefined && input?.newName !== null) {
     const v = String(input.newName).trim();
-    if (!v) return label + " 参数错误：newName 不能为空串（标签名不允许为空）。";
+    if (!v) return label + " argument error: newName cannot be an empty string (label names may not be empty).";
     patch.new_name = v;
-    changed.push("改名 → " + v);
+    changed.push("name → " + v);
   }
   if (input?.color !== undefined && input?.color !== null) {
     // 六位十六进制由 schema 的 regex 保证；这里只归一成 GitHub 的形态（不带 #、小写）。
     const v = String(input.color).trim().replace(/^#/, "").toLowerCase();
     patch.color = v;
-    changed.push("颜色 → #" + v);
+    changed.push("color → #" + v);
   }
   if (input?.description !== undefined && input?.description !== null) {
     // 描述允许空串——那是"清空描述"，是明确意图。
     patch.description = String(input.description);
-    changed.push("描述 → " + (String(input.description) === "" ? "（清空）" : String(input.description)));
+    changed.push("description → " + (String(input.description) === "" ? "(cleared)" : String(input.description)));
   }
 
   if (changed.length === 0) {
     return (
-      label + " 参数错误：至少要给一个要改的字段（newName / color / description）。\n" +
-      "只传 name 只是定位到那个标签，本身不构成一次改动（GitHub 会拒空 PATCH）。"
+      label + " argument error: at least one field to change is required (newName / color / description).\n" +
+      "Passing only name just locates that label and does not constitute a change on its own (GitHub rejects an empty PATCH)."
     );
   }
 
@@ -89,23 +89,23 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：仓库 " + repoLabel + " 里没有名为 " + name + " 的标签。";
+    if (res && res.status === 404) return label + ": repository " + repoLabel + " has no label named " + name + ".";
     if (res && res.status === 422) {
-      return label + " 执行失败：GitHub 拒绝这次修改（422）。常见原因：newName 已被别的标签占用。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: GitHub rejected this edit (422). Common cause: newName is already taken by another label.\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const after = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已执行（" + repoLabel + "）：",
-    "定位标签：" + name,
-    "改动：" + changed.join(" · "),
-    "现标签：" + labelLine(after).trim(),
+    label + " done (" + repoLabel + "):",
+    "located label: " + name,
+    "changes: " + changed.join(" · "),
+    "current label: " + labelLine(after).trim(),
   ];
-  if (patch.new_name) out.push("说明：改名会让所有已打该标签的 issue / PR 一起换成新名字。");
+  if (patch.new_name) out.push("note: renaming renames it on every issue / PR carrying the label.");
   return out.join("\n");
 }

@@ -20,11 +20,15 @@
 //
 //   version          manifest.json#version    → package.json#version（版本单一事实源在 manifest）
 //   thirdparty       实装版本 + 仓库持有的法条正文 → THIRD_PARTY_NOTICES.md
+//   api-reference    上游权限表（缓存）+ 已授权权限集 → skills/githana/references/*.md
+//                    （`githana_api` 的裸调参考；数据源与缓存见 derive/api-source.mjs）
 //
 // 不进本表：
 //   · NOTICE / 法条正文原文 —— 是人写/上游原文的法律文本，不是"能推导"的东西；
 //   · 随包二进制（vendor/bin/）—— 由 fetch-vendor 按 sources.json 重建，源在网络上，
-//     且它属于「拉取」而非「派生」（`node scripts/fetch-vendor.mjs --check` 单独把关）。
+//     且它属于「拉取」而非「派生」（`node scripts/fetch-vendor.mjs --check` 单独把关）；
+//   · 权限表缓存（.tmp/permission-table/）—— 同上，由 derive/fetch-permission-table.mjs 拉取，
+//     入库会让仓库多一份会过期的复本。api-reference 只读那个缓存。
 //
 // 用法：
 //   node scripts/derive/index.mjs               # 全部写回
@@ -40,6 +44,7 @@ import { isDirectRun } from "../shared/run.mjs";
 import { parseArgs } from "node:util";
 import { versionTask } from "./version.mjs";
 import { thirdpartyTask } from "./thirdparty.mjs";
+import { apiReferenceTask } from "./api-reference.mjs";
 
 export { ROOT };
 
@@ -56,7 +61,7 @@ export function versionedJson(relPath, version) {
 }
 
 /** 全部任务（main 按名筛选用；执行顺序即数组顺序）。 */
-export const TASKS = [versionTask, thirdpartyTask];
+export const TASKS = [versionTask, thirdpartyTask, apiReferenceTask];
 
 /** 跑一个任务：比较期望内容与磁盘，写回或报漂。返回漂移文件数。 */
 export function runTask(task, { checkOnly = false, log = console.log } = {}) {

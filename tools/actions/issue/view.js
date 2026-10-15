@@ -17,13 +17,13 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { notAnIssueMessage, issueStateText, labelText, assigneeText } from "../../lib/issue.js";
 
 export const command = "view";
-export const summary = "issue 详情（含评论）";
+export const summary = "Issue details (including comments)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   issueNumber: params.issueNumber,
-  comments: z.number().int().min(0).optional().describe("可选：最多展示多少条评论，默认 20，传 0 只报条数"),
+  comments: z.number().int().min(0).optional().describe("Optional: how many comments to show at most, default 20; pass 0 to report only the count"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -42,13 +42,13 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const ires = r.results.find((x) => x.id === "issue");
   const cres = r.results.find((x) => x.id === "comments");
 
   if (!ires || !ires.ok) {
-    if (ires && ires.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(ires, repoLabel);
+    if (ires && ires.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(ires, repoLabel);
   }
 
   const issue = ires.json && typeof ires.json === "object" ? ires.json : {};
@@ -58,44 +58,44 @@ export async function run(input, ctx, { label }) {
   }
 
   const out = [];
-  out.push("issue #" + issue.number + "：「" + (issue.title || "（无标题）") + "」");
+  out.push("issue #" + issue.number + ": \"" + (issue.title || "(untitled)") + "\"");
   out.push(
-    "状态：" + issueStateText(issue) +
-    " · 作者：@" + ((issue.user && issue.user.login) || "?") +
-    " · 创建于 " + fmtTime(issue.created_at) +
-    (issue.closed_at ? " · 关闭于 " + fmtTime(issue.closed_at) : ""),
+    "state: " + issueStateText(issue) +
+    " · author: @" + ((issue.user && issue.user.login) || "?") +
+    " · created " + fmtTime(issue.created_at) +
+    (issue.closed_at ? " · closed " + fmtTime(issue.closed_at) : ""),
   );
-  out.push("标签：" + (labelText(issue) || "（无）"));
+  out.push("labels: " + (labelText(issue) || "(none)"));
   out.push(
-    "指派：" + (assigneeText(issue) || "（无）") +
-    " · 评论 " + (issue.comments !== undefined ? issue.comments : "?") + " 条",
+    "assignees: " + (assigneeText(issue) || "(none)") +
+    " · comments " + (issue.comments !== undefined ? issue.comments : "?"),
   );
-  if (issue.milestone && issue.milestone.title) out.push("里程碑：" + issue.milestone.title);
-  if (issue.html_url) out.push("URL：" + issue.html_url);
+  if (issue.milestone && issue.milestone.title) out.push("milestone: " + issue.milestone.title);
+  if (issue.html_url) out.push("URL: " + issue.html_url);
 
   const body = issue.body !== null && issue.body !== undefined ? String(issue.body) : "";
   const BODY_MAX = 4000;
   out.push("");
-  out.push("—— 正文" + (body.length > BODY_MAX ? "（截断，共 " + body.length + " 字符）" : "") + " ——");
-  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "（无正文）");
+  out.push("—— body" + (body.length > BODY_MAX ? " (truncated, " + body.length + " chars total)" : "") + " ——");
+  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "(no body)");
 
   // comments 的非负整数由 schema 保证；这里只做缺省与「传 0 只报条数」。
   let limit = 20;
   if (input.comments !== undefined && input.comments !== null) limit = input.comments;
   const all = cres && cres.ok && Array.isArray(cres.json) ? cres.json : [];
-  const fetchNote = cres && cres.ok ? "" : "（评论读取失败：" + describeFailure(cres, repoLabel) + "）";
+  const fetchNote = cres && cres.ok ? "" : " (fetching comments failed: " + describeFailure(cres, repoLabel) + ")";
 
   out.push("");
   out.push(
-    "—— 评论（共 " + all.length + " 条" +
-    (limit > 0 && all.length > limit ? "，只展示最后 " + limit + " 条" : "") + "）" + fetchNote + " ——",
+    "—— comments (" + all.length + " total" +
+    (limit > 0 && all.length > limit ? ", showing only the last " + limit : "") + ")" + fetchNote + " ——",
   );
-  if (all.length === 0) out.push("（无评论）");
-  else if (limit === 0) out.push("（按 comments=0 只报条数，未展示正文。）");
+  if (all.length === 0) out.push("(no comments)");
+  else if (limit === 0) out.push("(comments=0 reports only the count; bodies not shown.)");
   else {
     for (const cm of all.slice(Math.max(0, all.length - limit))) {
       const cmBody = cm && cm.body !== null && cm.body !== undefined ? String(cm.body) : "";
-      out.push("· @" + ((cm && cm.user && cm.user.login) || "?") + " " + fmtTime(cm && cm.created_at) + "：");
+      out.push("· @" + ((cm && cm.user && cm.user.login) || "?") + " " + fmtTime(cm && cm.created_at) + ":");
       out.push(cmBody.length > 1000 ? cmBody.slice(0, 1000) + "…" : cmBody);
     }
   }

@@ -85,18 +85,18 @@ export function taskLog(level, message) {
 
 /** 宿主错误文本 → 可读；看起来是能力/权限问题时补一句怎么恢复。 */
 function describeTaskError(e) {
-  const raw = e && e.message ? String(e.message) : String(e || "未知错误");
+  const raw = e && e.message ? String(e.message) : String(e || "unknown error");
   if (/session\.start-turn|start-turn/i.test(raw)) {
     return (
       raw +
-      "\n（这是宿主在说「唤醒会话」那一档没被授予：按 APPS.md「后台任务与审批」，会话创建 / 投递需要" +
-      " app/session.start-turn。本清单只声明了 app/tasks.manage；要让它落地需在清单里补这一项并重装 / 重启本 App。）"
+      "\n(this is the host saying the \"wake the session\" tier was not granted: per APPS.md \"background tasks and approvals\", creating/delivering to a session needs" +
+      " app/session.start-turn. This manifest only declares app/tasks.manage; to make it work, add that entry to the manifest and reinstall / restart this App.)"
     );
   }
   if (/permission|not granted|denie|forbidden|capabilit|EPERM|EACCES/i.test(raw)) {
     return (
       raw +
-      "\n（若这是能力未授予：本 App 需要清单能力 app/tasks.manage；改清单后要在宿主里批准并重装 / 重启本 App。）"
+      "\n(if this is a capability that was not granted: this App needs the manifest capability app/tasks.manage; after changing the manifest you must approve it in the host and reinstall / restart this App.)"
     );
   }
   return raw;
@@ -109,10 +109,10 @@ function describeTaskError(e) {
 export function taskCapabilityError(label) {
   if (surface && typeof surface.create === "function") return null;
   return (
-    label + " 无法建立后台任务：宿主没有授予 app/tasks.manage 能力（ctx.tasks 不可用），本动词不空转。\n" +
-    "需要它的原因：这个动词的形状是「返回任务句柄 + 后台轮询 + 终态回投来源会话」，而句柄只能是宿主后台任务。\n" +
-    "现在怎么做：用 githana_run(action=\"view\", runId=…) 隔一会儿看一次——那是「此刻」的状态，不是「等它跑完」。\n" +
-    "要恢复本动词：确认 App 清单里声明了 app/tasks.manage，并在宿主里批准该能力后重装 / 重启本 App（能力在安装时授予，改清单不会就地生效）。"
+    label + " cannot create a background task: the host has not granted the app/tasks.manage capability (ctx.tasks is unavailable), so this verb does not spin idle.\n" +
+    "why it needs that: this verb's shape is \"return a task handle + poll in the background + deliver the terminal state back to the originating session\", and that handle can only be a host background task.\n" +
+    "what to do now: use githana_run(action=\"view\", runId=…) to look every so often — that shows the state \"right now\", it does not \"wait for it to finish\".\n" +
+    "to restore this verb: make sure the App manifest declares app/tasks.manage, approve that capability in the host, then reinstall / restart this App (capabilities are granted at install time; editing the manifest does not take effect in place)."
   );
 }
 
@@ -140,18 +140,18 @@ export function githanaMetaOf(record) {
  */
 export async function createSessionTask({ taskLabel, callToken, metadata }) {
   if (!surface || typeof surface.create !== "function") {
-    return { error: "宿主任务面不可用（app/tasks.manage 未授予）。" };
+    return { error: "host task surface unavailable (app/tasks.manage not granted)." };
   }
   const token = callToken !== undefined && callToken !== null ? String(callToken).trim() : "";
   if (!token) {
     return {
       error:
-        "缺少宿主注入的 callToken：没有它建出来的任务是 app 范围的（delivery=\"none\"），" +
-        "既不进对话也不会回投结论。本动词只对「模型工具调用」这条路径有意义。",
+        "the callToken injected by the host is missing: without it, the created task is app-scoped (delivery=\"none\")," +
+        " so it neither enters a conversation nor delivers its result. This verb is only meaningful on the \"model tool call\" path.",
     };
   }
   const input = {
-    label: String(taskLabel || "GitHana 后台任务"),
+    label: String(taskLabel || "GitHana background task"),
     scope: "session",
     delivery: "next-step",
     chipVisibility: "show",
@@ -164,7 +164,7 @@ export async function createSessionTask({ taskLabel, callToken, metadata }) {
     if (!taskId) {
       return {
         error:
-          "宿主 ctx.tasks.create 没有返回 taskId（契约异常）：句柄拿不到，不会继续轮询。",
+          "host ctx.tasks.create did not return a taskId (contract violation): without a handle, polling will not continue.",
       };
     }
     return { taskId, record };
@@ -179,7 +179,7 @@ export async function createSessionTask({ taskLabel, callToken, metadata }) {
  */
 export async function readTaskRecord(taskId) {
   if (!surface || typeof surface.get !== "function") {
-    return { error: "宿主任务面不可用（tasks.get 缺失）。" };
+    return { error: "host task surface unavailable (tasks.get missing)." };
   }
   try {
     const record = await surface.get(String(taskId));
@@ -200,7 +200,7 @@ export async function readTaskRecord(taskId) {
  */
 export async function updateTask(taskId, patch) {
   if (!surface || typeof surface.update !== "function") {
-    return { error: "宿主任务面不可用（tasks.update 缺失）。" };
+    return { error: "host task surface unavailable (tasks.update missing)." };
   }
   try {
     await surface.update(String(taskId), patch && typeof patch === "object" ? patch : {});
@@ -216,7 +216,7 @@ export async function updateTask(taskId, patch) {
  */
 export async function completeTask(taskId, result) {
   if (!surface || typeof surface.complete !== "function") {
-    return { error: "宿主任务面不可用（tasks.complete 缺失）。" };
+    return { error: "host task surface unavailable (tasks.complete missing)." };
   }
   try {
     await surface.complete(String(taskId), result);
@@ -232,7 +232,7 @@ export async function completeTask(taskId, result) {
  */
 export async function failTask(taskId, error) {
   if (!surface || typeof surface.fail !== "function") {
-    return { error: "宿主任务面不可用（tasks.fail 缺失）。" };
+    return { error: "host task surface unavailable (tasks.fail missing)." };
   }
   try {
     await surface.fail(String(taskId), String(error === undefined || error === null ? "" : error).slice(0, 3000));
@@ -265,7 +265,7 @@ export function registerTaskResumer(kind, fn) {
  */
 export async function resumePendingTasks() {
   if (!surface || typeof surface.list !== "function") {
-    taskLog("info", "宿主任务面不可用（app/tasks.manage 未授予）：跳过未终结后台任务的恢复");
+    taskLog("info", "host task surface unavailable (app/tasks.manage not granted): skipping recovery of unfinished background tasks");
     return { resumed: 0 };
   }
   // 先把凭据解进进程缓存（首次会跑 DPAPI 解密）：恢复出来的轮询器第一跳就要发请求。
@@ -274,18 +274,18 @@ export async function resumePendingTasks() {
     try {
       await preparer();
     } catch (e) {
-      taskLog("warn", "恢复前的上下文准备失败（继续）：" + describeTaskError(e));
+      taskLog("warn", "context preparation before recovery failed (continuing): " + describeTaskError(e));
     }
   }
   let rows = null;
   try {
     rows = await surface.list();
   } catch (e) {
-    taskLog("warn", "恢复后台任务失败（tasks.list）：" + describeTaskError(e));
+    taskLog("warn", "failed to recover background tasks (tasks.list): " + describeTaskError(e));
     return { resumed: 0 };
   }
   if (!Array.isArray(rows)) {
-    taskLog("warn", "tasks.list 未返回数组：跳过未终结后台任务的恢复");
+    taskLog("warn", "tasks.list did not return an array: skipping recovery of unfinished background tasks");
     return { resumed: 0 };
   }
   let resumed = 0;
@@ -298,13 +298,13 @@ export async function resumePendingTasks() {
     if (!resume) continue;
     try {
       const res = await resume(record);
-      if (res && res.error) taskLog("warn", "恢复任务 " + String(record.taskId || "?") + " 未完成：" + res.error);
+      if (res && res.error) taskLog("warn", "recovering task " + String(record.taskId || "?") + " did not complete: " + res.error);
       else resumed += 1;
     } catch (e) {
-      taskLog("warn", "恢复任务 " + String(record.taskId || "?") + " 异常：" + describeTaskError(e));
+      taskLog("warn", "recovering task " + String(record.taskId || "?") + " threw: " + describeTaskError(e));
     }
   }
-  if (resumed) taskLog("info", "已从宿主任务记录恢复 " + resumed + " 个未终结的后台任务");
+  if (resumed) taskLog("info", "recovered " + resumed + " unfinished background task(s) from the host task records");
   return { resumed };
 }
 

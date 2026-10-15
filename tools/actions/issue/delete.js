@@ -22,7 +22,7 @@ import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 import { graphql } from "../../lib/graphql.js";
 
 export const command = "delete";
-export const summary = "删除 issue（不可撤销，需 confirm=true）";
+export const summary = "Delete an issue (irreversible, requires confirm=true)";
 
 export const schema = {
   repo: params.repo,
@@ -31,14 +31,14 @@ export const schema = {
   confirm: z
     .boolean()
     .optional()
-    .describe("必须为 true 才真删：删除 issue 不可撤销（评论、标签、时间线一起没），缺它会返回引导"),
+    .describe("Must be true to actually delete: deleting an issue is irreversible (comments, labels and timeline all go with it); without it you get guidance instead"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "**删除** GitHub 远端 issue（不可撤销：评论、标签与整条时间线一起消失，GitHub 不回收到回收站）：执行前请再次确认 repo 与编号",
+    "**Delete** a remote GitHub issue (irreversible: comments, labels and the whole timeline disappear together, GitHub has no recycle bin): confirm repo and number again before running",
   ruleId: "github-toolkit-issue-delete",
 };
 
@@ -66,23 +66,23 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "PR 的删除不在工具面上（githana_pr 没有 delete）；要撤掉一个 PR 用 githana_pr(action=\"close\", prNumber=" +
-        numStr + ")，要撤掉它的改动用 githana_pr(action=\"revert\")。",
+      "Deleting PRs is not on the tool surface (githana_pr has no delete); to withdraw a PR use githana_pr(action=\"close\", prNumber=" +
+        numStr + "), and to undo its changes use githana_pr(action=\"revert\").",
     );
   }
 
   const issue = cur.issue;
   const nodeId = issue.node_id ? String(issue.node_id) : "";
   if (!nodeId) {
-    return label + "：issue #" + numStr + " 的响应里没有 node_id，无法走 GraphQL 删除（REST 没有删除 issue 的端点）。";
+    return label + ": the response for issue #" + numStr + " has no node_id, so it cannot be deleted via GraphQL (REST has no endpoint to delete an issue).";
   }
 
   if (input?.confirm !== true) {
     return [
-      label + " 需要确认（未执行删除）：",
-      "将删除 issue #" + numStr + "：「" + (issue.title || "（无标题）") + "」（" + repoLabel + "）",
-      "删除**不可撤销**：评论、标签与整条时间线一起消失。要保留历史请改用 githana_issue(action=\"close\")。",
-      "确认后请重发同一次调用并带上 confirm=true。",
+      label + " confirmation required (nothing deleted yet):",
+      "Will delete issue #" + numStr + ": \"" + (issue.title || "(untitled)") + "\" (" + repoLabel + ")",
+      "Deletion is **irreversible**: comments, labels and the whole timeline disappear together. To keep the history, use githana_issue(action=\"close\") instead.",
+      "To confirm, resend the same call with confirm=true.",
     ].join("\n");
   }
 
@@ -91,16 +91,16 @@ export async function run(input, ctx, { label }) {
   const comments = issue.comments !== undefined && issue.comments !== null ? Number(issue.comments) : null;
 
   const g = await graphql(DELETE_MUTATION, { id: nodeId }, { timeoutSec });
-  if (g.error) return label + " 删除失败：" + g.error;
+  if (g.error) return label + " delete failed: " + g.error;
 
   const out = [
-    label + " 已删除（issue #" + numStr + " · " + repoLabel + "）：",
-    "标题：" + (issue.title || "（无标题）"),
-    "评论：" + (comments === null ? "?（删除前未取到）" : comments + " 条（已随 issue 一起消失）"),
-    "说明：这是 GraphQL deleteIssue（REST 没有删除 issue 的端点），操作不可撤销。",
+    label + " deleted (issue #" + numStr + " · " + repoLabel + "):",
+    "title: " + (issue.title || "(untitled)"),
+    "comments: " + (comments === null ? "? (not fetched before deletion)" : comments + " (gone along with the issue)"),
+    "note: this is the GraphQL deleteIssue mutation (REST has no endpoint to delete an issue); the operation is irreversible.",
   ];
   if (g.data && g.data.deleteIssue && g.data.deleteIssue.repository) {
-    out.push("GitHub 回执：repository = " + g.data.deleteIssue.repository.nameWithOwner);
+    out.push("GitHub receipt: repository = " + g.data.deleteIssue.repository.nameWithOwner);
   }
   return out.join("\n");
 }

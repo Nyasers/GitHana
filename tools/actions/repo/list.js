@@ -19,19 +19,19 @@ import * as params from "../../lib/params.js";
 import { requireAuth, describeFailure, fmtTime } from "../../lib/gh.js";
 
 export const command = "list";
-export const summary = "列出仓库（自己 / 指定 owner）";
+export const summary = "List repositories (your own / a given owner)";
 
 export const schema = {
-  owner: z.string().optional().describe("可选：用户或组织名；缺省列当前登录账号可访问的仓库"),
-  visibility: z.enum(["all", "public", "private"]).optional().describe("仅 owner 缺省时生效：all（默认）/ public / private"),
+  owner: z.string().optional().describe("Optional: user or organization name; by default lists repositories accessible to the current login account"),
+  visibility: z.enum(["all", "public", "private"]).optional().describe("Only takes effect when owner is omitted: all (default) / public / private"),
   // 上限 100 不写成 max：超过上限在 run() 是**收敛到 100**（GitHub 单页上限），收紧成拒绝会改语义。
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 30，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 30, max 100 (values above the max are clamped to 100)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 100"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(100).describe("返回条数，默认 30，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).max(100).describe("Number of results, default 30, max 100 (values above the max are clamped to 100)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -55,28 +55,28 @@ export async function run(input, ctx, { label }) {
   const url = apiRoot(path);
 
   const r = await callRest([{ url, timeoutMs }], { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return label + "：用户或组织 " + owner + " 不存在（或不可见）。";
+      return label + ": user or organization " + owner + " does not exist (or is not visible).";
     }
-    return label + " 执行失败：" + describeFailure(res, owner || "（当前账号）");
+    return label + " execution failed: " + describeFailure(res, owner || "(current account)");
   }
 
   const items = Array.isArray(res.json) ? res.json : [];
-  const scope = owner !== "" ? "@" + owner + " 的公开仓库" : "当前账号可访问的仓库（visibility=" + visibility + "）";
-  if (items.length === 0) return label + "（" + scope + "）：没有匹配的仓库。";
+  const scope = owner !== "" ? "public repositories of @" + owner : "repositories accessible to the current account (visibility=" + visibility + ")";
+  if (items.length === 0) return label + " (" + scope + "): no matching repositories.";
 
-  const out = [label + "（" + scope + " · " + items.length + " 条 · 按最后更新倒序）："];
+  const out = [label + " (" + scope + " · " + items.length + " · newest update first):"];
   for (const it of items) {
     out.push(
       (it.private ? "[private] " : "[public]  ") + (it.full_name || "?") +
-      (it.archived ? "（已归档）" : "") + (it.fork ? "（fork）" : ""),
+      (it.archived ? " (archived)" : "") + (it.fork ? " (fork)" : ""),
     );
-    out.push("  " + (it.description || "（无简介）"));
+    out.push("  " + (it.description || "(no description)"));
     out.push(
-      "  默认分支 " + (it.default_branch || "?") + " · 更新 " + fmtTime(it.pushed_at || it.updated_at) +
+      "  default branch " + (it.default_branch || "?") + " · updated " + fmtTime(it.pushed_at || it.updated_at) +
       (it.language ? " · " + it.language : ""),
     );
     if (it.html_url) out.push("  " + it.html_url);

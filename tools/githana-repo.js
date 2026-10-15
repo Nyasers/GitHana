@@ -45,13 +45,13 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_repo";
 
 export const description = [
-  "GitHana GitHub 仓库：查询、新建、fork 与远端内容读取。",
-  "action=create / list / view / clone / fork / sync / gitignore / license / read-dir / read-file。",
-  "clone 与 sync 是本地 git 语义（跑 git clone / fetch+合并），其余走 REST；",
-  "PR 在 githana_pr，issue 在 githana_issue，发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，",
-  "标签在 githana_label，本地 git 在 githana_git，其余端点走 githana_api。",
-  "改删仓库（EDIT / DELETE / 改名 / 归档等）需要 administration 权限，本 App 未授权，故不提供。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub repositories: query, create, fork, and read remote content.",
+  "action=create / list / view / clone / fork / sync / gitignore / license / read-dir / read-file.",
+  "clone and sync are local git semantics (they run git clone / fetch+merge), the rest go through REST;",
+  "PRs are in githana_pr, issues in githana_issue, releases in githana_release, CI in githana_run / githana_workflow / githana_cache,",
+  "labels in githana_label, local git in githana_git, and other endpoints go through githana_api.",
+  "Editing or deleting repositories (EDIT / DELETE / rename / archive etc.) needs the administration permission, which this App is not granted, so it is not offered.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -72,7 +72,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 仓库动作（create / list / view / clone / fork / sync / gitignore / license / read-dir / read-file）：create 与 fork 会新建远端仓库，clone 与 sync 会写入本地磁盘或改动本地分支，执行前请确认 action 与参数",
+    "GitHana repository actions (create / list / view / clone / fork / sync / gitignore / license / read-dir / read-file): create and fork create remote repositories, clone and sync write to local disk or change local branches — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-repo",
 };
 
@@ -96,9 +96,9 @@ export const modelFields = {
   repo: z
     .string()
     .optional()
-    .describe("仓库 owner/repo：多数动作可选（缺省从 cwd 的 git remote 推断），clone 上必填且不从 cwd 推断，create 上没有这个参数"),
-  branch: z.string().optional().describe("分支：clone 是要检出的分支，sync 是要同步的分支——按 action 取义"),
-  path: z.string().optional().describe("仓库内路径（相对仓库根）：read-dir 是目录（缺省 = 仓库根），read-file 是文件（必填）"),
+    .describe("repository owner/repo: optional on most actions (omitted = inferred from the cwd's git remote), required on clone and not inferred from cwd, not present on create"),
+  branch: z.string().optional().describe("branch, by action: on clone it is the branch to check out, on sync the branch to sync"),
+  path: z.string().optional().describe("path inside the repository (relative to the repository root): for read-dir it is a directory (omitted = repository root), for read-file it is a file (required)"),
 };
 
 const surface = createSurface({

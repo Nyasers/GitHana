@@ -59,11 +59,11 @@ export function deniedMessage(p, what) {
   const roots = permittedRoots();
   const dir = getToolDataDir() || "<HANA_HOME>/app-data/githana";
   return (
-    "无法" + what + "本地文件 " + p + "：AppHost 的 Node 权限模型只放行两个许可根（" +
-    (roots.length ? roots.join(" / ") : "安装目录 / App 数据目录") +
-    "），根之外的裸 fs 读写被运行时拒绝（ERR_ACCESS_DENIED）。\n" +
-    "这不是「文件不存在」——文件在磁盘上可能好好的，只是本进程无权碰它。\n" +
-    "可行做法：把文件放到 App 数据目录（" + dir + "）下再重试。"
+    "cannot " + what + " the local file " + p + ": the AppHost Node permission model only grants two permitted roots (" +
+    (roots.length ? roots.join(" / ") : "installation directory / App data directory") +
+    "), and raw fs reads/writes outside those roots are denied by the runtime (ERR_ACCESS_DENIED).\n" +
+    "this is not \"the file does not exist\" — the file may be perfectly fine on disk, this process just is not allowed to touch it.\n" +
+    "what works: put the file under the App data directory (" + dir + ") and retry."
   );
 }
 
@@ -75,7 +75,7 @@ export function deniedMessage(p, what) {
  */
 export function normalizeLocalPath(value, what) {
   const raw = value !== undefined && value !== null ? String(value).trim() : "";
-  if (!raw) return { error: what + "必填（本地文件的绝对路径）。" };
+  if (!raw) return { error: what + " is required (absolute path of a local file)." };
   return { path: raw };
 }
 
@@ -93,8 +93,8 @@ export function sha256File(p, what) {
       stream = fs.createReadStream(p);
     } catch (e) {
       const code = e && e.code;
-      if (code === "ERR_ACCESS_DENIED" || code === "EPERM") return resolve({ error: deniedMessage(p, "读取") });
-      return resolve({ error: what + "读取失败（" + String(code || "未知") + "）：" + String((e && e.message) || e) + "。" });
+      if (code === "ERR_ACCESS_DENIED" || code === "EPERM") return resolve({ error: deniedMessage(p, "read") });
+      return resolve({ error: what + "read failed (" + String(code || "unknown") + "): " + String((e && e.message) || e) + "." });
     }
     const hash = createHash("sha256");
     let size = 0;
@@ -110,10 +110,10 @@ export function sha256File(p, what) {
     });
     stream.on("error", (e) => {
       const code = e && e.code;
-      if (code === "ERR_ACCESS_DENIED" || code === "EPERM") return done({ error: deniedMessage(p, "读取") });
-      if (code === "ENOENT" || code === "ENOTDIR") return done({ error: what + "不存在：" + p + "。" });
-      if (code === "EISDIR") return done({ error: what + "指向的是目录，不是文件：" + p + "。" });
-      done({ error: what + "读取失败（" + String(code || "未知") + "）：" + String((e && e.message) || e) + "。" });
+      if (code === "ERR_ACCESS_DENIED" || code === "EPERM") return done({ error: deniedMessage(p, "read") });
+      if (code === "ENOENT" || code === "ENOTDIR") return done({ error: what + " does not exist: " + p + "." });
+      if (code === "EISDIR") return done({ error: what + " points to a directory, not a file: " + p + "." });
+      done({ error: what + "read failed (" + String(code || "unknown") + "): " + String((e && e.message) || e) + "." });
     });
     stream.on("end", () => done({ hex: hash.digest("hex"), size }));
   });
@@ -165,8 +165,8 @@ export function normalizeAbsolutePath(value, what) {
   if (!isAbsolutePath(norm.path)) {
     return {
       error:
-        what + "要给**绝对**路径（收到：" + norm.path + "）。\n" +
-        "这条路径由 worker 子进程使用，而它的工作目录不是你的仓库——相对路径会指向别处。",
+        what + " needs an **absolute** path (received: " + norm.path + ").\n" +
+        "this path is used by the worker subprocess, and its working directory is not your repository — a relative path would point elsewhere.",
     };
   }
   return norm;
@@ -188,28 +188,28 @@ export function transferFailureText(result) {
   switch (code) {
     case "file_unreadable":
       return (
-        "读不到这个本地文件。" +
-        (result && result.cause === "EISDIR" ? "（它是个目录，不是文件）" : "（文件不存在，或当前用户无权读它）") +
-        "\n注意：这里的读写由 worker 子进程代做，报的**不是** AppHost 许可根那件事——`transfer.js` 的 " +
-        "deniedMessage 只适用于在 App 进程里直接读的动词（verify / verify-asset）。"
+        "cannot read this local file." +
+        (result && result.cause === "EISDIR" ? " (it is a directory, not a file)" : " (the file does not exist, or the current user cannot read it)") +
+        "\nnote: the reads/writes here are done by the worker subprocess; what is reported is **not** the AppHost permitted-root issue — " +
+        "deniedMessage in `transfer.js` only applies to verbs that read directly in the App process (verify / verify-asset)."
       );
     case "file_too_large":
       return (
-        "这个文件 " + human + "，超过 GitHub 的单文件硬限（< 2 GiB）。\n" +
-        "这是 GitHub 的硬限，不是本工具的限制，也没有分片 / 断点续传可绕（它的资产 API 没有这个语义）。\n" +
-        "做法：拆成多个小文件分别上传，或压到一个包之前先裁掉大件。**已在上传前拒掉，没有白传一遍。**"
+        "this file is " + human + ", above GitHub's per-file hard limit (< 2 GiB).\n" +
+        "that is GitHub's hard limit, not this tool's, and there is no chunking / resumable upload to work around it (its asset API has no such semantics).\n" +
+        "what works: split it into several smaller files and upload them separately, or trim large items before packing. **it was rejected before uploading, so nothing was uploaded in vain.**"
       );
     case "target_exists":
-      return "目标文件已存在。要覆盖它请传 overwrite=true；换个位置就改 path / dir。";
+      return "the target file already exists. To overwrite it, pass overwrite=true; for another location, change path / dir.";
     case "target_unwritable":
       return (
-        "写不进去这个目标路径（目录不存在、无写权限，或路径指向一个目录）。\n" +
-        "注意：这里是 worker 子进程在写，与 AppHost 的许可根无关——检查一下父目录是否存在、是否可写。"
+        "cannot write to this target path (the directory does not exist, is not writable, or the path points to a directory).\n" +
+        "note: here it is the worker subprocess writing, which is unrelated to the AppHost permitted roots — check whether the parent directory exists and is writable."
       );
     case "body_read_failed":
-      return "响应体读到一半断了（网络中断）：盘上那份不完整的文件已经删掉，**没有假装成功**。可重试。";
+      return "the response body broke off midway (network interruption): the incomplete file on disk has been deleted, **it did not pretend to succeed**. You can retry.";
     case "download_truncated":
-      return "下载的字节数与响应声明的不符（被截断）：不完整的文件已删掉，**没有假装成功**。可重试。";
+      return "the downloaded byte count does not match what the response declared (it was truncated): the incomplete file has been deleted, **it did not pretend to succeed**. You can retry.";
     default:
       return null;
   }
@@ -233,9 +233,9 @@ function formatBytes(n) {
  * 报的是机制，不是免责声明。
  */
 export const BINARY_CHANNEL_NOTES = [
-  "请求体可以是二进制：worker 收 `file`（本地路径）形态，用 fs.createReadStream 作 fetch body 并显式带 Content-Length，文件不进内存、不走分块编码。",
-  "响应体可以是二进制：worker 收 `toFile`（本地路径）形态，把响应流式写盘，不按 UTF-8 解码、不套 2MB 的有界读。",
-  "主机白名单含上传端点 uploads.github.com 与下载侧的重定向目标（release-assets.githubusercontent.com / objects.githubusercontent.com，以及 *.blob.core.windows.net 后缀）。",
-  "单文件上限是 GitHub 的硬限（< 2 GiB），超限在**发请求前**拒掉，不白传一遍；不做分片、不做断点续传（GitHub 的资产 API 没有这个语义，重试即重传）。",
+  "request bodies can be binary: the worker accepts a `file` (local path) form, uses fs.createReadStream as the fetch body and sets Content-Length explicitly; the file never enters memory and chunked encoding is not used.",
+  "response bodies can be binary: the worker accepts a `toFile` (local path) form and streams the response to disk, without UTF-8 decoding and without the 2MB bounded read.",
+  "the host allowlist includes the upload endpoint uploads.github.com and the download-side redirect targets (release-assets.githubusercontent.com / objects.githubusercontent.com, plus the *.blob.core.windows.net suffix).",
+  "the per-file limit is GitHub's hard limit (< 2 GiB); files above it are rejected **before the request is sent**, so nothing is uploaded in vain; there is no chunking and no resumable upload (GitHub's asset API has no such semantics — a retry means re-uploading).",
 ];
 

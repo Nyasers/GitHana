@@ -24,19 +24,19 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_api";
 
 export const description = [
-  "GitHana GitHub REST / GraphQL 端点透传（逃生门）：api.github.com 之后的任意 path。",
-  "method=GET / POST / PATCH / PUT / DELETE（缺省 GET）；repo 传了就替换 path 里的 {owner}/{repo} 占位符。",
-  "越出 App 权限面的端点会被 GitHub 直接拒（403）。二进制的进出走类型化动词：资产上传用",
-  "githana_release(action=\"upload\")、下载用 release / run 的 download；本逃生门只收 JSON / 文本载荷。",
-  "类型化能力在 githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
-  "githana_workflow / githana_cache / githana_label，本地 git 在 githana_git。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub REST / GraphQL endpoint passthrough (escape hatch): any path after api.github.com.",
+  "method=GET / POST / PATCH / PUT / DELETE (GET by default); passing repo substitutes the {owner}/{repo} placeholders in path.",
+  "Endpoints beyond the App's permission surface are rejected directly by GitHub (403). Binary in/out goes through the typed verbs: for asset upload use",
+  "githana_release(action=\"upload\"), for downloads use release / run's download; this escape hatch only accepts JSON / text payloads.",
+  "Typed capabilities live in githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
+  "githana_workflow / githana_cache / githana_label, and local git in githana_git.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 export const sessionPermission = {
   kind: "external_side_effect",
   description:
-    "向 api.github.com 发任意请求：GET 只读，POST / PATCH / PUT / DELETE 会修改 GitHub 远端状态，执行前请确认 path、method 与 body",
+    "send an arbitrary request to api.github.com: GET is read-only, POST / PATCH / PUT / DELETE modify remote GitHub state — confirm path, method and body before executing",
 };
 
 /** 其它名词工具的动词表：走错工具时报错指名正确的那一个（见 surface.js 的 misroutedMessage）。 */

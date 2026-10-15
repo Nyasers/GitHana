@@ -15,13 +15,13 @@ import { resolveContext, fmtTime } from "../../lib/gh.js";
 import { locateRelease, releaseFlags, assetLine, formatSize } from "../../lib/release.js";
 
 export const command = "view";
-export const summary = "看一个发布（含资产清单）";
+export const summary = "View a release (including its asset list)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTagOptional,
-  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；两个都给时 releaseId 优先）"),
+  releaseId: z.number().int().min(1).optional().describe("Optional: locate by numeric id (either this or tag; when both are given releaseId wins)"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -39,30 +39,30 @@ export async function run(input, ctx, { label }) {
 
   const flags = releaseFlags(rel);
   const out = [];
-  out.push("发布：" + (rel.tag_name || "?") + (rel.name && rel.name !== rel.tag_name ? "（" + rel.name + "）" : ""));
+  out.push("release: " + (rel.tag_name || "?") + (rel.name && rel.name !== rel.tag_name ? " (" + rel.name + ")" : ""));
   out.push(
-    "仓库：" + repoLabel +
-    " · 状态：" + (rel.draft ? "草稿 draft" : "已发布") +
-    (rel.prerelease ? " · 预发布 prerelease" : "") +
+    "repository: " + repoLabel +
+    " · state: " + (rel.draft ? "draft" : "published") +
+    (rel.prerelease ? " · prerelease" : "") +
     (rel.latest === true ? " · latest" : "") +
     (rel.id !== undefined ? " · id " + rel.id : ""),
   );
-  if (flags.length === 0) out.push("状态位：无（非草稿、非预发布、非 latest）");
-  if (rel.target_commitish) out.push("目标：" + rel.target_commitish);
-  if (rel.author && rel.author.login) out.push("作者：@" + rel.author.login);
-  if (rel.created_at) out.push("创建于：" + fmtTime(rel.created_at) + (rel.published_at ? " · 发布于 " + fmtTime(rel.published_at) : "（尚未发布）"));
-  if (rel.html_url) out.push("URL：" + rel.html_url);
+  if (flags.length === 0) out.push("flags: none (not a draft, not a prerelease, not latest)");
+  if (rel.target_commitish) out.push("target: " + rel.target_commitish);
+  if (rel.author && rel.author.login) out.push("author: @" + rel.author.login);
+  if (rel.created_at) out.push("created: " + fmtTime(rel.created_at) + (rel.published_at ? " · published " + fmtTime(rel.published_at) : " (not published yet)"));
+  if (rel.html_url) out.push("URL: " + rel.html_url);
 
   const assets = Array.isArray(rel.assets) ? rel.assets : [];
   const total = assets.reduce((sum, a) => sum + (Number(a && a.size) || 0), 0);
   out.push("");
-  out.push("—— 资产（" + assets.length + " 个 · 合计 " + formatSize(total) + "）——");
-  if (assets.length === 0) out.push("  （没有资产）");
+  out.push("—— assets (" + assets.length + " · " + formatSize(total) + " total) ——");
+  if (assets.length === 0) out.push("  (no assets)");
   else for (const a of assets) out.push(assetLine(a));
 
   const body = rel.body !== null && rel.body !== undefined ? String(rel.body) : "";
   out.push("");
-  out.push("—— 说明" + (body.length > BODY_MAX ? "（截断，共 " + body.length + " 字符）" : "") + " ——");
-  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "（无说明）");
+  out.push("—— notes" + (body.length > BODY_MAX ? " (truncated, " + body.length + " chars total)" : "") + " ——");
+  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "(no notes)");
   return out.join("\n");
 }

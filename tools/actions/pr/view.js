@@ -15,7 +15,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure, fmtTime, reviewSummary, mergeStateText } from "../../lib/pr.js";
 
 export const command = "view";
-export const summary = "PR 详情（含 reviews）";
+export const summary = "PR details (including reviews)";
 
 export const schema = {
   repo: params.repo,
@@ -43,13 +43,13 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const prRes = r.results.find((x) => x.id === "pr");
   const rvRes = r.results.find((x) => x.id === "reviews");
   if (!prRes || !prRes.ok) {
     const st = prRes && prRes.status;
-    if (st === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(prRes, repoLabel);
+    if (st === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(prRes, repoLabel);
   }
 
   const pr = prRes.json && typeof prRes.json === "object" ? prRes.json : {};
@@ -59,26 +59,26 @@ export async function run(input, ctx, { label }) {
   const review = reviewSummary(rvRes && rvRes.ok ? rvRes.json : []);
 
   const out = [];
-  out.push("PR #" + pr.number + "：「" + (pr.title || "（无标题）") + "」");
+  out.push("PR #" + pr.number + ": \"" + (pr.title || "(untitled)") + "\"");
   out.push(
-    "状态：" + String(pr.state || "?").toUpperCase() + (pr.draft ? "（草稿 draft）" : "") +
-    (pr.merged ? "（已合并）" : "") +
-    " · 分支：" + headRef + " → " + baseRef +
-    " · 作者：" + author,
+    "state: " + String(pr.state || "?").toUpperCase() + (pr.draft ? " (draft)" : "") +
+    (pr.merged ? " (merged)" : "") +
+    " · branch: " + headRef + " → " + baseRef +
+    " · author: " + author,
   );
-  out.push("审查：" + review.text + " · 合并：" + mergeStateText(pr.mergeable_state));
-  if (pr.created_at) out.push("创建于：" + fmtTime(pr.created_at) + (pr.merged_at ? " · 合并于：" + fmtTime(pr.merged_at) : ""));
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  out.push("reviews: " + review.text + " · merge: " + mergeStateText(pr.mergeable_state));
+  if (pr.created_at) out.push("created: " + fmtTime(pr.created_at) + (pr.merged_at ? " · merged: " + fmtTime(pr.merged_at) : ""));
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   const stats =
-    (pr.commits !== undefined ? "提交 " + pr.commits : "") +
-    (pr.changed_files !== undefined ? " · 文件 " + pr.changed_files : "") +
+    (pr.commits !== undefined ? "commits " + pr.commits : "") +
+    (pr.changed_files !== undefined ? " · files " + pr.changed_files : "") +
     (pr.additions !== undefined ? " · +" + pr.additions : "") +
     (pr.deletions !== undefined ? " · -" + pr.deletions : "");
-  if (stats) out.push("规模：" + stats);
+  if (stats) out.push("scale: " + stats);
   const body = pr.body !== null && pr.body !== undefined ? String(pr.body) : "";
   const BODY_MAX = 2000;
   out.push("");
-  out.push("—— 正文" + (body.length > BODY_MAX ? "（截断，共 " + body.length + " 字符）" : "") + " ——");
-  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "（无正文）");
+  out.push("—— body" + (body.length > BODY_MAX ? " (truncated, " + body.length + " chars total)" : "") + " ——");
+  out.push(body ? (body.length > BODY_MAX ? body.slice(0, BODY_MAX) + "…" : body) : "(no body)");
   return out.join("\n");
 }

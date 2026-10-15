@@ -15,7 +15,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure, prStateText } from "../../lib/pr.js";
 
 export const command = "reopen";
-export const summary = "重新打开已关闭的 PR";
+export const summary = "Reopen a closed PR";
 
 export const schema = {
   repo: params.repo,
@@ -27,7 +27,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "重新打开 GitHub 远端已关闭的 PR（state=open；已合并的 PR 不能重开）：修改 GitHub 远端状态，执行前请确认 repo 与 prNumber",
+    "Reopen a closed remote GitHub PR (state=open; a merged PR cannot be reopened): modifies remote GitHub state, confirm repo and prNumber before running",
   ruleId: "github-toolkit-pr-reopen",
 };
 
@@ -47,13 +47,13 @@ export async function run(input, ctx, { label }) {
     const cur = before.results[0].json && typeof before.results[0].json === "object" ? before.results[0].json : {};
     if (cur.merged === true) {
       return (
-        label + "：PR #" + numStr + " 已经合并（merged），无法重新打开——合并是一次性历史事实，不是可翻转的状态位。\n" +
-        "要重做请新开一个 PR（githana_pr(action=\"create\")）。"
+        label + ": PR #" + numStr + " is already merged, so it cannot be reopened — a merge is a one-time historical fact, not a reversible status flag.\n" +
+        "To redo it, open a new PR (githana_pr(action=\"create\"))."
       );
     }
     if (String(cur.state) === "open") {
-      const out = [label + "：PR #" + numStr + " 本来就是打开状态（open），无需重开。", "状态：" + prStateText(cur)];
-      if (cur.html_url) out.push("URL：" + cur.html_url);
+      const out = [label + ": PR #" + numStr + " is already open; no need to reopen.", "state: " + prStateText(cur)];
+      if (cur.html_url) out.push("URL: " + cur.html_url);
       return out.join("\n");
     }
   }
@@ -62,18 +62,18 @@ export async function run(input, ctx, { label }) {
     [{ method: "PATCH", url: apiUrl(repo, "/pulls/" + numStr), json: { state: "open" }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 422) {
-      return label + " 执行失败：无法重开 PR #" + numStr + "（422）。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: cannot reopen PR #" + numStr + " (422).\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const pr = res.json && typeof res.json === "object" ? res.json : {};
-  const out = [label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：", "状态：" + prStateText(pr)];
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  const out = [label + " done (PR #" + numStr + " · " + repoLabel + "):", "state: " + prStateText(pr)];
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   return out.join("\n");
 }

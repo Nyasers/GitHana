@@ -25,23 +25,23 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { runLine } from "../../lib/ci.js";
 
 export const command = "delete";
-export const summary = "删除一条 run 记录（不可撤销，需 confirm=true）";
+export const summary = "Delete a run record (irreversible, requires confirm=true)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  runId: params.runId.describe("必填：要删的 run 编号（本动词不给「最近一个」的缺省——不可撤销的动作不吃危险默认值）"),
+  runId: params.runId.describe("Required: the run number to delete (this verb offers no \"most recent\" default — an irreversible action does not get a dangerous default)"),
   confirm: z
     .boolean()
     .optional()
-    .describe("必须为 true 才真删：删除 run 会连带它的日志与产物一起消失，缺它会返回引导"),
+    .describe("Must be true to actually delete: deleting a run makes its logs and artifacts disappear with it; without it you get guidance instead"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "**删除** GitHub 远端的 workflow run 记录（日志与产物一起消失，不可撤销）：执行前请再次确认 repo 与 run 编号",
+    "**Delete** a workflow run record on remote GitHub (its logs and artifacts disappear with it; irreversible): confirm repo and run number again before running",
   ruleId: "github-toolkit-run-delete",
 };
 
@@ -58,11 +58,11 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num)), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!before.ok) return label + " 执行失败：" + before.message;
+  if (!before.ok) return label + " execution failed: " + before.message;
   const bres = before.results[0];
   if (!bres || !bres.ok) {
-    if (bres && bres.status === 404) return label + "：run #" + num + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(bres, repoLabel);
+    if (bres && bres.status === 404) return label + ": run #" + num + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(bres, repoLabel);
   }
   // 变量名不叫 `run`：它会遮蔽本模块导出的 run()（函数体作用域 vs 模块作用域），读起来像
   // 递归调用——改名省掉这份误会。
@@ -70,15 +70,15 @@ export async function run(input, ctx, { label }) {
 
   if (input?.confirm !== true) {
     const out = [
-      label + " 需要确认（未执行删除）：",
-      "将删除 run：" + runLine(runJson) + "（" + repoLabel + "）",
+      label + " confirmation required (nothing deleted yet):",
+      "Will delete run: " + runLine(runJson) + " (" + repoLabel + ")",
     ];
     if (runJson.status && String(runJson.status) !== "completed") {
-      out.push("注意：这个 run **还在跑**（" + String(runJson.status).toUpperCase() + "）。要停它用 githana_run(action=\"cancel\")；删掉进行中的 run 会让它的状态与日志一起消失。");
+      out.push("note: this run is **still running** (" + String(runJson.status).toUpperCase() + "). To stop it use githana_run(action=\"cancel\"); deleting an in-progress run makes its state and logs disappear together.");
     }
-    out.push("删除**不可撤销**：run 记录连带**日志与产物**一起消失，那个 commit 的检查记录也不再指向任何东西。");
-    out.push("只想让它停下来（记录保留）用 githana_run(action=\"cancel\")；想重跑用 githana_run(action=\"rerun\")。");
-    out.push("确认后请重发同一次调用并带上 confirm=true。");
+    out.push("Deletion is **irreversible**: the run record disappears together with its **logs and artifacts**, and the check record for that commit no longer points at anything.");
+    out.push("To merely stop it (keeping the record) use githana_run(action=\"cancel\"); to run it again use githana_run(action=\"rerun\").");
+    out.push("To confirm, resend the same call with confirm=true.");
     return out.join("\n");
   }
 
@@ -92,14 +92,14 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（删除不返回正文）。
-  if (!res || (!res.ok && res.status !== 204)) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || (!res.ok && res.status !== 204)) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   return [
-    label + " 已删除（" + repoLabel + "）：",
-    "run：" + runLine(runJson),
-    "说明：记录与它的日志、产物一起消失（不可撤销）。要重跑同一条用 githana_run(action=\"rerun\")——但那要先有 run（删掉的这条不会自己回来）。",
+    label + " deleted (" + repoLabel + "):",
+    "run: " + runLine(runJson),
+    "note: the record disappears together with its logs and artifacts (irreversible). To run the same one again use githana_run(action=\"rerun\") — but that requires an existing run (the one deleted here will not come back on its own).",
   ].join("\n");
 }

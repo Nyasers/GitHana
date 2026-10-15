@@ -66,28 +66,28 @@ export function decodeText(base64) {
 export function repoSummary(json) {
   const r = json && typeof json === "object" ? json : {};
   const out = [];
-  out.push("仓库：" + (r.full_name || "?") + (r.private ? "（私有 private）" : "（公开 public）"));
-  if (r.description) out.push("简介：" + r.description);
-  out.push("默认分支：" + (r.default_branch || "?" ) + " · 可见性：" + (r.visibility || (r.private ? "private" : "public")));
+  out.push("repository: " + (r.full_name || "?") + (r.private ? " (private)" : " (public)"));
+  if (r.description) out.push("description: " + r.description);
+  out.push("default branch: " + (r.default_branch || "?" ) + " · visibility: " + (r.visibility || (r.private ? "private" : "public")));
   const stats = [];
   if (r.stargazers_count !== undefined) stats.push("star " + r.stargazers_count);
   if (r.forks_count !== undefined) stats.push("fork " + r.forks_count);
-  if (r.open_issues_count !== undefined) stats.push("打开 issue/PR " + r.open_issues_count);
-  if (r.language) stats.push("主语言 " + r.language);
-  if (r.size !== undefined) stats.push("体积 " + formatBytes(Number(r.size) * 1024));
-  if (stats.length) out.push("规模：" + stats.join(" · "));
+  if (r.open_issues_count !== undefined) stats.push("open issues/PRs " + r.open_issues_count);
+  if (r.language) stats.push("primary language " + r.language);
+  if (r.size !== undefined) stats.push("size " + formatBytes(Number(r.size) * 1024));
+  if (stats.length) out.push("scale: " + stats.join(" · "));
   const flags = [];
-  if (r.fork) flags.push("是 fork");
-  if (r.archived) flags.push("已归档 archived");
-  if (r.disabled) flags.push("已停用 disabled");
-  if (r.allow_forking === false) flags.push("不允许 fork");
-  if (flags.length) out.push("标记：" + flags.join(" · "));
-  if (r.parent && r.parent.full_name) out.push("上游：" + r.parent.full_name);
+  if (r.fork) flags.push("is a fork");
+  if (r.archived) flags.push("archived");
+  if (r.disabled) flags.push("disabled");
+  if (r.allow_forking === false) flags.push("forking not allowed");
+  if (flags.length) out.push("flags: " + flags.join(" · "));
+  if (r.parent && r.parent.full_name) out.push("upstream: " + r.parent.full_name);
   if (r.license && (r.license.spdx_id || r.license.name)) {
-    out.push("许可：" + (r.license.spdx_id || "") + " " + (r.license.name || ""));
+    out.push("license: " + (r.license.spdx_id || "") + " " + (r.license.name || ""));
   }
-  if (r.created_at) out.push("创建于：" + fmtTime(r.created_at));
-  if (r.pushed_at) out.push("最后推送：" + fmtTime(r.pushed_at));
-  if (r.html_url) out.push("URL：" + r.html_url);
+  if (r.created_at) out.push("created: " + fmtTime(r.created_at));
+  if (r.pushed_at) out.push("last pushed: " + fmtTime(r.pushed_at));
+  if (r.html_url) out.push("URL: " + r.html_url);
   return out;
 }

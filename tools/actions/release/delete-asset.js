@@ -19,25 +19,25 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { locateRelease, findAsset, assetListText, formatSize } from "../../lib/release.js";
 
 export const command = "delete-asset";
-export const summary = "删除发布里的一个资产（不可撤销，需 confirm=true）";
+export const summary = "Delete one asset from a release (irreversible, requires confirm=true)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTag,
   assetName: params.assetName,
-  assetId: z.number().int().min(1).optional().describe("可选：按数字 id 指定资产（与 assetName 二选一；assetName 优先不用它）"),
+  assetId: z.number().int().min(1).optional().describe("Optional: identify the asset by numeric id (either this or assetName; assetName takes priority over it)"),
   confirm: z
     .boolean()
     .optional()
-    .describe("必须为 true 才真删：删除资产不可撤销（下载计数与直链一起失效），缺它会返回引导"),
+    .describe("Must be true to actually delete: deleting an asset is irreversible (the download count and the direct link stop working); without it you get guidance instead"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "**删除** GitHub 远端发布里的一个资产（发布对象与其余资产不受影响）：删除不可撤销，执行前请再次确认 repo、tag 与资产名",
+    "**Delete** one asset from a remote GitHub release (the release object and the other assets are unaffected): deletion is irreversible, confirm repo, tag and asset name again before running",
   ruleId: "github-toolkit-release-delete-asset",
 };
 
@@ -53,25 +53,25 @@ export async function run(input, ctx, { label }) {
   const found = findAsset(rel, input);
   if (found.error) {
     return [
-      label + " 参数错误：" + found.error,
-      "该 release（" + (rel.tag_name || input.tag || "?") + "）的资产：",
+      label + " argument error: " + found.error,
+      "assets of that release (" + (rel.tag_name || input.tag || "?") + "):",
       assetListText(found.list),
     ].join("\n");
   }
   const asset = found.asset;
   const assetId = asset.id !== undefined ? String(asset.id) : "";
-  if (!assetId) return label + "：资产响应里没有 id，无法走 REST 删除。";
+  if (!assetId) return label + ": the asset response has no id, so it cannot be deleted via REST.";
 
   if (input?.confirm !== true) {
     return [
-      label + " 需要确认（未执行删除）：",
-      "将删除资产：" + (asset.name || "?") + "（" + repoLabel + " · " + (rel.tag_name || "?") + "）",
-      "体积：" + (asset.size !== undefined ? formatSize(asset.size) : "?") +
-        " · 下载次数：" + (asset.download_count !== undefined ? asset.download_count : "?") +
-        (asset.state ? " · 状态：" + asset.state : ""),
-      "删除**不可撤销**：文件内容与它的直链一起失效（浏览器直链、API 取字节地址都不再可用），GitHub 没有回收站。",
-      "发布对象与其余资产不受影响；删掉之后可以用 githana_release(action=\"upload\") 重传同名资产。",
-      "确认后请重发同一次调用并带上 confirm=true。",
+      label + " confirmation required (nothing deleted yet):",
+      "Will delete asset: " + (asset.name || "?") + " (" + repoLabel + " · " + (rel.tag_name || "?") + ")",
+      "size: " + (asset.size !== undefined ? formatSize(asset.size) : "?") +
+        " · downloads: " + (asset.download_count !== undefined ? asset.download_count : "?") +
+        (asset.state ? " · state: " + asset.state : ""),
+      "Deletion is **irreversible**: the file content and its direct link stop working together (browser direct links and API byte addresses are both no longer usable), and GitHub has no recycle bin.",
+      "The release object and the other assets are unaffected; after deleting you can re-upload an asset with the same name using githana_release(action=\"upload\").",
+      "To confirm, resend the same call with confirm=true.",
     ].join("\n");
   }
 
@@ -85,16 +85,16 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（删除不返回正文）。
-  if (!res || (!res.ok && res.status !== 204)) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || (!res.ok && res.status !== 204)) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   return [
-    label + " 已删除（" + repoLabel + " · " + (rel.tag_name || "?") + "）：",
-    "资产：" + (asset.name || "?") + " · id " + assetId +
+    label + " deleted (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
+    "asset: " + (asset.name || "?") + " · id " + assetId +
       (asset.size !== undefined ? " · " + formatSize(asset.size) : "") +
-      (asset.download_count !== undefined ? " · 删除前下载 " + asset.download_count + " 次" : ""),
-    "说明：只删了这个资产，发布对象与其余资产仍在。要重建同名资产用 githana_release(action=\"upload\")。",
+      (asset.download_count !== undefined ? " · " + asset.download_count + " downloads before deletion" : ""),
+    "note: only this asset was deleted; the release object and the other assets remain. To recreate a same-named asset use githana_release(action=\"upload\").",
   ].join("\n");
 }

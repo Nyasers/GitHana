@@ -17,20 +17,20 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { notAnIssueMessage, issueStateText } from "../../lib/issue.js";
 
 export const command = "reopen";
-export const summary = "重新打开已关闭的 issue";
+export const summary = "Reopen a closed issue";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   issueNumber: params.issueNumber,
-  comment: z.string().optional().describe("可选：重开时附一条说明评论（先评论再重开，两次请求）"),
+  comment: z.string().optional().describe("Optional: attach an explanatory comment when reopening (comment first, then reopen — two requests)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "重新打开 GitHub 远端已关闭的 issue（state=open，state_reason=reopened）：修改 GitHub 远端状态，执行前请确认 repo 与编号",
+    "Reopen a closed remote GitHub issue (state=open, state_reason=reopened): modifies remote GitHub state, confirm repo and number before running",
   ruleId: "github-toolkit-issue-reopen",
 };
 
@@ -56,12 +56,12 @@ export async function run(input, ctx, { label }) {
         numStr,
         repoLabel,
         cur,
-        "要重开这个 PR 请用 githana_pr(action=\"reopen\", prNumber=" + numStr + ")。",
+        "To reopen this PR use githana_pr(action=\"reopen\", prNumber=" + numStr + ").",
       );
     }
     if (String(cur.state) === "open") {
-      const out = [label + "：issue #" + numStr + " 本来就是打开状态（open），无需重开。", "状态：" + issueStateText(cur)];
-      if (cur.html_url) out.push("URL：" + cur.html_url);
+      const out = [label + ": issue #" + numStr + " is already open; no need to reopen.", "state: " + issueStateText(cur)];
+      if (cur.html_url) out.push("URL: " + cur.html_url);
       return out.join("\n");
     }
   }
@@ -86,26 +86,26 @@ export async function run(input, ctx, { label }) {
   });
 
   const r = await callRest(batch, { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const rres = r.results.find((x) => x.id === "reopen");
   const cmres = r.results.find((x) => x.id === "comment");
   if (!rres || !rres.ok) {
-    if (rres && rres.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (rres && rres.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (rres && rres.status === 422) {
-      return label + " 执行失败：无法重开 issue #" + numStr + "（422）。\nGitHub 原文：" + errorDetail(rres);
+      return label + " execution failed: cannot reopen issue #" + numStr + " (422).\nGitHub raw message: " + errorDetail(rres);
     }
-    return label + " 执行失败：" + describeFailure(rres, repoLabel);
+    return label + " execution failed: " + describeFailure(rres, repoLabel);
   }
 
   const issue = rres.json && typeof rres.json === "object" ? rres.json : {};
-  const out = [label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：", "状态：" + issueStateText(issue)];
+  const out = [label + " done (issue #" + numStr + " · " + repoLabel + "):", "state: " + issueStateText(issue)];
   if (comment.trim() !== "") {
     out.push(
       cmres && cmres.ok
-        ? "已附说明评论（" + comment.length + " 字符）。"
-        : "说明评论发布失败（" + (cmres ? describeFailure(cmres, repoLabel) : "无结果") + "），重开本身已生效。",
+        ? "Attached explanatory comment (" + comment.length + " chars)."
+        : "Posting the explanatory comment failed (" + (cmres ? describeFailure(cmres, repoLabel) : "no result") + "), but the reopen itself took effect.",
     );
   }
-  if (issue.html_url) out.push("URL：" + issue.html_url);
+  if (issue.html_url) out.push("URL: " + issue.html_url);
   return out.join("\n");
 }

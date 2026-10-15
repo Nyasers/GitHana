@@ -20,3 +20,6 @@ releases/
 # 本地规划文件：锚在仓库根，不误伤 src/specs.ts 之类的同名源码
 /SPECS.md
 /specs/
+
+# 本地工作区：给子代理的任务书与中间产物（同 SPECS.md / specs/ 的性质，不入库）
+/.langwork/

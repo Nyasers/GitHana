@@ -16,7 +16,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure, prStateText, reviewSummary, mergeStateText, summarizeCheckRuns } from "../../lib/pr.js";
 
 export const command = "status";
-export const summary = "PR 状态速览（含审查与检查计数）";
+export const summary = "PR status at a glance (including review and check counts)";
 
 export const schema = {
   repo: params.repo,
@@ -36,11 +36,11 @@ export async function run(input, ctx, { label }) {
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const prRes = await callRest([{ url: apiUrl(repo, "/pulls/" + numStr), timeoutMs }], { timeoutSec });
-  if (!prRes.ok) return label + " 执行失败：" + prRes.message;
+  if (!prRes.ok) return label + " execution failed: " + prRes.message;
   const pres = prRes.results[0];
   if (!pres || !pres.ok) {
-    if (pres && pres.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(pres, repoLabel);
+    if (pres && pres.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(pres, repoLabel);
   }
   const pr = pres.json && typeof pres.json === "object" ? pres.json : {};
   const headRef = pr.head && pr.head.ref ? String(pr.head.ref) : "?";
@@ -65,22 +65,22 @@ export async function run(input, ctx, { label }) {
   const review = reviewSummary(rvRes && rvRes.ok ? rvRes.json : []);
   const checks =
     headSha === ""
-      ? "无检查数据（PR 响应里没有 head.sha）"
+      ? "no check data (the PR response has no head.sha)"
       : ckRes && ckRes.ok
         ? summarizeCheckRuns(ckRes.json).text
-        : "检查数据读取失败（不影响状态本身）";
+        : "reading check data failed (does not affect the state itself)";
 
   const out = [];
   out.push(label + " PR #" + numStr + " · " + repoLabel);
-  out.push("标题：" + (pr.title || "（无标题）"));
-  out.push("状态：" + prStateText(pr) + " · 分支：" + headRef + " → " + baseRef);
-  out.push("审查：" + review.text);
-  out.push("合并：" + mergeStateText(pr.mergeable_state) + (pr.mergeable === false ? " · mergeable=false" : ""));
-  out.push("检查：" + checks);
+  out.push("title: " + (pr.title || "(untitled)"));
+  out.push("state: " + prStateText(pr) + " · branch: " + headRef + " → " + baseRef);
+  out.push("reviews: " + review.text);
+  out.push("merge: " + mergeStateText(pr.mergeable_state) + (pr.mergeable === false ? " · mergeable=false" : ""));
+  out.push("checks: " + checks);
   if (pr.requested_reviewers && Array.isArray(pr.requested_reviewers) && pr.requested_reviewers.length) {
     const who = pr.requested_reviewers.map((u) => (u && u.login ? "@" + u.login : "?")).join(" · ");
-    out.push("待审查人：" + who);
+    out.push("requested reviewers: " + who);
   }
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   return out.join("\n");
 }

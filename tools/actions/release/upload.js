@@ -38,26 +38,26 @@ import { callRest, uploadsUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../
 import { MAX_ASSET_BYTES, normalizeAbsolutePath, transferFailureText, parseDigest } from "../../lib/transfer.js";
 
 export const command = "upload";
-export const summary = "上传发布资产（本地文件 → uploads.github.com，流式发字节）";
+export const summary = "Upload a release asset (local file → uploads.github.com, bytes streamed)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTag,
-  file: z.string().describe("本地文件绝对路径（要上传的资产）"),
-  assetName: z.string().optional().describe("可选：上传后的资产名（缺省取文件名）"),
-  contentType: z.string().optional().describe("可选：Content-Type（缺省 application/octet-stream，不做扩展名推断）"),
+  file: z.string().describe("Absolute path to the local file (the asset to upload)"),
+  assetName: z.string().optional().describe("Optional: asset name after upload (defaults to the file name)"),
+  contentType: z.string().optional().describe("Optional: Content-Type (defaults to application/octet-stream; no extension-based guessing)"),
   // 叫 assetLabel 而不是 label：后者在本工具里已经是**路由层的报错前缀**（surface.js 拼的
   // "githana_release(upload)"，经 run() 的第三个参数进来），同一个词指两件事会让读的人先愣一下。
   // 它对应 gh 的 `--label` 与 REST 资产载荷里的 `label` 字段。
-  assetLabel: z.string().optional().describe("可选：资产的展示标签（对应 gh 的 --label / REST 载荷的 label）"),
+  assetLabel: z.string().optional().describe("Optional: display label for the asset (corresponds to gh's --label / the label field in the REST asset payload)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "上传发布资产到 GitHub 远端（新建一个资产对象）：修改 GitHub 远端状态，执行前请确认 repo、tag 与本地文件",
+    "Upload a release asset to remote GitHub (creates a new asset object): modifies remote GitHub state, confirm repo, tag and the local file before running",
   ruleId: "github-toolkit-release-upload",
 };
 
@@ -72,14 +72,14 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const norm = normalizeAbsolutePath(input?.file, "file");
-  if (norm.error) return label + " 参数错误：" + norm.error;
+  if (norm.error) return label + " argument error: " + norm.error;
   const file = norm.path;
 
   const located = await locateRelease(input, c, label, { required: true });
   if (located.error) return located.error;
   const rel = located.release;
   if (rel.id === undefined || rel.id === null) {
-    return label + " 执行失败：release 响应里没有 id，无法拼资产上传端点。";
+    return label + " execution failed: the release response has no id, so the asset upload endpoint cannot be built.";
   }
 
   // 资产名缺省取文件名：GitHub 的资产名与本地文件名是两件事，但「不说就用文件名」是 gh 的行为。
@@ -109,65 +109,65 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
-  if (!res) return label + " 执行失败：REST worker 没有返回结果。";
+  if (!res) return label + " execution failed: the REST worker returned no result.";
 
   // 二进制通道自己的失败（读不到文件 / 超限）：给点名的可读文案，不是 HTTP 错误。
   const byCode = transferFailureText(res);
-  if (byCode) return label + " 执行失败：" + byCode;
+  if (byCode) return label + " execution failed: " + byCode;
 
   if (!res.ok) {
     const detail = errorDetail(res);
     if (res.status === 422) {
       return [
-        label + " 执行失败：GitHub 拒绝这次上传（422）。最常见的原因是**同名资产已存在**——",
-        "一个 release 里资产名唯一。GitHub 原文：" + detail,
-        "做法：先删掉那个资产再传 ——",
+        label + " execution failed: GitHub rejected this upload (422). The most common cause is that **an asset with the same name already exists** —",
+        "asset names are unique within a release. GitHub raw message: " + detail,
+        "What to do: delete that asset first, then upload —",
         "  githana_release(action=\"delete-asset\", tag=\"" + (rel.tag_name || input.tag || "?") + "\", assetName=\"" + assetName + "\", confirm=true)",
-        "换一个资产名也行（传 assetName）。",
+        "Or use a different asset name (pass assetName).",
       ].join("\n");
     }
-    return label + " 执行失败：HTTP " + res.status + "：" + detail + "\n（上传端点 " + url + "）";
+    return label + " execution failed: HTTP " + res.status + ": " + detail + "\n(upload endpoint " + url + ")";
   }
 
   const asset = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已上传（" + repoLabel + " · " + (rel.tag_name || "?") + "）：",
-    "资产：" + (asset.name || assetName) + (asset.id !== undefined ? " · id " + asset.id : ""),
-    "HTTP " + res.status + "（新建资产应为 201）",
+    label + " uploaded (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
+    "asset: " + (asset.name || assetName) + (asset.id !== undefined ? " · id " + asset.id : ""),
+    "HTTP " + res.status + " (a newly created asset should be 201)",
   ];
-  if (asset.size !== undefined) out.push("远端体积：" + asset.size + " 字节");
+  if (asset.size !== undefined) out.push("remote size: " + asset.size + " bytes");
   if (res.size !== null && res.size !== undefined && asset.size !== undefined && Number(asset.size) !== res.size) {
-    out.push("      注意：与本地体积 " + res.size + " 字节不符，请复核。");
+    out.push("      note: does not match the local size of " + res.size + " bytes; please double-check.");
   }
-  if (asset.content_type) out.push("类型：" + asset.content_type);
-  if (asset.state) out.push("状态：" + asset.state);
-  if (asset.label) out.push("标签：" + asset.label);
-  if (asset.browser_download_url) out.push("直链：" + String(asset.browser_download_url));
+  if (asset.content_type) out.push("type: " + asset.content_type);
+  if (asset.state) out.push("state: " + asset.state);
+  if (asset.label) out.push("label: " + asset.label);
+  if (asset.browser_download_url) out.push("direct link: " + String(asset.browser_download_url));
 
   // GitHub 会重命名含特殊字符 / 前后空格的资产名，如实说一声（响应里的 name 才是权威值）。
   if (asset.name && String(asset.name) !== assetName) {
-    out.push("说明：GitHub 把资产名从 " + assetName + " 改成了 " + String(asset.name) + "（响应里的 name 是权威值）。");
+    out.push("note: GitHub changed the asset name from " + assetName + " to " + String(asset.name) + " (the name in the response is authoritative).");
   }
 
   out.push("");
-  out.push("本地文件：" + file + (res.size !== null && res.size !== undefined ? "（" + res.size + " 字节）" : ""));
+  out.push("local file: " + file + (res.size !== null && res.size !== undefined ? " (" + res.size + " bytes)" : ""));
   const localHex = res.sha256;
   const remote = parseDigest(asset.digest);
-  if (localHex) out.push("本地 sha256：" + localHex);
+  if (localHex) out.push("local sha256: " + localHex);
   if (remote && remote.algorithm === "sha256" && localHex) {
-    out.push("远端 sha256：" + remote.hex);
+    out.push("remote sha256: " + remote.hex);
     out.push(
       remote.hex === localHex
-        ? "结论：**字节一致**——传上去的就是本地这个文件。"
-        : "结论：**不一致**——远端摘要与本地不同，请复核（并考虑用 verify-asset 再核一次）。",
+        ? "conclusion: **the bytes match** — what was uploaded is exactly this local file."
+        : "conclusion: **they differ** — the remote digest differs from the local one; please double-check (and consider verifying again with verify-asset).",
     );
   } else if (asset.digest) {
-    out.push("远端记的是 " + String(asset.digest) + "，不是可以比对的形式。");
+    out.push("the remote records " + String(asset.digest) + ", which is not a comparable form.");
   } else {
-    out.push("说明：响应里没有 digest 字段，这次上传的字节没有远端摘要可核对。");
-    out.push("      要与本地副本比对，用 githana_release(action=\"verify-asset\", tag=…, assetName=\"" + (asset.name || assetName) + "\", file=\"" + file + "\")。");
+    out.push("note: the response has no digest field, so there is no remote digest to check this upload's bytes against.");
+    out.push("      To compare against the local copy use githana_release(action=\"verify-asset\", tag=…, assetName=\"" + (asset.name || assetName) + "\", file=\"" + file + "\").");
   }
   return out.join("\n");
 }

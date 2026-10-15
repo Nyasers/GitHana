@@ -21,13 +21,13 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { contentsUrl, decodeText, formatBytes, TEXT_MAX } from "../../lib/repo.js";
 
 export const command = "read-file";
-export const summary = "读远端仓库某文件的内容";
+export const summary = "Read a file's content from a remote repository";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  path: z.string().describe("必填：仓库内文件路径（相对仓库根，如 README.md / src/app.js）"),
-  ref: z.string().optional().describe("可选：分支 / 标签 / 提交 SHA（缺省取默认分支）"),
+  path: z.string().describe("Required: file path inside the repository (relative to the repository root, e.g. README.md / src/app.js)"),
+  ref: z.string().optional().describe("Optional: branch / tag / commit SHA (defaults to the default branch)"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -37,39 +37,39 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const path = input?.path !== undefined && input?.path !== null ? String(input.path).trim() : "";
-  if (!path) return label + " 参数错误：path 必填（仓库内文件路径，相对仓库根）。";
+  if (!path) return label + " argument error: path is required (a file path inside the repository, relative to the repository root).";
   const ref = input?.ref !== undefined && input?.ref !== null ? String(input.ref).trim() : "";
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const r = await callRest([{ url: contentsUrl(repo, path, ref), timeoutMs }], { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
       return (
-        label + "：文件不存在或令牌不可见（" + repoLabel + " · " + path + (ref ? " · ref=" + ref : "") + "）。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + ": the file does not exist or is not visible to the token (" + repoLabel + " · " + path + (ref ? " · ref=" + ref : "") + ").\n" +
+        "GitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   // contents 端点：文件回对象，目录回数组。收到数组说明 path 指到了目录，给引导。
   if (Array.isArray(res.json)) {
     return (
-      label + "：path 指向的是一个**目录**，不是文件（" + path + "）。\n" +
-      "要看它的内容请用 githana_repo(action=\"read-dir\", path=\"" + path + "\"" + (ref ? ", ref=\"" + ref + "\"" : "") + ")。"
+      label + ": path points at a **directory**, not a file (" + path + ").\n" +
+      "To see its content use githana_repo(action=\"read-dir\", path=\"" + path + "\"" + (ref ? ", ref=\"" + ref + "\"" : "") + ")."
     );
   }
 
   const f = res.json && typeof res.json === "object" ? res.json : {};
   const size = Number.isFinite(Number(f.size)) ? Number(f.size) : null;
   const head =
-    label + "（" + repoLabel + " · " + (f.path || path) + (ref ? " · ref=" + ref : "") + "）：";
+    label + " (" + repoLabel + " · " + (f.path || path) + (ref ? " · ref=" + ref : "") + "):";
   const meta = [
-    "类型：" + (f.type || "?") + (size !== null ? " · 体积 " + formatBytes(size) : ""),
-    f.sha ? "blob sha：" + f.sha : "",
-    f.html_url ? "URL：" + f.html_url : "",
+    "type: " + (f.type || "?") + (size !== null ? " · size " + formatBytes(size) : ""),
+    f.sha ? "blob sha: " + f.sha : "",
+    f.html_url ? "URL: " + f.html_url : "",
   ].filter(Boolean);
 
   // 大文件：contents 端点不给正文（content 为空且 encoding 也不是 base64）。
@@ -82,8 +82,8 @@ export async function run(input, ctx, { label }) {
     return [
       head,
       ...meta.map((m) => "  " + m),
-      "正文未随响应返回：GitHub 的 contents 端点对约 1MB 以上的文件不内联正文（也可能这是特殊条目）。",
-      "取正文走 githana_api（原始字节，自行处理编码）：",
+      "The body was not returned with the response: GitHub's contents endpoint does not inline the body for files above roughly 1MB (or this may be a special entry).",
+      "To fetch the body go through githana_api (raw bytes; handle the encoding yourself):",
       "  githana_api(path=\"" + rawPath + "\", repo=\"" + repo + "\")",
     ].join("\n");
   }
@@ -93,14 +93,14 @@ export async function run(input, ctx, { label }) {
     return [
       head,
       ...meta.map((m) => "  " + m),
-      "这是二进制文件（解出的字节含 NUL）：正文不在这里展示，避免吐乱码。",
-      "要原始内容请走 githana_api 取 raw。",
+      "This is a binary file (the decoded bytes contain NUL): the body is not shown here, to avoid emitting garbage characters.",
+      "For the raw content go through githana_api to fetch raw.",
     ].join("\n");
   }
 
   const truncated = text.length > TEXT_MAX;
   const out = [head, ...meta.map((m) => "  " + m), ""];
-  out.push("—— 正文" + (truncated ? "（截断，共 " + text.length + " 字符）" : "（" + text.length + " 字符）") + " ——");
-  out.push(truncated ? text.slice(0, TEXT_MAX) + "\n…（截断）" : text);
+  out.push("—— body" + (truncated ? " (truncated, " + text.length + " chars total)" : " (" + text.length + " chars)") + " ——");
+  out.push(truncated ? text.slice(0, TEXT_MAX) + "\n…(truncated)" : text);
   return out.join("\n");
 }
