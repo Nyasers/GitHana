@@ -20,11 +20,12 @@
  *     会话内取消即停 / App 重载后从 `ctx.tasks.list()` 恢复）落在
  *     tools/actions/run/watch.js 与 tools/lib/tasks.js 里。
  *
- * ## `download` 进 enum，但网络那一半不可用
+ * ## `download` 走二进制通道
  *
- * 参数形态清楚（runId + 要日志还是产物 + 产物名），跑不通的是二进制通道（三条硬限制见
- * tools/lib/transfer.js）。它的回报不是一句「做不到」，而是**产物清单 + 地址 + 限制 + 替代做法**
- * ——产物清单本身是纯 JSON，完全可用。
+ * 日志（`what=logs`）是 api.github.com 上的一个 zip 字节流（不打 302）；产物
+ * （`what=artifacts`）会 302 到 `*.blob.core.windows.net`（Azure 存储，子域是账号名，由 worker 的
+ * 后缀白名单放行）。两条都由 worker 流式写盘——不按 UTF-8 解码、不截断。机制与边界见
+ * tools/lib/transfer.js。
  *
  * 权限：external_side_effect——rerun / cancel / delete 都会改远端状态（重跑会占用 CI 额度、
  * 取消会中断作业、删除会抹掉日志与产物），watch 会在宿主里起一个后台任务并回投本会话，
@@ -50,7 +51,7 @@ export const description = [
   "action=list / view / watch / rerun / cancel / delete / download。",
   "rerun 与 cancel 是**同步触发**（回执写「已触发」，不等 CI 跑完）；",
   "watch 是任务型：它返回宿主后台任务句柄（不等结论），CI 到终态时结论回投本会话。",
-  "download 本期做不到（二进制通道不存在，回执里给产物清单与替代做法）。",
+  "download 走二进制通道：logs 取整个 run 的 zip，artifacts 取产物 zip，都流式写盘。",
   "工作流本身在 githana_workflow，缓存清理由 githana_cache，发布在 githana_release，",
   "仓库 / PR / issue / 标签在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",

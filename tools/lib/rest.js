@@ -35,6 +35,22 @@
  * 才带上它——那个对象只在 `--permission` 生效时才有，正是「本进程在权限模型下」的现成判据。
  * 源码树里跑（无权限模型）不加，装机后跑（AppHost）才加。
  *
+ * ## 二进制通道要读本地文件 / 写本地文件，放行项按请求现算
+ *
+ * worker 是我们 spawn 的，所以宿主的许可根不约束它——但那不等于它能自由读写：权限模型下没放行的
+ * 路径一样读不到。所以 spawn 之前扫一遍本批请求里点名的路径（`file` 是读、`toFile` 是写），
+ * 按**目录**补 `--allow-fs-read=<dir>` / `--allow-fs-write=<dir>`。
+ *
+ * 放行粒度是目录而不是文件：node 的这两个旗标只收目录（给文件路径不生效）。于是「传 / 收哪个
+ * 文件」这件事只有调用方说了算，我们只是把它指名的那个目录开一道门——不猜、不扩大（不会去放行
+ * 盘根）。同一批里要读写的路径各自成项，重复目录只补一次。
+ *
+ * 这两个旗标与 `--allow-net` 一样，**只在权限模型下合法**（单独给报 `ERR_MISSING_OPTION`），
+ * 所以与它同进同退，不由本次请求是否含路径决定。
+ *
+ * 令牌不经这条路径：worker 的 stdin 里有 token，而 argv 里只有本地目录（可能出现在进程列表里，
+ * 但那不是秘密——它是调用方自己给的文件路径）。
+ *
  * ## 为什么每次调用 spawn 一次
  *
  * worker 是无状态 HTTP 执行体：一次工具调用的全部请求打包成数组交给它，它顺序执行、
@@ -101,15 +117,52 @@ function normalizeResult(r, index) {
     pages: typeof o.pages === "number" ? o.pages : undefined,
     link: o.link || null,
     error: typeof o.error === "string" ? o.error : null,
+    // 二进制通道的两组字段：`bytes` 是写盘写进去的字节数（下载侧），`code`/`size` 是失败时的
+    // 可判据（file_unreadable / file_too_large / target_exists / target_unwritable…），
+    // 调用方据它拼可读文案而不是去解析英文错误串；`sha256` 是上传时顺带算的本地摘要。
+    bytes: typeof o.bytes === "number" ? o.bytes : null,
+    code: typeof o.code === "string" ? o.code : null,
+    size: typeof o.size === "number" ? o.size : null,
+    sha256: typeof o.sha256 === "string" ? o.sha256 : null,
   };
+}
+
+/**
+ * 从一批请求里收集要放行的本地目录。
+ *
+ * `file` 是**读**（上传时 worker 要读它）、`toFile` 是**写**（下载时 worker 要写它）。
+ * 两条都只取所在**目录**：node 的 `--allow-fs-read/write` 只收目录，给文件路径不生效。
+ *
+ * @param {Array<object>} list 请求数组
+ * @returns {{ read: string[], write: string[] }}
+ */
+function collectFsGrants(list) {
+  const read = new Set();
+  const write = new Set();
+  for (const req of list) {
+    if (!req || typeof req !== "object") continue;
+    if (typeof req.file === "string" && req.file !== "") {
+      const dir = path.dirname(path.resolve(req.file));
+      if (dir) read.add(dir);
+    }
+    if (typeof req.toFile === "string" && req.toFile !== "") {
+      const dir = path.dirname(path.resolve(req.toFile));
+      if (dir) write.add(dir);
+    }
+  }
+  return { read: [...read], write: [...write] };
 }
 
 /**
  * 执行一批 REST 请求。
  *
  * @param {Array<{ id?: string|number, method?: string, url: string, headers?: object,
- *   json?: any, form?: object, body?: string, auth?: boolean, timeoutMs?: number,
- *   paginate?: boolean, maxPages?: number }>} requests
+ *   json?: any, form?: object, body?: string, file?: string, contentType?: string,
+ *   maxFileBytes?: number, toFile?: string, overwrite?: boolean,
+ *   auth?: boolean, timeoutMs?: number, paginate?: boolean, maxPages?: number }>} requests
+ *   `file` 是**二进制请求体**（本地绝对路径，worker 流式读它、原样发出去，带显式
+ *   Content-Length）；`toFile` 是**二进制响应体**（本地绝对路径，worker 流式写它，不按 UTF-8
+ *   解码）。两者与 json / form / body 互斥，且会触发对相应目录的 spawn 放行（见 collectFsGrants）。
  * @param {{ token?: string, timeoutSec?: number }} [options]
  *   token 缺省取进程内缓存（DPAPI 解密结果）；显式传 "" 表示不带凭据（OAuth 端点的占位值
  *   由调用方传固定常量，不走这里）。
@@ -165,6 +218,13 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
     // Node 权限模型拒在 DNS 那一步。但它只在权限模型下合法，所以按 process.permission 判。
     const args = [];
     if (process.permission) args.push("--allow-net");
+    // 二进制通道的读写放行：按本批请求点名的路径补对应目录（见 collectFsGrants 与文件头注）。
+    // 与 --allow-net 同门槛——这三个都是权限模型下的放行项，无权限模型时给了会启动失败。
+    if (process.permission) {
+      const grants = collectFsGrants(list);
+      for (const dir of grants.read) args.push("--allow-fs-read=" + dir);
+      for (const dir of grants.write) args.push("--allow-fs-write=" + dir);
+    }
     args.push(worker);
     try {
       child = spawn(process.execPath, args, {
@@ -270,11 +330,26 @@ export function webUrl(pathAndQuery) {
   return "https://github.com" + (p.startsWith("/") ? p : "/" + p);
 }
 
+/**
+ * uploads.github.com 的地址（发布资产上传端点）。
+ *
+ * GitHub 把资产上传单独摆在 uploads 域上，与 api.github.com 同凭据但不同主机——所以它既是一条
+ * 独立的 URL 拼法，也是 worker 出站白名单里单独的一格。
+ */
+export function uploadsUrl(pathAndQuery) {
+  const p = String(pathAndQuery || "");
+  return "https://uploads.github.com" + (p.startsWith("/") ? p : "/" + p);
+}
+
 /** 单请求的便捷入口：返回归一化结果（失败时 ok=false 且带 error/status）。 */
 export async function request(one, options) {
   const r = await callRest([one], options);
-  if (!r.ok) return { ok: false, status: null, json: null, text: "", error: r.message };
-  return r.results[0] || { ok: false, status: null, json: null, text: "", error: "无结果" };
+  // 基础设施失败的形状与 normalizeResult 对齐（含二进制通道的 bytes / code / size），
+  // 这样调用方不必为「失败来自 worker 还是来自 GitHub」写两套取值。
+  if (!r.ok) {
+    return { ok: false, status: null, json: null, text: "", error: r.message, bytes: null, code: null, size: null };
+  }
+  return r.results[0] || { ok: false, status: null, json: null, text: "", error: "无结果", bytes: null, code: null, size: null };
 }
 
 /**

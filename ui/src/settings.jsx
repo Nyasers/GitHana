@@ -799,7 +799,7 @@ function GitHanaSettings() {
             <SettingRow
               label="允许访问的域名"
               control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>}
-              hint="不在此列的域名一律拒绝，不发请求。"
+              hint="主动请求只打这些域；下载时的 302 跳转另有一份更窄的白名单（release-assets.githubusercontent.com / objects.githubusercontent.com / *.blob.core.windows.net）。"
             />
             <SettingRow label="数据目录" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
           </SettingsStack>

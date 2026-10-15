@@ -9,8 +9,8 @@
  * ## 两处与 gh 的差别，如实写在输出里
  *
  *   1. **不带资产**：gh 的 `gh release create <tag> <files>...` 会顺手把文件作为资产上传，
- *      而上传通道本期不可用（见 tools/lib/transfer.js 的三条硬限制）。所以本动词只建 release
- *      本体，`upload` 是独立一步——合成一次调用会让「建了但资产没上去」变成半途状态。
+ *      本动词只建 release 本体，上传是独立的一步（`upload`）。合成一次调用会让「建了但资产没上去」
+ *      变成半途状态，而这里没有回滚可做。
  *   2. **`--verify-tag` 不声明**：那个开关是「tag 不存在就拒绝」，判据在 GitHub 侧
  *      （`POST /releases` 对不存在的 tag 本就按 `target_commitish` 建 tag），在本地再判一次
  *      等于把同一条规则实现两遍，且两遍可能不一致。
@@ -101,6 +101,6 @@ export async function run(input, ctx, { label }) {
   if (rel.target_commitish) out.push("目标：" + rel.target_commitish);
   if (rel.published_at) out.push("发布于：" + fmtTime(rel.published_at));
   if (rel.html_url) out.push("URL：" + rel.html_url);
-  out.push("说明：不带资产。资产上传通道本期不可用（见 githana_release(action=\"upload\") 的回报）。");
+  out.push("说明：不带资产。要挂产物请接着调 githana_release(action=\"upload\", tag=\"" + (rel.tag_name || tag) + "\", file=\"<本地文件绝对路径>\")。");
   return out.join("\n");
 }
