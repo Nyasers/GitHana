@@ -27,7 +27,8 @@ export const description = [
   "GitHana 本地 git：在指定仓库里执行 git 操作。",
   "action=exec（任意 git 子命令透传）/ commit（提交，自动 Co-authored-by + OpenPGP 签名）",
   "/ push（推送，force 映射 --force-with-lease）。",
-  "GitHub 远端操作在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
+  "GitHub 远端操作在 githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
+  "githana_workflow / githana_cache / githana_label，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 

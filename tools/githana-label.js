@@ -33,7 +33,8 @@ export const description = [
   "GitHana GitHub 标签：列 / 建 / 改 / 删仓库标签，或从别的仓库整套搬过来。",
   "action=clone / create / edit / delete / list。",
   "clone 的 repo 是目标、fromRepo 是源；edit 的 name 是定位、改名用 newName；delete 需 confirm=true。",
-  "给 issue 打标签用 githana_issue(action=\"edit\")，PR 的用 githana_pr(action=\"edit\")。",
+  "给 issue 打标签用 githana_issue(action=\"edit\")，PR 的用 githana_pr(action=\"edit\")；",
+  "发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，其余端点走 githana_api。",
   "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
 ].join(" ");
 

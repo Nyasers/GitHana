@@ -8,10 +8,11 @@
  * apply / default.apply / 默认函数，两种都导出）。apply 完成注册后立即返回，不等任何长活。
  *
  * 工具面按 gh 的组分成名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr
- * （Pull Request）/ githana_issue（Issue）/ githana_label（标签）/ githana_api（任意 REST 与
- * GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body` 在平表里同键
- * 不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity D1 / D2 与
- * tools/lib/surface.js 的装配路径）。
+ * （Pull Request）/ githana_issue（Issue）/ githana_release（发布）/ githana_run（Actions run）/
+ * githana_workflow（工作流）/ githana_cache（构建缓存）/ githana_label（标签）/ githana_api
+ * （任意 REST 与 GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body`
+ * 在平表里同键不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity
+ * D1 / D2 与 tools/lib/surface.js 的装配路径）。
  *
  * 与 v1「full-access 插件」的差别（本次重制的核心）：
  *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
@@ -31,6 +32,10 @@
  *   - GitHub 域的 HTTPS 也走子进程：REST worker 由 tools/lib/rest.js 用 process.execPath
  *     拉起，**spawn 时显式补 `--allow-net`**（权限模型会经 NODE_OPTIONS 传染给子进程，
  *     而放行项不会跟着走）。这一层不走清单的 network 声明——那是宿主代发，令牌会穿 IPC。
+ *   - 后台任务面：`githana_run(action="watch")` 需要清单能力 `app/tasks.manage`
+ *     （宿主授予后才给 ctx.tasks）。它用 ctx.tasks.create 建会话级任务、把盯守坐标写进
+ *     metadata.githana，并在 apply 阶段用 ctx.tasks.list() 把未终结的任务接回来
+ *     （见 tools/lib/tasks.js）。
  *
  * 数据与配置：
  *   - ctx.dataDir = {HANA_HOME}/app-data/githana（隔离 gitconfig / 加密的签名密钥 / 公钥落盘）。
@@ -42,6 +47,10 @@ import * as githanaGit from "./tools/githana-git.js";
 import * as githanaRepo from "./tools/githana-repo.js";
 import * as githanaPr from "./tools/githana-pr.js";
 import * as githanaIssue from "./tools/githana-issue.js";
+import * as githanaRelease from "./tools/githana-release.js";
+import * as githanaRun from "./tools/githana-run.js";
+import * as githanaWorkflow from "./tools/githana-workflow.js";
+import * as githanaCache from "./tools/githana-cache.js";
 import * as githanaLabel from "./tools/githana-label.js";
 import * as githanaApi from "./tools/githana-api.js";
 
@@ -50,7 +59,8 @@ import * as githanaApi from "./tools/githana-api.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
-import { setSecretLoader, setFreshChecker, primeToolContext } from "./tools/lib/context.js";
+import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
+import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
 import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
@@ -67,13 +77,17 @@ function resolveInstallDir() {
 }
 
 /** 工具注册表（顺序即注册顺序；name 全局唯一，v2 不加前缀）。
- *  本批六个名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr（Pull Request）
- *  / githana_issue（Issue）/ githana_label（标签）/ githana_api（逃生门）。
+ *  十个名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr（Pull Request）
+ *  / githana_issue（Issue）/ githana_release（发布）/ githana_run（Actions run）/
+ *  githana_workflow（工作流）/ githana_cache（构建缓存）/ githana_label（标签）/
+ *  githana_api（逃生门）。工具目录与 spec gh-cli-parity AC1 一致。
  *  action 表与路由在 tools/lib/surface.js，跨工具的动词索引在 tools/lib/verbs.js，
- *  实现按动词拆在 tools/actions/{git,repo,pr,issue,label}/。
- *  下批（1c）：githana_release / githana_run / githana_workflow / githana_cache。
+ *  实现按动词拆在 tools/actions/{git,repo,pr,issue,release,run,workflow,cache,label}/。
  *  GPG 的生成与公钥查看不在工具面（设置页动作，见 lib/routes/actions.js）。 */
-const TOOLS = [githanaGit, githanaRepo, githanaPr, githanaIssue, githanaLabel, githanaApi];
+const TOOLS = [
+  githanaGit, githanaRepo, githanaPr, githanaIssue, githanaRelease,
+  githanaRun, githanaWorkflow, githanaCache, githanaLabel, githanaApi,
+];
 
 /**
  * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
@@ -114,7 +128,7 @@ function toToolResult(value) {
 }
 
 /**
- * App v2 主入口。注册 6 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
+ * App v2 主入口。注册 10 个工具 + 三条后端路由后立即返回；返回 disposer 供卸载/重载收尾。
  */
 export function apply(ctx) {
   const dataDir = ctx && typeof ctx.dataDir === "string" && ctx.dataDir ? ctx.dataDir : null;
@@ -142,6 +156,11 @@ export function apply(ctx) {
   // 才流转到 initToolContext（异步），而 dispose 阶段要同步读 dataDir。
   primeToolContext(appCtx);
 
+  // 宿主后台任务面（`githana_run(action="watch")` 用）：登记一次，工具调用时从单例同步取用。
+  // 宿主只在授予 app/tasks.manage 时才给 ctx.tasks——拿不到就登记 null，调用时会报可读错误
+  // （见 tools/lib/tasks.js 的 taskCapabilityError），不空转。
+  primeTaskSurface(ctx.tasks, log);
+
   // 凭据不进宿主设置表，而是加密落 App 数据目录（lib/secret.js，后端可插拔）。
   // 解密是异步的，而工具调用需要在发请求前同步知道“有没有令牌”；挂在 initToolContext
   // 首次调用之后，只跑一次。
@@ -149,6 +168,9 @@ export function apply(ctx) {
   // 令牌保活：initToolContext 每次都跑，但只在「剩余有效期不足 5 分钟」时才真正发刷新请求
   // （单飞，失败不抛——无其它凭据可降级，后续调用会如实报未授权）。
   setFreshChecker(() => ensureFresh());
+  // 恢复后台任务前先把上下文初始化一次（首次会跑 DPAPI 解密把令牌放进进程缓存）：
+  // 恢复出来的轮询器第一跳就要发 GitHub 请求，而 apply 阶段还没有任何工具调用替它做这件事。
+  setTaskPreparer(() => initToolContext(appCtx));
 
   const disposers = TOOLS.map((mod) =>
     ctx.tools.register({
@@ -162,6 +184,14 @@ export function apply(ctx) {
     }),
   );
   log("info", `工具注册完成（${TOOLS.length} 个）：${TOOLS.map((m) => m.name).join(", ")}`);
+
+  // 未终结的后台任务（如 `githana_run(action="watch")` 的盯守）在 App 换代后从**宿主任务记录**
+  // 里接回来：坐标写在 metadata.githana，各动词注册的恢复实现按 kind 认领。这**不在回调内等**
+  // （那条纪律只约束工具回调）——但也不必阻塞 apply：恢复失败只记日志，任务记录仍在那里，
+  // 下一个实例还会再试一次。
+  void Promise.resolve()
+    .then(() => resumePendingTasks())
+    .catch((e) => log("warn", "恢复未终结后台任务异常：" + String((e && e.message) || e)));
 
   let unregisterRoutes = null;
   if (ctx.routes && typeof ctx.routes.register === "function") {
@@ -185,6 +215,10 @@ export function apply(ctx) {
   return () => {
     if (disposed) return;
     disposed = true;
+    // 先停进程内的定时器：App 卸载 / 重载后本进程不再有任何东西推进那些任务，
+    // 留着定时器只会往一个已经换代的任务面上写。**宿主任务记录不动**——它是恢复的事实源，
+    // 下一个实例会在 apply 里用 ctx.tasks.list() 把未终结的记录接回去（见 tools/lib/tasks.js）。
+    try { stopAllPollers(); } catch { /* 忽略 */ }
     for (const d of disposers) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }

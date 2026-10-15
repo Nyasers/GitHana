@@ -171,6 +171,7 @@ for (const p of platformsToCheck) checkPlatformVendor(p);
 for (const rel of [
   ["tools/lib/rest.worker.mjs", "GitHub REST 执行体，构建时会平铺到 bin/rest.worker.mjs"],
   ["tools/lib/gpg.shim.mjs", "签名 shim 源（构建时打包为 bin/gpg.shim.mjs，OpenPGP.js 运行期外置）"],
+  ["tools/lib/git-remote-helper.mjs", "git remote helper 源（构建时打包为 bin/git-remote-helper.mjs，运行期由包装脚本拉起）"],
   ["node_modules/openpgp/dist/node/openpgp.min.mjs", "OpenPGP.js 库文件源（构建时原样投影到 bin/openpgp.min.mjs）"],
   ["node_modules/zod/index.js", "zod 库文件源（构建时由 build-entries 打成 bin/zod.min.mjs，app.mjs 运行期外置）"],
 ]) {
