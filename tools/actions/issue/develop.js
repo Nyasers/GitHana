@@ -137,9 +137,12 @@ export async function run(input, ctx, { label }) {
   const oid = refRes.json && refRes.json.object && refRes.json.object.sha ? String(refRes.json.object.sha) : "";
   if (!oid) return label + "：分支 " + base + " 的引用响应里没有 object.sha，无法确定起点。";
 
-  // 起点用 oid（拿得到就一定用它，比 repositoryId 更准）；repositoryId 只在拿不到 oid 时才需要，
-  // 而上面已经保证了 oid 非空——所以变量集是固定的，文档形态也只有一种。
+  // 起点用 oid（拿得到就一定用它，比 repositoryId 更准）；repositoryId 拿得到就一并带上。
+  // 变量集必须与文档形态**逐字对齐**：`developMutation` 声明了 `$repoId: ID!` 就一定要在这里给出
+  // 值，否则 GraphQL 报 "Variable $repoId of required type ID! was not provided"（见上方注释）；
+  // 反过来，仓库没有 node_id 时文档里不声明它，这里也就**不能**多传一个未声明的键。
   const variables = { issueId: issueNodeId, name, oid };
+  if (repoNodeId) variables.repoId = repoNodeId;
   const g = await graphql(developMutation(!!repoNodeId), variables, { timeoutSec });
   if (g.error) {
     // 分支已存在是这条路上最常见的失败：GitHub 报 "already exists"，单独给引导。

@@ -95,12 +95,29 @@ export function reviewSummary(reviews) {
  * conclusion 为空表示还没跑完（status 仍是 queued / in_progress）；success / neutral / skipped
  * 都算通过——neutral 与 skipped 不是失败，把它们算进失败会让「能不能合」判错。
  *
+ * ## 截断：用 `total_count` 如实说话，不为此加分页
+ *
+ * 两个调用方都请求 `?per_page=100` 且不分页，所以 `check_runs` 最多 100 条。GitHub 在这个
+ * 信封里给了权威的 `total_count`（总条数，与当前页无关）。超过一页时**不能**把本页计数当成全量：
+ * 第 101 条之后的失败会被漏掉，汇总数偏低——极端情况下把失败报成 0，让「能不能合」判反。
+ *
+ * 所以：`total_count` 大于本页条数时，注里写明「共 N 条、本页只统计了前 M 条」。这里**不引入
+ * 分页循环**——那会把一次调用变成多次，代价与收益不成比例；如实标注截断、让调用方自己决定
+ * 要不要用 `githana_api(paginate=true)` 深挖，比悄悄给一个偏低的数好。
+ *
  * @param {*} json `GET /commits/{ref}/check-runs` 的响应体
- * @returns {{ text: string, runs: Array<object>, failed: number, pending: number }}
+ * @returns {{ text: string, runs: Array<object>, failed: number, pending: number, truncated: boolean, totalCount: number }}
  */
 export function summarizeCheckRuns(json) {
   const runs = json && Array.isArray(json.check_runs) ? json.check_runs : [];
-  if (runs.length === 0) return { text: "无检查（check-runs 为空）", runs, failed: 0, pending: 0 };
+  // total_count 缺省/非法时回落到本页条数（旧形态与异常响应都不因为缺这个字段而报错）。
+  const rawTotal = json && json.total_count !== undefined && json.total_count !== null ? Number(json.total_count) : NaN;
+  const totalCount = Number.isFinite(rawTotal) && rawTotal >= 0 ? Math.floor(rawTotal) : runs.length;
+  const truncated = totalCount > runs.length;
+
+  if (runs.length === 0) {
+    return { text: "无检查（check-runs 为空）", runs, failed: 0, pending: 0, truncated: false, totalCount };
+  }
 
   let failed = 0;
   let pending = 0;
@@ -112,8 +129,12 @@ export function summarizeCheckRuns(json) {
     else failed += 1;
   }
   const text =
-    "共 " + runs.length + " 项（通过 " + passed + " · 失败 " + failed + " · 未完成 " + pending + "）";
-  return { text, runs, failed, pending };
+    "共 " + runs.length + " 项（通过 " + passed + " · 失败 " + failed + " · 未完成 " + pending + "）" +
+    (truncated
+      ? "（GitHub 共 " + totalCount + " 条，本次只取了前 " + runs.length + " 条，上面的计数不含其余 " +
+        (totalCount - runs.length) + " 条）"
+      : "");
+  return { text, runs, failed, pending, truncated, totalCount };
 }
 
 /**

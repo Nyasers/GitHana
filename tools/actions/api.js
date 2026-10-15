@@ -47,10 +47,26 @@ export const schema = {
     ),
   // 取值域写成 enum：本工具只有一个面，没有「另一个面收别的值」这件事要表达，
   // 非法值由参数校验当场拒（不必像收敛前那样留给 run() 好指向另一个面）。
+  //
+  // 但归一化必须在**进 enum 之前**完成：收敛前 method 由 run() 里的 `String(x).toUpperCase()`
+  // 归一，小写 `"post"` 是能用的；直接挂 enum 会把它当成非法值拒掉，这是一处行为回归。
+  // `z.preprocess` 正是「先归一、再校验」的形状（它编译成 pipe(input: transform, output: enum)），
+  // 于是 `"post"` → `"POST"` 被接受，而 `"TRACE"` / 数字 / null 归一后仍不在 enum 里，
+  // 照样被拒——归一化不会放过非法值。
+  //
+  // 为什么不写成 `z.string().transform(...).pipe(z.enum(...))`：模型面 `parameters` 由
+  // `z.toJSONSchema(…, { io: "input" })` 投影，而投影在 `io: "input"` 下**只有当 pipe 的输入侧是
+  // transform 时才取输出侧**（见 zod 的 pipeProcessor）。`z.preprocess` 的输入侧恰是 transform，
+  // 所以模型面仍看得见 enum 与这段描述；换那种写法会把取值域投影成一个光秃秃的 string。
   method: z
-    .enum(["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"])
+    .preprocess(
+      // 只归一字符串（大小写），不做 trim / 不做类型强转：`" POST "` 这种在收敛前也过不了
+      // fetch，别在这里悄悄把语义放宽。
+      (v) => (typeof v === "string" ? v.toUpperCase() : v),
+      z.enum(["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]),
+    )
     .optional()
-    .describe("HTTP 方法，缺省 GET；可用 GET / HEAD / POST / PATCH / PUT / DELETE"),
+    .describe("HTTP 方法，缺省 GET（大小写不敏感）；可用 GET / HEAD / POST / PATCH / PUT / DELETE"),
   repo: z.string().optional().describe("可选：仓库 owner/repo；传了就替换 path 里的 {owner}/{repo} 占位符"),
   body: z.object({}).loose().optional().describe("可选：请求体（JSON 对象），用于 POST / PATCH / PUT"),
   paginate: z.boolean().optional().describe("可选：跟随 Link 分页把数组结果合并（上限 10 页）"),
@@ -81,7 +97,8 @@ export async function run(input, ctx, { label }) {
     return label + " 参数错误：path 必须以 / 开头（收到：" + rawPath + "）。";
   }
 
-  // method 的取值域由 schema 保证（enum）；这里只做归一。
+  // method 的取值域由 schema 保证（enum，且已在 schema 里先归一大小写）；这里留下的 toUpperCase
+  // 只是兜底，走到这儿的值必然已是 enum 里的那一个。
   const method = String(input?.method || "GET").toUpperCase();
 
   let repo = null;

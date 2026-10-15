@@ -48,7 +48,9 @@ export async function run(input, ctx, { label }) {
   const headSha = pr.head && pr.head.sha ? String(pr.head.sha) : "";
 
   // reviews 与 check-runs 都取一次：一个是审查现状，一个是检查现状，缺任一条都判不出能不能合。
-  const batch = [{ id: "reviews", url: apiUrl(repo, "/pulls/" + numStr + "/reviews"), timeoutMs }];
+  // reviews 带 `paginate: true`：GitHub 默认一页 30 条，只读第一页时评审人一多就会漏掉
+  // 那条 CHANGES_REQUESTED，把「该不该动手」判反。同一端点 view / review 也是这么传的。
+  const batch = [{ id: "reviews", url: apiUrl(repo, "/pulls/" + numStr + "/reviews"), timeoutMs, paginate: true }];
   if (headSha) {
     batch.push({
       id: "checks",
