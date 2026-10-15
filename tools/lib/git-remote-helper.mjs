@@ -233,8 +233,8 @@ function loadToken() {
   const dataDir = readEnv(DATA_DIR_ENV);
   if (!dataDir) {
     fail(
-      "没有收到 " + DATA_DIR_ENV + "：无法定位 App 数据目录，读不到凭据。\n" +
-        "请从 GitHana 的工具面发起操作（本 helper 由 git 拉起，dataDir 由 App 注入）。",
+      "did not receive " + DATA_DIR_ENV + ": cannot locate the App data directory, so the credential cannot be read.\n" +
+        "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
   const file = path.join(dataDir, SECRET_FILE);
@@ -243,20 +243,20 @@ function loadToken() {
     rec = JSON.parse(fs.readFileSync(file, "utf8"));
   } catch (e) {
     fail(
-      "读凭据文件失败（" + file + "）：" + msgOf(e) + "\n" +
-        "请到 GitHana 设置页点「用 GitHub 登录」完成授权后重试。",
+      "failed to read the credential file (" + file + "): " + msgOf(e) + "\n" +
+        "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
   if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
     fail(
-      "凭据文件里没有可用的 OAuth 密文（" + file + "）。\n" +
-        "请到 GitHana 设置页点「用 GitHub 登录」完成授权后重试。",
+      "the credential file has no usable OAuth ciphertext (" + file + ").\n" +
+        "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
   if (rec.alg && rec.alg !== DPAPI_ALG) {
     fail(
-      "密文由 " + rec.alg + " 保护，本机后端是 " + DPAPI_ALG + "：无法解开（换机器或换用户了？）。\n" +
-        "请在本机重新点「用 GitHub 登录」。",
+      "the ciphertext is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).\n" +
+        "Click \"Sign in with GitHub\" again on this machine.",
     );
   }
   let payload = null;
@@ -264,15 +264,15 @@ function loadToken() {
     payload = JSON.parse(dpapiUnprotect(rec.cipher));
   } catch (e) {
     fail(
-      "解密凭据失败：" + msgOf(e) + "（换机器或换用户了？）。\n" +
-        "请到 GitHana 设置页重新点「用 GitHub 登录」。",
+      "failed to decrypt the credential: " + msgOf(e) + " (did you switch machine or user?).\n" +
+        "Go to the GitHana settings page and click \"Sign in with GitHub\" again.",
     );
   }
   const token = String((payload && payload.accessToken) || "");
   if (!token) {
     fail(
-      "凭据里没有 accessToken（授权记录不完整）。\n" +
-        "请到 GitHana 设置页点「用 GitHub 登录」重新授权。",
+      "the credential has no accessToken (the authorization record is incomplete).\n" +
+        "Go to the GitHana settings page, click \"Sign in with GitHub\" to authorize again.",
     );
   }
   return token;
@@ -298,21 +298,21 @@ function authHeader(token) {
  */
 function parseRemote(remoteUrl) {
   let s = String(remoteUrl || "").trim();
-  if (!s) fail("git 没有给出远端地址（argv 里只有模式参数，没有 <repository> / <URL>）。");
+  if (!s) fail("git did not provide a remote address (argv has only the mode argument, no <repository> / <URL>).");
   const schemeForm = /^[A-Za-z][A-Za-z0-9+.-]*::(.*)$/.exec(s);
   if (schemeForm) s = schemeForm[1];
   const httpForm = /^https?:\/\/[^/]+\/(.*)$/i.exec(s);
   if (httpForm) {
     const host = /^https?:\/\/([^/]+)\//i.exec(s);
     if (!host || host[1].toLowerCase() !== GITHUB_HOST) {
-      fail("本 helper 只服务 " + GITHUB_HOST + " 的 https 远端（收到：" + remoteUrl + "）。");
+      fail("this helper only serves https remotes on " + GITHUB_HOST + " (received: " + remoteUrl + ").");
     }
     s = httpForm[1];
   }
   s = s.replace(/^\/+/, "").replace(/\.git$/i, "").replace(/\/+$/, "");
   const parts = s.split("/").filter(Boolean);
   if (parts.length < 2) {
-    fail("无法从远端地址解析出 owner/repo：" + remoteUrl);
+    fail("cannot parse owner/repo out of the remote address: " + remoteUrl);
   }
   const owner = parts[0];
   const repo = parts[1];
@@ -384,25 +384,25 @@ async function githubFetch(url, token, { method = "GET", accept, contentType, bo
       const code = String((e && e.cause && e.cause.code) || (e && e.code) || "");
       if (code === "ERR_ACCESS_DENIED" || /ERR_ACCESS_DENIED/.test(msgOf(e))) {
         fail(
-          "本进程没有网络权限（ERR_ACCESS_DENIED）：连不上 " + GITHUB_HOST + "。\n" +
-            "这是 App 缺少网络放行——git 子进程的 NODE_OPTIONS 里没有 --allow-net。\n" +
-            "请从 GitHana 的工具面发起操作（由 App 注入该旗标）。",
+          "this process has no network permission (ERR_ACCESS_DENIED): cannot reach " + GITHUB_HOST + ".\n" +
+            "this means the App is missing the network grant — the git subprocess's NODE_OPTIONS has no --allow-net.\n" +
+            "start the operation from GitHana's tool surface (the App injects that flag).",
         );
       }
       // 只有「连接都没建立」才重试：那意味着请求没到达远端。
       const retriable = CONNECT_RETRIABLE.has(code);
       if (!retriable || i === attempts) {
         const attemptsNote =
-          i > 1 ? "（已试 " + i + " 次，每次都是 " + code + "）" : "";
-        fail("请求 " + url + " 失败" + attemptsNote + "：" + msgOf(e) + describeFetchCause(e));
+          i > 1 ? " (tried " + i + " times, always " + code + ")" : "";
+        fail("request to " + url + " failed" + attemptsNote + ": " + msgOf(e) + describeFetchCause(e));
       }
       lastErr = e;
-      warn("连接 " + GITHUB_HOST + " 失败（" + code + "），重建连接后重试（第 " + i + "/" + attempts + " 次）…");
+      warn("connecting to " + GITHUB_HOST + " failed (" + code + "); rebuilding the connection and retrying (attempt " + i + "/" + attempts + ")…");
       sleepSync(300 * i);
     }
   }
   /* c8 ignore next：循环要么返回要么 fail，到不了这里 */
-  fail("请求 " + url + " 失败：" + msgOf(lastErr));
+  fail("request to " + url + " failed: " + msgOf(lastErr));
 }
 
 /**
@@ -437,7 +437,7 @@ function describeFetchCause(e) {
     const code = x.code ? String(x.code) : "";
     const msg = x.message ? String(x.message) : "";
     if (code || msg) {
-      const bit = code && msg && !msg.includes(code) ? code + "（" + msg + "）" : code || msg;
+      const bit = code && msg && !msg.includes(code) ? code + " (" + msg + ")" : code || msg;
       if (bit && !parts.includes(bit)) parts.push(bit);
     }
     collect(x.cause, depth + 1);
@@ -446,28 +446,28 @@ function describeFetchCause(e) {
   collect(e, 0);
   const interesting = parts.filter((p) => p !== "fetch failed");
   if (interesting.length === 0) return "";
-  return "\n底层原因：" + interesting.join(" ← ");
+  return "\nunderlying cause: " + interesting.join(" ← ");
 }
 
 /** HTTP 状态 → 可读原因（401/403/404 各自说清可修之处）。 */
 function httpStatusReason(status) {
   if (status === 401) {
     return (
-      "GitHub 拒绝认证（401）：App 令牌已失效或被撤销。\n" +
-        "请到 GitHana 设置页重新点「用 GitHub 登录」后重试。"
+      "GitHub rejected authentication (401): the App token is invalid or has been revoked.\n" +
+        "Go to the GitHana settings page, click \"Sign in with GitHub\" again, then retry."
     );
   }
   if (status === 403) {
     return (
-      "GitHub 拒绝访问（403）：令牌在位，但授权范围不覆盖这次操作。\n" +
-        "推带 .github/workflows/ 改动的提交需要 `workflows: write`；" +
-        "私有仓库需要 `contents` 权限。请到 GitHana 设置页重新点「用 GitHub 登录」拿到新范围。"
+      "GitHub denied access (403): the token is present, but its authorization scope does not cover this operation.\n" +
+        "pushing commits that touch .github/workflows/ needs `workflows: write`; " +
+        "private repositories need the `contents` permission. Go to the GitHana settings page, click \"Sign in with GitHub\" again to get the new scope."
     );
   }
   if (status === 404) {
-    return "GitHub 报 404：仓库不存在、或令牌看不到它（私有仓库需要 contents 权限）。";
+    return "GitHub returned 404: the repository does not exist, or the token cannot see it (private repositories need the contents permission).";
   }
-  return "GitHub 返回 HTTP " + status + "。";
+  return "GitHub returned HTTP " + status + ".";
 }
 
 /**
@@ -476,9 +476,9 @@ function httpStatusReason(status) {
  * git 会把本进程的 stderr 原样显示给用户，所以这里就是「远端拒绝要能看见」的落点。
  */
 async function failWithRemoteError(what, url, res, buf) {
-  warn(httpStatusReason(res.status) + "\n（" + what + " " + url + "）");
+  warn(httpStatusReason(res.status) + "\n(" + what + " " + url + ")");
   const detail = String(buf || "").trim().slice(0, 800);
-  if (detail) warn("GitHub 响应原文：" + detail);
+  if (detail) warn("GitHub raw response: " + detail);
   process.exit(1);
 }
 
@@ -645,9 +645,9 @@ class StdinReader {
       }
       if (which === "idle") {
         fail(
-          "push 的请求体在 " + Math.round(idleLimitMs / 1000) + " 秒内既没有新字节、也没有结束（EOF）。\n" +
-            "本 helper 按 EOF 定界请求体，不会把没收完的 packfile 发出去（截断的 pack 会被远端拒绝）。\n" +
-            "若这次推送确实需要更久，请重试；反复出现请报给 GitHana 维护者。",
+          "the push request body neither produced new bytes nor ended (EOF) within " + Math.round(idleLimitMs / 1000) + " seconds.\n" +
+            "this helper delimits the request body by EOF, so it will not send an incompletely received packfile (a truncated pack would be rejected by the remote).\n" +
+            "if this push really does need longer, retry; if it keeps happening, report it to the GitHana maintainer.",
         );
       }
       parts.push(this.buf);
@@ -679,7 +679,7 @@ class StdinReader {
       const hex = this.buf.toString("ascii", off, off + 4);
       const len = Number.parseInt(hex, 16);
       if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
-        fail("取侧请求体里出现了非 pkt-line 字节（在偏移 " + off + " 读到 \"" + hex + "\"）：无法定界请求。");
+        fail("non-pkt-line bytes appeared in the fetch-side request body (read \"" + hex + "\" at offset " + off + "): cannot delimit the request.");
       }
       if (len === 0) {
         // flush-pkt：请求到此结束，把它一起发出去（smart HTTP 的请求体含这个 0000）。
@@ -745,9 +745,9 @@ async function relayFetch(remote, token) {
     if (firstRound) {
       if (!(await stdin.peek(REQUEST_FIRST_BYTE_TIMEOUT_MS))) {
         fail(
-          "stateless-connect " + SERVICE_UPLOAD + " 之后 git 没有送来任何请求字节（等待 " +
-            REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms 超时）。\n" +
-            "本 helper 走的是无状态中继形态；若 git 没在这根管道上写东西，远端服务无从发起。",
+          "after stateless-connect " + SERVICE_UPLOAD + " git sent no request bytes at all (timed out after " +
+            REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms).\n" +
+            "this helper relaying is stateless; if git writes nothing on this pipe, the remote service cannot start.",
         );
       }
       firstRound = false;
@@ -804,9 +804,9 @@ async function relayPush(remote, token) {
 
   if (!(await stdin.peek(REQUEST_FIRST_BYTE_TIMEOUT_MS))) {
     fail(
-      "connect " + SERVICE_RECEIVE + " 之后 git 没有送来任何请求字节（等待 " +
-        REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms 超时）。\n" +
-        "本 helper 走的是全双工中继形态；若 git 没在这根管道上写东西，远端服务无从发起。",
+      "after connect " + SERVICE_RECEIVE + " git sent no request bytes at all (timed out after " +
+        REQUEST_FIRST_BYTE_TIMEOUT_MS + "ms).\n" +
+        "this helper relaying is full-duplex; if git writes nothing on this pipe, the remote service cannot start.",
     );
   }
   // 只认 EOF：git 写完命令 + packfile 就关管道。不能按静默窗口定界——那会在 pack-objects
@@ -841,10 +841,10 @@ function parseArgs(argv) {
   const mode = String(argv[0] || "");
   if (mode !== MODE_FETCH && mode !== MODE_PUSH) {
     fail(
-      "没有收到运行模式（argv 第一个参数应为 \"" + MODE_FETCH + "\" 或 \"" + MODE_PUSH + "\"，收到：" +
-        (argv.length ? JSON.stringify(argv[0]) : "（空）") + "）。\n" +
-        "本 helper 由 git-remote-githana / git-remote-githana-push 包装脚本拉起，模式由它传入。\n" +
-        "请从 GitHana 的工具面发起操作（包装脚本由 tools/lib/remote-helper-shim.js 生成）。",
+      "no run mode received (argv[0] should be \"" + MODE_FETCH + "\" or \"" + MODE_PUSH + "\", but got: " +
+        (argv.length ? JSON.stringify(argv[0]) : "(empty)") + ").\n" +
+        "this helper is launched by the git-remote-githana / git-remote-githana-push wrapper scripts, which pass the mode.\n" +
+        "start the operation from GitHana's tool surface (the wrappers are generated by tools/lib/remote-helper-shim.js).",
     );
   }
   // git 传 <repository> [<URL>]：有第二个就用第二个，否则第一个本身就是地址。
@@ -883,7 +883,7 @@ async function main() {
       if (cmd.startsWith("connect ")) {
         const service = cmd.slice("connect ".length).trim();
         if (service !== SERVICE_RECEIVE) {
-          fail("push 侧只做 " + SERVICE_RECEIVE + "（收到：" + service + "）。");
+          fail("the push side only serves " + SERVICE_RECEIVE + " (received: " + service + ").");
         }
         // 空行 = 连接已建立；此后这根 stdin/stdout 就是 git 与远端服务之间的原生协议管道。
         writeOut(Buffer.from("\n", "utf8"));
@@ -895,7 +895,7 @@ async function main() {
     } else if (cmd.startsWith("stateless-connect ")) {
       const service = cmd.slice("stateless-connect ".length).trim();
       if (service !== SERVICE_UPLOAD) {
-        fail("取侧只做 " + SERVICE_UPLOAD + "（收到：" + service + "）。");
+        fail("the fetch side only serves " + SERVICE_UPLOAD + " (received: " + service + ").");
       }
       // 空行 = 连接已建立。
       writeOut(Buffer.from("\n", "utf8"));
@@ -904,9 +904,9 @@ async function main() {
     }
 
     // 没收到的命令 git 正常不会发；发了就记一条，不断流。
-    warn("收到未广告的命令：" + cmd + "（已忽略，连接继续）。");
+    warn("received an unadvertised command: " + cmd + " (ignored, connection continues).");
   }
 }
 
 const stdin = new StdinReader(0);
-main().catch((e) => fail("未捕获的失败：" + msgOf(e)));
+main().catch((e) => fail("uncaught failure: " + msgOf(e)));

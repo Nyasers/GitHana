@@ -14,7 +14,7 @@
  * 邮箱仍是 {id}+{login}@users.noreply.github.com。
  *
  * 调用点只有两处，且都走本文件的同一组函数（避免两处逻辑跑偏）：
- *   - tools/gpg-keygen.js（生成/轮换密钥时写隔离 gitconfig）
+ *   - lib/gpg-keygen.js（生成/轮换密钥时写隔离 gitconfig）
  *   - lib/routes/actions.js 的 /actions/identity（设置页「提交身份」）
  *
  * 身份不开放覆盖：插件不配置邮箱/名字（拒绝多余配置键），keygen 时一律自动推导。

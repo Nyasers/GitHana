@@ -47,14 +47,14 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_release";
 
 export const description = [
-  "GitHana GitHub 发布：查 / 建 / 删 release 与它的资产。",
-  "action=create / list / view / edit / delete / upload / download / delete-asset / verify / verify-asset。",
-  "upload 与 download 走二进制通道：upload 流式发本地文件到 uploads.github.com，download 流式写盘；",
-  "verify / verify-asset 做的是发布自身的摘要核对，不做来源证明；",
-  "edit 只改状态位（draft / prerelease / latest），改标题与正文走 githana_api。",
-  "仓库在 githana_repo，PR 在 githana_pr，issue 在 githana_issue，标签在 githana_label，",
-  "CI 在 githana_run / githana_workflow / githana_cache，本地 git 在 githana_git，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub releases: inspect / create / delete releases and their assets.",
+  "action=create / list / view / edit / delete / upload / download / delete-asset / verify / verify-asset.",
+  "upload and download use the binary channel: upload streams a local file to uploads.github.com, download streams to disk;",
+  "verify / verify-asset check the release's own digests and do not do provenance attestation;",
+  "edit only changes state bits (draft / prerelease / latest); changing the title or body goes through githana_api.",
+  "Repositories are in githana_repo, PRs in githana_pr, issues in githana_issue, labels in githana_label,",
+  "CI in githana_run / githana_workflow / githana_cache, local git in githana_git, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -77,7 +77,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 发布动作（create / list / view / edit / delete / upload / download / delete-asset / verify / verify-asset）：create 会新建发布与 tag，edit 会改状态位（非草稿 = 发布出去），delete 会删掉发布与它的资产（不可撤销），执行前请确认 action 与参数",
+    "GitHana release actions (create / list / view / edit / delete / upload / download / delete-asset / verify / verify-asset): create makes a new release and tag, edit changes state bits (non-draft = published), delete removes the release and its assets (irreversible) — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-release",
 };
 
@@ -104,15 +104,15 @@ export const modelFields = {
   tag: z
     .string()
     .optional()
-    .describe("release 的 tag（如 v1.2.0）：create / delete / upload / download / delete-asset / verify / verify-asset 上必填，view 上可缺省（缺省 = 最近一次发布的 release），edit 上可缺省（只与 releaseId 二选一）"),
+    .describe("release tag (e.g. v1.2.0): required on create / delete / upload / download / delete-asset / verify / verify-asset, optional on view (omitted = the most recently published release), optional on edit (mutually exclusive with releaseId, one of the two must be given)"),
   assetName: z
     .string()
     .optional()
-    .describe("资产文件名：delete-asset / verify-asset 上必填（要操作哪一个），download 上可缺省（缺省 = 该 release 的全部资产）"),
+    .describe("asset file name: required on delete-asset / verify-asset (which one to operate on), optional on download (omitted = every asset of that release)"),
   file: z
     .string()
     .optional()
-    .describe("本地文件绝对路径，按 action 取义：upload 上是要上传的那个文件（必填），verify-asset 上是要比对的本地副本（可选）"),
+    .describe("absolute path of a local file, by action: on upload it is the file to upload (required), on verify-asset it is the local copy to compare against (optional)"),
 };
 
 const surface = createSurface({

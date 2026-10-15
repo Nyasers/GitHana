@@ -43,14 +43,14 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_pr";
 
 export const description = [
-  "GitHana GitHub PR：查询与改动 Pull Request。",
+  "GitHana GitHub PR: query and modify Pull Requests.",
   "action=create / list / view / status / diff / checks / ready / merge / review / comment / close / reopen",
-  "/ revert / edit / checkout / lock / unlock / update-branch。",
-  "只读的取数用 list / view / status / diff / checks；ready 改草稿状态位（undo=true 反向转回草稿）。",
-  "本地 git 在 githana_git，仓库在 githana_repo，",
-  "issue 在 githana_issue，发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，",
-  "标签在 githana_label，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "/ revert / edit / checkout / lock / unlock / update-branch.",
+  "For read-only fetches use list / view / status / diff / checks; ready changes the draft state bit (undo=true flips it back to draft).",
+  "Local git is in githana_git, repositories in githana_repo,",
+  "issues in githana_issue, releases in githana_release, CI in githana_run / githana_workflow / githana_cache,",
+  "labels in githana_label, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -79,7 +79,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana PR 动作：多数动词会修改 GitHub 远端状态（创建 / 合并 / 评论 / 关闭 / 审查 / 编辑 / 锁定 / 更新分支 / 改草稿状态位），revert 与 checkout 还会改动本地仓库，执行前请确认 action 与参数",
+    "GitHana PR actions: most verbs modify remote GitHub state (create / merge / comment / close / review / edit / lock / update-branch / change draft state bit), and revert and checkout additionally modify the local repository — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-pr",
 };
 

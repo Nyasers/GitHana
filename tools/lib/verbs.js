@@ -66,7 +66,7 @@ export const VERB_INDEX = [
     name: "githana_api",
     commands: ["api"],
     // 单动词工具没有 action 可填：`name(action="api")` 是错的指路，所以它自己写明调用形态。
-    usage: "githana_api(path=\"/…\")——它是单动词工具，不填 action",
+    usage: "githana_api(path=\"/…\") — it is a single-verb tool, do not pass action",
   },
 ];
 

@@ -22,19 +22,19 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { workflowStateText } from "../../lib/ci.js";
 
 export const command = "list";
-export const summary = "列仓库里的工作流（默认含被停用的）";
+export const summary = "List workflows in the repository (disabled ones included by default)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  enabledOnly: z.boolean().optional().describe("可选：只看启用的（state=active；端点在本地按 state 筛，不靠查询参数）"),
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 30，上限 100（超过上限收敛到 100）"),
+  enabledOnly: z.boolean().optional().describe("Optional: only enabled ones (state=active; filtering by state happens locally, not through a query parameter)"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 30, max 100 (values above the max are clamped to 100)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 100"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(100).describe("返回条数，默认 30，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).max(100).describe("Number of results, default 30, max 100 (values above the max are clamped to 100)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -55,9 +55,9 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
-  if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   const body = res.json && typeof res.json === "object" ? res.json : {};
   const all = Array.isArray(body.workflows) ? body.workflows : [];
@@ -66,24 +66,24 @@ export async function run(input, ctx, { label }) {
 
   if (items.length === 0) {
     if (all.length === 0) {
-      return label + "（" + repoLabel + "）：这个仓库没有工作流（.github/workflows/ 下没有定义，或令牌不可见）。";
+      return label + " (" + repoLabel + "): this repository has no workflows (nothing defined under .github/workflows/, or not visible to the token).";
     }
-    return label + "（" + repoLabel + " · 仅启用）：没有启用的工作流（共 " + all.length + " 个，全部处于停用状态）。";
+    return label + " (" + repoLabel + " · enabled only): no enabled workflows (" + all.length + " in total, all disabled).";
   }
 
   const out = [
-    label + "（" + repoLabel + " · " + items.length + " 个" + (enabledOnly ? " · 仅启用" : "") +
-      (body.total_count !== undefined ? " / 共 " + body.total_count : "") + "）：",
+    label + " (" + repoLabel + " · " + items.length + (enabledOnly ? " · enabled only" : "") +
+      (body.total_count !== undefined ? " / " + body.total_count + " total" : "") + "):",
   ];
   for (const wf of items) {
-    out.push("  " + (wf.name || "（无名）") + "  " + workflowStateText(wf.state));
+    out.push("  " + (wf.name || "(unnamed)") + "  " + workflowStateText(wf.state));
     out.push(
-      "      ID：" + (wf.id !== undefined ? wf.id : "?") + " · 路径：" + (wf.path || "?") +
-      (wf.updated_at ? " · 更新 " + fmtTime(wf.updated_at) : ""),
+      "      ID: " + (wf.id !== undefined ? wf.id : "?") + " · path: " + (wf.path || "?") +
+      (wf.updated_at ? " · updated " + fmtTime(wf.updated_at) : ""),
     );
     if (wf.html_url) out.push("      " + String(wf.html_url));
   }
-  if (dropped > 0) out.push("（另有 " + dropped + " 个被停用的已按 enabledOnly 滤掉。）");
-  out.push("说明：ID 与路径（文件名）都能当其它动词的 workflow 参数（view / run / enable / disable）。");
+  if (dropped > 0) out.push("(" + dropped + " disabled ones were filtered out by enabledOnly.)");
+  out.push("note: both the ID and the path (file name) work as the workflow argument of the other verbs (view / run / enable / disable).");
   return out.join("\n");
 }

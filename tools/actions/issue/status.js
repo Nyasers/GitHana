@@ -15,7 +15,7 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { notAnIssueMessage, issueStateText, labelText, assigneeText } from "../../lib/issue.js";
 
 export const command = "status";
-export const summary = "issue 状态速览";
+export const summary = "Issue status at a glance";
 
 export const schema = {
   repo: params.repo,
@@ -34,11 +34,11 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/issues/" + numStr), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    if (res && res.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const issue = res.json && typeof res.json === "object" ? res.json : {};
@@ -48,22 +48,22 @@ export async function run(input, ctx, { label }) {
 
   const out = [];
   out.push(label + " issue #" + numStr + " · " + repoLabel);
-  out.push("标题：" + (issue.title || "（无标题）"));
-  out.push("状态：" + issueStateText(issue) + " · 作者：@" + ((issue.user && issue.user.login) || "?"));
-  out.push("标签：" + (labelText(issue) || "（无）"));
-  out.push("指派：" + (assigneeText(issue) || "（无）"));
-  if (issue.milestone && issue.milestone.title) out.push("里程碑：" + issue.milestone.title);
+  out.push("title: " + (issue.title || "(untitled)"));
+  out.push("state: " + issueStateText(issue) + " · author: @" + ((issue.user && issue.user.login) || "?"));
+  out.push("labels: " + (labelText(issue) || "(none)"));
+  out.push("assignees: " + (assigneeText(issue) || "(none)"));
+  if (issue.milestone && issue.milestone.title) out.push("milestone: " + issue.milestone.title);
   out.push(
-    "评论：" + (issue.comments !== undefined ? issue.comments : "?") + " 条" +
-    " · 创建 " + fmtTime(issue.created_at) +
-    (issue.updated_at ? " · 更新 " + fmtTime(issue.updated_at) : "") +
-    (issue.closed_at ? " · 关闭 " + fmtTime(issue.closed_at) : ""),
+    "comments: " + (issue.comments !== undefined ? issue.comments : "?") +
+    " · created " + fmtTime(issue.created_at) +
+    (issue.updated_at ? " · updated " + fmtTime(issue.updated_at) : "") +
+    (issue.closed_at ? " · closed " + fmtTime(issue.closed_at) : ""),
   );
   // 其它字段单独一行：没有就不打（"没有也算一种信息"靠的是不虚构，不是靠打一行空话）。
   const linked = [];
-  if (issue.active_lock_reason) linked.push("锁定理由 " + issue.active_lock_reason);
-  if (issue.locked === true && !issue.active_lock_reason) linked.push("已锁定（locked）");
-  if (linked.length) out.push("其它：" + linked.join(" · "));
-  if (issue.html_url) out.push("URL：" + issue.html_url);
+  if (issue.active_lock_reason) linked.push("lock reason " + issue.active_lock_reason);
+  if (issue.locked === true && !issue.active_lock_reason) linked.push("locked");
+  if (linked.length) out.push("other: " + linked.join(" · "));
+  if (issue.html_url) out.push("URL: " + issue.html_url);
   return out.join("\n");
 }

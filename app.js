@@ -201,7 +201,7 @@ export function apply(ctx) {
       // 经 App 自己的已认证路由转发。这里只有非机密摘要与账号状态——OAuth 令牌
       // 只能由 device flow 拿到（见 lib/oauth.js），页面永远不接触令牌明文。
       registerSettingsRoutes(app, { appCtx, dataDir });
-      // 设置页「手动档」：直接调对应实现的本体（生成走 tools/gpg-keygen.js 的 execute，
+      // 设置页「手动档」：直接调对应实现的本体（生成走 lib/gpg-keygen.js 的 execute，
       // 公钥查看走 lib/routes/pubkey.js），不另写一份并行逻辑。device flow 与 GPG 公钥
       // 发布也在这里（见 lib/routes/actions.js）。
       registerActionRoutes(app, { appCtx, dataDir });

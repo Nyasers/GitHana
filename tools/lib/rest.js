@@ -180,7 +180,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
       ok: false,
       results: [],
       message:
-        "REST worker 缺失（找不到 bin/rest.worker.mjs）：安装包不完整或布局与预期不一致，请重装本 App。",
+        "REST worker missing (bin/rest.worker.mjs not found): the installation is incomplete or its layout is not what was expected — reinstall this App.",
     };
   }
 
@@ -238,7 +238,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
       finish({
         ok: false,
         results: [],
-        message: "启动 REST worker 失败：" + String((e && e.message) || e),
+        message: "failed to start the REST worker: " + String((e && e.message) || e),
       });
       return;
     }
@@ -254,7 +254,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
       finish({
         ok: false,
         results: [],
-        message: "启动 REST worker 失败：" + String((e && e.message) || e),
+        message: "failed to start the REST worker: " + String((e && e.message) || e),
       });
     });
 
@@ -264,7 +264,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
           ok: false,
           results: [],
           message:
-            "GitHub REST 调用超时（" + sec + " 秒）：已终止。若属正常长任务，请增大 timeoutSec 后重试。",
+            "GitHub REST call timed out (" + sec + "s): aborted. If this is a legitimately long task, raise timeoutSec and retry.",
         });
         return;
       }
@@ -275,7 +275,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
           ok: false,
           results: [],
           message:
-            "REST worker 无输出（exit " + code + "）" + (diag ? "：\n" + diag : "。"),
+            "REST worker produced no output (exit " + code + ")" + (diag ? ":\n" + diag : "."),
         });
         return;
       }
@@ -289,12 +289,12 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
         finish({
           ok: false,
           results: [],
-          message: "REST worker 输出非 JSON：" + text.slice(0, 400),
+          message: "REST worker output is not JSON: " + text.slice(0, 400),
         });
         return;
       }
       if (parsed.fatal) {
-        finish({ ok: false, results: [], message: "REST worker 失败：" + String(parsed.fatal) });
+        finish({ ok: false, results: [], message: "REST worker failed: " + String(parsed.fatal) });
         return;
       }
       const results = Array.isArray(parsed.results) ? parsed.results.map(normalizeResult) : [];
@@ -349,7 +349,7 @@ export async function request(one, options) {
   if (!r.ok) {
     return { ok: false, status: null, json: null, text: "", error: r.message, bytes: null, code: null, size: null };
   }
-  return r.results[0] || { ok: false, status: null, json: null, text: "", error: "无结果", bytes: null, code: null, size: null };
+  return r.results[0] || { ok: false, status: null, json: null, text: "", error: "no result", bytes: null, code: null, size: null };
 }
 
 /**
@@ -367,12 +367,12 @@ export function errorDetail(result) {
           : String(e || ""),
       )
       .filter(Boolean)
-      .join("；");
-    return extra ? String(data.message) + "（" + extra + "）" : String(data.message);
+      .join("; ");
+    return extra ? String(data.message) + " (" + extra + ")" : String(data.message);
   }
   const first = String((result && result.text) || "")
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)[0];
-  return first || (result && result.error) || "未知错误";
+  return first || (result && result.error) || "unknown error";
 }

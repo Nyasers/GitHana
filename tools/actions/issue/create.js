@@ -16,22 +16,22 @@ import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure } from "../../lib/gh.js";
 
 export const command = "create";
-export const summary = "新建 issue";
+export const summary = "Create an issue";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  title: z.string().describe("issue 标题（必填）"),
-  body: z.string().optional().describe("可选：issue 正文（支持 Markdown 与中文）"),
-  labels: z.array(z.string()).optional().describe("可选：标签名数组（标签不存在时 GitHub 会 422）"),
-  assignees: z.array(z.string()).optional().describe("可选：指派人的登录名数组（不带 @）"),
+  title: z.string().describe("Issue title (required)"),
+  body: z.string().optional().describe("Optional: issue body (supports Markdown and Chinese)"),
+  labels: z.array(z.string()).optional().describe("Optional: array of label names (GitHub returns 422 if a label does not exist)"),
+  assignees: z.array(z.string()).optional().describe("Optional: array of assignee login names (without @)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "在 GitHub 远端新建一个 issue（可能同时打标签、指派给他人并触发通知）：修改 GitHub 远端状态且会通知相关人，执行前请确认 repo、标题与正文",
+    "Create a new issue on remote GitHub (may also apply labels, assign others and trigger notifications): modifies remote GitHub state and notifies the people involved, confirm repo, title and body before running",
   ruleId: "github-toolkit-issue-create",
 };
 
@@ -41,7 +41,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const title = input?.title !== undefined && input?.title !== null ? String(input.title).trim() : "";
-  if (!title) return label + " 参数错误：title 必填（issue 标题不能为空）。";
+  if (!title) return label + " argument error: title is required (the issue title cannot be empty).";
 
   const payload = { title };
   if (input?.body !== undefined && input?.body !== null && String(input.body).trim() !== "") {
@@ -52,19 +52,19 @@ export async function run(input, ctx, { label }) {
 
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
   const r = await callRest([{ method: "POST", url: apiUrl(repo, "/issues"), json: payload, timeoutMs }], { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次创建（422）。常见原因：标签名不存在、被指派人无权被指派\n" +
-        "（或不是协作者）、仓库禁用了 issue。\nGitHub 原文：" + errorDetail(res)
+        label + " execution failed: GitHub rejected this creation (422). Common causes: a label name does not exist, an assignee cannot be assigned\n" +
+        "(or is not a collaborator), or the repository has issues disabled.\nGitHub raw message: " + errorDetail(res)
       );
     }
     if (res && res.status === 410) {
-      return label + " 执行失败：仓库 " + repoLabel + " 的 issue 功能已关闭（410 Gone）。";
+      return label + " execution failed: issues are disabled for the repository " + repoLabel + " (410 Gone).";
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const issue = res.json && typeof res.json === "object" ? res.json : {};
@@ -86,17 +86,17 @@ export async function run(input, ctx, { label }) {
     }
   }
 
-  const out = [label + " 完成：", "issue #" + number + "：「" + title + "」（" + repoLabel + "）"];
-  if (issue.html_url) out.push("URL：" + issue.html_url);
-  if (payload.labels) out.push("标签：" + payload.labels.join(" · "));
-  if (payload.assignees) out.push("指派：" + payload.assignees.map((a) => "@" + a).join(" · "));
-  out.push("状态：" + String(issue.state || "open").toUpperCase());
+  const out = [label + " done:", "issue #" + number + ": \"" + title + "\" (" + repoLabel + ")"];
+  if (issue.html_url) out.push("URL: " + issue.html_url);
+  if (payload.labels) out.push("labels: " + payload.labels.join(" · "));
+  if (payload.assignees) out.push("assignees: " + payload.assignees.map((a) => "@" + a).join(" · "));
+  out.push("state: " + String(issue.state || "open").toUpperCase());
   out.push(
     appSlug
-      ? "App 归因：performed_via_github_app = " + appSlug + "（issue 页会显示 App 角标）"
+      ? "App attribution: performed_via_github_app = " + appSlug + " (the issue page will show the App badge)"
       : attributionChecked
-        ? "App 归因：issue 表示里 performed_via_github_app 为空（角标不显示；通常是令牌不是 GitHub App 的 user access token）"
-        : "App 归因：未能核对（查询 issue 表示失败，不影响 issue 已创建）",
+        ? "App attribution: performed_via_github_app is empty in the issue representation (no badge shown; usually because the token is not a GitHub App user access token)"
+        : "App attribution: could not be verified (fetching the issue representation failed; the issue was still created)",
   );
   return out.join("\n");
 }

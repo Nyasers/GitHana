@@ -19,7 +19,7 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage, issueStateText } from "../../lib/issue.js";
 
 export const command = "close";
-export const summary = "关闭 issue（可用 reopen 还原）";
+export const summary = "Close an issue (can be restored with reopen)";
 
 export const schema = {
   repo: params.repo,
@@ -28,15 +28,15 @@ export const schema = {
   reason: z
     .enum(["completed", "not_planned"])
     .optional()
-    .describe("关闭理由（默认 completed）：completed（已解决）/ not_planned（不打算做）"),
-  comment: z.string().optional().describe("可选：关闭时附一条说明评论（先评论再关闭，两次请求）"),
+    .describe("Close reason (default completed): completed (resolved) / not_planned (not going to be done)"),
+  comment: z.string().optional().describe("Optional: attach an explanatory comment when closing (comment first, then close — two requests)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "关闭 GitHub 远端 issue（state=closed，可带关闭理由；不删除评论与历史，可用 reopen 还原）：修改 GitHub 远端状态，执行前请确认 repo 与编号",
+    "Close a remote GitHub issue (state=closed, optionally with a close reason; does not delete comments or history, can be restored with reopen): modifies remote GitHub state, confirm repo and number before running",
   ruleId: "github-toolkit-issue-close",
 };
 
@@ -60,7 +60,7 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "要关闭这个 PR 请用 githana_pr(action=\"close\", prNumber=" + numStr + ")。",
+      "To close this PR use githana_pr(action=\"close\", prNumber=" + numStr + ").",
     );
   }
 
@@ -84,27 +84,27 @@ export async function run(input, ctx, { label }) {
   });
 
   const r = await callRest(batch, { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const cres = r.results.find((x) => x.id === "close");
   const cmres = r.results.find((x) => x.id === "comment");
   if (!cres || !cres.ok) {
-    if (cres && cres.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(cres, repoLabel);
+    if (cres && cres.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(cres, repoLabel);
   }
 
   const issue = cres.json && typeof cres.json === "object" ? cres.json : {};
   const out = [
-    label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：",
-    "状态：" + issueStateText(issue) + " · 理由：" + reason,
-    "说明：关闭不删评论与历史；要还原用 githana_issue(action=\"reopen\")。",
+    label + " done (issue #" + numStr + " · " + repoLabel + "):",
+    "state: " + issueStateText(issue) + " · reason: " + reason,
+    "note: closing deletes no comments or history; use githana_issue(action=\"reopen\") to restore.",
   ];
   if (comment.trim() !== "") {
     out.push(
       cmres && cmres.ok
-        ? "已附说明评论（" + comment.length + " 字符）。"
-        : "说明评论发布失败（" + (cmres ? describeFailure(cmres, repoLabel) : "无结果") + "），关闭本身已生效。",
+        ? "Attached explanatory comment (" + comment.length + " chars)."
+        : "Posting the explanatory comment failed (" + (cmres ? describeFailure(cmres, repoLabel) : "no result") + "), but the close itself took effect.",
     );
   }
-  if (issue.html_url) out.push("URL：" + issue.html_url);
+  if (issue.html_url) out.push("URL: " + issue.html_url);
   return out.join("\n");
 }

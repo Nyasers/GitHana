@@ -23,14 +23,14 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { resolveRunId, pickedNote, stateText, conclusionText, fmtDuration, actorText } from "../../lib/ci.js";
 
 export const command = "view";
-export const summary = "看一个 run 的详情（含各作业状态）";
+export const summary = "View a run's details (including the state of each job)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   runId: params.runIdOptional,
-  branch: z.string().optional().describe("可选：runId 缺省时用它过滤出最近一次 run（缺省取 cwd 的当前分支）"),
-  job: z.string().optional().describe("可选：只看名字匹配这个子串的作业（按名字过滤，不额外发请求）"),
+  branch: z.string().optional().describe("Optional: used to filter out the most recent run when runId is omitted (defaults to the current branch of cwd)"),
+  job: z.string().optional().describe("Optional: only jobs whose name contains this substring (filtered by name; no extra request)"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -51,12 +51,12 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const runRes = r.results.find((x) => x.id === "run");
   const jobsRes = r.results.find((x) => x.id === "jobs");
   if (!runRes || !runRes.ok) {
-    if (runRes && runRes.status === 404) return label + "：run #" + num + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(runRes, repoLabel);
+    if (runRes && runRes.status === 404) return label + ": run #" + num + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(runRes, repoLabel);
   }
 
   // 变量名不叫 `run`：那会与本模块导出的 run() 同名（函数体作用域遮蔽模块作用域），读起来
@@ -64,24 +64,24 @@ export async function run(input, ctx, { label }) {
   const runJson = runRes.json && typeof runRes.json === "object" ? runRes.json : {};
   const out = [];
   out.push("run #" + (runJson.id !== undefined ? runJson.id : num) + " · " + repoLabel);
-  out.push("名称：" + (runJson.name || runJson.display_title || "（无名）"));
-  if (runJson.display_title && runJson.display_title !== runJson.name) out.push("标题：" + String(runJson.display_title));
+  out.push("name: " + (runJson.name || runJson.display_title || "(unnamed)"));
+  if (runJson.display_title && runJson.display_title !== runJson.name) out.push("title: " + String(runJson.display_title));
   out.push(
-    "状态：" + String(runJson.status || "?").toUpperCase() +
-      (runJson.conclusion ? " · 结论 " + conclusionText(runJson.conclusion) + "（" + runJson.conclusion + "）" : ""),
+    "status: " + String(runJson.status || "?").toUpperCase() +
+      (runJson.conclusion ? " · conclusion " + conclusionText(runJson.conclusion) + " (" + runJson.conclusion + ")" : ""),
   );
   out.push(
-    "分支：" + (runJson.head_branch || "?") + " · 事件 " + (runJson.event || "?") +
-      (runJson.run_attempt !== undefined ? " · 第 " + runJson.run_attempt + " 次尝试" : ""),
+    "branch: " + (runJson.head_branch || "?") + " · event " + (runJson.event || "?") +
+      (runJson.run_attempt !== undefined ? " · attempt " + runJson.run_attempt : ""),
   );
-  if (runJson.head_sha) out.push("提交：" + String(runJson.head_sha).slice(0, 7) + "（" + runJson.head_sha + "）");
-  if (actorText(runJson)) out.push("触发者：" + actorText(runJson));
+  if (runJson.head_sha) out.push("commit: " + String(runJson.head_sha).slice(0, 7) + " (" + runJson.head_sha + ")");
+  if (actorText(runJson)) out.push("triggered by: " + actorText(runJson));
   out.push(
-    "时间：" + fmtTime(runJson.run_started_at || runJson.created_at) +
-      " · 耗时 " + fmtDuration(runJson.run_started_at || runJson.created_at, runJson.updated_at),
+    "time: " + fmtTime(runJson.run_started_at || runJson.created_at) +
+      " · took " + fmtDuration(runJson.run_started_at || runJson.created_at, runJson.updated_at),
   );
-  if (runJson.html_url) out.push("URL：" + runJson.html_url);
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
+  if (runJson.html_url) out.push("URL: " + runJson.html_url);
+  if (resolved.picked) out.push("note: " + pickedNote(resolved.picked, resolved.branch));
 
   // 作业列表：CI 出问题时看的是这一层。
   const jobFilter = input?.job !== undefined && input?.job !== null ? String(input.job).trim() : "";
@@ -90,27 +90,27 @@ export async function run(input, ctx, { label }) {
 
   out.push("");
   if (!jobsRes || !jobsRes.ok) {
-    out.push("—— 作业（取不到）——");
-    out.push("  " + (jobsRes ? describeFailure(jobsRes, repoLabel) : "作业请求没有结果。"));
+    out.push("—— jobs (could not fetch) ——");
+    out.push("  " + (jobsRes ? describeFailure(jobsRes, repoLabel) : "the jobs request returned no result."));
   } else if (allJobs.length === 0) {
-    out.push("—— 作业（0 个）——");
-    out.push("  （run 里还没有作业：可能是 queued，或它只是个没有 job 的聚合记录）");
+    out.push("—— jobs (0) ——");
+    out.push("  (the run has no jobs yet: it may be queued, or it may just be an aggregate record with no jobs)");
   } else if (jobs.length === 0) {
-    out.push("—— 作业（0 个匹配 " + jobFilter + "，共 " + allJobs.length + " 个）——");
-    for (const j of allJobs) out.push("  [" + stateText(j) + "] " + ((j && j.name) || "（无名）"));
+    out.push("—— jobs (0 matching " + jobFilter + ", " + allJobs.length + " in total) ——");
+    for (const j of allJobs) out.push("  [" + stateText(j) + "] " + ((j && j.name) || "(unnamed)"));
   } else {
-    out.push("—— 作业（" + jobs.length + " 个" + (jobFilter ? "匹配 " + jobFilter + " / 共 " + allJobs.length : "") + "）——");
+    out.push("—— jobs (" + jobs.length + (jobFilter ? " matching " + jobFilter + " / " + allJobs.length + " in total" : "") + ") ——");
     for (const j of jobs) {
       const steps = Array.isArray(j && j.steps) ? j.steps : [];
       const failed = steps.filter((s) => s && s.conclusion && s.conclusion !== "success" && s.conclusion !== "skipped");
       out.push(
-        "  [" + stateText(j) + "] " + ((j && j.name) || "（无名）") +
+        "  [" + stateText(j) + "] " + ((j && j.name) || "(unnamed)") +
         " · " + fmtDuration(j && j.started_at, j && j.completed_at) +
-        (steps.length ? " · 步骤 " + steps.length + (failed.length ? "（其中 " + failed.length + " 个非 success）" : "") : ""),
+        (steps.length ? " · steps " + steps.length + (failed.length ? " (" + failed.length + " of them not success)" : "") : ""),
       );
       // 只列非成功的步骤：成功的步骤逐个列出是噪声，而失败的那几个正是要看的东西。
       for (const s of failed) {
-        out.push("      [" + String(s.conclusion).toUpperCase() + "] " + (s.name || "（无步名）"));
+        out.push("      [" + String(s.conclusion).toUpperCase() + "] " + (s.name || "(no step name)"));
       }
       if (j && j.html_url) out.push("      " + j.html_url);
     }

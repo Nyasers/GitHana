@@ -50,13 +50,13 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_issue";
 
 export const description = [
-  "GitHana GitHub Issue：查询与改动 issue（不含 PR——PR 在 githana_pr）。",
+  "GitHana GitHub Issue: query and modify issues (PRs excluded — PRs are in githana_pr).",
   "action=create / list / view / status / edit / comment / close / reopen / delete / develop",
-  "/ transfer / lock / unlock / pin / unpin。",
-  "delete / develop / pin / unpin 内部走 GraphQL（REST 没有对应端点）；delete 需 confirm=true。",
-  "只读的取数用 list / view / status；标签管理在 githana_label，发布在 githana_release，",
-  "CI 在 githana_run / githana_workflow / githana_cache，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "/ transfer / lock / unlock / pin / unpin.",
+  "delete / develop / pin / unpin use GraphQL internally (REST has no such endpoints); delete needs confirm=true.",
+  "For read-only fetches use list / view / status; label management is in githana_label, releases in githana_release,",
+  "CI in githana_run / githana_workflow / githana_cache, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -82,7 +82,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana issue 动作：多数动词会修改 GitHub 远端状态（创建 / 编辑 / 评论 / 关闭 / 重开 / 转库 / 锁定 / 固定），delete 不可撤销，develop 会新建远端分支，执行前请确认 action 与参数",
+    "GitHana issue actions: most verbs modify remote GitHub state (create / edit / comment / close / reopen / transfer / lock / pin), delete is irreversible, develop creates a new remote branch — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-issue",
 };
 
@@ -101,7 +101,7 @@ export const modelFields = {
   reason: z
     .string()
     .optional()
-    .describe("理由，取值域按 action：close 是 completed / not_planned；lock 是 off-topic / too heated / resolved / spam"),
+    .describe("reason, value domain depends on action: for close it is completed / not_planned; for lock it is off-topic / too heated / resolved / spam"),
 };
 
 const surface = createSurface({

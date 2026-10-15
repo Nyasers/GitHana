@@ -30,13 +30,13 @@ export async function fetchIssue(repo, repoLabel, numStr, timeoutSec) {
     [{ id: "issue", url: apiUrl(repo, "/issues/" + numStr), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return { error: " 执行失败：" + r.message };
+  if (!r.ok) return { error: " failed: " + r.message };
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return { error: "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。" };
+      return { error: ": #" + numStr + " does not exist or is not visible (" + repoLabel + ")." };
     }
-    return { error: " 执行失败：" + describeFailure(res, repoLabel) };
+    return { error: " failed: " + describeFailure(res, repoLabel) };
   }
   const issue = res.json && typeof res.json === "object" ? res.json : {};
   return { issue, isPullRequest: !!(issue.pull_request && issue.pull_request.url), numStr };
@@ -56,17 +56,17 @@ export async function fetchIssue(repo, repoLabel, numStr, timeoutSec) {
 export function notAnIssueMessage(label, numStr, repoLabel, issue, instead) {
   const url = issue && issue.html_url ? issue.html_url : "";
   return (
-    label + "：#" + numStr + " 是一个 **Pull Request**，不是 issue（GitHub 上 PR 与 issue 共用编号空间）。\n" +
-    (instead || "要操作它请用 githana_pr(action=\"view\", prNumber=" + numStr + ")。") +
-    (url ? "\nURL：" + url : "")
+    label + ": #" + numStr + " is a **Pull Request**, not an issue (on GitHub, PRs and issues share one number space).\n" +
+    (instead || "to operate on it, use githana_pr(action=\"view\", prNumber=" + numStr + ").") +
+    (url ? "\nURL: " + url : "")
   );
 }
 
 /** issue 状态渲染（state / state_reason / 锁定）。 */
 export function issueStateText(issue) {
   const state = String((issue && issue.state) || "?").toUpperCase();
-  const reason = issue && issue.state_reason ? "（" + issue.state_reason + "）" : "";
-  const locked = issue && issue.locked ? " · 已锁定（locked）" : "";
+  const reason = issue && issue.state_reason ? " (" + issue.state_reason + ")" : "";
+  const locked = issue && issue.locked ? " · locked (locked)" : "";
   return state + reason + locked;
 }
 

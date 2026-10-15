@@ -34,12 +34,12 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_cache";
 
 export const description = [
-  "GitHana GitHub Actions 缓存：列 / 删构建缓存。",
-  "action=list / delete。",
-  "delete 两种形态：给 id 删一条，给 key 删一族（不给 ref 会跨所有分支删，那种情况需 confirm=true）。",
-  "run 在 githana_run，工作流在 githana_workflow，发布在 githana_release，",
-  "仓库 / PR / issue / 标签在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub Actions caches: list / delete build caches.",
+  "action=list / delete.",
+  "delete has two forms: by id deletes one entry, by key deletes a family (without ref it deletes across all branches, and that form needs confirm=true).",
+  "runs are in githana_run, workflows in githana_workflow, releases in githana_release,",
+  "repository / PR / issue / label in githana_repo / githana_pr / githana_issue / githana_label, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -49,7 +49,7 @@ const ACTIONS = [{ module: list }, { module: del }];
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 缓存动作（list / delete）：delete 会**删除** GitHub 远端的 Actions 缓存（下一次构建重新生成，不丢代码；不给 ref 时可能跨所有分支清掉一个 key），执行前请确认 action 与参数",
+    "GitHana cache actions (list / delete): delete **deletes** Actions caches on remote GitHub (the next build regenerates them, no code is lost; without ref it may wipe one key across all branches) — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-cache",
 };
 
@@ -72,11 +72,11 @@ export const modelFields = {
   key: z
     .string()
     .optional()
-    .describe("缓存 key，按 action 取义：list 上是过滤条件（不删东西）；delete 上是**删除范围**（不给 ref 会跨所有分支删，那种情况需 confirm=true）"),
+    .describe("cache key, by action: on list it is a filter (deletes nothing); on delete it is the **deletion scope** (without ref it deletes across all branches, and that form needs confirm=true)"),
   ref: z
     .string()
     .optional()
-    .describe("Git ref（如 refs/heads/main），按 action 取义：list 上是过滤条件；delete 上是**限定删除范围**（不给就跨所有分支）"),
+    .describe("Git ref (e.g. refs/heads/main), by action: on list it is a filter; on delete it **narrows the deletion scope** (without it, all branches)"),
 };
 
 const surface = createSurface({

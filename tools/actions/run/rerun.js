@@ -31,22 +31,22 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { resolveRunId, pickedNote, runLine } from "../../lib/ci.js";
 
 export const command = "rerun";
-export const summary = "重跑一次 run（failedOnly=true 时只重跑失败的作业）";
+export const summary = "Re-run a run (with failedOnly=true only the failed jobs are re-run)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   runId: params.runIdOptional,
-  branch: z.string().optional().describe("可选：runId 缺省时用它过滤出最近一次 run（缺省取 cwd 的当前分支）"),
-  failedOnly: z.boolean().optional().describe("可选：只重跑失败的作业（POST .../rerun-failed-jobs）；缺省重跑整个 run"),
-  debugLogging: z.boolean().optional().describe("可选：**这一次重跑**打详细日志（enable_debug_logging；不是永久打开本仓库的调试日志）"),
+  branch: z.string().optional().describe("Optional: used to filter out the most recent run when runId is omitted (defaults to the current branch of cwd)"),
+  failedOnly: z.boolean().optional().describe("Optional: re-run only the failed jobs (POST .../rerun-failed-jobs); by default the whole run is re-run"),
+  debugLogging: z.boolean().optional().describe("Optional: enable detailed logs for **this re-run** (enable_debug_logging; this does not permanently turn on debug logging for the repository)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "在 GitHub 远端重跑一次 workflow run（会重新占用 CI 额度，可能推送 / 部署 / 改远端状态）：执行前请确认 repo 与 run 编号",
+    "Re-run a workflow run on remote GitHub (consumes CI quota again and may push / deploy / change remote state): confirm repo and run number before running",
   ruleId: "github-toolkit-run-rerun",
 };
 
@@ -75,7 +75,7 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 201 Created 是成功（重跑创建了一次新的尝试，无正文）。
   if (!res || (!res.ok && res.status !== 201)) {
@@ -83,25 +83,25 @@ export async function run(input, ctx, { label }) {
     const st = res && res.status;
     if (st === 403) {
       return (
-        label + " 执行失败：GitHub 拒绝这次重跑（403）。常见原因：令牌对 actions 的权限不足、" +
-        "或这个 run 太久（GitHub 只保留一段时间内的重跑能力——日志与产物的保留期见仓库设置），" +
-        "或仓库的 Actions 被停用。\n" +
-        "GitHub 原文：" + detail
+        label + " execution failed: GitHub rejected this re-run (403). Common causes: the token's actions permission is insufficient, " +
+        "or this run is too old (GitHub only keeps re-run ability for a limited window — see the repository settings for log and artifact retention), " +
+        "or Actions are disabled for the repository.\n" +
+        "GitHub raw message: " + detail
       );
     }
     if (st === 409) {
-      return label + "：run #" + num + " 当前状态不允许重跑（409——它可能还在跑，或已经被别的重跑占用）。\nGitHub 原文：" + detail;
+      return label + ": run #" + num + " is in a state that does not allow a re-run (409 — it may still be running, or another re-run may already be occupying it).\nGitHub raw message: " + detail;
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const out = [
-    label + " 已触发（" + repoLabel + " · run #" + num + "）：",
-    "范围：" + (failedOnly ? "只重跑失败的作业（rerun-failed-jobs）" : "重跑整个 run（rerun）"),
-    "详细日志：" + (input?.debugLogging === true ? "这一次重跑会打（enable_debug_logging）" : "否"),
-    "HTTP " + res.status + "（GitHub 已收下这次重跑，**不是**「已经跑完」）",
+    label + " triggered (" + repoLabel + " · run #" + num + "):",
+    "scope: " + (failedOnly ? "re-run only the failed jobs (rerun-failed-jobs)" : "re-run the whole run (rerun)"),
+    "detailed logs: " + (input?.debugLogging === true ? "yes, for this re-run (enable_debug_logging)" : "no"),
+    "HTTP " + res.status + " (GitHub accepted this re-run — **not** \"it has finished\")",
   ];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
+  if (resolved.picked) out.push("note: " + pickedNote(resolved.picked, resolved.branch));
 
   // 触发后取一次现状：让回执里带上这一跑的基线（GitHub 的重跑会新建一次 attempt，状态立刻变）。
   const after = await callRest(
@@ -109,12 +109,12 @@ export async function run(input, ctx, { label }) {
     { timeoutSec },
   );
   if (after.ok && after.results[0] && after.results[0].ok && after.results[0].json) {
-    out.push("触发后的现状：" + runLine(after.results[0].json));
+    out.push("state right after the trigger: " + runLine(after.results[0].json));
     const url = after.results[0].json.html_url;
-    if (url) out.push("URL：" + url);
+    if (url) out.push("URL: " + url);
   }
 
-  out.push("说明：这是**同步触发**——回执写的是「已触发」。要看结果用 githana_run(action=\"view\", runId=" + num + ")；");
-  out.push("「等到终态再回报」用任务型的 githana_run(action=\"watch\", runId=" + num + ")（返回后台任务句柄，CI 到终态时结论回投本会话）。");
+  out.push("note: this is a **synchronous trigger** — the receipt says \"triggered\". To see the result use githana_run(action=\"view\", runId=" + num + ");");
+  out.push("to \"wait for the terminal state and then report\", use the task-style githana_run(action=\"watch\", runId=" + num + ") (it returns a background task handle and reports the conclusion back to this session when CI reaches a terminal state).");
   return out.join("\n");
 }

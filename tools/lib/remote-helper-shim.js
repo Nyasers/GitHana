@@ -156,8 +156,8 @@ export const DATA_DIR_ENV = "GITHANA_DATA_DIR";
  * 进程里解出来、只在它自己发 HTTPS 时用。
  */
 export const GIT_AUTH_NOTE =
-  "本 App 的远端传输走自写的 git remote helper（helper 自己解 GitHub App 令牌并发 HTTPS，" +
-  "令牌不进命令行、不进远端 URL、不进 gitconfig、不进 git 子进程的 env）";
+  "this App's remote transport uses its own git remote helper (the helper itself decrypts the GitHub App token and sends HTTPS;" +
+  "the token never enters the command line, the remote URL, gitconfig, or the git subprocess env)";
 
 /**
  * fetch 侧的认证机制说明。取侧走 `githana` scheme（报 `stateless-connect`，无状态协商），
@@ -165,9 +165,9 @@ export const GIT_AUTH_NOTE =
  * App 的 helper 进程里持令牌、都经 HTTPS 发出去，令牌同样不进 git 的 env 与配置。
  */
 export const GIT_FETCH_AUTH_NOTE =
-  "本 App 的 fetch / clone / pull / ls-remote 走自写的 git remote helper（`githana` scheme，" +
-  "helper 自己解 GitHub App 令牌并发 HTTPS）" +
-  "——换台机器也能取，请到 GitHana 设置页点「用 GitHub 登录」完成授权";
+  "this App's fetch / clone / pull / ls-remote use its own git remote helper (the `githana` scheme;" +
+  "the helper itself decrypts the GitHub App token and sends HTTPS)" +
+  " — this also works from another machine; go to the GitHana settings page and click \"Sign in with GitHub\" to complete authorization";
 
 /** helper 在交付树里的位置（bin/ 与 app.mjs 同层）。 */
 function helperScriptCandidates() {

@@ -47,14 +47,14 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_run";
 
 export const description = [
-  "GitHana GitHub Actions run：看 / 重跑 / 取消 / 删 run，以及盯一次 CI 到终态。",
-  "action=list / view / watch / rerun / cancel / delete / download。",
-  "rerun 与 cancel 是**同步触发**（回执写「已触发」，不等 CI 跑完）；",
-  "watch 是任务型：它返回宿主后台任务句柄（不等结论），CI 到终态时结论回投本会话。",
-  "download 走二进制通道：logs 取整个 run 的 zip，artifacts 取产物 zip，都流式写盘。",
-  "工作流本身在 githana_workflow，缓存清理由 githana_cache，发布在 githana_release，",
-  "仓库 / PR / issue / 标签在 githana_repo / githana_pr / githana_issue / githana_label，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub Actions runs: list / rerun / cancel / delete runs, and watch one CI run through to its terminal state.",
+  "action=list / view / watch / rerun / cancel / delete / download.",
+  "rerun and cancel are **synchronous triggers** (the receipt says \"triggered\", it does not wait for CI to finish);",
+  "watch is task-shaped: it returns a host background task handle (not the conclusion), and when CI reaches a terminal state the conclusion is delivered back to this session.",
+  "download uses the binary channel: logs fetches the zip of the whole run, artifacts fetches the artifact zip, both stream to disk.",
+  "Workflows themselves are in githana_workflow, cache cleanup in githana_cache, releases in githana_release,",
+  "repository / PR / issue / label in githana_repo / githana_pr / githana_issue / githana_label, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -72,7 +72,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana Actions run 动作（list / view / watch / rerun / cancel / delete / download）：rerun 会重新占用 CI 额度、cancel 会中断正在跑的作业、delete 会抹掉日志与产物（不可撤销）、watch 会在宿主里起一个后台任务定时读 run 状态并把结论贴回本会话，执行前请确认 action 与 run 编号",
+    "GitHana Actions run actions (list / view / watch / rerun / cancel / delete / download): rerun consumes CI quota again, cancel interrupts a running job, delete wipes logs and artifacts (irreversible), and watch starts a host background task that polls the run state and posts the conclusion back to this session — confirm action and run number before executing",
   ruleId: "github-toolkit-githana-run",
 };
 
@@ -95,7 +95,7 @@ export const modelFields = {
   branch: z
     .string()
     .optional()
-    .describe("分支，按 action 取义：list 上是过滤列哪些 run；view / watch / rerun / cancel / download 上只在 runId 缺省时用来挑最近一次（缺省回落 cwd 的当前分支）"),
+    .describe("branch, by action: on list it filters which runs are listed; on view / watch / rerun / cancel / download it is used only when runId is omitted, to pick the most recent one (defaults back to the cwd's current branch)"),
 };
 
 const surface = createSurface({

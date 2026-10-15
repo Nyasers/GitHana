@@ -46,7 +46,7 @@ export function checkCwd(cwd) {
   if (cwd === undefined || cwd === null) return null;
   const s = String(cwd).trim();
   if (!s) {
-    return "cwd 不能为空：请传仓库的绝对路径（如 E:\\workspace\\my-repo）。";
+    return "cwd must not be empty: pass the absolute path of the repository (e.g. E:\\workspace\\my-repo).";
   }
   let st;
   try {
@@ -56,10 +56,10 @@ export function checkCwd(cwd) {
     // 读取被运行时拒绝（ERR_ACCESS_DENIED）。这不是「目录不存在」，而是宿主进程无权预检。
     // 直接放行，把 cwd 交给 git/gh 子进程判断（外部命令不继承该模型，能自由访问仓库）。
     if (err && (err.code === "ERR_ACCESS_DENIED" || err.code === "EPERM")) return null;
-    return "cwd 不存在：" + s + "。请确认绝对路径正确（目录已被移动/删除？）。";
+    return "cwd does not exist: " + s + ". Check that the absolute path is correct (was the directory moved or deleted?).";
   }
   if (!st.isDirectory()) {
-    return "cwd 不是目录：" + s + "。git/gh 命令需要在目录中执行，请传目录绝对路径。";
+    return "cwd is not a directory: " + s + ". git/gh commands must run inside a directory, so pass the absolute path of a directory.";
   }
   return null;
 }
@@ -82,32 +82,32 @@ function spawnErrorMessage(bin, code, resolved) {
   if (code === "ENOENT") {
     const bundledHint =
       resolved && resolved.bundledMissing
-        ? "（插件内嵌 vendor 缺失，已回退系统 PATH；可运行 scripts/fetch-vendor.mjs 下载内嵌 " + bin + "）"
+        ? " (the vendored copy bundled with the plugin is missing, so it fell back to the system PATH; run scripts/fetch-vendor.mjs to download the bundled " + bin + ")"
         : "";
     return (
-      "未找到可执行文件「" + bin + "」" + bundledHint + "：请确认 " + bin +
-      " 已安装且所在目录在系统 PATH 中（Windows 下需能解析到 " + bin + ".exe，" +
-      "如 C:\\Program Files\\Git\\cmd\\git.exe / " + bin + ".exe）。"
+      "executable \"" + bin + "\" not found" + bundledHint + ": make sure " + bin +
+      " is installed and its directory is on the system PATH (on Windows it must resolve to " + bin + ".exe, " +
+      "e.g. C:\\Program Files\\Git\\cmd\\git.exe / " + bin + ".exe)."
     );
   }
   if (code === "EACCES" || code === "EPERM") {
-    return "执行「" + bin + "」权限不足（" + code + "）：请检查可执行文件与所在目录的权限。";
+    return "insufficient permission to execute \"" + bin + "\" (" + code + "): check the permissions of the executable and of its directory.";
   }
   if (code === "ENOTDIR") {
-    return "启动「" + bin + "」路径错误（ENOTDIR）：可执行文件路径段中存在非目录项，请检查 PATH 配置。";
+    return "wrong path while launching \"" + bin + "\" (ENOTDIR): a non-directory component appears in the executable path; check the PATH configuration.";
   }
-  return "启动进程失败（" + bin + "）" + (code ? "：" + code : "") + "，请重试或联系插件维护者。";
+  return "failed to launch the process (" + bin + ")" + (code ? ": " + code : "") + "; retry, or contact the plugin maintainer.";
 }
 
 /** 非零退出的可读诊断头（取 stderr/stdout 尾部几行，完整原文在 stdout/stderr 字段里） */
 function buildExitDiagnosis(bin, code, stdout, stderr) {
   const raw = (stderr && stderr.trim()) || (stdout && stdout.trim()) || "";
-  const lines = [bin + " 命令执行失败（exit code " + code + "）。"];
+  const lines = [bin + " command failed (exit code " + code + ")."];
   if (raw) {
     const tail = raw.split("\n").filter((l) => l.trim() !== "").slice(-6);
-    if (tail.length) lines.push("诊断：" + tail.join("\n"));
+    if (tail.length) lines.push("diagnostics: " + tail.join("\n"));
   } else {
-    lines.push("命令无任何输出。");
+    lines.push("the command produced no output.");
   }
   return lines.join("\n");
 }
@@ -203,8 +203,8 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
           stdoutTruncated: stdoutCol.truncated(), stderrTruncated: stderrCol.truncated(),
           timedOut: timedOutTriggered,
           message: timedOutTriggered
-            ? bin + " 命令执行超时（" + sec + " 秒）：已终止进程。若属正常长任务，请增大 timeoutSec（git/gh 工具上限 600 秒）后重试。"
-            : bin + " 命令被外部终止（signal" + (signal ? " " + signal : "") + "），已停止执行。",
+            ? bin + " command timed out (" + sec + "s): the process was terminated. If this is a legitimately long task, raise timeoutSec (the git/gh tools cap it at 600 seconds) and retry."
+            : bin + " command was terminated externally (signal" + (signal ? " " + signal : "") + "); execution stopped.",
         });
         return;
       }
@@ -235,8 +235,8 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
           stdoutTruncated: stdoutCol.truncated(), stderrTruncated: stderrCol.truncated(),
           timedOut: true,
           message:
-            bin + " 命令执行超时（" + sec + " 秒）：已终止进程。若属正常长任务，" +
-            "请增大 timeoutSec（git/gh 工具上限 600 秒）后重试。",
+            bin + " command timed out (" + sec + "s): the process was terminated. If this is a legitimately long task, " +
+            "raise timeoutSec (the git/gh tools cap it at 600 seconds) and retry.",
         });
       }, 3000);
       guard.unref?.();
@@ -286,7 +286,7 @@ function makeCollector(limit) {
 /** 截断提示附注（渲染时用） */
 function truncateNote(truncated, channel) {
   return truncated
-    ? "（" + channel + " 输出过大，已截断保留开头部分，上限 " + Math.round(MAX_OUTPUT_BYTES / 1024) + "KB）"
+    ? " (" + channel + " output was too large; it was truncated keeping the beginning, limit " + Math.round(MAX_OUTPUT_BYTES / 1024) + "KB)"
     : "";
 }
 
@@ -306,7 +306,7 @@ export function formatCliResult(bin, args, result) {
   if (!result.ok && result.exitCode === null && result.message) {
     let s = result.message;
     if (result.timedOut && (result.stdout || result.stderr)) {
-      s += "\n—— 超时前已捕获的部分输出 ——\n" +
+      s += "\n—— partial output captured before the timeout ——\n" +
         blockIfAny("stdout", result.stdout) + blockIfAny("stderr", result.stderr);
     }
     return s;
@@ -315,18 +315,18 @@ export function formatCliResult(bin, args, result) {
   const lines = [];
   if (result.ok) {
     lines.push(
-      bin + " 命令执行成功（exit 0）" +
-      (result.binLabel ? "（" + result.binLabel + "）" : "")
+      bin + " command succeeded (exit 0)" +
+      (result.binLabel ? " (" + result.binLabel + ")" : "")
     );
   } else {
-    lines.push(bin + " 命令执行失败（exit code " + result.exitCode + "）");
+    lines.push(bin + " command failed (exit code " + result.exitCode + ")");
   }
-  lines.push("命令：" + cmdLine);
+  lines.push("command: " + cmdLine);
   const outBlock = blockIfAny("stdout", result.stdout);
   if (outBlock) lines.push(outBlock + truncateNote(result.stdoutTruncated, "stdout"));
   const errBlock = blockIfAny("stderr", result.stderr);
   if (errBlock) lines.push(errBlock + truncateNote(result.stderrTruncated, "stderr"));
-  if (!outBlock && !errBlock) lines.push("（无输出）");
+  if (!outBlock && !errBlock) lines.push("(no output)");
   return lines.join("\n");
 }
 

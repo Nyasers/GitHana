@@ -38,28 +38,28 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { locateRelease, releaseFlags, makeLatestText, MAKE_LATEST_VALUES } from "../../lib/release.js";
 
 export const command = "edit";
-export const summary = "改发布的状态位（draft / prerelease / latest）";
+export const summary = "Edit a release's status flags (draft / prerelease / latest)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTag
     .optional()
-    .describe("要改的发布 tag（如 v1.2.0）。本动词不给「最近一个」的缺省——改状态位要不点名一个（tag 或 releaseId）"),
-  releaseId: z.number().int().min(1).optional().describe("可选：按数字 id 定位（与 tag 二选一；两个都给时 releaseId 优先）"),
-  draft: z.boolean().optional().describe("可选：true = 转成草稿，false = 发布出去（草稿不能设为 latest）"),
-  prerelease: z.boolean().optional().describe("可选：true = 标为预发布，false = 取消预发布（预发布不能设为 latest）"),
+    .describe("The release tag to edit (e.g. v1.2.0). This verb offers no \"most recent\" default — changing status flags requires naming one (tag or releaseId)"),
+  releaseId: z.number().int().min(1).optional().describe("Optional: locate by numeric id (either this or tag; when both are given releaseId wins)"),
+  draft: z.boolean().optional().describe("Optional: true = turn into a draft, false = publish it (drafts cannot be made latest)"),
+  prerelease: z.boolean().optional().describe("Optional: true = mark as prerelease, false = unmark it (prereleases cannot be made latest)"),
   latest: z
     .enum(MAKE_LATEST_VALUES)
     .optional()
-    .describe("可选：是否设为 latest——true / false / legacy（旧式算法决定哪个是 latest；legacy 不等于 false）"),
+    .describe("Optional: whether to make it latest — true / false / legacy (the old algorithm decides which one is latest; legacy is not the same as false)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "修改 GitHub 远端发布的状态位（draft / prerelease / latest）：改成非草稿等于发布出去（会出现在 releases 页与 latest 判定里），改 latest 会影响仓库「最新发布」的指向，执行前请确认 repo 与要改的发布",
+    "Modify a remote GitHub release's status flags (draft / prerelease / latest): making it non-draft publishes it (it then appears on the releases page and in latest determination), and changing latest affects which release the repository points to as \"latest\" — confirm repo and the release to edit before running",
   ruleId: "github-toolkit-release-edit",
 };
 
@@ -73,8 +73,8 @@ export async function run(input, ctx, { label }) {
   const hasId = input?.releaseId !== undefined && input?.releaseId !== null;
   if (!hasTag && !hasId) {
     return (
-      label + " 参数错误：要改哪个发布（tag 或 releaseId 二选一）。本动词不给「最近一个」的缺省——" +
-      "改状态位不吃危险默认值。\n先看有哪些：githana_release(action=\"list\")。"
+      label + " argument error: which release to edit (tag or releaseId, pick one). This verb offers no \"most recent\" default —" +
+      "changing status flags does not get a dangerous default.\nTo see what exists: githana_release(action=\"list\")."
     );
   }
 
@@ -95,9 +95,9 @@ export async function run(input, ctx, { label }) {
 
   if (changed.length === 0) {
     return (
-      label + " 参数错误：至少要给一个状态位（draft / prerelease / latest）。\n" +
-      "要改标题 / 正文 / 移动 tag 不属本动词（那是发布内容，不是状态位）：用 githana_api 打 " +
-      "PATCH /repos/{owner}/{repo}/releases/{id}，或到 GitHub 网页的 releases 页改。"
+      label + " argument error: at least one status flag is required (draft / prerelease / latest).\n" +
+      "Changing the title / body / moving the tag is not this verb (that is release content, not a status flag): use githana_api against " +
+      "PATCH /repos/{owner}/{repo}/releases/{id}, or edit it on the releases page of the GitHub website."
     );
   }
 
@@ -106,9 +106,9 @@ export async function run(input, ctx, { label }) {
   // 再单独设 latest）——顺带说清那一步该怎么做。
   if (patch.make_latest === "true" && (patch.draft === true || patch.prerelease === true)) {
     return (
-      label + " 参数错误：同一次调用里不能既把发布设为 latest、又把它设成草稿 / 预发布。\n" +
-      "GitHub 不接受草稿或预发布作为 latest。请分两次：先调本动词把 draft / prerelease 定下来，" +
-      "再单独调一次设 latest（那时它已经不是草稿 / 预发布了）。"
+      label + " argument error: the same call cannot both make the release latest and set it as a draft / prerelease.\n" +
+      "GitHub does not accept a draft or prerelease as latest. Split it into two calls: first call this verb to settle draft / prerelease, " +
+      "then call it again on its own to set latest (by then it is no longer a draft / prerelease)."
     );
   }
 
@@ -116,7 +116,7 @@ export async function run(input, ctx, { label }) {
   if (located.error) return located.error;
   const rel = located.release;
   const relId = rel.id !== undefined && rel.id !== null ? String(rel.id) : "";
-  if (!relId) return label + "：定位到的发布没有数字 id，无法走 PATCH /releases/{id}。";
+  if (!relId) return label + ": the located release has no numeric id, so it cannot go through PATCH /releases/{id}.";
 
   const before = releaseFlags(rel);
 
@@ -124,36 +124,36 @@ export async function run(input, ctx, { label }) {
     [{ method: "PATCH", url: apiUrl(repo, "/releases/" + encodeURIComponent(relId)), json: patch, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return label + "：仓库 " + repoLabel + " 里没有那个发布（可能在定位之后被删了）。";
+      return label + ": repository " + repoLabel + " has no such release (it may have been deleted after being located).";
     }
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次修改（422）。常见原因：把草稿 / 预发布设为 latest" +
-        "（GitHub 不接受），或 tag 与已有发布冲突。\nGitHub 原文：" + errorDetail(res)
+        label + " execution failed: GitHub rejected this edit (422). Common causes: setting a draft / prerelease as latest" +
+        " (GitHub does not accept that), or the tag conflicting with an existing release.\nGitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const after = res.json && typeof res.json === "object" ? res.json : {};
   const afterFlags = releaseFlags(after);
   const out = [
-    label + " 已执行（" + repoLabel + " · " + (after.tag_name || rel.tag_name || input.tag || relId) + "）：",
-    "改动：" + changed.join(" · "),
-    "状态位：" + (before.length ? before.join(" · ") : "无") + " → " + (afterFlags.length ? afterFlags.join(" · ") : "无"),
-    "现状态：" + (after.draft ? "草稿 draft" : "已发布") +
-      (after.prerelease ? " · 预发布 prerelease" : "") +
+    label + " done (" + repoLabel + " · " + (after.tag_name || rel.tag_name || input.tag || relId) + "):",
+    "changes: " + changed.join(" · "),
+    "flags: " + (before.length ? before.join(" · ") : "none") + " → " + (afterFlags.length ? afterFlags.join(" · ") : "none"),
+    "current state: " + (after.draft ? "draft" : "published") +
+      (after.prerelease ? " · prerelease" : "") +
       (after.latest === true ? " · latest" : ""),
   ];
   if (patch.make_latest !== undefined && after.latest === undefined) {
-    out.push("make_latest 请求值：" + makeLatestText(patch.make_latest) + "（以 GitHub 的实际结果为准）");
+    out.push("make_latest requested: " + makeLatestText(patch.make_latest) + " (GitHub's actual result is authoritative)");
   }
-  if (after.published_at) out.push("发布于：" + fmtTime(after.published_at) + (after.draft === false && !rel.published_at ? "（这次转成了已发布）" : ""));
-  if (after.html_url) out.push("URL：" + after.html_url);
-  if (after.draft === true) out.push("说明：草稿不会出现在 /releases/latest 与公开的 releases 页；要发布出去再用 draft=false。");
+  if (after.published_at) out.push("published: " + fmtTime(after.published_at) + (after.draft === false && !rel.published_at ? " (turned into published by this call)" : ""));
+  if (after.html_url) out.push("URL: " + after.html_url);
+  if (after.draft === true) out.push("note: drafts do not appear under /releases/latest or on the public releases page; to publish it use draft=false.");
   return out.join("\n");
 }

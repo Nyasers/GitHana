@@ -17,7 +17,7 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 
 export const command = "lock";
-export const summary = "锁定 issue 对话（禁止非协作者评论）";
+export const summary = "Lock an issue conversation (non-collaborators cannot comment)";
 
 export const schema = {
   repo: params.repo,
@@ -26,14 +26,14 @@ export const schema = {
   reason: z
     .enum(["off-topic", "too heated", "resolved", "spam"])
     .optional()
-    .describe("锁定理由（默认 off-topic）：off-topic / too heated / resolved / spam，会显示在 issue 页面上"),
+    .describe("Lock reason (default off-topic): off-topic / too heated / resolved / spam; it is displayed on the issue page"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "锁定 GitHub 远端 issue 的对话（非协作者不能再评论，已有评论保留；理由会公开展示）：修改 GitHub 远端状态",
+    "Lock the conversation on a remote GitHub issue (non-collaborators can no longer comment, existing comments are kept; the reason is shown publicly): modifies remote GitHub state",
   ruleId: "github-toolkit-issue-lock",
 };
 
@@ -58,7 +58,7 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "要锁定这个 PR 的对话请用 githana_pr(action=\"lock\", prNumber=" + numStr + ")。",
+      "To lock the conversation on this PR use githana_pr(action=\"lock\", prNumber=" + numStr + ").",
     );
   }
 
@@ -66,20 +66,20 @@ export async function run(input, ctx, { label }) {
     [{ method: "PUT", url: apiUrl(repo, "/issues/" + numStr + "/lock"), json: { lock_reason: apiReason }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（锁定不返回正文）。
   if (!res || (!res.ok && res.status !== 204)) {
-    if (res && res.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 403) {
-      return label + " 执行失败：没有锁定对话的权限（403）——本 App 有 issues: write，被拒通常是仓库侧设置或速率限制。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: no permission to lock the conversation (403) — this App has issues: write, so a rejection usually means a repository-side setting or rate limiting.\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   return [
-    label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：",
-    "状态：对话已锁定（locked）· 理由：" + apiReason,
-    "说明：非协作者不能再评论，已有评论保留；要放开用 githana_issue(action=\"unlock\")。",
+    label + " done (issue #" + numStr + " · " + repoLabel + "):",
+    "state: conversation locked · reason: " + apiReason,
+    "note: non-collaborators can no longer comment, existing comments are kept; to lift it use githana_issue(action=\"unlock\").",
   ].join("\n");
 }

@@ -21,22 +21,22 @@ import { normalizeLocalPath, sha256File, parseDigest } from "../../lib/transfer.
 import { ATTESTATION_LIMIT } from "./verify.js";
 
 export const command = "verify-asset";
-export const summary = "核对一个发布资产的摘要（可选与本地文件比对）";
+export const summary = "Verify one release asset's digest (optionally compared against a local file)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   tag: params.releaseTag,
   assetName: params.assetName,
-  assetId: z.number().int().min(1).optional().describe("可选：按数字 id 指定资产（与 assetName 二选一；assetName 优先不用它）"),
-  file: z.string().optional().describe("可选：本地文件绝对路径（算它的 sha256 与资产记录的摘要比对）"),
+  assetId: z.number().int().min(1).optional().describe("Optional: identify the asset by numeric id (either this or assetName; assetName takes priority over it)"),
+  file: z.string().optional().describe("Optional: absolute path to a local file (its sha256 is computed and compared against the digest recorded for the asset)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "读取 GitHub 远端某个发布资产的摘要与体积，并（在给了 file 时）读取本地文件算 sha256 做比对：不修改远端状态，也不写本地磁盘",
+    "Read the digest and size of one release asset on remote GitHub and (when file is given) read a local file to compute sha256 for comparison: does not modify remote state and does not write to the local disk",
   ruleId: "github-toolkit-release-verify-asset",
 };
 
@@ -52,8 +52,8 @@ export async function run(input, ctx, { label }) {
   const found = findAsset(rel, input);
   if (found.error) {
     return [
-      label + " 参数错误：" + found.error,
-      "该 release（" + (rel.tag_name || input.tag || "?") + "）的资产：",
+      label + " argument error: " + found.error,
+      "assets of that release (" + (rel.tag_name || input.tag || "?") + "):",
       assetListText(found.list),
     ].join("\n");
   }
@@ -85,79 +85,79 @@ export async function run(input, ctx, { label }) {
   const name = asset.name || listed.name || "?";
   const remote = parseDigest(asset.digest);
   const out = [
-    label + "（" + repoLabel + " · " + (rel.tag_name || "?") + " · " + name + "）：",
-    "资产 id：" + (asset.id !== undefined ? asset.id : "?"),
-    "体积：" + (asset.size !== undefined ? formatSize(asset.size) + "（" + asset.size + " 字节）" : "?"),
-    "状态：" + (asset.state || "?"),
-    "下载次数：" + (asset.download_count !== undefined ? asset.download_count : "?"),
+    label + " (" + repoLabel + " · " + (rel.tag_name || "?") + " · " + name + "):",
+    "asset id: " + (asset.id !== undefined ? asset.id : "?"),
+    "size: " + (asset.size !== undefined ? formatSize(asset.size) + " (" + asset.size + " bytes)" : "?"),
+    "state: " + (asset.state || "?"),
+    "downloads: " + (asset.download_count !== undefined ? asset.download_count : "?"),
   ];
-  if (asset.created_at) out.push("上传于：" + String(asset.created_at));
-  if (asset.content_type) out.push("类型：" + String(asset.content_type));
-  if (asset.label) out.push("标签：" + String(asset.label));
+  if (asset.created_at) out.push("uploaded: " + String(asset.created_at));
+  if (asset.content_type) out.push("type: " + String(asset.content_type));
+  if (asset.label) out.push("label: " + String(asset.label));
 
   out.push("");
   if (remote) {
-    out.push("GitHub 记录的摘要：" + remote.algorithm + ":" + remote.hex);
+    out.push("digest recorded by GitHub: " + remote.algorithm + ":" + remote.hex);
     if (remote.algorithm !== "sha256") {
-      out.push("说明：记录的是 " + remote.algorithm + "，本动词只算 sha256，无法直接比对——下面只报本地算出的值。");
+      out.push("note: the recorded algorithm is " + remote.algorithm + " while this verb only computes sha256, so they cannot be compared directly — below only the locally computed value is reported.");
     }
   } else {
-    out.push("GitHub 记录的摘要：无");
+    out.push("digest recorded by GitHub: none");
     out.push(
-      "说明：GitHub 只为**上传时带摘要**的资产记录 digest（较老的、或经其它工具上传的资产可能没有）。" +
-      "缺失不是错误，但这一项就无从比对。" +
-      (detailError ? "\n（另：单独取该资产的详情失败了——" + detailError + "，上面这份来自 release 的资产列表。）" : ""),
+      "note: GitHub only records a digest for assets **uploaded with a digest** (older assets, or ones uploaded by other tools, may not have one). " +
+      "A missing digest is not an error, but this item simply cannot be compared." +
+      (detailError ? "\n(also: fetching this asset's details separately failed — " + detailError + "; the copy above came from the release's asset list.)" : ""),
     );
   }
 
   const fileIn = input?.file !== undefined && input?.file !== null ? String(input.file).trim() : "";
   if (!fileIn) {
     out.push("");
-    out.push("没有给 file：只报远端记录。要比对本地副本，传 file=\"<本地文件绝对路径>\"。");
+    out.push("no file given: only the remote record is reported. To compare a local copy, pass file=\"<absolute path to local file>\".");
     out.push("");
-    out.push("说明：" + ATTESTATION_LIMIT);
+    out.push("note: " + ATTESTATION_LIMIT);
     return out.join("\n");
   }
 
   const norm = normalizeLocalPath(fileIn, "file");
   if (norm.error) {
     out.push("");
-    out.push("本地文件：" + norm.error);
+    out.push("local file: " + norm.error);
     return out.join("\n");
   }
-  const sum = await sha256File(norm.path, "本地文件");
+  const sum = await sha256File(norm.path, "local file");
   out.push("");
   if (sum.error) {
-    out.push("本地文件：" + norm.path);
-    out.push("读取失败：" + sum.error);
+    out.push("local file: " + norm.path);
+    out.push("read failed: " + sum.error);
     out.push("");
-    out.push("说明：" + ATTESTATION_LIMIT);
+    out.push("note: " + ATTESTATION_LIMIT);
     return out.join("\n");
   }
 
-  out.push("本地文件：" + norm.path);
-  out.push("本地 sha256：" + sum.hex + "（" + formatSize(sum.size) + "）");
+  out.push("local file: " + norm.path);
+  out.push("local sha256: " + sum.hex + " (" + formatSize(sum.size) + ")");
   out.push("");
   if (!remote) {
-    out.push("结论：**无法比对**——GitHub 侧没有记录 sha256。本地摘要已算出，可自行与发布方公布的摘要核对。");
+    out.push("conclusion: **cannot compare** — GitHub has no sha256 recorded. The local digest has been computed, so you can check it against whatever digest the publisher published.");
   } else if (remote.algorithm !== "sha256") {
-    out.push("结论：**无法比对**——GitHub 记的是 " + remote.algorithm + "，本地算的是 sha256（本 App 只算这一种）。");
+    out.push("conclusion: **cannot compare** — GitHub records " + remote.algorithm + " while the local computation is sha256 (this App computes only that one).");
   } else if (remote.hex === sum.hex) {
     const sizeMismatch =
       asset.size !== undefined && Number(asset.size) !== sum.size
-        ? "（注意：体积不一致——远端 " + formatSize(asset.size) + " vs 本地 " + formatSize(sum.size) + "，摘要却相同，这不可能，请复核取到的字节数）"
+        ? " (note: the sizes differ — remote " + formatSize(asset.size) + " vs local " + formatSize(sum.size) + " — yet the digests match, which is impossible; please double-check the byte count that was fetched)"
         : "";
-    out.push("结论：**一致**——本地文件就是这个资产的内容。" + sizeMismatch);
+    out.push("conclusion: **they match** — the local file is the content of this asset." + sizeMismatch);
   } else {
-    out.push("结论：**不一致**——远端与本地摘要不同，本地文件不是这个资产（或已被改动）。");
+    out.push("conclusion: **they differ** — the remote and local digests differ, so the local file is not this asset (or it has been modified).");
     if (asset.size !== undefined && Number(asset.size) !== sum.size) {
-      out.push("      体积也不符：远端 " + formatSize(asset.size) + " vs 本地 " + formatSize(sum.size) + "。");
+      out.push("      the sizes differ too: remote " + formatSize(asset.size) + " vs local " + formatSize(sum.size) + ".");
     }
-    out.push("      远端 sha256：" + remote.hex);
-    out.push("      本地 sha256：" + sum.hex);
+    out.push("      remote sha256: " + remote.hex);
+    out.push("      local sha256: " + sum.hex);
   }
   out.push("");
-  out.push("说明：" + ATTESTATION_LIMIT);
-  out.push("说明：许可根之外的本地文件读不到（AppHost 的 Node 权限模型），那种情况报的是 ERR_ACCESS_DENIED，不是「文件不存在」。");
+  out.push("note: " + ATTESTATION_LIMIT);
+  out.push("note: local files outside the permission root cannot be read (AppHost's Node permission model); that case reports ERR_ACCESS_DENIED, not \"file not found\".");
   return out.join("\n");
 }

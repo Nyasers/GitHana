@@ -55,6 +55,11 @@ jobs:
         run: pnpm run check
 
       # 派生门禁：拦住「改了 manifest 版本或实装依赖却忘了重生成」。
-      # （THIRD_PARTY_NOTICES.md 入库，由 derive 任务生成；这里校验它与实装内容一致。）
-      - name: SDK third-party notice in sync
+      # （THIRD_PARTY_NOTICES.md 与 skills/githana/references/*.md 入库，由 derive 任务生成；
+      #   这里校验它们与实装内容一致。）
+      # api-reference 要读上游权限表缓存——先拉一次（同一份数据，可重拉）。
+      - name: Fetch upstream permission table
+        run: node scripts/derive/fetch-permission-table.mjs
+
+      - name: Derived files in sync
         run: node scripts/derive/index.mjs --check

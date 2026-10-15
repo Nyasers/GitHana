@@ -15,6 +15,7 @@
     "vendor": "node scripts/fetch-vendor.mjs",
     "derive": "node scripts/derive/index.mjs",
     "derive:check": "node scripts/derive/index.mjs --check",
+    "permission-table": "node scripts/derive/fetch-permission-table.mjs",
     "sync:sdk": "node scripts/sync-sdk.mjs",
     "sync:app-tools": "node scripts/sync-app-tools.mjs",
     "install:local": "node scripts/dev/install-local.mjs",

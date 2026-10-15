@@ -33,27 +33,27 @@ import { resolveContext, describeFailure } from "../../lib/pr.js";
 import { GIT_AUTH_NOTE, GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "revert";
-export const summary = "回退已合并的 PR（本地 revert + 新分支 + 开回退 PR）";
+export const summary = "Revert a merged PR (local revert + new branch + revert PR)";
 
 export const schema = {
   repo: params.repo,
   // 与其它 pr_* 不同：回退要在本地仓库里做 git 操作，所以 cwd 是必填的。
   cwd: params.cwd.describe(
-    "本地仓库绝对路径（必填）：回退要在本地切分支、跑 git revert 并推送，REST 没有对应端点",
+    "Absolute path of the local repository (required): reverting requires switching branches locally, running git revert and pushing; REST has no corresponding endpoint",
   ),
-  prNumber: params.prNumber.describe("要回退的 PR 编号（必须是已合并的 PR）"),
-  branch: z.string().optional().describe("可选：回退分支名，默认 revert-<PR编号>-<原分支名>"),
-  title: z.string().optional().describe("可选：回退 PR 的标题，默认 Revert \"<原 PR 标题>\""),
-  body: z.string().optional().describe("可选：回退 PR 的正文，默认注明回退的是哪个 PR"),
-  draft: z.boolean().optional().describe("可选：以草稿创建回退 PR"),
-  remote: z.string().optional().describe("可选：远端名，默认 origin"),
+  prNumber: params.prNumber.describe("PR number to revert (must be a merged PR)"),
+  branch: z.string().optional().describe("Optional: revert branch name, defaults to revert-<PR number>-<original branch name>"),
+  title: z.string().optional().describe("Optional: title of the revert PR, defaults to Revert \"<original PR title>\""),
+  body: z.string().optional().describe("Optional: body of the revert PR, by default noting which PR is being reverted"),
+  draft: z.boolean().optional().describe("Optional: create the revert PR as a draft"),
+  remote: z.string().optional().describe("Optional: remote name, defaults to origin"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "git_remote",
   summary:
-    "回退一个已合并的 PR：在本地仓库（cwd）从目标分支切出新分支、git revert 该合并提交并推送到远端，随后在 GitHub 上创建回退 PR——会修改本地仓库状态（新分支与新提交）并推送远端、创建远端 PR，执行前请确认 cwd、repo 与 prNumber",
+    "Revert a merged PR: in the local repository (cwd) branch off the base branch, git revert that merge commit and push to the remote, then create a revert PR on GitHub — modifies local repository state (a new branch and a new commit), pushes to the remote and creates a remote PR; confirm cwd, repo and prNumber before running",
   ruleId: "github-toolkit-pr-revert",
 };
 
@@ -64,15 +64,15 @@ export const sideEffect = {
  */
 function gitGuide(text) {
   const s = String(text || "");
-  if (/not a git repository/i.test(s)) return "当前目录不是 git 仓库：请在仓库目录内执行。";
+  if (/not a git repository/i.test(s)) return "The current directory is not a git repository: run this inside a repository directory.";
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败（fetch 与 push 都走本 App 的 remote helper）：\n  · " + GIT_AUTH_NOTE + "。\n  · " + GIT_FETCH_AUTH_NOTE + "。";
+    return "Remote authentication failed (both fetch and push go through this App's remote helper):\n  · " + GIT_AUTH_NOTE + ".\n  · " + GIT_FETCH_AUTH_NOTE + ".";
   }
   if (/non-fast-forward|fetch first|rejected/i.test(s)) {
-    return "远端拒绝了推送：先拉取合并远端变更再重试。";
+    return "The remote rejected the push: pull and merge the remote changes, then retry.";
   }
   if (/CONFLICT|conflict/i.test(s)) {
-    return "git revert 遇到冲突：目标分支上那些行已经被改过。请手动解决（或对相关改动另开 PR），本动词不代为决策。";
+    return "git revert hit a conflict: those lines have already been changed on the base branch. Resolve it by hand (or open a separate PR for the relevant changes); this verb does not make that decision for you.";
   }
   return null;
 }
@@ -80,7 +80,7 @@ function gitGuide(text) {
 /** 组装失败文案：git 原文 + 引导。 */
 function gitFailure(label, what, r) {
   const raw = ((r.stderr || "") + "\n" + (r.stdout || "")).trim();
-  const text = label + " " + what + "失败（exit code " + r.exitCode + "）：\n" + (raw || r.message || "未知错误");
+  const text = label + " " + what + " failed (exit code " + r.exitCode + "):\n" + (raw || r.message || "unknown error");
   const guide = gitGuide(raw);
   return guide ? text + "\n" + guide : text;
 }
@@ -93,10 +93,10 @@ export async function run(input, ctx, { label }) {
   // 回退必须落到一个本地克隆：显式传 cwd，不做隐式推断（与 exec / commit / push 同口径）。
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
   const cwd = String(cwdParam).trim();
   if (!cwd) {
-    return label + " 参数错误：cwd 必填（回退要在本地仓库切分支、revert 并推送）。";
+    return label + " argument error: cwd is required (reverting requires switching branches locally, reverting and pushing).";
   }
 
   const num = input.prNumber;
@@ -107,17 +107,17 @@ export async function run(input, ctx, { label }) {
 
   // —— 1) 读 PR：必须已合并 ——
   const prRes = await callRest([{ url: apiUrl(repo, "/pulls/" + num), timeoutMs }], { timeoutSec });
-  if (!prRes.ok) return label + " 执行失败：" + prRes.message;
+  if (!prRes.ok) return label + " execution failed: " + prRes.message;
   const pres = prRes.results[0];
   if (!pres || !pres.ok) {
-    if (pres && pres.status === 404) return label + "：PR #" + num + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(pres, repoLabel);
+    if (pres && pres.status === 404) return label + ": PR #" + num + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(pres, repoLabel);
   }
   const pr = pres.json && typeof pres.json === "object" ? pres.json : {};
   if (pr.merged !== true) {
     return (
-      label + "：PR #" + num + " 还没有合并（state=" + String(pr.state || "?") + "），没有可回退的合并提交。\n" +
-      "回退只对已合并的 PR 有意义；如果只是要放弃这次改动，用 githana_pr(action=\"close\") 关闭它。"
+      label + ": PR #" + num + " has not been merged yet (state=" + String(pr.state || "?") + "), so there is no merge commit to revert.\n" +
+      "Reverting is only meaningful for a merged PR; if you merely want to abandon these changes, close it with githana_pr(action=\"close\")."
     );
   }
   const mergeSha = pr.merge_commit_sha ? String(pr.merge_commit_sha) : "";
@@ -125,16 +125,16 @@ export async function run(input, ctx, { label }) {
   const headRef = pr.head && pr.head.ref ? String(pr.head.ref) : "";
   const prTitle = pr.title ? String(pr.title) : "";
   if (!mergeSha || !baseRef) {
-    return label + "：PR #" + num + " 的响应里缺少 merge_commit_sha 或 base.ref，无法在本地回退。";
+    return label + ": the response for PR #" + num + " is missing merge_commit_sha or base.ref, so it cannot be reverted locally.";
   }
 
   // —— 2) 工作区必须干净：切分支会打断正在进行的工作，所以宁可拒绝也不悄悄换分支 ——
   const statusR = await runCli("git", ["status", "--porcelain"], { cwd, timeoutSec: 30 });
-  if (!statusR.ok) return gitFailure(label, "读取工作区状态", statusR);
+  if (!statusR.ok) return gitFailure(label, "reading the working tree status", statusR);
   if (String(statusR.stdout || "").trim() !== "") {
     return (
-      label + "：cwd 的工作区不干净（有未提交的改动），不能安全地切分支做回退。\n" +
-      "请先提交或暂存（git stash）这些改动，再重试。回退会在本地切分支并产生一个新提交。"
+      label + ": the working tree in cwd is not clean (it has uncommitted changes), so branches cannot safely be switched to revert.\n" +
+      "Commit or stash (git stash) those changes first, then retry. Reverting switches branches locally and produces a new commit."
     );
   }
 
@@ -143,7 +143,7 @@ export async function run(input, ctx, { label }) {
       ? String(input.branch).trim()
       : "revert-" + num + (headRef ? "-" + headRef : "");
 
-  const steps = [label + " 回退 PR #" + num + "（" + repoLabel + " · 合并提交 " + mergeSha.slice(0, 7) + "）："];
+  const steps = [label + " revert PR #" + num + " (" + repoLabel + " · merge commit " + mergeSha.slice(0, 7) + "):"];
 
   // —— 3) fetch + 从远端目标分支切新分支 ——
   const fetchR = await runCli("git", ["fetch", remote, baseRef], { cwd });
@@ -154,24 +154,24 @@ export async function run(input, ctx, { label }) {
     const raw = ((checkoutR.stderr || "") + "\n" + (checkoutR.stdout || "")).trim();
     if (/already exists/i.test(raw)) {
       return (
-        label + "：分支 " + branchName + " 已存在，不能复用它做回退（避免覆盖已有工作）。\n" +
-        "请用 branch 参数指定另一个名字，或先删掉那个分支。"
+        label + ": branch " + branchName + " already exists and cannot be reused for the revert (to avoid overwriting existing work).\n" +
+        "Use the branch parameter to pick another name, or delete that branch first."
       );
     }
-    return gitFailure(label, "从 " + remote + "/" + baseRef + " 切分支 " + branchName, checkoutR);
+    return gitFailure(label, "branching " + branchName + " off " + remote + "/" + baseRef, checkoutR);
   }
-  steps.push("  1. 已从 " + remote + "/" + baseRef + " 切出新分支 " + branchName);
+  steps.push("  1. created new branch " + branchName + " from " + remote + "/" + baseRef);
 
   /** 回退失败时的收尾说明：新分支已经建出来了，得让调用方知道留下了什么。 */
-  const leftover = "  留下的状态：本地已创建并停在新分支 " + branchName + "（未推送）。要丢弃请 git checkout " + baseRef + " && git branch -D " + branchName + "。";
+  const leftover = "  state left behind: the local branch " + branchName + " has been created and is checked out (not pushed). To discard it, run git checkout " + baseRef + " && git branch -D " + branchName + ".";
 
   // —— 4) git revert：合并提交要带 -m 1，squash / rebase 出来的提交不带 ——
   // 先判父提交数（rev-list --parents -n 1 输出 "sha p1 [p2 ...]"），带错 -m 会直接失败。
   const parentsR = await runCli("git", ["rev-list", "--parents", "-n", "1", mergeSha], { cwd });
-  if (!parentsR.ok) return gitFailure(label, "读取提交 " + mergeSha.slice(0, 7) + " 的父提交", parentsR);
+  if (!parentsR.ok) return gitFailure(label, "reading the parents of commit " + mergeSha.slice(0, 7), parentsR);
   const parentCount = String(parentsR.stdout || "").trim().split(/\s+/).filter(Boolean).length - 1;
   if (parentCount < 1) {
-    return label + "：在 cwd 里找不到提交 " + mergeSha.slice(0, 7) + "（该仓库可能还没有 fetch 到这个提交）。\n" + leftover;
+    return label + ": commit " + mergeSha.slice(0, 7) + " was not found in cwd (this repository may not have fetched that commit yet).\n" + leftover;
   }
   const revertArgs = ["revert", "--no-edit"];
   if (parentCount >= 2) revertArgs.push("-m", "1");
@@ -181,16 +181,16 @@ export async function run(input, ctx, { label }) {
     const text = gitFailure(label, "git revert " + mergeSha.slice(0, 7), revertR);
     // revert 冲突会留下冲突标记与进行中的 revert 状态，必须说清怎么退出来。
     if (/CONFLICT|conflict/i.test((revertR.stdout || "") + (revertR.stderr || ""))) {
-      return text + "\n  要放弃并回到干净状态：git revert --abort && git checkout " + baseRef + " && git branch -D " + branchName + "。";
+      return text + "\n  To give up and return to a clean state: git revert --abort && git checkout " + baseRef + " && git branch -D " + branchName + ".";
     }
     return text + "\n" + leftover;
   }
-  steps.push("  2. git revert 完成（" + (parentCount >= 2 ? "合并提交，-m 1" : "非合并提交，无 -m") + "）");
+  steps.push("  2. git revert done (" + (parentCount >= 2 ? "merge commit, -m 1" : "non-merge commit, no -m") + ")");
 
   // —— 5) 推新分支 ——
   const pushR = await runCli("git", ["push", "-u", remote, branchName], { cwd });
-  if (!pushR.ok) return gitFailure(label, "推送分支 " + branchName, pushR) + "\n" + leftover;
-  steps.push("  3. 已推送新分支 " + branchName + "（-u 建立跟踪）");
+  if (!pushR.ok) return gitFailure(label, "pushing branch " + branchName, pushR) + "\n" + leftover;
+  steps.push("  3. pushed the new branch " + branchName + " (-u sets up tracking)");
 
   // —— 6) 开回退 PR ——
   const title =
@@ -200,7 +200,7 @@ export async function run(input, ctx, { label }) {
   const body =
     input?.body !== undefined && input?.body !== null
       ? String(input.body)
-      : "回退 PR #" + num + "（合并提交 " + mergeSha + "）。\n\n由 GitHana 的 githana_pr(action=\"revert\") 生成。";
+      : "Revert PR #" + num + " (merge commit " + mergeSha + ").\n\nGenerated by GitHana's githana_pr(action=\"revert\").";
 
   const payload = { title, head: branchName, base: baseRef, body };
   if (input?.draft === true) payload.draft = true;
@@ -214,18 +214,18 @@ export async function run(input, ctx, { label }) {
     // 分支已经推上去了，只是 PR 没开成——如实说明，别让调用方以为整件事没发生。
     const detail = cres ? describeFailure(cres, repoLabel) : cr.message;
     return (
-      label + " 部分完成：\n" + steps.join("\n") + "\n" +
-      "  4. 创建回退 PR 失败——" + detail + "\n" +
-      "分支 " + branchName + " 已在远端（本地也停在它上面），可稍后用 githana_pr(action=\"create\")（base=" + baseRef + "）补开 PR。"
+      label + " partially done:\n" + steps.join("\n") + "\n" +
+      "  4. creating the revert PR failed — " + detail + "\n" +
+      "the branch " + branchName + " is already on the remote (and locally checked out), so you can create the PR later with githana_pr(action=\"create\") (base=" + baseRef + ")."
     );
   }
 
   const created = cres.json && typeof cres.json === "object" ? cres.json : {};
   steps.push(
-    "  4. 已创建回退 PR #" + (created.number !== undefined ? String(created.number) : "?") +
-      (created.html_url ? "：" + String(created.html_url) : ""),
+    "  4. created the revert PR #" + (created.number !== undefined ? String(created.number) : "?") +
+      (created.html_url ? ": " + String(created.html_url) : ""),
   );
-  steps.push("回退 PR 标题：" + title + " · 分支：" + branchName + " → " + baseRef);
-  steps.push("注意：本地仓库现停在分支 " + branchName + " 上（回退分支不会自动合回，仍走正常审查）。");
+  steps.push("revert PR title: " + title + " · branch: " + branchName + " → " + baseRef);
+  steps.push("note: the local repository is now on branch " + branchName + " (a revert branch does not merge back automatically; it still goes through the normal review).");
   return steps.join("\n");
 }

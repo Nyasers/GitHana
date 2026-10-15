@@ -22,10 +22,10 @@ import * as params from "../../lib/params.js";
 import { requireAuth, describeFailure } from "../../lib/gh.js";
 
 export const command = "gitignore";
-export const summary = "列 .gitignore 模板名（给 template 则看该模板正文）";
+export const summary = "List .gitignore template names (with template, show that template's body)";
 
 export const schema = {
-  template: z.string().optional().describe("可选：模板名（如 Node）；给了就返回该模板正文，不给则列出全部可用名"),
+  template: z.string().optional().describe("Optional: template name (e.g. Node); when given, that template's body is returned, otherwise all available names are listed"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -39,16 +39,16 @@ export async function run(input, ctx, { label }) {
 
   if (template === "") {
     const r = await callRest([{ url: apiRoot("/gitignore/templates"), timeoutMs }], { timeoutSec });
-    if (!r.ok) return label + " 执行失败：" + r.message;
+    if (!r.ok) return label + " execution failed: " + r.message;
     const res = r.results[0];
-    if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, "");
+    if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, "");
     const names = Array.isArray(res.json) ? res.json.map((x) => String(x)) : [];
-    if (names.length === 0) return label + "：GitHub 返回了空的模板清单（异常，请稍后重试）。";
+    if (names.length === 0) return label + ": GitHub returned an empty template list (abnormal; please retry later).";
     return [
-      label + "（GitHub 提供的 .gitignore 模板 · " + names.length + " 个）：",
+      label + " (.gitignore templates provided by GitHub · " + names.length + "):",
       names.join(" · "),
-      "用法：githana_repo(action=\"create\", name=\"<仓库名>\", gitignore=\"<这里的一个名字>\")；",
-      "要看某个模板的正文：githana_repo(action=\"gitignore\", template=\"<名字>\")。",
+      "usage: githana_repo(action=\"create\", name=\"<repository name>\", gitignore=\"<one of the names above>\");",
+      "to see a template's body: githana_repo(action=\"gitignore\", template=\"<name>\").",
     ].join("\n");
   }
 
@@ -56,17 +56,17 @@ export async function run(input, ctx, { label }) {
     [{ url: apiRoot("/gitignore/templates/" + encodeURIComponent(template)), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
-      return label + "：没有名为 " + template + " 的 .gitignore 模板。可用名见 githana_repo(action=\"gitignore\")。";
+      return label + ": there is no .gitignore template named " + template + ". For available names see githana_repo(action=\"gitignore\").";
     }
-    return label + " 执行失败：" + describeFailure(res, "");
+    return label + " execution failed: " + describeFailure(res, "");
   }
   const body = res.json && res.json.source ? String(res.json.source) : "";
   return [
-    label + "（模板 " + template + " · " + body.length + " 字符）：",
-    body || "（该模板的正文为空）",
+    label + " (template " + template + " · " + body.length + " chars):",
+    body || "(this template's body is empty)",
   ].join("\n");
 }

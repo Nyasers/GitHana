@@ -28,31 +28,31 @@ import { getToolSecretToken } from "../../lib/context.js";
 import { isGitHubHttpsUrl, GIT_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "push";
-export const summary = "推送到远端";
+export const summary = "Push to the remote";
 
 export const schema = {
   cwd: params.cwd,
-  branch: z.string().optional().describe("可选：要推送的分支名；缺省 = 当前分支（git rev-parse --abbrev-ref HEAD）"),
-  remote: z.string().optional().describe("可选：远端名，默认 origin"),
-  setUpstream: z.boolean().optional().describe("可选：带 -u 建立上游跟踪分支（首次推送推荐）"),
+  branch: z.string().optional().describe("Optional: name of the branch to push; default = the current branch (git rev-parse --abbrev-ref HEAD)"),
+  remote: z.string().optional().describe("Optional: remote name, defaults to origin"),
+  setUpstream: z.boolean().optional().describe("Optional: pass -u to set up an upstream tracking branch (recommended for a first push)"),
   force: z
     .boolean()
     .optional()
-    .describe("可选：强制推送——映射 --force-with-lease（安全 force，拒绝覆盖他人新提交）；裸 --force 请走 githana_git(action=\"exec\")"),
-  dryRun: z.boolean().optional().describe("可选：只做 --dry-run 演练，验证可推送性，不真正更新远端"),
+    .describe("Optional: force push — maps to --force-with-lease (a safe force that refuses to overwrite others' new commits); for a bare --force go through githana_git(action=\"exec\")"),
+  dryRun: z.boolean().optional().describe("Optional: only do a --dry-run to verify pushability without actually updating the remote"),
 };
 
 export const sideEffect = {
   kind: "git_remote",
   summary:
-    "把本地提交推送到远端仓库（默认 origin，更新远端分支引用；dryRun 仅验证不真推；force 仅映射 --force-with-lease 安全强推），执行前请确认 cwd、remote、branch",
+    "Push local commits to a remote repository (origin by default, updating the remote branch reference; dryRun only verifies without really pushing; force maps only to the safe --force-with-lease force push) — confirm cwd, remote and branch before running",
   ruleId: "github-toolkit-git-push",
 };
 
 export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
   const cwd = String(cwdParam).trim();
 
   const remote = input?.remote !== undefined && input?.remote !== null && String(input.remote).trim() !== ""
@@ -69,16 +69,16 @@ export async function run(input, ctx, { label }) {
     if (!brR.ok) {
       const raw = (brR.stderr || "").trim();
       if (/not a git repository/i.test(raw)) {
-        return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+        return label + ": the current directory is not a git repository (git says: " + (raw.split("\n")[0] || raw) + "). Run this inside a repository directory.";
       }
       if (/HEAD|ambiguous/i.test(raw)) {
-        return label + "：无法确定当前分支（游离 HEAD 或仓库尚无提交）：请显式传 branch 参数，或先检出分支。";
+        return label + ": cannot determine the current branch (detached HEAD, or the repository has no commits yet): pass branch explicitly, or check out a branch first.";
       }
-      return label + " 读取分支失败：\n" + (brR.message || raw);
+      return label + " failed to read the branch:\n" + (brR.message || raw);
     }
     branch = brR.stdout.trim();
     if (!branch || branch === "HEAD") {
-      return label + "：当前处于游离 HEAD 或分支未命名，无法推送。请先检出/创建分支（githana_git(action=\"exec\")：checkout -b <branch>）或显式传 branch。";
+      return label + ": HEAD is detached or the branch is unnamed, so it cannot be pushed. Check out / create a branch first (githana_git(action=\"exec\"): checkout -b <branch>) or pass branch explicitly.";
     }
   }
 
@@ -104,14 +104,14 @@ export async function run(input, ctx, { label }) {
   const r = await runCli("git", args, { cwd });
   const text = r.ok
     ? [
-        "推送成功（dryRun=" + dryRun + "）：" + remote + " " + branch +
-          (setUpstream ? "（-u 已建立上游跟踪）" : "") + (force ? "（--force-with-lease）" : ""),
+        "push succeeded (dryRun=" + dryRun + "): " + remote + " " + branch +
+          (setUpstream ? " (-u upstream tracking set up)" : "") + (force ? " (--force-with-lease)" : ""),
       ]
     : [
-        "推送失败（exit code " + r.exitCode + "）：" + remote + " " + branch + "",
+        "push failed (exit code " + r.exitCode + "): " + remote + " " + branch + "",
       ];
   if (r.ok && githubTarget) {
-    text.push("凭据：走本 App 自写的 git remote helper（只对 github.com 的 https 远端），令牌不经过 git。");
+    text.push("credentials: through this App's own git remote helper (only for https remotes on github.com); the token never passes through git.");
   }
   const rawOut = (r.stdout || "").trim();
   const rawErr = (r.stderr || "").trim();
@@ -119,9 +119,9 @@ export async function run(input, ctx, { label }) {
   if (rawErr) text.push("—— stderr ——\n" + rawErr);
   if (r.ok) {
     if (/Everything up-to-date/.test(rawOut + rawErr)) {
-      text.push("远端已是最新（Everything up-to-date），无新提交需要推送。");
+      text.push("the remote is already up to date (Everything up-to-date); there are no new commits to push.");
     } else if (/->/.test(rawOut + rawErr)) {
-      text.push("远端引用已更新（见上方 -> 行）。");
+      text.push("the remote reference was updated (see the -> line above).");
     }
   } else {
     const s = rawOut + "\n" + rawErr;
@@ -130,17 +130,17 @@ export async function run(input, ctx, { label }) {
     if (/refusing to allow .*workflow|workflows? permission|without `workflows` permission/i.test(s)) {
       // App 令牌在位但授权范围不含 workflows：GitHub 会拒带 .github/workflows/* 改动的推送。
       text.push(
-        "提示：这次推送带了 .github/workflows/ 下的改动，而当前授权里没有 `workflows: write`。\n" +
-        "请到 GitHana 设置页重新点「用 GitHub 登录」拿到新范围；或先把 workflow 改动拆成另一次提交（不含它的推送不受影响）。",
+        "hint: this push carries changes under .github/workflows/, but the current authorization lacks `workflows: write`.\n" +
+        "Go to the GitHana settings page and click \"Sign in with GitHub\" again to get the new scope; or split the workflow changes into a separate commit first (a push without it is unaffected).",
       );
     } else if (/not a git repository/i.test(s)) {
-      text.push("提示：当前目录不是 git 仓库，请在仓库目录内执行。");
+      text.push("hint: the current directory is not a git repository; run this inside a repository directory.");
     } else if (/does not appear to be a git repository|repository .* not found/i.test(s)) {
-      text.push("提示：远端 " + remote + " 不存在或不可达：请检查 remote 配置（git remote -v）或 URL。");
+      text.push("hint: the remote " + remote + " does not exist or is unreachable: check the remote configuration (git remote -v) or the URL.");
     } else if (/non-fast-forward|fetch first|rejected/i.test(s)) {
-      text.push("提示：远端拒绝了快进推送（non-fast-forward）：先拉取合并远端变更，或用 githana_git(action=\"push\") 的 force=true（--force-with-lease）安全覆盖。");
+      text.push("hint: the remote rejected the fast-forward push (non-fast-forward): pull and merge the remote changes first, or safely overwrite with force=true (--force-with-lease) on githana_git(action=\"push\").");
     } else if (/Authentication failed|could not read Username|fatal: unable to access|Invalid username or password|HTTP 403|403 Forbidden/i.test(s)) {
-      text.push("提示：远端认证失败。" + gitAuthGuide(githubTarget, token));
+      text.push("hint: remote authentication failed. " + gitAuthGuide(githubTarget, token));
     }
   }
   return text.join("\n");
@@ -156,19 +156,19 @@ export async function run(input, ctx, { label }) {
 function gitAuthGuide(githubTarget, token) {
   if (githubTarget && token) {
     return (
-      "GitHub 拒绝了 App 令牌：多半是授权范围不覆盖这次操作（如带 .github/workflows 改动需要 `workflows: write`），" +
-      "或令牌已失效——请到 GitHana 设置页重新点「用 GitHub 登录」后重试。"
+      "GitHub rejected the App token: most likely the authorization scope does not cover this operation (e.g. changes under .github/workflows need `workflows: write`), " +
+      "or the token has expired — go to the GitHana settings page and click \"Sign in with GitHub\" again, then retry."
     );
   }
   if (githubTarget && !token) {
     return (
-      "本次推送没有可用的 App 令牌（尚未登录），helper 已明确报错。" + GIT_AUTH_NOTE + "。\n" +
-      "请到 GitHana 设置页点「用 GitHub 登录」完成授权后重试。"
+      "There is no usable App token for this push (not signed in yet), and the helper reported that explicitly. " + GIT_AUTH_NOTE + ".\n" +
+      "Go to the GitHana settings page and click \"Sign in with GitHub\" to complete authorization, then retry."
     );
   }
   return (
-    "远端不是 github.com 的 https 地址，本 App 的 helper 只对 github.com 生效，这条路走 git 原生传输与系统 Git 凭据。" +
-    "请确认本机已有该远端的凭据，或检查远端 URL 协议。"
+    "The remote is not an https address on github.com; this App's helper only applies to github.com, so this path uses git's native transport and the system Git credentials. " +
+    "Check that this machine already has credentials for that remote, or check the remote URL's protocol."
   );
 }
 

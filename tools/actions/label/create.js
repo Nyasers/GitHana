@@ -18,25 +18,25 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { DEFAULT_LABEL_COLOR } from "../../lib/label.js";
 
 export const command = "create";
-export const summary = "新建标签";
+export const summary = "Create a label";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  name: z.string().describe("标签名（必填；同名标签已存在会返回 422）"),
+  name: z.string().describe("Label name (required; returns 422 if a same-named label already exists)"),
   color: z
     .string()
     .regex(/^#?[0-9a-fA-F]{6}$/)
     .optional()
-    .describe("可选：六位十六进制颜色，可带前导 #（如 d73a4a）；缺省用中性灰 " + DEFAULT_LABEL_COLOR),
-  description: z.string().optional().describe("可选：标签描述（会显示在 issue 页面上悬停处）"),
+    .describe("Optional: six-digit hexadecimal color, an optional leading # is allowed (e.g. d73a4a); defaults to the neutral gray " + DEFAULT_LABEL_COLOR),
+  description: z.string().optional().describe("Optional: label description (shown when hovering on the issue page)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "在 GitHub 远端仓库新建一个标签（会出现在该仓库所有 issue / PR 的标签候选里）：修改 GitHub 远端状态，执行前请确认 repo 与标签名",
+    "Create a label in a remote GitHub repository (it appears among the label suggestions for all issues / PRs in that repository): modifies remote GitHub state, confirm repo and label name before running",
   ruleId: "github-toolkit-label-create",
 };
 
@@ -46,7 +46,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const name = input?.name !== undefined && input?.name !== null ? String(input.name).trim() : "";
-  if (!name) return label + " 参数错误：name 必填（标签名不能为空）。";
+  if (!name) return label + " argument error: name is required (the label name cannot be empty).";
 
   // 颜色的"六位十六进制"由 schema 的 regex 保证；这里只做归一与缺省。
   const given = input?.color !== undefined && input?.color !== null ? String(input.color).trim() : "";
@@ -59,26 +59,26 @@ export async function run(input, ctx, { label }) {
     [{ method: "POST", url: apiUrl(repo, "/labels"), json: body, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次创建（422）。最常见的原因是**同名标签已存在**——\n" +
-        "改它的颜色 / 描述请用 githana_label(action=\"edit\", name=\"" + name + "\")，\n" +
-        "确要重建才用 githana_label(action=\"delete\")（注意：删掉会让已打该标签的 issue 短暂变成无标签）。\n" +
-        "GitHub 原文：" + errorDetail(res)
+        label + " execution failed: GitHub rejected this creation (422). The most common cause is that **a same-named label already exists** —\n" +
+        "to change its color / description use githana_label(action=\"edit\", name=\"" + name + "\"),\n" +
+        "and only recreate it with githana_label(action=\"delete\") if you really mean to (note: deleting briefly leaves issues carrying that label with no label at all).\n" +
+        "GitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const created = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已创建（" + repoLabel + "）：",
-    "标签：" + name + " · 颜色 #" + (created.color || color) + (given === "" ? "（缺省中性灰）" : ""),
+    label + " created (" + repoLabel + "):",
+    "label: " + name + " · color #" + (created.color || color) + (given === "" ? " (default neutral gray)" : ""),
   ];
-  if (created.description) out.push("描述：" + created.description);
-  if (created.url) out.push("API：" + created.url);
+  if (created.description) out.push("description: " + created.description);
+  if (created.url) out.push("API: " + created.url);
   return out.join("\n");
 }
