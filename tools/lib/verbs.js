@@ -18,13 +18,17 @@
  *     surface.js 装配出的 enum 为准（那是运行期真正生效的那份）；这个字段只服务报错文案。
  *   · `reserved`——该工具**认得出、但本期未实现**的动词（见各工具的 `createSurface({ reserved })`）。
  *     它们不在 enum 里，所以要单独列：跨工具错投时，`githana_cache(action="watch")` 报「watch 属于
- *     githana_run」比报「未知 action」有用——顺着指路过去会拿到 githana_run 自己的「未实现」说明
- *     （含为什么、以及现在该怎么做），那是两段式的如实回报，不是死路。
+ *     githana_run」比报「未知 action」有用——顺着指路过去会拿到那个工具自己的说明，那是两段式的
+ *     如实回报，不是死路。
+ *
+ * 当前**没有一个工具**带保留位：`pr ready` / `release edit` / `run watch` 三个空洞都已实现并
+ * 入 enum（见 tools/actions/pr/ready.js、release/edit.js、run/watch.js）。`reserved` 这个字段
+ * 留着是因为 surface.js 的装配路径仍然支持它，下一次出现「认得出但还没有实现」的动词时用它。
  *
  * 本表只登记**已注册**的工具：把还没声明的工具写进来，会让报错指向一个宿主里不存在的工具名。
  */
 
-/** 工具名 → 该工具的动词表（`commands` 镜像 enum；`reserved` 是保留位）。 */
+/** 工具名 → 该工具的动词表（`commands` 镜像 enum；`reserved` 是保留位，当前为空）。 */
 export const VERB_INDEX = [
   { name: "githana_git", commands: ["exec", "commit", "push"] },
   {
@@ -34,7 +38,7 @@ export const VERB_INDEX = [
   {
     name: "githana_pr",
     commands: [
-      "create", "list", "view", "status", "diff", "checks", "merge", "review", "comment",
+      "create", "list", "view", "status", "diff", "checks", "ready", "merge", "review", "comment",
       "close", "reopen", "revert", "edit", "checkout", "lock", "unlock", "update-branch",
     ],
   },
@@ -48,16 +52,12 @@ export const VERB_INDEX = [
   {
     name: "githana_release",
     commands: [
-      "create", "list", "view", "delete", "upload", "download", "delete-asset", "verify", "verify-asset",
+      "create", "list", "view", "edit", "delete", "upload", "download", "delete-asset", "verify", "verify-asset",
     ],
-    // edit 属阶段 2（改 draft / prerelease / latest 三个状态位）：认得出，本期未实现。
-    reserved: ["edit"],
   },
   {
     name: "githana_run",
-    commands: ["list", "view", "rerun", "cancel", "delete", "download"],
-    // watch 属阶段 2（任务型：返回句柄、CI 到终态回投来源会话）：认得出，本期未实现。
-    reserved: ["watch"],
+    commands: ["list", "view", "watch", "rerun", "cancel", "delete", "download"],
   },
   { name: "githana_workflow", commands: ["list", "view", "run", "enable", "disable"] },
   { name: "githana_cache", commands: ["list", "delete"] },

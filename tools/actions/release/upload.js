@@ -11,15 +11,16 @@
  * 三者各自都足以挡住二进制上传，所以本动词**在入口就停**：连本地文件的 sha256 都不去算——
  * 算了也没有下一跳可交付（不会自己抡一套新上传通道，那要改 worker 的协议与白名单）。
  *
- * ## 为什么仍然入 enum（而不是像 edit / watch 那样只在保留位里）
+ * ## 为什么入 enum（而不是像曾经的 `release edit` / `run watch` 那样只在保留位里）
  *
  * `createSurface` 的 `reserved` 只吃「不在 action 表里」的值（见 surface.js 的 execute：
  * 先查 byCommand，查不到才查 reserved）。所以两种留位形态各有用处：
- *   · 保留位（**入 enum**）：这个动词有真实的参数形态、只是本期跑不通时，让它出现在模型的
- *     `action` 候选里、调用时给出**具体**限制与替代路径。upload / download / verify /
- *     verify-asset / run download 走这一档。
- *   · 不入 enum（**只留 reserved 文案**）：连参数形态都还没定的能力空洞（`release edit` 的
- *     三状态位、`run watch` 的任务句柄）走那一档——它们属于阶段 2 的功能，现在进候选只是噪声。
+ *   · 入 enum：这个动词有真实的参数形态、只是本期跑不通时，让它出现在模型的 `action` 候选里、
+ *     调用时给出**具体**限制与替代路径。upload / download / verify / verify-asset /
+ *     run download 走这一档（三个已补齐的能力空洞——`pr ready` / `release edit` / `run watch`
+ *     ——从这一档的邻位升成了真实动词）。
+ *   · 只留 reserved 文案（不入 enum）：连参数形态都还没定的动词走那一档。**当前没有这样的动词**：
+ *     前一批的三个空洞都已实现并进候选，`reserved`（以及 verbs.js 里的同名字段）留着备用。
  *
  * 这一档的收益是「受限原因可见」：调用方在候选里看到 upload，调一次就拿到三条限制与替代做法，
  * 而不是以为工具面根本没有上传这回事。
