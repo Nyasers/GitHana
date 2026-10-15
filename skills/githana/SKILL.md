@@ -125,8 +125,8 @@ GitHana 是 **gh CLI 的 App 形态实现**：`gh <组> <动词>` 对应 `githan
 | `create` | 新建发布（tag 不存在时按 `target` 新建） | `tag` 必填；`name` / `body` / `draft` / `prerelease` / `target` / `generateNotes` / `latest` |
 | `edit` | 只改**状态位**：`draft` / `prerelease` / `latest`（改标题正文不属它） | 至少给一个状态位；`tag` 或 `releaseId` **必须点名** |
 | `delete` | 删除发布（**不可撤销**，需 `confirm=true`；**不删 tag**） | `tag` 必填；`confirm` |
-| `upload` | **本期不可用**（二进制通道不存在）——见「能力边界」 | `file` 要本地绝对路径 |
-| `download` | **不写盘**：回执给 `browser_download_url` 与 API 取字节地址 | `tag` 必填；`assetName` / `assetId` |
+| `upload` | 把本地文件作为发布资产传上去（发布链路的最后一步）。**流式发字节**到 `uploads.github.com` | `tag` + `file` 必填（`file` 要**绝对**路径）；`assetName` / `contentType` / `assetLabel` |
+| `download` | 把发布资产**取到本地磁盘**。缺省取该 release 的全部资产 | `tag` 必填；`assetName` / `assetId`；`path`（单个文件）或 `dir`（目录）；`overwrite` |
 | `delete-asset` | 删发布里的一个资产（**不可撤销**，需 `confirm=true`） | `tag` + `assetName` 必填 |
 | `verify` | 核对发布的**完整性**：资产 sha256 清单，可选与本地文件比对 | `tag` 必填；`files[]` |
 | `verify-asset` | 核对**一个**资产的摘要（可选与本地文件比对） | `tag` + `assetName` 必填；`file` |
@@ -145,7 +145,7 @@ GitHana 是 **gh CLI 的 App 形态实现**：`gh <组> <动词>` 对应 `githan
 | `rerun` | 重跑（`failedOnly=true` 只重跑失败作业） | `runId` 或 `branch`；`failedOnly` / `debugLogging` |
 | `cancel` | 取消进行中的 run（尽力而为） | `runId` 或 `branch` |
 | `delete` | 删除 run 记录（**不可撤销**，需 `confirm=true`） | `runId` **必填**（不吃「最近一个」缺省）；`confirm` |
-| `download` | **不写盘**：列日志 / 产物清单与地址 | `runId` 或 `branch`；`what`（`logs` / `artifacts`）/ `artifactName` |
+| `download` | 把 run 的日志 / 产物**取到本地磁盘**（zip 字节流，流式写盘） | `runId` 或 `branch`；`what`（`logs` / `artifacts`）/ `artifactName`；`path` 或 `dir`；`overwrite` |
 
 `view` 与 `watch` 的分界是**要不要等**：`view` 报此刻（要更新就自己再看一次），
 `watch` 报到终态那一刻的结论、且不占调用方的回合。`watch` 的细节见
@@ -268,11 +268,28 @@ GitHana 是 **gh CLI 的 App 形态实现**：`gh <组> <动词>` 对应 `githan
 GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没传就从 `cwd` 的 git remote 推断；
 两者都没有 → 报错并给引导，不猜（`githana_api` 例外）。
 
+### 本地路径：相对路径在这里没有意义
+
+`githana_release(action="upload" / "download")` 与 `githana_run(action="download")` 收**本地路径**，
+一律要**绝对**路径（`C:\...` / `/...`）：
+
+| 参数 | 用在 | 含义 |
+|---|---|---|
+| `file` | release `upload` | 要上传的本地文件（**必填**，绝对路径） |
+| `path` | release / run `download` | 目标**文件**路径（只配一个资产 / 产物；与 `dir` 二选一，`path` 优先） |
+| `dir` | release / run `download` | 目标**目录**；文件名取资产名（run 日志取 `run-<id>-logs.zip`，产物取 `<产物名>.zip`） |
+| `overwrite` | release / run `download` | 目标已存在时是否覆盖（缺省 **false = 不覆盖**，那种情况报错让你改名或显式覆盖） |
+
+`path` / `dir` 都不给时落到**本进程的当前目录**（`gh release download` 缺省也是当前目录）。
+但那个目录未必在 worker 的可写范围里，所以那种失败会明确报出来并请你显式给 `dir`——
+**能写盘的位置由调用方说了算**，工具不猜。
+
 ## 能力边界与逃生门
 
 工具面的边界由 **App 权限**定：每个类型化的动词都有一个支撑它的已授权权限。所以
-「gh 有而我们没有」（无权限 / 无对应语义）与「动词在但做不到」（通道不存在）都逐项登记在下，
-分五档——**缺什么、怎么绕，都能在这里查到**，不必靠碰壁。
+「gh 有而我们没有」（无权限 / 无对应语义）都逐项登记在下，分五档——**缺什么、怎么绕，
+都能在这里查到**，不必靠碰壁。第四档现在记的不是缺口，而是**二进制通道的用法与边界**
+（它的形态与别的动词不同：要本地路径、会写盘、单文件有硬限）。
 
 逃生门是 `githana_api`：它把 `path` 直接打到 `api.github.com`。**端点的路径、参数与返回形状
 以 GitHub REST 文档为准**（`https://docs.github.com/rest`）——下面的端点是定位用的索引，
@@ -330,27 +347,52 @@ GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没�
 | `browse` | 开浏览器是 UI 插槽的事 |
 | `skill` | Hana 侧有自己的 skill 体系 |
 
-### 四、通道受限：动词在，但**取不到字节**（不是没实现，是通道不存在）
+### 四、二进制通道：**已可用**（曾经的「取不到字节」已消掉）
 
-| 工具 | action | 现状 | 替代路径 |
+发布资产的 upload / download 与 run 的 download 都真的搬字节了。它们**不再**是能力缺口——
+登记在这里是为了说清这条通道**怎么用、边界在哪**，因为它的形态与别的动词不同（要本地路径、
+会写盘、单文件有硬限）。
+
+| 工具 | action | 做什么 | 关键约束 |
 |---|---|---|---|
-| `githana_release` | `upload` | 不写盘（通道不存在） | 用 `gh release upload`，或网页拖文件 |
-| `githana_release` | `download` | 不写盘（通道不存在） | 回执给 `browser_download_url` 与 API 取字节地址，用 curl / 浏览器取 |
-| `githana_run` | `download` | 不写盘（通道不存在） | 产物清单**真的可用**（纯 JSON）；取字节用 `gh run download` / `gh run view --log` |
+| `githana_release` | `upload` | 本地文件 → `uploads.github.com`，**流式发**，回 201 | `file` 要**绝对**路径；单文件必须 **< 2 GiB**（超限**上传前**就拒，不白传）；同名资产已存在回 422 |
+| `githana_release` | `download` | 资产 → 本地磁盘，**流式写** | 目标已存在时**不覆盖**（除非 `overwrite=true`）；`path` 一次只配一个资产 |
+| `githana_run` | `download` | run 日志（`what=logs`，整个 run 一个 zip）/ 产物（`what=artifacts`，每个产物一个 zip）→ 本地磁盘 | 产物 zip 会 302 到 `*.blob.core.windows.net`（已放行）；过期的产物取不到内容 |
 
-三条硬限制（逐条可在源码里核对）：
+```jsonc
+// 传一个产物上去（tag 必填，file 要绝对路径）
+{ "action": "upload", "repo": "o/r", "tag": "v1.2.0", "file": "E:\\build\\app.zip" }
+// 取回来：单个文件走 path，多个走 dir
+{ "action": "download", "repo": "o/r", "tag": "v1.2.0", "assetName": "app.zip", "path": "E:\\dl\\app.zip" }
+{ "action": "download", "repo": "o/r", "tag": "v1.2.0", "dir": "E:\\dl" }        // 全部资产
+{ "action": "download", "repo": "o/r", "runId": 123, "what": "logs", "dir": "E:\\dl" }
+```
 
-1. **载荷是 JSON 报文，不是 multipart**：`rest.worker.mjs` 从 stdin 读一行 JSON，请求只能带
-   `json` / `form` / `body` 字符串；二进制进不去，worker 也不把 base64 解回字节。
-2. **主机不在出站白名单**：上传端点 `uploads.github.com` 不在 `ALLOWED_HOSTS`；下载侧 302 到
-   `objects.githubusercontent.com` / `*.blob.core.windows.net` 等，也不在 `REDIRECT_HOSTS`。
-3. **响应体按 UTF-8 有界读取**：`readBounded` 上限 2MB 并 `toString("utf8")`——即使主机放行，
-   二进制也会被破坏。
+机制（逐条可在源码里核对）：
 
-`githana_api` **不是**这一档的逃生门：它走同一条 worker、同一份主机白名单。
+1. **二进制请求体**：worker 收 `file`（本地路径）形态，用 `fs.createReadStream` 作 fetch 的 body
+   并**显式带 `Content-Length`**——文件不进内存、不走分块编码。发布资产端点要的是原始二进制体
+   （不是 multipart）。
+2. **二进制响应体**：worker 收 `toFile`（本地路径）形态，把响应流式写进那个文件，不按 UTF-8 解码、
+   不套那个 2MB 的有界读。写了一半失败（网络断）会把半成品删掉，**不假装成功**。
+3. **白名单**：出站白名单含上传端点 `uploads.github.com`；重定向白名单含
+   `release-assets.githubusercontent.com` / `objects.githubusercontent.com`，以及
+   `*.blob.core.windows.net` 这条**后缀**（Azure 存储账号在子域位，列不全）。
+   逐跳校验不变，离开 `api.github.com` 后**不带走凭据**。
+4. **目录放行**：worker 是我们 spawn 的，所以宿主的许可根不约束它——但要由 `rest.js` 按本请求的
+   路径补 `--allow-fs-read` / `--allow-fs-write`（按**目录**，node 的旗标只收目录）。
+   所以「传 / 收哪个文件」这件事是调用方说了算的，路径写错就是可读的失败，不是静默的。
+5. **没有分片、没有断点续传**：GitHub 的资产 API 没有这个语义，重试即重传。单文件上限 < 2 GiB
+   也翻不过去（所以超限在发请求前就拒）。
 
-> `githana_release` 的 `verify` / `verify-asset` **不在这一档**：它们完全可用，只是口径与 gh
-> 那个同名命令不同——核对的是**发布自身的完整性**（GitHub 记录的 `digest` 与本地文件的 sha256），
+**大文件要给大超时**：`timeoutSec` 的缺省是 60 秒（所有 GitHub 动作共用），而几百 MB 的上传 /
+下载在这个窗口里常常跑不完——那会被终止，且**已经传了一半**（超时不会回滚远端那半）。
+传 / 收大资产时显式给 `timeoutSec`（上限 600）。
+
+`githana_api` **不搬字节**：它的载荷是 JSON / 文本，二进制进出的活由上面三个动词做。
+
+> `githana_release` 的 `verify` / `verify-asset` 口径与 gh 那个同名命令不同——核对的是
+> **发布自身的完整性**（GitHub 记录的 `digest` 与本地文件的 sha256），
 > 而 gh 的「来源证明（attestation）」校验做不到：`attestations` 权限不在授权集里，且 sigstore
 > 验签需要一个签名验证实现，与「服务端零 npm 依赖」冲突。要那一层用 `gh attestation verify`。
 
@@ -371,22 +413,25 @@ GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没�
 
 ## 远端凭据（git 子进程）
 
-`githana_git(action="push")` / `clone` / `sync` / `pr checkout` / `pr revert` 都要访问远端。
+访问 github.com 的 git 动作（`push` / `fetch` / `pull` / `clone` / `ls-remote`）走 **本 App 自写的
+git remote helper**；`clone` / `sync` / `pr checkout` / `pr revert` 里的取远端动作也走它。
 
-- **已登录时**：GitHub App 令牌经 **credential helper** 注入 git 子进程，**只对 github.com 的
-  https 远端生效**。令牌不进命令行、不进 `git remote -v` 可见的配置、不进隔离 gitconfig——
-  它是经子进程 env 递给一个只回 `username` / `password` 的 helper 片段
-  （`tools/lib/git-cred.js`）。所以换台机器、本机没有该远端凭据时也能推。
-- **只在确实要访问远端的 git 调用上注入**（`push` / `fetch` / `pull` / `clone` / `ls-remote`，
-  且命令行不带 `-c` / `--exec-path` / `ext::` 这类能改写运行环境的形态）。`githana_git(action="exec")`
-  跑只读命令（`status` / `log` / `diff` / `remote -v`）时子进程里**没有**令牌，所以顺带把令牌
-  打出来的做法行不通。
-- **未登录时**：不注入任何凭据，git 回落**系统 Git 凭据**（Git Credential Manager）——
-  与登录之前的行为一致。认证失败会给出「去设置页点『用 GitHub 登录』」的引导，不静默失败。
-- **本机已有有效的 github.com 凭据时**：系统那份 helper 可能先应答，那次就用系统凭据；本机没有
-  该远端凭据时（换台机器）落到 App 令牌这条。
-- **非 github.com 的远端**（GitLab、自建、ssh）：不注入 App 令牌，走系统凭据；ssh 远端本就不
-  经 credential helper。
+- **git 把整条传输层交给 `git-remote-githana`**，helper 自己从 App 数据目录解出令牌、自己发
+  HTTPS。**git 全程不接触令牌**——令牌不进命令行、不进 `git remote -v` 可见的配置、
+  不进隔离 gitconfig、**不进 git 子进程的 env**。接线在 `tools/lib/remote-helper-shim.js`
+  （`insteadOf` + `PATH` 前置 + `NODE_OPTIONS` 追加 `--allow-net`，三件事同进同退）。
+  所以换台机器、本机没有该远端凭据时也能推/取。
+- helper 报 `connect`（全双工中继）：那根 stdin/stdout 就是 git 与远端服务之间的原生协议管道，
+  App 只搬字节 + 加 `Authorization`，所以**读写一条通吃**（报 `push` 是错的——实测 git 在那条
+  路上从不把 packfile 送进 helper 的 stdin）。
+- **注入范围**是上面那五条子命令（判据见 `tools/lib/remote-helper-shim.js` 的
+  `shouldInjectRemoteHelper`），且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
+  这类能改写运行环境的形态。`githana_git(action="exec")` 跑只读命令（`status` / `log` /
+  `diff` / `remote -v`）时既没有令牌、也没有 helper 接线。
+- **未登录时**：helper 明确报错并引导「去设置页点『用 GitHub 登录』」，**不静默失败、
+  不回落系统凭据**。
+- **非 github.com 的远端**（GitLab、自建、ssh）：`insteadOf` 只重写前缀匹配的 URL，这些远端
+  一律不受影响，走 git 原生路径与系统凭据。
 - 带 `.github/workflows/*` 改动的推送需要 `workflows: write`。它在当前授权集里，**已在位**；
   若被 GitHub 拒，说明令牌是加该权限之前签发的——到设置页重新登录即可。
 
@@ -407,6 +452,10 @@ GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没�
 | 远端认证失败 | 见上面「远端凭据」：已登录用 App 令牌，未登录走系统凭据；两者都给出对应引导 |
 | `源分支 … 在远端不存在或没有新提交` | 分支还没推：先 `githana_git(action="push")` 再建 PR |
 | `path 必须以 / 开头` | `api` 的 `path` 是 api.github.com 之后的路径（带前导斜杠） |
+| `要给**绝对**路径` | release `upload` 的 `file` 与 release / run `download` 的 `path` / `dir`：这条路径由 worker 子进程使用，它的工作目录不是你的仓库，相对路径会指向别处 |
+| `目标文件已存在` | `download` 缺省不覆盖已有文件。要覆盖传 `overwrite=true`，或换个 `path` / `dir` |
+| `超过 GitHub 的单文件硬限（< 2 GiB）` | 上传前就拒了，**没有白传一遍**。这是 GitHub 的硬限，没有分片 / 续传可绕——拆成多个小文件，或先裁掉大件 |
+| `落盘失败 —— <路径>` | worker 写不进那个位置（父目录不存在 / 无写权限 / 路径是个目录）。显式传一个可写的 `dir` 或 `path` |
 | GitHub 403 | 越过 App 权限面了：查「能力边界」看该端点缺哪个权限，别重试 |
 
 > **每个 action 只接受自己声明的字段。** 参数表由 zod 定义生成、运行期也用同一份校验，
@@ -416,7 +465,11 @@ GitHub 动作的仓库上下文：**`repo`（owner/repo）显式优先**；没�
 
 - 令牌与私钥**不进**工具返回值、日志与设置页回显。GitHub 请求由随包的 REST worker 在子进程里
   直发，令牌经 stdin 传给 worker；git 子进程的凭据经 env 递给 credential helper（同样不进
-  命令行与配置文件）。
+  命令行与配置文件）。**上传 / 下载的 URL 里也不含令牌**——凭据走 `Authorization` 头。
+- **二进制通道的读写由 worker 代做**：`rest.js` 在 spawn 时按本请求点名的路径补
+  `--allow-fs-read` / `--allow-fs-write`（**按目录**）。所以 App 进程自己读不到的东西
+  （许可根之外的资产文件）也能传 / 也能落盘，而放行的范围就是调用方给的那几个目录——
+  不是整块磁盘。这条**不新增清单能力**，是 node 运行时的旗标（与 `--allow-net` 同一档）。
 - 本 App 申请 `app/tools.expose-to-model`、`app/process.spawn` 与 `app/tasks.manage`
   （最后一项给 `githana_run(action="watch")` 的后台任务用），**没有** `network` 声明
   （那是宿主代发的通道，令牌会穿 IPC）。
