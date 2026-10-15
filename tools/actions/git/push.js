@@ -13,16 +13,17 @@
  *   dryRun=true → --dry-run（只验证不真推）。
  * - 返回推送结果摘要（含远端/分支/参数与 git 原文）。
  *
- * 凭据：GitHub App 令牌经 credential helper 注入 git 子进程（tools/lib/git-cred.js，只在
- * github.com 的 https 远端生效，走 buildBinEnv 的 GIT_CONFIG_* 机制）。令牌不进命令行、
- * 不进 gitconfig、不进远端 URL——所以 `git remote -v` 里看不到它，git 的 stderr 里也不会回显。
- * 未登录（无令牌）时不注入，git 回落系统 Git 凭据（Git Credential Manager），与登录前一致。
+ * 凭据：GitHub App 令牌由**本 App 自写的 git remote helper** 使用（tools/lib/remote-helper-shim.js
+ * 在 spawn git 时注入 insteadOf 与 PATH）。helper 自己从 dataDir 解 DPAPI 密文、自己发 HTTPS，
+ * 所以令牌不进命令行、不进远端 URL、不进 gitconfig、**不进 git 子进程的 env**——
+ * `git remote -v` 里看不到它，git 的 stderr 里也不会回显。未登录时 helper 会给可读引导，
+ * 不静默失败、也不回落系统凭据。
  */
 import { z } from "zod";
 import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { getToolSecretToken } from "../../lib/context.js";
-import { isGitHubHttpsUrl, GIT_CREDENTIAL_NOTE } from "../../lib/git-cred.js";
+import { isGitHubHttpsUrl, GIT_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "push";
 export const summary = "推送到远端";
@@ -79,9 +80,9 @@ export async function run(input, ctx, { label }) {
     }
   }
 
-  // 远端 URL：只用来判定这次推送走哪条凭据路径（github.com 的 https 才注入 App 令牌），
+  // 远端 URL：只用来判定这次推送走哪条传输路径（github.com 的 https 才接 App 的 helper），
   // 以及让「远端不存在」在推送前就说清楚。remote 也可能直接写成 URL（那时 get-url 会失败），
-  // 所以取不到就退回 remote 本身——探测失败不拦推送，注入与否由 git-cred 按子命令判定。
+  // 所以取不到就退回 remote 本身——探测失败不拦推送，注入与否由 remote-helper-shim 按子命令判定。
   const token = getToolSecretToken();
   const urlR = await runCli("git", ["remote", "get-url", remote], { cwd, timeoutSec: 30 });
   const remoteUrl = urlR.ok ? String(urlR.stdout || "").trim() : remote;
@@ -102,8 +103,8 @@ export async function run(input, ctx, { label }) {
     : [
         "推送失败（exit code " + r.exitCode + "）：" + remote + " " + branch + "",
       ];
-  if (r.ok && githubTarget && token) {
-    text.push("凭据：已用本 App 的 GitHub App 令牌认证（credential helper，只对 github.com 的 https 远端）。");
+  if (r.ok && githubTarget) {
+    text.push("凭据：走本 App 自写的 git remote helper（只对 github.com 的 https 远端），令牌不经过 git。");
   }
   const rawOut = (r.stdout || "").trim();
   const rawErr = (r.stderr || "").trim();
@@ -139,25 +140,27 @@ export async function run(input, ctx, { label }) {
 }
 
 /**
- * 认证失败时的引导：按「这次有没有注入 App 令牌」分流——两种情况的可修之处不同，
+ * 认证失败时的引导：按「这次走没走 App 的 helper」分流——两种情况的可修之处不同，
  * 给同一句话等于让调用方去试一个不对的方向。
+ *
+ * 走 helper 时，令牌由 helper 自己从 dataDir 解（与 App 进程读到的是同一份凭据），
+ * 所以「App 进程里有没有令牌」仍能指示凭据是否就位。
  */
 function gitAuthGuide(githubTarget, token) {
   if (githubTarget && token) {
     return (
-      "已注入 App 令牌但 GitHub 仍拒绝：多半是令牌授权范围不覆盖这次操作（如带 .github/workflows 改动需要 `workflows: write`），" +
+      "GitHub 拒绝了 App 令牌：多半是授权范围不覆盖这次操作（如带 .github/workflows 改动需要 `workflows: write`），" +
       "或令牌已失效——请到 GitHana 设置页重新点「用 GitHub 登录」后重试。"
     );
   }
   if (githubTarget && !token) {
     return (
-      "本次推送没有可用的 App 令牌（尚未登录），已回落系统 Git 凭据。" + GIT_CREDENTIAL_NOTE + "。\n" +
-      "要让换台机器也能推送，请到 GitHana 设置页点「用 GitHub 登录」；" +
-      "或先确认本机 Git Credential Manager 里已有该远端的凭据。"
+      "本次推送没有可用的 App 令牌（尚未登录），helper 已明确报错。" + GIT_AUTH_NOTE + "。\n" +
+      "请到 GitHana 设置页点「用 GitHub 登录」完成授权后重试。"
     );
   }
   return (
-    "远端不是 github.com 的 https 地址，本 App 的令牌只对 github.com 生效，这条路走系统 Git 凭据。" +
+    "远端不是 github.com 的 https 地址，本 App 的 helper 只对 github.com 生效，这条路走 git 原生传输与系统 Git 凭据。" +
     "请确认本机已有该远端的凭据，或检查远端 URL 协议。"
   );
 }
