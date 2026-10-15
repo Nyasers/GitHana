@@ -147,10 +147,10 @@ function hostAllowed(host, allowedHosts, suffixes) {
  */
 function outboundReject(target, allowedHosts, what, suffixes) {
   if (target.protocol !== "https:") {
-    return `拒绝${what}：${target.protocol}// 不是 https。`;
+    return `rejected ${what}: ${target.protocol}// is not https.`;
   }
   if (!hostAllowed(target.host, allowedHosts, suffixes)) {
-    return `拒绝${what}：${target.host} 不在允许的主机（${[...allowedHosts, ...(suffixes || [])].join(" / ")}）。`;
+    return `rejected ${what}: ${target.host} is not among the allowed hosts (${[...allowedHosts, ...(suffixes || [])].join(" / ")}).`;
   }
   return null;
 }
@@ -277,11 +277,11 @@ async function fetchChecked(startUrl, { method, headers, makeBody, streamBody, t
     try {
       target = new URL(url);
     } catch {
-      throw new Error("URL 非法：" + String(url));
+      throw new Error("invalid URL: " + String(url));
     }
     const allowed = hop === 0 ? ALLOWED_HOSTS : REDIRECT_HOSTS;
     // 后缀白名单只给重定向侧：起始请求是我们主动打的面，只认精确 host。
-    const reject = outboundReject(target, allowed, "请求", hop === 0 ? [] : REDIRECT_HOST_SUFFIXES);
+    const reject = outboundReject(target, allowed, "request", hop === 0 ? [] : REDIRECT_HOST_SUFFIXES);
     if (reject) throw new Error(reject);
     // 每一跳现造请求体：307/308 会带着体再发一次，而**流用过一次就没了**——
     // 复用上一跳那条流会发出空体（甚至已经 aborted 的流）。造体函数对文件那支每次新开读流。
@@ -306,7 +306,7 @@ async function fetchChecked(startUrl, { method, headers, makeBody, streamBody, t
       return res; // Location 不是合法 URL：当最终响应回报
     }
     // 跳转目标同样既要过主机白名单（含 Azure 存储那条后缀），也要是 https。
-    const rejectNext = outboundReject(next, REDIRECT_HOSTS, "跳转", REDIRECT_HOST_SUFFIXES);
+    const rejectNext = outboundReject(next, REDIRECT_HOSTS, "redirect", REDIRECT_HOST_SUFFIXES);
     if (rejectNext) throw new Error(rejectNext);
     // 离开 api.github.com 后不带走凭据：codeload 是公开下载域，把令牌送过去没有必要。
     if (next.host !== "api.github.com" && headersNow.Authorization) {
@@ -321,7 +321,7 @@ async function fetchChecked(startUrl, { method, headers, makeBody, streamBody, t
     }
     url = next.toString();
   }
-  throw new Error("重定向次数超过上限（" + MAX_REDIRECTS + " 次）。");
+  throw new Error("redirect count exceeded the limit (" + MAX_REDIRECTS + ").");
 }
 
 /** 组请求头：Authorization 按 auth 开关，Accept/UA 固定，JSON 体带 content-type。 */
@@ -420,14 +420,14 @@ function checkFileBody(req) {
   try {
     st = fs.statSync(p);
   } catch (e) {
-    return { error: { code: "file_unreadable", cause: String((e && e.code) || ""), error: "本地文件读不到：" + p } };
+    return { error: { code: "file_unreadable", cause: String((e && e.code) || ""), error: "cannot read the local file: " + p } };
   }
   if (!st.isFile()) {
-    return { error: { code: "file_unreadable", cause: "EISDIR", error: "这个路径不是文件：" + p } };
+    return { error: { code: "file_unreadable", cause: "EISDIR", error: "this path is not a file: " + p } };
   }
   const max = Number(req.maxFileBytes);
   if (Number.isFinite(max) && max > 0 && st.size >= max) {
-    return { error: { code: "file_too_large", size: st.size, error: "本地文件超过上限：" + p } };
+    return { error: { code: "file_too_large", size: st.size, error: "the local file exceeds the limit: " + p } };
   }
   return { size: st.size };
 }
@@ -520,7 +520,7 @@ function streamToFile(res, target, overwrite) {
           error: {
             code: "download_truncated",
             size: bytes,
-            error: "下载不完整：声明 " + declared + " 字节，实收 " + bytes + " 字节。",
+            error: "incomplete download: declared " + declared + " bytes, received " + bytes + " bytes.",
           },
         });
       }
@@ -556,9 +556,9 @@ async function executeOne(req, token) {
   try {
     url = new URL(String(req.url || ""));
   } catch {
-    return fail(id, "URL 非法：" + String(req.url || ""));
+    return fail(id, "invalid URL: " + String(req.url || ""));
   }
-  const reject = outboundReject(url, ALLOWED_HOSTS, "出站");
+  const reject = outboundReject(url, ALLOWED_HOSTS, "outbound");
   if (reject) {
     return fail(id, reject);
   }
@@ -582,7 +582,7 @@ async function executeOne(req, token) {
       exists = false; // 许可根外判不了存在性，交给 createWriteStream 去报
     }
     if (exists) {
-      return fail(id, "目标文件已存在：" + toFile, { code: "target_exists" });
+      return fail(id, "the target file already exists: " + toFile, { code: "target_exists" });
     }
   }
 
@@ -622,21 +622,21 @@ async function executeOne(req, token) {
         const cause = e && e.cause ? String(e.cause.message || e.cause.code || "") : "";
         return fail(
           id,
-          "请求失败：" + String((e && e.message) || e) + (cause ? "（" + cause + "）" : "") +
-            (code ? "［连接层错误已重试 " + CONNECT_RETRIES + " 次］" : ""),
+          "request failed: " + String((e && e.message) || e) + (cause ? " (" + cause + ")" : "") +
+            (code ? " [connection-layer error, already retried " + CONNECT_RETRIES + " times]" : ""),
         );
       }
     }
     if (!res) {
       const cause = lastErr && lastErr.cause ? String(lastErr.cause.message || lastErr.cause.code || "") : "";
-      return fail(id, "请求失败：" + (cause || "连接未能建立"));
+      return fail(id, "request failed: " + (cause || "the connection could not be established"));
     }
 
     // 下载侧：响应 ok 且给了 toFile → 字节原样落盘（不读进内存、不按 UTF-8 解码）。
     // 非 2xx 不落盘，走下面那条文本读法，把 GitHub 的错误原文交给调用方。
     if (toFile && res.ok) {
       const written = await streamToFile(res, toFile, req.overwrite === true);
-      if (written.error) return fail(id, "写本地文件失败：" + toFile + "：" + written.error.error, written.error);
+      if (written.error) return fail(id, "failed to write the local file: " + toFile + ": " + written.error.error, written.error);
       last = { id, ok: true, status: res.status, json: null, text: "", truncated: false, bytes: written.bytes, link: res.headers.get("link") || null };
       break;
     }
@@ -651,9 +651,9 @@ async function executeOne(req, token) {
       const cause = e && e.cause ? String(e.cause.message || e.cause.code || "") : "";
       return fail(
         id,
-        "读取响应体失败（HTTP " + res.status + "）：" + String((e && e.message) || e) +
-          (cause ? "（" + cause + "）" : "") +
-          "。注意：服务端可能已经处理了该请求，重试写操作前请先确认。",
+        "failed to read the response body (HTTP " + res.status + "): " + String((e && e.message) || e) +
+          (cause ? " (" + cause + ")" : "") +
+          ". Note: the server may already have processed this request — before retrying a write, confirm the current state first.",
         { status: res.status },
       );
     }
@@ -698,7 +698,7 @@ async function main() {
   try {
     input = JSON.parse(raw);
   } catch (e) {
-    console.log(JSON.stringify({ fatal: "stdin 不是 JSON：" + String((e && e.message) || e) }));
+    console.log(JSON.stringify({ fatal: "stdin is not JSON: " + String((e && e.message) || e) }));
     return;
   }
   const token = typeof input.token === "string" ? input.token : "";

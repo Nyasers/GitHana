@@ -30,12 +30,12 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_label";
 
 export const description = [
-  "GitHana GitHub 标签：列 / 建 / 改 / 删仓库标签，或从别的仓库整套搬过来。",
-  "action=clone / create / edit / delete / list。",
-  "clone 的 repo 是目标、fromRepo 是源；edit 的 name 是定位、改名用 newName；delete 需 confirm=true。",
-  "给 issue 打标签用 githana_issue(action=\"edit\")，PR 的用 githana_pr(action=\"edit\")；",
-  "发布在 githana_release，CI 在 githana_run / githana_workflow / githana_cache，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana GitHub labels: list / create / edit / delete repository labels, or copy a whole set over from another repository.",
+  "action=clone / create / edit / delete / list.",
+  "for clone, repo is the target and fromRepo the source; for edit, name locates the label and renaming uses newName; delete needs confirm=true.",
+  "to label an issue use githana_issue(action=\"edit\"), for a PR use githana_pr(action=\"edit\");",
+  "releases are in githana_release, CI in githana_run / githana_workflow / githana_cache, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序（与 D2 的动词顺序一致）。 */
@@ -51,7 +51,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 标签动作：create / edit / delete / clone 都会修改 GitHub 远端仓库的标签（delete 会从所有已打该标签的 issue / PR 上摘掉），执行前请确认 action 与参数",
+    "GitHana label actions: create / edit / delete / clone all modify the labels of the remote GitHub repository (delete removes it from every issue / PR that carries it) — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-label",
 };
 

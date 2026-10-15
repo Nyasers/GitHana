@@ -35,25 +35,25 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { formatBytes } from "../../lib/ci.js";
 
 export const command = "delete";
-export const summary = "删除 Actions 缓存（按 id 删一条，或按 key 删一族）";
+export const summary = "Delete Actions caches (one by id, or a whole family by key)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  id: z.number().int().min(1).optional().describe("可选：缓存 id（从 githana_cache(action=\"list\") 取）——删这一条"),
-  key: z.string().optional().describe("可选：缓存 key——删这个 key 的缓存；配 ref 只删该 ref 上的。GitHub 的 key 参数按文档是「key 或 key 前缀」，所以它可能匹配到多条甚至多个不同的 key"),
-  ref: z.string().optional().describe("可选：限定的 ref（如 refs/heads/main）；按 key 删时不给它会跨所有分支删，那种情况需要 confirm=true"),
+  id: z.number().int().min(1).optional().describe("Optional: cache id (get it from githana_cache(action=\"list\")) — deletes that one entry"),
+  key: z.string().optional().describe("Optional: cache key — deletes the caches for this key; combined with ref it only deletes the ones on that ref. Per GitHub's docs the key parameter is \"key or key prefix\", so it may match several entries or even several different keys"),
+  ref: z.string().optional().describe("Optional: restrict the ref (e.g. refs/heads/main); when deleting by key, omitting it deletes across all branches, and that case requires confirm=true"),
   confirm: z
     .boolean()
     .optional()
-    .describe("按 key 删且未给 ref 时必须为 true（会跨所有分支清掉这个 key）；缺它会先列出将被删的那些"),
+    .describe("Required to be true when deleting by key without a ref (clears this key across all branches); without it the entries that would be deleted are listed first"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "**删除** GitHub 远端仓库的 Actions 缓存（下一次构建会重新生成，不会丢代码）：执行前请确认 repo，以及 key 是否给了 ref 限定",
+    "**Delete** Actions caches in a remote GitHub repository (the next build regenerates them; no code is lost): confirm repo before running, and whether the key has a ref restriction",
   ruleId: "github-toolkit-cache-delete",
 };
 
@@ -69,12 +69,12 @@ export async function run(input, ctx, { label }) {
 
   if (!idIn && !keyIn) {
     return (
-      label + " 参数错误：要么给 id（删一条），要么给 key（删一族）——两者都没有。\n" +
-      "先用 githana_cache(action=\"list\") 看有哪些缓存（那里能拿到 id 与 key）。"
+      label + " argument error: give either id (delete one entry) or key (delete a whole family) — neither was provided.\n" +
+      "Start with githana_cache(action=\"list\") to see which caches exist (that is where you get the id and key)."
     );
   }
   if (idIn && keyIn) {
-    return label + " 参数错误：id 与 key 只能给一个（id 删一条，key 删一族）。当前两者都给了。";
+    return label + " argument error: id and key are mutually exclusive (id deletes one entry, key deletes a whole family). Both were provided.";
   }
 
   // ── 按 id 删一条 ────────────────────────────────────────────────────────
@@ -83,17 +83,17 @@ export async function run(input, ctx, { label }) {
       [{ method: "DELETE", url: apiUrl(repo, "/actions/caches/" + encodeURIComponent(idIn)), timeoutMs }],
       { timeoutSec },
     );
-    if (!r.ok) return label + " 执行失败：" + r.message;
+    if (!r.ok) return label + " execution failed: " + r.message;
     const res = r.results[0];
     // 204 No Content 是成功（删除不返回正文）。
     if (!res || (!res.ok && res.status !== 204)) {
-      if (res && res.status === 404) return label + "：仓库 " + repoLabel + " 里没有 id 为 " + idIn + " 的缓存。";
-      return label + " 执行失败：" + describeFailure(res, repoLabel);
+      if (res && res.status === 404) return label + ": repository " + repoLabel + " has no cache with id " + idIn + ".";
+      return label + " execution failed: " + describeFailure(res, repoLabel);
     }
     return [
-      label + " 已删除（" + repoLabel + "）：",
-      "缓存 id：" + idIn + "（一条）",
-      "说明：删缓存只让下一次构建重新生成它，不丢代码。要清掉某个 key 的全部缓存用 githana_cache(action=\"delete\", key=\"…\")。",
+      label + " deleted (" + repoLabel + "):",
+      "cache id: " + idIn + " (one entry)",
+      "note: deleting a cache only makes the next build regenerate it; no code is lost. To clear all caches for a key use githana_cache(action=\"delete\", key=\"…\").",
     ].join("\n");
   }
 
@@ -119,18 +119,18 @@ export async function run(input, ctx, { label }) {
 
   if (!refIn && input?.confirm !== true) {
     const out = [
-      label + " 需要确认（未执行删除）：按 key 删且**没给 ref**，会把所有分支上的这个 key 一起清掉。",
-      "key：" + keyIn + " · 仓库 " + repoLabel,
-      "范围：全部 ref。当前匹配到 " + list.length + " 条" +
-        (list.length ? "（合计 " + formatBytes(totalBytes) + " · 涉及 " + refsTouched.length + " 个 ref）" : "") +
-        (before.ok ? "" : "\n（注意：上面这次预查失败了——" + (before.message || "结果不可用") + "，条数可能不准。）"),
+      label + " confirmation required (nothing deleted yet): deleting by key with **no ref given** clears this key on all branches.",
+      "key: " + keyIn + " · repository " + repoLabel,
+      "scope: all refs. Currently " + list.length + " match" +
+        (list.length ? " (" + formatBytes(totalBytes) + " total · across " + refsTouched.length + " refs)" : "") +
+        (before.ok ? "" : "\n(note: the pre-check above failed — " + (before.message || "result unusable") + "; the count may be off.)"),
     ];
     for (const it of list.slice(0, 20)) {
       out.push("  id " + (it.id !== undefined ? it.id : "?") + "  " + formatBytes(it.size_in_bytes) + "  " + (it.ref || "?"));
     }
-    if (list.length > 20) out.push("  …（还有 " + (list.length - 20) + " 条）");
-    out.push("更保险的做法：给 ref 限定（ref=\"refs/heads/<分支>\"），只删那个分支上的。");
-    out.push("确认要跨所有分支删，请重发同一次调用并带上 confirm=true。");
+    if (list.length > 20) out.push("  …(" + (list.length - 20) + " more)");
+    out.push("The safer option: restrict by ref (ref=\"refs/heads/<branch>\") and only delete the ones on that branch.");
+    out.push("To confirm deleting across all branches, resend the same call with confirm=true.");
     return out.join("\n");
   }
 
@@ -138,31 +138,31 @@ export async function run(input, ctx, { label }) {
     [{ method: "DELETE", url: apiUrl(repo, "/actions/caches") + "?" + query.join("&"), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     const detail = errorDetail(res);
     if (res && res.status === 404) {
       return (
-        label + "：没有匹配的缓存（key=" + keyIn + (refIn ? " · ref=" + refIn : "") + " · " + repoLabel + "）。\n" +
-        "注意：GitHub 的 key 参数按文档是「key 或 key 前缀」，若确认该 key 存在，请核对写入时算出的完整 key。\nGitHub 原文：" + detail
+        label + ": no matching caches (key=" + keyIn + (refIn ? " · ref=" + refIn : "") + " · " + repoLabel + ").\n" +
+        "note: per GitHub's docs the key parameter is \"key or key prefix\"; if you are sure that key exists, double-check the full key computed at write time.\nGitHub raw message: " + detail
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const body = res.json && typeof res.json === "object" ? res.json : {};
   const deleted = Array.isArray(body.actions_caches) ? body.actions_caches : [];
   const count = body.total_count !== undefined ? Number(body.total_count) : deleted.length;
   const out = [
-    label + " 已删除（" + repoLabel + "）：",
-    "key：" + keyIn + " · 范围：" + (refIn ? "仅 ref=" + refIn : "全部 ref（未给 ref 限定）"),
-    "删掉 " + count + " 条" + (count > 1 ? "（" + [...new Set(deleted.map((it) => String((it && it.ref) || "?")))].length + " 个 ref）" : ""),
+    label + " deleted (" + repoLabel + "):",
+    "key: " + keyIn + " · scope: " + (refIn ? "only ref=" + refIn : "all refs (no ref restriction given)"),
+    "deleted " + count + (count > 1 ? " (" + [...new Set(deleted.map((it) => String((it && it.ref) || "?")))].length + " refs)" : ""),
   ];
   for (const it of deleted.slice(0, 20)) {
-    out.push("  id " + (it.id !== undefined ? it.id : "?") + "  " + formatBytes(it.size_in_bytes) + "  " + (it.ref || "?") + "  创建 " + fmtTime(it.created_at));
+    out.push("  id " + (it.id !== undefined ? it.id : "?") + "  " + formatBytes(it.size_in_bytes) + "  " + (it.ref || "?") + "  created " + fmtTime(it.created_at));
   }
-  if (deleted.length > 20) out.push("  …（还有 " + (deleted.length - 20) + " 条）");
-  out.push("说明：删缓存只让下一次构建重新生成它，不丢代码。要删单条用 githana_cache(action=\"delete\", id=<上面的 id>)。");
+  if (deleted.length > 20) out.push("  …(" + (deleted.length - 20) + " more)");
+  out.push("note: deleting a cache only makes the next build regenerate it; no code is lost. To delete a single entry use githana_cache(action=\"delete\", id=<the id above>).");
   return out.join("\n");
 }

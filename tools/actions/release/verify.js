@@ -34,7 +34,7 @@ import { locateRelease, findAsset, assetLine, formatSize } from "../../lib/relea
 import { normalizeLocalPath, sha256File, parseDigest } from "../../lib/transfer.js";
 
 export const command = "verify";
-export const summary = "核对发布的完整性（资产的 sha256 清单 + 可选与本地文件比对）";
+export const summary = "Verify a release's integrity (sha256 manifest of assets + optional comparison with local files)";
 
 export const schema = {
   repo: params.repo,
@@ -43,36 +43,36 @@ export const schema = {
   files: z
     .array(z.string())
     .optional()
-    .describe("可选：本地文件绝对路径列表；按**文件名**与资产名匹配，逐个算 sha256 与 GitHub 记录的摘要比对"),
+    .describe("Optional: list of absolute paths to local files; matched to asset names by **file name**, each hashed with sha256 and compared against the digest GitHub recorded"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "读取 GitHub 远端发布的资产摘要清单，并（在给了 files 时）读取本地文件算 sha256 做比对：不修改远端状态，也不写本地磁盘",
+    "Read the asset digest manifest of a remote GitHub release and (when files are given) read local files to compute sha256 for comparison: does not modify remote state and does not write to the local disk",
   ruleId: "github-toolkit-release-verify",
 };
 
 /** 本动词做不到的那一层（gh release verify 的 attestation 校验）——统一文案，别处也要引用。 */
 export const ATTESTATION_LIMIT =
-  "来源证明（attestation）校验不在本动词上：`attestations` 权限不在本 App 的授权集里（D7），" +
-  "且 sigstore 验签需要一个签名验证实现，与「服务端零 npm 依赖」冲突。要那一层请用 gh CLI：" +
-  "gh attestation verify <file> --repo <owner/repo>。";
+  "Attestation verification is not on this verb: the `attestations` permission is not in this App's authorization set (D7), " +
+  "and sigstore signature checking needs a signature verification implementation, which conflicts with \"zero npm dependencies on the server side\". For that layer use the gh CLI: " +
+  "gh attestation verify <file> --repo <owner/repo>.";
 
 /** 摘要比对一行。 */
 function compareLine(asset, localHex) {
   const remote = parseDigest(asset && asset.digest);
   if (!remote) {
-    return "  ? " + (asset && asset.name ? asset.name : "?") + "：GitHub 侧没有记录 digest，无法比对（见下方说明）";
+    return "  ? " + (asset && asset.name ? asset.name : "?") + ": GitHub has no digest recorded, so it cannot be compared (see the note below)";
   }
   if (remote.algorithm !== "sha256") {
-    return "  ? " + (asset && asset.name ? asset.name : "?") + "：GitHub 记的是 " + remote.algorithm + "，本地算的是 sha256，无法比";
+    return "  ? " + (asset && asset.name ? asset.name : "?") + ": GitHub records " + remote.algorithm + " while the local computation is sha256, so they cannot be compared";
   }
-  if (remote.hex === localHex) return "  ✓ " + asset.name + "：一致（sha256 " + localHex.slice(0, 16) + "…）";
+  if (remote.hex === localHex) return "  ✓ " + asset.name + ": match (sha256 " + localHex.slice(0, 16) + "…)";
   return (
-    "  ✗ " + asset.name + "：**不一致**——远端 sha256 " + remote.hex.slice(0, 16) +
-    "…，本地 sha256 " + localHex.slice(0, 16) + "…"
+    "  ✗ " + asset.name + ": **mismatch** — remote sha256 " + remote.hex.slice(0, 16) +
+    "…, local sha256 " + localHex.slice(0, 16) + "…"
   );
 }
 
@@ -87,33 +87,33 @@ export async function run(input, ctx, { label }) {
   const assets = Array.isArray(rel.assets) ? rel.assets : [];
 
   const out = [
-    label + "（" + repoLabel + " · " + (rel.tag_name || "?") + "）：",
-    "资产 " + assets.length + " 个" +
+    label + " (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
+    "assets: " + assets.length +
       (rel.id !== undefined ? " · release id " + rel.id : "") +
-      (rel.draft ? " · 草稿 draft" : "") +
-      (rel.prerelease ? " · 预发布 prerelease" : ""),
+      (rel.draft ? " · draft" : "") +
+      (rel.prerelease ? " · prerelease" : ""),
   ];
 
   if (assets.length === 0) {
-    out.push("（没有任何资产，没有可核对的摘要）");
+    out.push("(no assets at all, so there are no digests to check)");
     out.push("");
-    out.push("说明：" + ATTESTATION_LIMIT);
+    out.push("note: " + ATTESTATION_LIMIT);
     return out.join("\n");
   }
 
   // 远端侧的摘要清单：这一层只读 API，不碰本地文件。
   const withDigest = assets.filter((a) => parseDigest(a && a.digest));
   out.push("");
-  out.push("—— GitHub 侧记录的摘要（" + withDigest.length + " / " + assets.length + " 个资产有）——");
+  out.push("—— digests recorded on the GitHub side (" + withDigest.length + " / " + assets.length + " assets have one) ——");
   for (const a of assets) {
     const d = parseDigest(a && a.digest);
-    out.push(assetLine(a) + (d ? "  " + d.algorithm + ":" + d.hex.slice(0, 16) + "…" : "  （无 digest）"));
+    out.push(assetLine(a) + (d ? "  " + d.algorithm + ":" + d.hex.slice(0, 16) + "…" : "  (no digest)"));
   }
   if (withDigest.length < assets.length) {
     out.push(
-      "说明：" + (assets.length - withDigest.length) + " 个资产在这一份表示里没有 digest。" +
-      "两个原因都可能：GitHub 只为**上传时带摘要**的资产记录它（较老的、或经其它工具上传的可能没有），" +
-      "或这条 release 表示没有内联该字段——`verify-asset` 会单独取一次该资产、拿权威的那一份。",
+      "note: " + (assets.length - withDigest.length) + " assets have no digest in this representation. " +
+      "Either cause is possible: GitHub only records it for assets **uploaded with a digest** (older ones, or ones uploaded by other tools, may not have it), " +
+      "or this release representation does not inline the field — `verify-asset` fetches that asset separately and gets the authoritative copy.",
     );
   }
 
@@ -121,18 +121,18 @@ export async function run(input, ctx, { label }) {
   const files = Array.isArray(input?.files) ? input.files : [];
   if (files.length === 0) {
     out.push("");
-    out.push("没有给 files：只核对远端清单。要核对本地副本，传 files=[\"<本地文件绝对路径>\", …]（按文件名与资产名匹配）。");
+    out.push("no files given: only the remote manifest was checked. To check local copies, pass files=[\"<absolute path to local file>\", …] (matched to asset names by file name).");
     out.push("");
-    out.push("说明：" + ATTESTATION_LIMIT);
+    out.push("note: " + ATTESTATION_LIMIT);
     return out.join("\n");
   }
 
   out.push("");
-  out.push("—— 与本地文件比对（" + files.length + " 个）——");
+  out.push("—— compared against local files (" + files.length + ") ——");
   for (const raw of files) {
-    const norm = normalizeLocalPath(raw, "files 里的路径");
+    const norm = normalizeLocalPath(raw, "path in files");
     if (norm.error) {
-      out.push("  ! " + String(raw) + "：" + norm.error);
+      out.push("  ! " + String(raw) + ": " + norm.error);
       continue;
     }
     const p = norm.path;
@@ -141,24 +141,24 @@ export async function run(input, ctx, { label }) {
     // 按**文件名**匹配资产：这是本地副本与远端资产之间唯一稳定的对应关系（路径在不同机器上不同）。
     const found = findAsset(rel, { assetName: base });
     if (found.error) {
-      out.push("  ! " + base + "：这个发布里没有同名资产（比对无从进行）。");
+      out.push("  ! " + base + ": this release has no same-named asset (nothing to compare against).");
       continue;
     }
-    const sum = await sha256File(p, "本地文件 " + base);
+    const sum = await sha256File(p, "local file " + base);
     if (sum.error) {
-      out.push("  ! " + base + "：" + sum.error);
+      out.push("  ! " + base + ": " + sum.error);
       continue;
     }
     // 体积先在远端说明里报一次：体积不符本身就是一个独立信号（不必等到摘要比对）。
     const remoteSize = Number(found.asset && found.asset.size);
     const sizeNote =
       Number.isFinite(remoteSize) && remoteSize !== sum.size
-        ? "（体积也不符：远端 " + formatSize(remoteSize) + " vs 本地 " + formatSize(sum.size) + "）"
+        ? " (size differs too: remote " + formatSize(remoteSize) + " vs local " + formatSize(sum.size) + ")"
         : "";
     out.push(compareLine(found.asset, sum.hex) + sizeNote);
   }
   out.push("");
-  out.push("说明：" + ATTESTATION_LIMIT);
-  out.push("说明：许可根之外的本地文件读不到（AppHost 的 Node 权限模型），那种情况报的是 ERR_ACCESS_DENIED，不是「文件不存在」。");
+  out.push("note: " + ATTESTATION_LIMIT);
+  out.push("note: local files outside the permission root cannot be read (AppHost's Node permission model); that case reports ERR_ACCESS_DENIED, not \"file not found\".");
   return out.join("\n");
 }

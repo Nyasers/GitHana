@@ -24,12 +24,12 @@ import { otherVerbs } from "./lib/verbs.js";
 export const name = "githana_git";
 
 export const description = [
-  "GitHana 本地 git：在指定仓库里执行 git 操作。",
-  "action=exec（任意 git 子命令透传）/ commit（提交，自动 Co-authored-by + OpenPGP 签名）",
-  "/ push（推送，force 映射 --force-with-lease）。",
-  "GitHub 远端操作在 githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
-  "githana_workflow / githana_cache / githana_label，其余端点走 githana_api。",
-  "参数、示例与边界见随包手册 skills/githana/SKILL.md。",
+  "GitHana local git: run git operations inside a specified repository.",
+  "action=exec (pass through an arbitrary git subcommand) / commit (commit, with automatic Co-authored-by + OpenPGP signature)",
+  "/ push (push, with force mapped to --force-with-lease).",
+  "GitHub remote operations are in githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
+  "githana_workflow / githana_cache / githana_label, and other endpoints go through githana_api.",
+  "Parameters, examples and boundaries are in the bundled manual skills/githana/SKILL.md.",
 ].join(" ");
 
 /** action 表：顺序即 action 字段的 enum 顺序。 */
@@ -39,7 +39,7 @@ const ACTIONS = [{ module: exec }, { module: commit }, { module: push }];
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana 本地 git 动作（exec / commit / push）：可能修改本地仓库状态，push 还会更新远端分支，执行前请确认 action 与参数",
+    "GitHana local git actions (exec / commit / push): may modify local repository state, and push also updates the remote branch — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-git",
 };
 

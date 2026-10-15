@@ -13,7 +13,7 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 
 export const command = "unlock";
-export const summary = "解除 issue 对话的锁定";
+export const summary = "Unlock an issue conversation";
 
 export const schema = {
   repo: params.repo,
@@ -24,7 +24,7 @@ export const schema = {
 
 export const sideEffect = {
   kind: "github_issue",
-  summary: "解除 GitHub 远端 issue 对话的锁定（非协作者可再次评论）：修改 GitHub 远端状态",
+  summary: "Unlock the conversation on a remote GitHub issue (non-collaborators can comment again): modifies remote GitHub state",
   ruleId: "github-toolkit-issue-unlock",
 };
 
@@ -45,7 +45,7 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "要解锁这个 PR 的对话请用 githana_pr(action=\"unlock\", prNumber=" + numStr + ")。",
+      "To unlock the conversation on this PR use githana_pr(action=\"unlock\", prNumber=" + numStr + ").",
     );
   }
 
@@ -53,19 +53,19 @@ export async function run(input, ctx, { label }) {
     [{ method: "DELETE", url: apiUrl(repo, "/issues/" + numStr + "/lock"), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（解锁不返回正文）。
   if (!res || (!res.ok && res.status !== 204)) {
-    if (res && res.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 403) {
-      return label + " 执行失败：没有解锁对话的权限（403）。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: no permission to unlock the conversation (403).\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   return [
-    label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：",
-    "状态：对话已解锁（未锁定），非协作者可再次评论。",
+    label + " done (issue #" + numStr + " · " + repoLabel + "):",
+    "state: conversation unlocked (not locked); non-collaborators can comment again.",
   ].join("\n");
 }

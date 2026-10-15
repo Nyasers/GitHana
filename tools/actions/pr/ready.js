@@ -32,7 +32,7 @@ import { resolveContext, resolvePrNumber, describeFailure, prStateText } from ".
 import { graphql } from "../../lib/graphql.js";
 
 export const command = "ready";
-export const summary = "把草稿 PR 转为可审查（undo=true 反向转回草稿）";
+export const summary = "Turn a draft PR into ready for review (undo=true reverses it back to draft)";
 
 export const schema = {
   repo: params.repo,
@@ -41,14 +41,14 @@ export const schema = {
   undo: z
     .boolean()
     .optional()
-    .describe("可选：true = 反向操作，把 PR 转回草稿（convertPullRequestToDraft）；缺省 / false = 转 ready"),
+    .describe("Optional: true = the reverse operation, turning the PR back into a draft (convertPullRequestToDraft); default / false = turn it ready"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "修改 GitHub 远端 PR 的状态位：把草稿 PR 转为可审查（undo=true 则是转回草稿）——转 ready 后 PR 会通知审查者并参与合并判断，转回草稿会让它不能合并，执行前请确认 repo 与 prNumber",
+    "Modify a remote GitHub PR's status flag: turn a draft PR into ready for review (with undo=true, back into a draft) — turning it ready notifies reviewers and lets it take part in merge decisions, while turning it back into a draft makes it unmergeable; confirm repo and prNumber before running",
   ruleId: "github-toolkit-pr-ready",
 };
 
@@ -81,16 +81,16 @@ export async function run(input, ctx, { label }) {
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const undo = input?.undo === true;
-  const toText = undo ? "草稿（draft）" : "可审查（ready for review）";
-  const fromText = undo ? "可审查（ready for review）" : "草稿（draft）";
+  const toText = undo ? "draft" : "ready for review";
+  const fromText = undo ? "ready for review" : "draft";
 
   // ① REST 取 PR 本体：node_id 是 GraphQL 的入参，draft 是幂等判断的依据。
   const r = await callRest([{ url: apiUrl(repo, "/pulls/" + numStr), timeoutMs }], { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
   const pr = res.json && typeof res.json === "object" ? res.json : {};
 
@@ -100,11 +100,11 @@ export async function run(input, ctx, { label }) {
   if (String(pr.state || "") !== "open") {
     const next =
       pr.merged === true
-        ? "它已经合并了，改动已在目标分支上——要撤销请用 githana_pr(action=\"revert\", prNumber=" + numStr + ")。"
-        : "要让它重新进入评审请先重开：githana_pr(action=\"reopen\", prNumber=" + numStr + ")。";
+        ? "It has already been merged and the changes are on the base branch — to undo them use githana_pr(action=\"revert\", prNumber=" + numStr + ")."
+        : "To put it back into review, reopen it first: githana_pr(action=\"reopen\", prNumber=" + numStr + ").";
     return [
-      label + " 无法改状态位（PR #" + numStr + " · " + repoLabel + "）：",
-      "它的状态是 " + prStateText(pr) + "，不在 open 的评审流程里——状态位只在 open 的 PR 上有意义。",
+      label + " cannot change the status flag (PR #" + numStr + " · " + repoLabel + "):",
+      "its state is " + prStateText(pr) + ", so it is not in the open review flow — the status flag is only meaningful for open PRs.",
       next,
     ].join("\n");
   }
@@ -112,8 +112,8 @@ export async function run(input, ctx, { label }) {
   const nodeId = pr.node_id ? String(pr.node_id) : "";
   if (!nodeId) {
     return (
-      label + " 执行失败：PR #" + numStr + " 的 REST 响应里没有 node_id。" +
-      "GraphQL 的变更只收 node id，缺它就无法转状态（这不是权限问题，是响应形态异常）。"
+      label + " execution failed: the REST response for PR #" + numStr + " has no node_id." +
+      "The GraphQL mutation only accepts a node id, so without it the state cannot be changed (this is not a permission problem but an abnormal response shape)."
     );
   }
 
@@ -121,16 +121,16 @@ export async function run(input, ctx, { label }) {
   // 幂等：已经是目标状态就不再发变更——转 ready 只对草稿有意义，反向只对非草稿有意义。
   if (!undo && !isDraft) {
     return [
-      label + " 无需执行（PR #" + numStr + " · " + repoLabel + "）：",
-      "它本来就不是草稿（当前状态：" + prStateText(pr) + "）。",
-      "要把一个可审查的 PR 转回草稿请加 undo=true。",
+      label + " nothing to do (PR #" + numStr + " · " + repoLabel + "):",
+      "it is not a draft to begin with (current state: " + prStateText(pr) + ").",
+      "To turn a ready-for-review PR back into a draft, add undo=true.",
     ].join("\n");
   }
   if (undo && isDraft) {
     return [
-      label + " 无需执行（PR #" + numStr + " · " + repoLabel + "）：",
-      "它本来就是草稿（当前状态：" + prStateText(pr) + "）。",
-      "要转 ready 直接调 githana_pr(action=\"ready\")（不带 undo）。",
+      label + " nothing to do (PR #" + numStr + " · " + repoLabel + "):",
+      "it is already a draft (current state: " + prStateText(pr) + ").",
+      "To make it ready, just call githana_pr(action=\"ready\") (without undo).",
     ].join("\n");
   }
 
@@ -138,12 +138,12 @@ export async function run(input, ctx, { label }) {
   const g = await graphql(undo ? CONVERT_TO_DRAFT_MUTATION : MARK_READY_MUTATION, { id: nodeId }, { timeoutSec });
   if (g.error) {
     if (/not a draft|already.*ready/i.test(g.error)) {
-      return label + "：PR #" + numStr + " 此刻已经不是草稿了（GitHub 原文说明状态已变），无需重复操作。";
+      return label + ": PR #" + numStr + " is not a draft at this moment (GitHub's raw message indicates the state has changed); no need to repeat the operation.";
     }
     if (/is a draft|already.*draft/i.test(g.error) && undo) {
-      return label + "：PR #" + numStr + " 此刻已经是草稿了（GitHub 原文说明状态已变），无需重复操作。";
+      return label + ": PR #" + numStr + " is already a draft at this moment (GitHub's raw message indicates the state has changed); no need to repeat the operation.";
     }
-    return label + " 执行失败：" + g.error;
+    return label + " execution failed: " + g.error;
   }
 
   const payload = g.data && typeof g.data === "object" ? g.data : {};
@@ -152,22 +152,22 @@ export async function run(input, ctx, { label }) {
   const after = changed && changed.pullRequest && typeof changed.pullRequest === "object" ? changed.pullRequest : {};
 
   const out = [
-    label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：",
-    "状态位：" + fromText + " → " + toText,
-    "通道：GraphQL " + (undo ? "convertPullRequestToDraft" : "markPullRequestReadyForReview") +
-      "（REST 改不动这个状态位：PATCH 带 draft 返回 200 但不生效，ready_for_review 端点返回 404）",
+    label + " done (PR #" + numStr + " · " + repoLabel + "):",
+    "status flag: " + fromText + " → " + toText,
+    "channel: GraphQL " + (undo ? "convertPullRequestToDraft" : "markPullRequestReadyForReview") +
+      " (REST cannot move this status flag: PATCH with draft returns 200 but has no effect, and the ready_for_review endpoint returns 404)",
   ];
   if (after.isDraft !== undefined && after.isDraft !== null) {
     // 报的是**方向**而不是字面值：isDraft=true 在转 ready 那边是「没生效」，在 undo 这边是「成了」。
     const ok = undo ? after.isDraft === true : after.isDraft === false;
     out.push(
-      "GitHub 回报的 isDraft：" + String(after.isDraft === true) +
-        "（" + (ok ? "与目标状态一致" : "与目标状态不一致——请用 githana_pr(action=\"view\") 核对") + "）",
+      "isDraft as reported by GitHub: " + String(after.isDraft === true) +
+        " (" + (ok ? "matches the target state" : "does not match the target state — verify with githana_pr(action=\"view\")") + ")",
     );
   }
-  if (after.url) out.push("URL：" + String(after.url));
-  else if (pr.html_url) out.push("URL：" + pr.html_url);
-  if (!undo) out.push("说明：转 ready 后 PR 会通知审查者并参与合并判断；要再转回草稿用 githana_pr(action=\"ready\", undo=true)。");
-  else out.push("说明：转回草稿后 PR 不能合并，也不会出现在需要审查的队列里；要再转 ready 用 githana_pr(action=\"ready\")。");
+  if (after.url) out.push("URL: " + String(after.url));
+  else if (pr.html_url) out.push("URL: " + pr.html_url);
+  if (!undo) out.push("note: once ready, the PR notifies reviewers and takes part in merge decisions; to turn it back into a draft use githana_pr(action=\"ready\", undo=true).");
+  else out.push("note: once back in draft, the PR cannot be merged and does not appear in the review queue; to make it ready again use githana_pr(action=\"ready\").");
   return out.join("\n");
 }

@@ -25,26 +25,26 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { MAKE_LATEST_VALUES, makeLatestText } from "../../lib/release.js";
 
 export const command = "create";
-export const summary = "新建发布（tag + 标题 + 说明）";
+export const summary = "Create a release (tag + title + notes)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  tag: params.releaseTag.describe("必填：发布的 tag 名（如 v1.2.0）；tag 不存在时 GitHub 会按 target 新建"),
-  name: z.string().optional().describe("可选：发布标题（缺省取 tag 名）"),
-  body: z.string().optional().describe("可选：发布说明（Markdown）"),
-  draft: z.boolean().optional().describe("可选：建为草稿（草稿不能设为 latest，也不出现在 /releases/latest）"),
-  prerelease: z.boolean().optional().describe("可选：标为预发布（不能设为 latest）"),
-  target: z.string().optional().describe("可选：tag 从哪个提交/分支建（缺省取仓库默认分支）"),
-  generateNotes: z.boolean().optional().describe("可选：让 GitHub 自动生成发布说明（会覆盖 body）"),
-  latest: z.enum(MAKE_LATEST_VALUES).optional().describe("可选：是否设为 latest（true / false / legacy=旧式算法）；缺省由 GitHub 决定"),
+  tag: params.releaseTag.describe("Required: the release tag name (e.g. v1.2.0); if the tag does not exist GitHub creates it from target"),
+  name: z.string().optional().describe("Optional: release title (defaults to the tag name)"),
+  body: z.string().optional().describe("Optional: release notes (Markdown)"),
+  draft: z.boolean().optional().describe("Optional: create as a draft (drafts cannot be made latest and do not appear under /releases/latest)"),
+  prerelease: z.boolean().optional().describe("Optional: mark as a prerelease (cannot be made latest)"),
+  target: z.string().optional().describe("Optional: which commit/branch to create the tag from (defaults to the repository default branch)"),
+  generateNotes: z.boolean().optional().describe("Optional: let GitHub generate the release notes automatically (overrides body)"),
+  latest: z.enum(MAKE_LATEST_VALUES).optional().describe("Optional: whether to make it latest (true / false / legacy = the old algorithm); by default GitHub decides"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "在 GitHub 远端仓库新建一个发布（tag 不存在时还会建出该 tag）：修改 GitHub 远端状态，执行前请确认 repo、tag 与 draft / prerelease 状态位",
+    "Create a release in a remote GitHub repository (the tag is created too if it does not exist): modifies remote GitHub state, confirm repo, tag and the draft / prerelease flags before running",
   ruleId: "github-toolkit-release-create",
 };
 
@@ -54,7 +54,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const tag = input?.tag !== undefined && input?.tag !== null ? String(input.tag).trim() : "";
-  if (!tag) return label + " 参数错误：tag 必填（发布的 tag 名，如 v1.2.0）。";
+  if (!tag) return label + " argument error: tag is required (the release tag name, e.g. v1.2.0).";
 
   const payload = { tag_name: tag };
   if (input?.name !== undefined && input?.name !== null && String(input.name).trim() !== "") {
@@ -73,34 +73,34 @@ export async function run(input, ctx, { label }) {
     [{ method: "POST", url: apiUrl(repo, "/releases"), json: payload, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     const detail = errorDetail(res);
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次创建（422）。最常见的原因是**同 tag 的发布已存在**" +
-        "（一个 tag 只能有一个发布；要改它用 githana_release(action=\"view\") 看现状）。\n" +
-        "GitHub 原文：" + detail
+        label + " execution failed: GitHub rejected this creation (422). The most common cause is that **a release for the same tag already exists**" +
+        " (a tag can only have one release; to change it, look at the current state with githana_release(action=\"view\")).\n" +
+        "GitHub raw message: " + detail
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const rel = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已创建（" + repoLabel + "）：",
-    "tag：" + (rel.tag_name || tag),
-    "标题：" + (rel.name || "（无标题）"),
-    "状态：" + (rel.draft ? "草稿 draft" : "已发布") + (rel.prerelease ? " · 预发布 prerelease" : "") +
+    label + " created (" + repoLabel + "):",
+    "tag: " + (rel.tag_name || tag),
+    "title: " + (rel.name || "(untitled)"),
+    "state: " + (rel.draft ? "draft" : "published") + (rel.prerelease ? " · prerelease" : "") +
       (rel.latest === true ? " · latest" : ""),
   ];
   if (input?.latest !== undefined && input.latest !== null) {
-    out.push("make_latest 请求值：" + makeLatestText(input.latest) + "（草稿与预发布不能设为 latest，以 GitHub 的实际结果为准）");
+    out.push("make_latest requested: " + makeLatestText(input.latest) + " (drafts and prereleases cannot be made latest; GitHub's actual result is authoritative)");
   }
-  if (rel.target_commitish) out.push("目标：" + rel.target_commitish);
-  if (rel.published_at) out.push("发布于：" + fmtTime(rel.published_at));
-  if (rel.html_url) out.push("URL：" + rel.html_url);
-  out.push("说明：不带资产。要挂产物请接着调 githana_release(action=\"upload\", tag=\"" + (rel.tag_name || tag) + "\", file=\"<本地文件绝对路径>\")。");
+  if (rel.target_commitish) out.push("target: " + rel.target_commitish);
+  if (rel.published_at) out.push("published: " + fmtTime(rel.published_at));
+  if (rel.html_url) out.push("URL: " + rel.html_url);
+  out.push("note: no assets are attached. To attach build outputs, follow up with githana_release(action=\"upload\", tag=\"" + (rel.tag_name || tag) + "\", file=\"<absolute path to the local file>\").");
   return out.join("\n");
 }

@@ -20,7 +20,7 @@ import { resolveContext } from "../../lib/gh.js";
 import { toggleWorkflow } from "../../lib/workflow-toggle.js";
 
 export const command = "disable";
-export const summary = "停用一个工作流（挡自然触发，不挡手动 dispatch）";
+export const summary = "Disable a workflow (blocks natural triggers, not manual dispatch)";
 
 export const schema = {
   repo: params.repo,
@@ -32,7 +32,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "在 GitHub 远端停用一个工作流（改它的状态位：之后 push / pull_request / schedule 等自然触发不再启动它）：修改 GitHub 远端状态，执行前请确认 repo 与 workflow",
+    "Disable a workflow on remote GitHub (changes its status flag: afterwards natural triggers such as push / pull_request / schedule no longer start it): modifies remote GitHub state, confirm repo and workflow before running",
   ruleId: "github-toolkit-workflow-disable",
 };
 

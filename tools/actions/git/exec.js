@@ -25,7 +25,7 @@ import { runCli, formatCliResult, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 
 export const command = "exec";
-export const summary = "任意 git 子命令透传";
+export const summary = "Passthrough for any git subcommand";
 
 export const schema = {
   cwd: params.cwd,
@@ -33,7 +33,7 @@ export const schema = {
     .array(z.string())
     .min(1)
     .describe(
-      "git 完整参数列表（数组，无 shell 拼接）：首元素为子命令，如 [\"status\",\"--porcelain\"]、[\"add\",\"src/a.js\"]、[\"log\",\"--oneline\",\"-5\"]",
+      "Complete git argument list (array, no shell concatenation): the first element is the subcommand, e.g. [\"status\",\"--porcelain\"], [\"add\",\"src/a.js\"], [\"log\",\"--oneline\",\"-5\"]",
     ),
   timeoutSec: params.timeoutSec,
 };
@@ -41,7 +41,7 @@ export const schema = {
 export const sideEffect = {
   kind: "git_local",
   summary:
-    "在指定仓库（cwd 绝对路径）执行任意 git 子命令（参数数组透传）：可能修改本地仓库状态（工作区/索引/提交/分支/标签/配置，视子命令而定，含 push 类子命令时亦可能推送远端），执行前请确认 cwd 与命令参数",
+    "Run any git subcommand in the given repository (cwd absolute path) (arguments passed through as an array): may change local repository state (working tree / index / commits / branches / tags / config, depending on the subcommand; push-like subcommands may also push to the remote) — confirm cwd and the command arguments before running",
   ruleId: "github-toolkit-git-exec",
 };
 
@@ -49,10 +49,10 @@ export const sideEffect = {
 function gitGuidance(stderr) {
   const s = String(stderr || "");
   if (/not a git repository|not our repo|does not appear to be a git repository/i.test(s)) {
-    return "目录不是 git 仓库：git 无法在此执行。请在仓库目录内运行（或先 git init 初始化后重试）。";
+    return "The directory is not a git repository: git cannot run here. Run it inside a repository directory (or git init first and retry).";
   }
   if (/Please tell me who you are|unable to auto-detect email|user\.name|user\.email/i.test(s)) {
-    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana_git(action=\"exec\") 配置）。";
+    return "git has no committer identity configured: configure git config user.name / user.email first (you can use githana_git(action=\"exec\") to configure it).";
   }
   return null;
 }
@@ -60,7 +60,7 @@ function gitGuidance(stderr) {
 export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
 
   const cwd = String(cwdParam).trim();
   // args 的"非空字符串数组"由 schema 保证（见上方 schema）；这里只做透传。

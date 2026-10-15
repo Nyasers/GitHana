@@ -19,20 +19,20 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { labelLine } from "../../lib/label.js";
 
 export const command = "delete";
-export const summary = "删除标签（从所有已打该标签的 issue 上摘掉）";
+export const summary = "Delete a label (removes it from every issue carrying it)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  name: z.string().describe("要删的标签名"),
-  confirm: z.boolean().optional().describe("必须为 true 才真删：删标签会从所有已打它的 issue / PR 上摘掉，缺它会返回引导"),
+  name: z.string().describe("Name of the label to delete"),
+  confirm: z.boolean().optional().describe("Must be true to actually delete: deleting a label removes it from every issue / PR carrying it; without it you get guidance instead"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "**删除** GitHub 远端仓库的标签（会从所有已打该标签的 issue / PR 上一起摘掉，关联关系不留痕）：修改 GitHub 远端状态，执行前请再次确认仓库与标签名",
+    "**Delete** a label in a remote GitHub repository (it is removed from every issue / PR carrying it, and the association leaves no trace): modifies remote GitHub state, confirm the repository and label name again before running",
   ruleId: "github-toolkit-label-delete",
 };
 
@@ -42,7 +42,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const name = input?.name !== undefined && input?.name !== null ? String(input.name).trim() : "";
-  if (!name) return label + " 参数错误：name 必填（要删的标签名）。";
+  if (!name) return label + " argument error: name is required (the label to delete).";
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   // 先确认标签存在，并取一次它的定义（回执里要写清删的是哪个）。
@@ -50,11 +50,11 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/labels/" + encodeURIComponent(name)), timeoutMs }],
     { timeoutSec },
   );
-  if (!before.ok) return label + " 执行失败：" + before.message;
+  if (!before.ok) return label + " execution failed: " + before.message;
   const bres = before.results[0];
   if (!bres || !bres.ok) {
-    if (bres && bres.status === 404) return label + "：仓库 " + repoLabel + " 里没有名为 " + name + " 的标签。";
-    return label + " 执行失败：" + describeFailure(bres, repoLabel);
+    if (bres && bres.status === 404) return label + ": repository " + repoLabel + " has no label named " + name + ".";
+    return label + " execution failed: " + describeFailure(bres, repoLabel);
   }
   const target = bres.json && typeof bres.json === "object" ? bres.json : {};
 
@@ -79,11 +79,11 @@ export async function run(input, ctx, { label }) {
 
   if (input?.confirm !== true) {
     return [
-      label + " 需要确认（未执行删除）：",
-      "将删除标签：" + labelLine(target).trim() + "（" + repoLabel + "）",
-      "影响：" + (affected === null ? "未取到（不影响删除本身）" : affectedAtLeast ? "当前有 ≥100 个打开的 issue / PR 打着它（只统计了第一页 100 条），会一起被摘掉" : "当前有 " + affected + " 个打开的 issue / PR 打着它，会一起被摘掉") + "。",
-      "删除**不可撤销**：标签定义删了就没了，关联关系也不留痕。只想去掉某个 issue 上的标签，请用 githana_issue(action=\"edit\", removeLabels=[\"" + name + "\"])。",
-      "确认后请重发同一次调用并带上 confirm=true。",
+      label + " confirmation required (nothing deleted yet):",
+      "Will delete label: " + labelLine(target).trim() + " (" + repoLabel + ")",
+      "impact: " + (affected === null ? "not fetched (does not affect the deletion itself)" : affectedAtLeast ? "≥100 open issues / PRs currently carry it (only the first page of 100 was counted); they will all lose it" : affected + " open issues / PRs currently carry it; they will all lose it") + ".",
+      "Deletion is **irreversible**: once the label definition is gone it is gone, and the associations leave no trace. To merely remove the label from one issue, use githana_issue(action=\"edit\", removeLabels=[\"" + name + "\"]) instead.",
+      "To confirm, resend the same call with confirm=true.",
     ].join("\n");
   }
 
@@ -91,15 +91,15 @@ export async function run(input, ctx, { label }) {
     [{ method: "DELETE", url: apiUrl(repo, "/labels/" + encodeURIComponent(name)), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（删除不返回正文）。
-  if (!res || (!res.ok && res.status !== 204)) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || (!res.ok && res.status !== 204)) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   return [
-    label + " 已删除（" + repoLabel + "）：",
-    "标签：" + labelLine(target).trim(),
-    "影响：" + (affected === null ? "已从所有已打该标签的 issue / PR 上摘掉（数量未取到）" : affectedAtLeast ? "已从 ≥100 个打开的 issue / PR 上摘掉（数量为删除前统计的第一页 100 条，实际可能更多）" : "已从 " + affected + " 个打开的 issue / PR 上摘掉（数量为删除前的打开项）"),
-    "说明：删除不可撤销；要重建同名标签用 githana_label(action=\"create\")。",
+    label + " deleted (" + repoLabel + "):",
+    "label: " + labelLine(target).trim(),
+    "impact: " + (affected === null ? "removed from every issue / PR carrying it (count not fetched)" : affectedAtLeast ? "removed from ≥100 open issues / PRs (the count is the first page of 100 taken before deletion; there may be more)" : "removed from " + affected + " open issues / PRs (the count is the open items before deletion)"),
+    "note: deletion is irreversible; to recreate a same-named label use githana_label(action=\"create\").",
   ].join("\n");
 }

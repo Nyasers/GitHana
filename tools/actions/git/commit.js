@@ -27,7 +27,7 @@ import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 
 export const command = "commit";
-export const summary = "提交（自动 CoA + 签名）";
+export const summary = "Commit (automatic CoA + signing)";
 
 export const schema = {
   cwd: params.cwd,
@@ -37,26 +37,26 @@ export const schema = {
     .string()
     .optional()
     .describe(
-      "提交说明（非 amend 时必填；amend 且需沿用原说明时可传空串或省略）：支持多行（title 与 body 空行分隔）与中文，经 stdin 无损传入",
+      "Commit message (required when not amending; for amend with the original message reused, pass an empty string or omit it): supports multiple lines (title and body separated by a blank line) and Chinese; passed losslessly via stdin",
     ),
   paths: z
     .array(z.string())
     .optional()
-    .describe("可选：要提交的相对路径列表（相对 cwd，如 [\"src/a.js\"]）；缺省提交全部已暂存内容"),
+    .describe("Optional: list of relative paths to commit (relative to cwd, e.g. [\"src/a.js\"]); by default all staged content is committed"),
   amend: z
     .boolean()
     .optional()
-    .describe("可选：改写最近一次提交（--amend）；message 为空时沿用 HEAD 完整 message 并自动合并署名（已含 Co-authored-by 不重复）"),
+    .describe("Optional: rewrite the most recent commit (--amend); when message is empty the full HEAD message is reused and the signature is merged in automatically (an existing Co-authored-by is not duplicated)"),
   allowEmpty: z
     .boolean()
     .optional()
-    .describe("可选：允许空提交（--allow-empty）；缺省 false——无 paths 且无已暂存内容时不空提交，返回引导提示"),
+    .describe("Optional: allow an empty commit (--allow-empty); default false — with no paths and nothing staged it does not create an empty commit but returns guidance"),
 };
 
 export const sideEffect = {
   kind: "git_local",
   summary:
-    "在指定仓库（cwd）创建本地提交并自动追加 Co-authored-by 署名：修改本地 git 历史（生成新提交；amend 时改写最近一条提交），不推送远端；执行前请确认 cwd、message 与 paths",
+    "Create a local commit in the given repository (cwd) and automatically append a Co-authored-by signature: changes local git history (creates a new commit; with amend it rewrites the most recent one) and does not push to the remote — confirm cwd, message and paths before running",
   ruleId: "github-toolkit-git-commit",
 };
 
@@ -76,13 +76,13 @@ function toLf(text) {
 function commitGuidance(stderr, stdout) {
   const s = String(stderr || "");
   if (/not a git repository|does not appear to be a git repository|not our repo/i.test(s)) {
-    return "当前目录不是 git 仓库：请在仓库目录内执行（或先 git init）。";
+    return "The current directory is not a git repository: run this inside a repository directory (or git init first).";
   }
   if (/Please tell me who you are|unable to auto-detect email|user\.name|user\.email/i.test(s)) {
-    return "git 未配置提交者身份：请先配置 git config user.name / user.email（可用 githana_git(action=\"exec\") 配置）。";
+    return "git has no committer identity configured: configure git config user.name / user.email first (you can use githana_git(action=\"exec\") to configure it).";
   }
   if (/pathspec|does not match any|unable to resolve/i.test(s)) {
-    return "路径不匹配：pathspec 未命中——文件可能不存在、不在仓库内或已被 .gitignore 忽略（git 原始输出见上）。";
+    return "The paths do not match: the pathspec did not hit anything — the file may not exist, may not be inside the repository, or may be ignored by .gitignore (git's raw output is above).";
   }
   return null;
 }
@@ -94,16 +94,16 @@ function commitGuidance(stderr, stdout) {
 function assembleMessage(base) {
   const body = toLf(base).replace(/\s+$/, "");
   if (CO_AUTHOR_LINE.test(body)) {
-    return { final: body, note: "message 已含 Co-authored-by 行，自动署名跳过（去重生效）" };
+    return { final: body, note: "the message already contains a Co-authored-by line, so automatic signing was skipped (deduplication in effect)" };
   }
   const line = "Co-authored-by: " + CO_AUTHOR_NAME + " <" + CO_AUTHOR_EMAIL + ">";
-  return { final: body + "\n\n" + line, note: "已自动追加署名：" + line };
+  return { final: body + "\n\n" + line, note: "signature appended automatically: " + line };
 }
 
 export async function run(input, ctx, { label }) {
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
   const cwd = String(cwdParam).trim();
 
   const amend = input?.amend === true;
@@ -115,19 +115,19 @@ export async function run(input, ctx, { label }) {
   if (input?.paths !== undefined && input?.paths !== null) {
     for (const p of input.paths) {
       const s = String(p ?? "").trim();
-      if (!s) return label + " 参数错误：paths 含空路径项。";
+      if (!s) return label + " argument error: paths contains an empty path entry.";
       if (/^([A-Za-z]:[\\/]|\/|\\\\)/.test(s)) {
-        return label + " 参数错误：paths 项必须是相对路径（收到绝对路径：" + s + "），相对 cwd 传入。";
+        return label + " argument error: paths entries must be relative paths (received an absolute path: " + s + "); pass them relative to cwd.";
       }
       paths.push(s);
     }
   }
 
   if (!amend && !userMessage) {
-    return label + " 参数错误：message 必填（非 amend 提交需要提交说明）；或改用 amend=true 沿用上一条提交说明。";
+    return label + " argument error: message is required (a non-amend commit needs a commit message); or use amend=true to reuse the previous commit message.";
   }
   if (amend && paths.length > 0) {
-    return label + " 参数错误：amend 不能与 paths 同用（git commit --amend 只按暂存区改写，不支持文件列表）。请去掉 paths 或去掉 amend。";
+    return label + " argument error: amend cannot be combined with paths (git commit --amend only rewrites the index and does not support a file list). Drop paths or drop amend.";
   }
 
   // 提交前检查：无 paths 且无已暂存内容 → 引导（allowEmpty / amend 除外——
@@ -137,18 +137,18 @@ export async function run(input, ctx, { label }) {
     if (!stagedR.ok) {
       const raw = (stagedR.stderr || "").trim();
       if (/not a git repository|does not appear to be a git repository/i.test(raw)) {
-        return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+        return label + ": the current directory is not a git repository (git says: " + (raw.split("\n")[0] || raw) + "). Run this inside a repository directory.";
       }
       // exit 1 = 有已暂存内容，正常继续；其他非零按错误透传
       if (stagedR.exitCode !== 1) {
-        return label + " 预检失败（git diff --cached --quiet）：\n" + (stagedR.message || raw);
+        return label + " pre-check failed (git diff --cached --quiet):\n" + (stagedR.message || raw);
       }
     } else {
       // exit 0 = 无任何已暂存内容
       return [
-        label + "：没有可提交的内容——既未传 paths 也没有已暂存（staged）的文件。",
-        "请先 git add 目标文件（可用 githana_git(action=\"exec\")）或传入 paths 指定要提交的相对路径；",
-        "若确需创建空提交请显式传 allowEmpty=true。",
+        label + ": nothing to commit — neither paths was given nor are there any staged files.",
+        "Start with git add on the target files (you can use githana_git(action=\"exec\")) or pass paths to name the relative paths to commit;",
+        "if you really need an empty commit, pass allowEmpty=true explicitly.",
       ].join("\n");
     }
   }
@@ -160,12 +160,12 @@ export async function run(input, ctx, { label }) {
     if (!headR.ok) {
       const raw = (headR.stderr || "").trim();
       if (/does not have any commits yet|bad default revision|ambiguous argument/i.test(raw)) {
-        return label + "：amend 需要已有提交（HEAD 不存在：仓库尚无 commit，请用普通提交而非 amend）。";
+        return label + ": amend needs an existing commit (HEAD does not exist: the repository has no commits yet; use a normal commit rather than amend).";
       }
       if (/not a git repository/i.test(raw)) {
-        return label + "：当前目录不是 git 仓库（git 提示：" + (raw.split("\n")[0] || raw) + "）。请在仓库目录内执行。";
+        return label + ": the current directory is not a git repository (git says: " + (raw.split("\n")[0] || raw) + "). Run this inside a repository directory.";
       }
-      return label + " 读取 HEAD message 失败（git log -1 --format=%B）：\n" + (headR.message || raw);
+      return label + " failed to read the HEAD message (git log -1 --format=%B):\n" + (headR.message || raw);
     }
     base = toLf(headR.stdout).trimEnd();
   }
@@ -179,7 +179,7 @@ export async function run(input, ctx, { label }) {
     if (!addR.ok) {
       const raw = ((addR.stderr || "") + "\n" + (addR.stdout || "")).trim();
       const guide = commitGuidance(addR.stderr, addR.stdout);
-      const text = label + " 暂存 paths 失败（git add）：\n" + (raw || addR.message || "未知错误");
+      const text = label + " staging the paths failed (git add):\n" + (raw || addR.message || "unknown error");
       return guide ? text + "\n" + guide : text;
     }
   }
@@ -195,8 +195,8 @@ export async function run(input, ctx, { label }) {
     const raw = ((commitR.stderr || "") + "\n" + (commitR.stdout || "")).trim();
     const guide = commitGuidance(commitR.stderr, commitR.stdout);
     const text =
-      label + " 执行失败（exit code " + commitR.exitCode + "）：\n" +
-      (raw || commitR.message || "未知错误");
+      label + " execution failed (exit code " + commitR.exitCode + "):\n" +
+      (raw || commitR.message || "unknown error");
     return guide ? text + "\n" + guide : text;
   }
 
@@ -213,8 +213,8 @@ export async function run(input, ctx, { label }) {
   const fileCount = allowEmpty && fileLines.length === 0 ? 0 : fileLines.length;
 
   const out = [
-    "提交成功：" + (hash || "?") + (subject ? "  " + subject : ""),
-    "文件数：" + fileCount + (fileLines.length ? "\n  " + fileLines.map((f) => "· " + f).join("\n  ") : ""),
+    "commit created: " + (hash || "?") + (subject ? "  " + subject : ""),
+    "files: " + fileCount + (fileLines.length ? "\n  " + fileLines.map((f) => "· " + f).join("\n  ") : ""),
     assembled.note,
   ];
   return out.join("\n");

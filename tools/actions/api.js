@@ -35,7 +35,7 @@ import * as params from "../lib/params.js";
 import { request, errorDetail } from "../lib/rest.js";
 
 export const command = "api";
-export const summary = "任意 GitHub REST 端点透传（逃生门）";
+export const summary = "Passthrough for any GitHub REST endpoint (escape hatch)";
 
 export const schema = {
   // 只声明类型：前导斜杠的检查留在 run() 里做——那里先 trim 再判（" /user" 这种带空白的输入
@@ -43,7 +43,7 @@ export const schema = {
   path: z
     .string()
     .describe(
-      "api.github.com 之后的路径（带前导斜杠），如 \"/user\"、\"/repos/{owner}/{repo}/issues\"、\"/repos/o/r/pulls?state=open\"",
+      "Path after api.github.com (with a leading slash), e.g. \"/user\", \"/repos/{owner}/{repo}/issues\", \"/repos/o/r/pulls?state=open\"",
     ),
   // 取值域写成 enum：本工具只有一个面，没有「另一个面收别的值」这件事要表达，
   // 非法值由参数校验当场拒（不必像收敛前那样留给 run() 好指向另一个面）。
@@ -66,17 +66,17 @@ export const schema = {
       z.enum(["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]),
     )
     .optional()
-    .describe("HTTP 方法，缺省 GET（大小写不敏感）；可用 GET / HEAD / POST / PATCH / PUT / DELETE"),
-  repo: z.string().optional().describe("可选：仓库 owner/repo；传了就替换 path 里的 {owner}/{repo} 占位符"),
-  body: z.object({}).loose().optional().describe("可选：请求体（JSON 对象），用于 POST / PATCH / PUT"),
-  paginate: z.boolean().optional().describe("可选：跟随 Link 分页把数组结果合并（上限 10 页）"),
+    .describe("HTTP method, defaults to GET (case-insensitive); accepts GET / HEAD / POST / PATCH / PUT / DELETE"),
+  repo: z.string().optional().describe("Optional: repository owner/repo; when given, the {owner}/{repo} placeholders in path are replaced"),
+  body: z.object({}).loose().optional().describe("Optional: request body (JSON object), for POST / PATCH / PUT"),
+  paginate: z.boolean().optional().describe("Optional: follow Link pagination and merge array results (max 10 pages)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_api",
   summary:
-    "向 api.github.com 发任意 REST（或 GraphQL）请求：GET 只读，POST / PATCH / PUT / DELETE 会修改 GitHub 远端状态，执行前请确认 path、method 与 body",
+    "Send any REST (or GraphQL) request to api.github.com: GET is read-only, POST / PATCH / PUT / DELETE modify remote GitHub state — confirm path, method and body before running",
   ruleId: "github-toolkit-api",
 };
 
@@ -91,10 +91,10 @@ function applyRepoPlaceholders(pathStr, repo) {
 export async function run(input, ctx, { label }) {
   const rawPath = input?.path !== undefined && input?.path !== null ? String(input.path).trim() : "";
   if (!rawPath) {
-    return label + " 参数错误：path 必填（api.github.com 之后的路径，如 \"/user\"）。";
+    return label + " argument error: path is required (the path after api.github.com, e.g. \"/user\").";
   }
   if (!rawPath.startsWith("/")) {
-    return label + " 参数错误：path 必须以 / 开头（收到：" + rawPath + "）。";
+    return label + " argument error: path must start with / (received: " + rawPath + ").";
   }
 
   // method 的取值域由 schema 保证（enum，且已在 schema 里先归一大小写）；这里留下的 toUpperCase
@@ -105,7 +105,7 @@ export async function run(input, ctx, { label }) {
   const repoRaw = input?.repo !== undefined && input?.repo !== null ? String(input.repo).trim() : "";
   if (repoRaw) {
     const res = resolveRepo(repoRaw);
-    if (res.error) return label + " 参数错误：" + res.error;
+    if (res.error) return label + " argument error: " + res.error;
     repo = res;
   }
 
@@ -113,16 +113,16 @@ export async function run(input, ctx, { label }) {
   // （GET / HEAD / DELETE 不接受 body），那是跨字段的业务约束，不是单字段的形状。
   const body = input?.body !== undefined && input?.body !== null ? input.body : undefined;
   if (body !== undefined && (method === "GET" || method === "HEAD" || method === "DELETE")) {
-    return label + " 参数错误：method=" + method + " 不接受 body（用 POST / PATCH / PUT）。";
+    return label + " argument error: method=" + method + " does not accept a body (use POST / PATCH / PUT).";
   }
 
   // 凭据前置检查：只有 OAuth 一条路，没有 keyring 兜底。
   if (!getToolSecretToken()) {
     const meta = getToolOAuthMeta();
     if (meta && meta.needsReauth === true) {
-      return label + " 需要重新授权：上次令牌刷新失败（refresh_token 已失效或授权被撤销），请到 GitHana 设置页重新点「用 GitHub 登录」。";
+      return label + " reauthorization required: the last token refresh failed (refresh_token expired or the authorization was revoked). Go to the GitHana settings page and click \"Sign in with GitHub\" again.";
     }
-    return label + " 尚未完成 GitHub App 授权（进程内没有 OAuth 令牌）：请到 GitHana 设置页点「用 GitHub 登录」后重试。";
+    return label + " GitHub App authorization is not complete yet (no OAuth token in this process): go to the GitHana settings page, click \"Sign in with GitHub\", then retry.";
   }
 
   const path = applyRepoPlaceholders(rawPath, repo);
@@ -136,20 +136,20 @@ export async function run(input, ctx, { label }) {
   const r = await request(req, { timeoutSec });
   if (r.status === null) {
     // 基础设施失败（worker 缺失 / 网络层 / 白名单拒绝）
-    return label + " 调用失败：" + (r.error || "未知错误");
+    return label + " call failed: " + (r.error || "unknown error");
   }
 
   const lines = [];
-  lines.push(label + " " + method + " " + path + (repo ? "（repo=" + repo.owner + "/" + repo.repo + "）" : ""));
-  lines.push("HTTP " + r.status + (r.ok ? "（成功）" : "（失败）") + (r.pages ? " · 合并 " + r.pages + " 页" : ""));
-  if (r.truncated) lines.push("（响应体过大，已截断）");
-  if (!r.ok) lines.push("错误：" + errorDetail(r));
+  lines.push(label + " " + method + " " + path + (repo ? " (repo=" + repo.owner + "/" + repo.repo + ")" : ""));
+  lines.push("HTTP " + r.status + (r.ok ? " (ok)" : " (failed)") + (r.pages ? " · merged " + r.pages + " pages" : ""));
+  if (r.truncated) lines.push("(response body too large, truncated)");
+  if (!r.ok) lines.push("error: " + errorDetail(r));
   // 204/304 等无正文响应：json 与 text 都为空，不打印正文行（避免输出孤立的 null）。
   const text = r.json !== null && r.json !== undefined ? JSON.stringify(r.json, null, 2) : String(r.text || "");
   if (text !== "") {
     const MAX = 8000;
     lines.push("");
-    lines.push(text.length > MAX ? text.slice(0, MAX) + "\n…（截断，共 " + text.length + " 字符）" : text);
+    lines.push(text.length > MAX ? text.slice(0, MAX) + "\n…(truncated, " + text.length + " chars total)" : text);
   }
   return lines.join("\n");
 }

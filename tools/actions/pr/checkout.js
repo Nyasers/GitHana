@@ -30,43 +30,43 @@ import { resolveContext, repoFromCwd, describeFailure } from "../../lib/pr.js";
 import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
 
 export const command = "checkout";
-export const summary = "把 PR 的源分支取到本地并检出";
+export const summary = "Fetch a PR's source branch locally and check it out";
 
 export const schema = {
   repo: params.repo,
   // 与 revert 同理：要在本地仓库里做 git 操作，所以 cwd 必填。
   cwd: params.cwd.describe(
-    "本地仓库绝对路径（必填）：检出要在本地 fetch 并切分支",
+    "Absolute path of the local repository (required): checking out requires fetching locally and switching branches",
   ),
-  prNumber: params.prNumber.describe("要检出的 PR 编号（正整数），必填"),
-  branch: z.string().optional().describe("可选：本地分支名，默认用 PR 的源分支名（head.ref）"),
-  remote: z.string().optional().describe("可选：远端名，默认 origin；它必须指向该 PR 所在仓库"),
+  prNumber: params.prNumber.describe("PR number to check out (positive integer), required"),
+  branch: z.string().optional().describe("Optional: local branch name, defaults to the PR's source branch name (head.ref)"),
+  remote: z.string().optional().describe("Optional: remote name, defaults to origin; it must point at the repository that holds this PR"),
   force: z
     .boolean()
     .optional()
-    .describe("可选：本地已有同名分支时强制把引用指向 PR 的源分支（会丢弃该分支上不在 PR 里的本地提交，默认 false）"),
+    .describe("Optional: when a local branch with the same name already exists, force the reference to point at the PR's source branch (discards local commits on that branch that are not in the PR; default false)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "git_local",
   summary:
-    "把 GitHub 远端 PR 的源分支取到本地仓库（cwd）并检出：会新建或切换本地分支、更新本地引用（force=true 时覆盖同名本地分支），不改远端、不推送；执行前请确认 cwd 与 prNumber",
+    "Fetch the source branch of a remote GitHub PR into the local repository (cwd) and check it out: creates or switches a local branch and updates a local reference (with force=true it overwrites a same-named local branch); does not change the remote and does not push — confirm cwd and prNumber before running",
   ruleId: "github-toolkit-pr-checkout",
 };
 
 /** git 错误 → 中文引导。 */
 function gitGuide(text) {
   const s = String(text || "");
-  if (/not a git repository/i.test(s)) return "当前目录不是 git 仓库：请在仓库目录内执行。";
+  if (/not a git repository/i.test(s)) return "The current directory is not a git repository: run this inside a repository directory.";
   if (/could not read Username|Authentication failed|unable to access/i.test(s)) {
-    return "远端认证失败：" + GIT_FETCH_AUTH_NOTE + "。";
+    return "Remote authentication failed: " + GIT_FETCH_AUTH_NOTE + ".";
   }
   if (/couldn't find remote ref/i.test(s)) {
-    return "该远端上找不到这个 pull 引用：确认 remote 指向的正是 PR 所在仓库（refs/pull/<n>/head 是每个仓库各自的）。";
+    return "That pull reference was not found on this remote: confirm that remote points at the repository that actually holds the PR (refs/pull/<n>/head is per-repository).";
   }
   if (/Your local changes|would be overwritten/i.test(s)) {
-    return "工作区有未提交改动、与要检出的分支冲突：请先提交或 git stash，再重试。";
+    return "The working tree has uncommitted changes that conflict with the branch to check out: commit them or git stash first, then retry.";
   }
   return null;
 }
@@ -78,9 +78,9 @@ export async function run(input, ctx, { label }) {
 
   const cwdParam = input?.cwd;
   const cwdErr = checkCwd(cwdParam);
-  if (cwdErr) return label + " 参数错误：" + cwdErr;
+  if (cwdErr) return label + " argument error: " + cwdErr;
   const cwd = String(cwdParam).trim();
-  if (!cwd) return label + " 参数错误：cwd 必填（检出要在本地 fetch 并切分支）。";
+  if (!cwd) return label + " argument error: cwd is required (checking out requires fetching locally and switching branches).";
 
   const num = input.prNumber;
   const remote = input?.remote !== undefined && input?.remote !== null && String(input.remote).trim() !== ""
@@ -94,46 +94,46 @@ export async function run(input, ctx, { label }) {
   const remotesR = await runCli("git", ["remote"], { cwd, timeoutSec: 30 });
   if (!remotesR.ok) {
     const raw = ((remotesR.stderr || "") + "\n" + (remotesR.stdout || "")).trim();
-    return label + " 读取远端列表失败：\n" + (raw || remotesR.message) +
+    return label + " failed to read the remote list:\n" + (raw || remotesR.message) +
       (gitGuide(raw) ? "\n" + gitGuide(raw) : "");
   }
   const remotes = String(remotesR.stdout || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (!remotes.includes(remote)) {
     return (
-      label + " 参数错误：cwd 里没有名为 " + remote + " 的远端（现有：" + (remotes.join(" / ") || "无") + "）。\n" +
-      "请用 remote 参数指定正确的远端名，或先 git remote add。"
+      label + " argument error: cwd has no remote named " + remote + " (existing: " + (remotes.join(" / ") || "none") + ").\n" +
+      "Use the remote parameter to name the right remote, or run git remote add first."
     );
   }
 
   const inferred = await repoFromCwd(cwd, remote);
   if (!inferred) {
     return (
-      label + " 无法核对 cwd 的仓库：远端 " + remote + " 的 URL 不是可解析的 GitHub 地址。\n" +
-      "检出要靠 refs/pull/<n>/head，它只在 PR 所在仓库上才是这个 PR——请确认 remote 指向正确。"
+      label + " cannot verify cwd's repository: the URL of remote " + remote + " is not a resolvable GitHub address.\n" +
+      "Checking out relies on refs/pull/<n>/head, which refers to this PR only on the repository that holds it — confirm that remote points at the right place."
     );
   }
   const inferredFull = inferred.owner + "/" + inferred.repo;
   if (inferredFull.toLowerCase() !== String(repo).toLowerCase()) {
     return (
-      label + " 参数错误：cwd 的远端 " + remote + " 指向 " + inferredFull + "，而本次要操作的仓库是 " + repo + "。\n" +
-      "refs/pull/<n>/head 是每个仓库各自的引用，在别的仓库上取 n 会拿到另一个 PR。\n" +
-      "请在对的仓库里执行（或显式传 repo 与 remote 来对齐）。"
+      label + " argument error: cwd's remote " + remote + " points at " + inferredFull + ", while the repository to operate on is " + repo + ".\n" +
+      "refs/pull/<n>/head is a per-repository reference, so fetching n on another repository yields a different PR.\n" +
+      "Run this in the right repository (or pass repo and remote explicitly to align them)."
     );
   }
 
   // —— 取 PR 本体：要源分支名 ——
   const prRes = await callRest([{ url: apiUrl(repo, "/pulls/" + num), timeoutMs }], { timeoutSec });
-  if (!prRes.ok) return label + " 执行失败：" + prRes.message;
+  if (!prRes.ok) return label + " execution failed: " + prRes.message;
   const pres = prRes.results[0];
   if (!pres || !pres.ok) {
-    if (pres && pres.status === 404) return label + "：PR #" + num + " 不存在或不可见（" + repoLabel + "）。";
-    return label + " 执行失败：" + describeFailure(pres, repoLabel);
+    if (pres && pres.status === 404) return label + ": PR #" + num + " does not exist or is not visible (" + repoLabel + ").";
+    return label + " execution failed: " + describeFailure(pres, repoLabel);
   }
   const pr = pres.json && typeof pres.json === "object" ? pres.json : {};
   const headRef = pr.head && pr.head.ref ? String(pr.head.ref) : "";
   const headRepoFull = pr.head && pr.head.repo && pr.head.repo.full_name ? String(pr.head.repo.full_name) : "";
   const headSha = pr.head && pr.head.sha ? String(pr.head.sha) : "";
-  if (!headRef) return label + "：PR #" + num + " 的响应里没有 head.ref，无法确定本地分支名。";
+  if (!headRef) return label + ": the response for PR #" + num + " has no head.ref, so the local branch name cannot be determined.";
 
   const branch =
     input?.branch !== undefined && input?.branch !== null && String(input.branch).trim() !== ""
@@ -148,20 +148,20 @@ export async function run(input, ctx, { label }) {
     const checkoutR = await runCli("git", ["checkout", branch], { cwd });
     if (!checkoutR.ok) {
       const raw = ((checkoutR.stderr || "") + "\n" + (checkoutR.stdout || "")).trim();
-      return label + " 切换分支 " + branch + " 失败：\n" + (raw || checkoutR.message) +
+      return label + " switching to branch " + branch + " failed:\n" + (raw || checkoutR.message) +
         (gitGuide(raw) ? "\n" + gitGuide(raw) : "");
     }
     const localR = await runCli("git", ["rev-parse", "--short", "HEAD"], { cwd, timeoutSec: 30 });
     const localSha = localR.ok ? localR.stdout.trim() : "";
     const out = [
-      label + " 已切到本地已有分支 " + branch + "（PR #" + num + " · " + repoLabel + "）：",
-      "本地 HEAD：" + (localSha || "?"),
+      label + " switched to the existing local branch " + branch + " (PR #" + num + " · " + repoLabel + "):",
+      "local HEAD: " + (localSha || "?"),
     ];
-    if (headSha) out.push("PR 源分支 HEAD：" + headSha.slice(0, 7));
+    if (headSha) out.push("PR source branch HEAD: " + headSha.slice(0, 7));
     out.push(
       localSha && headSha && localSha !== headSha.slice(0, localSha.length)
-        ? "注意：本地分支**未必**跟 PR 的最新提交一致——本动词默认不覆盖本地分支（以免丢本地提交）。要取 PR 最新状态请显式传 force=true。"
-        : "本地分支与 PR 源分支 HEAD 一致。",
+        ? "note: the local branch may **not** match the PR's latest commit — this verb does not overwrite the local branch by default (to avoid losing local commits). To get the PR's latest state, pass force=true explicitly."
+        : "The local branch matches the PR source branch HEAD.",
     );
     return out.join("\n");
   }
@@ -173,25 +173,25 @@ export async function run(input, ctx, { label }) {
     : await runCli("git", ["fetch", remote, "refs/pull/" + num + "/head:refs/heads/" + branch], { cwd });
   if (!fetchR.ok) {
     const raw = ((fetchR.stderr || "") + "\n" + (fetchR.stdout || "")).trim();
-    return label + " fetch PR 源分支失败（" + remote + " refs/pull/" + num + "/head → " + branch + "）：\n" +
+    return label + " fetching the PR source branch failed (" + remote + " refs/pull/" + num + "/head → " + branch + "):\n" +
       (raw || fetchR.message) + (gitGuide(raw) ? "\n" + gitGuide(raw) : "");
   }
 
   const checkoutR = await runCli("git", ["checkout", branch], { cwd });
   if (!checkoutR.ok) {
     const raw = ((checkoutR.stderr || "") + "\n" + (checkoutR.stdout || "")).trim();
-    return label + " fetch 成功但切换分支失败：\n" + (raw || checkoutR.message) +
+    return label + " the fetch succeeded but switching branches failed:\n" + (raw || checkoutR.message) +
       (gitGuide(raw) ? "\n" + gitGuide(raw) : "") +
-      "\n本地分支 " + branch + " 已就位，可自行 git checkout " + branch + "。";
+      "\nThe local branch " + branch + " is in place, so you can git checkout " + branch + " yourself.";
   }
 
   const out = [
-    label + " 已检出（PR #" + num + " · " + repoLabel + "）：",
-    "本地分支：" + branch + (branch === headRef ? "" : "（源分支为 " + headRef + "）"),
-    (exists ? "覆盖了本地已有的同名分支（force=true）" : "新建本地分支") +
-      (headRepoFull && headRepoFull.toLowerCase() !== String(repo).toLowerCase() ? " · 源分支来自 " + headRepoFull + "（fork）" : ""),
+    label + " checked out (PR #" + num + " · " + repoLabel + "):",
+    "local branch: " + branch + (branch === headRef ? "" : " (source branch is " + headRef + ")"),
+    (exists ? "overwrote an existing local branch with the same name (force=true)" : "created a new local branch") +
+      (headRepoFull && headRepoFull.toLowerCase() !== String(repo).toLowerCase() ? " · source branch comes from " + headRepoFull + " (fork)" : ""),
   ];
-  if (headSha) out.push("HEAD：" + headSha.slice(0, 7));
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  if (headSha) out.push("HEAD: " + headSha.slice(0, 7));
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   return out.join("\n");
 }

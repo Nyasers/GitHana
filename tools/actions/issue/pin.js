@@ -17,7 +17,7 @@ import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 import { graphql } from "../../lib/graphql.js";
 
 export const command = "pin";
-export const summary = "把 issue 固定到仓库顶部";
+export const summary = "Pin an issue to the top of the repository";
 
 export const schema = {
   repo: params.repo,
@@ -29,7 +29,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "把 GitHub 远端 issue 固定到仓库顶部（每个仓库最多 3 个 pin，会改动仓库首页对所有人的展示）：修改 GitHub 远端状态，执行前请确认编号",
+    "Pin a remote GitHub issue to the top of the repository (at most 3 pins per repository; changes what everyone sees on the repository home page): modifies remote GitHub state, confirm the number before running",
   ruleId: "github-toolkit-issue-pin",
 };
 
@@ -57,31 +57,31 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "PR 的固定不在工具面上（githana_pr 没有 pin）；确需操作可走 githana_api 的 GraphQL /graphql（pinIssue 接受 PR 的 node_id）。",
+      "Pinning PRs is not on the tool surface (githana_pr has no pin); if you really need it, go through githana_api's GraphQL /graphql (pinIssue accepts a PR's node_id).",
     );
   }
 
   const issue = cur.issue;
   const nodeId = issue.node_id ? String(issue.node_id) : "";
-  if (!nodeId) return label + "：issue #" + numStr + " 的响应里没有 node_id，无法走 GraphQL 固定。";
+  if (!nodeId) return label + ": the response for issue #" + numStr + " has no node_id, so it cannot be pinned via GraphQL.";
 
   const g = await graphql(PIN_MUTATION, { id: nodeId }, { timeoutSec });
   if (g.error) {
     if (/already pinned/i.test(g.error)) {
-      return label + "：issue #" + numStr + " 已经在仓库顶部固定着（already pinned），无需重复操作。";
+      return label + ": issue #" + numStr + " is already pinned to the top of the repository (already pinned); no need to repeat the operation.";
     }
     if (/3 pinned|maximum|too many/i.test(g.error)) {
       return (
-        label + " 执行失败：GitHub 拒绝这次固定，原文提到数量上限——每个仓库最多固定 3 个 issue。\n" +
-        "请先用 githana_issue(action=\"unpin\") 放开一个。\nGitHub 原文：" + g.error
+        label + " execution failed: GitHub rejected this pin and the raw message mentions a count limit — at most 3 issues can be pinned per repository.\n" +
+        "First unpin one with githana_issue(action=\"unpin\").\nGitHub raw message: " + g.error
       );
     }
-    return label + " 执行失败：" + g.error;
+    return label + " execution failed: " + g.error;
   }
 
   return [
-    label + " 已执行（issue #" + numStr + " · " + repoLabel + "）：",
-    "状态：已固定到仓库顶部（pinned）· 标题：「" + (issue.title || "（无标题）") + "」",
-    "说明：每个仓库最多 3 个 pin；要放开用 githana_issue(action=\"unpin\")。",
+    label + " done (issue #" + numStr + " · " + repoLabel + "):",
+    "state: pinned to the top of the repository · title: \"" + (issue.title || "(untitled)") + "\"",
+    "note: at most 3 pins per repository; to lift it use githana_issue(action=\"unpin\").",
   ].join("\n");
 }

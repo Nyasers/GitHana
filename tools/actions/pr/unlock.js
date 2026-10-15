@@ -12,7 +12,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
 
 export const command = "unlock";
-export const summary = "解除 PR 对话的锁定";
+export const summary = "Unlock a PR conversation";
 
 export const schema = {
   repo: params.repo,
@@ -23,7 +23,7 @@ export const schema = {
 
 export const sideEffect = {
   kind: "github_pr",
-  summary: "解除 GitHub 远端 PR 对话的锁定（非协作者可再次评论）：修改 GitHub 远端状态",
+  summary: "Unlock the conversation on a remote GitHub PR (non-collaborators can comment again): modifies remote GitHub state",
   ruleId: "github-toolkit-pr-unlock",
 };
 
@@ -41,19 +41,19 @@ export async function run(input, ctx, { label }) {
     [{ method: "DELETE", url: apiUrl(repo, "/issues/" + numStr + "/lock"), timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（解锁不返回正文）。
   if (!res || (!res.ok && res.status !== 204)) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 403) {
-      return label + " 执行失败：没有解锁对话的权限（403）。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: no permission to unlock the conversation (403).\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   return [
-    label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：",
-    "状态：对话已解锁（未锁定），非协作者可再次评论。",
+    label + " done (PR #" + numStr + " · " + repoLabel + "):",
+    "state: conversation unlocked (not locked); non-collaborators can comment again.",
   ].join("\n");
 }

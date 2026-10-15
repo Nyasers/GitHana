@@ -36,25 +36,25 @@ export { currentBranch, describeFailure };
 /** REST PR state → 中文可读（status / close / reopen / view 共用同一份渲染）。 */
 export function prStateText(pr) {
   const state = String((pr && pr.state) || "?");
-  if (pr && pr.merged === true) return "MERGED（已合并）";
-  if (state === "open") return "OPEN（打开）" + (pr && pr.draft ? " · 草稿（draft）" : "");
-  if (state === "closed") return "CLOSED（已关闭）";
+  if (pr && pr.merged === true) return "MERGED (merged)";
+  if (state === "open") return "OPEN (open)" + (pr && pr.draft ? " · draft (draft)" : "");
+  if (state === "closed") return "CLOSED (closed)";
   return state.toUpperCase();
 }
 
 /** REST mergeable_state → 中文可读。 */
 export function mergeStateText(v) {
   const map = {
-    behind: "落后于目标分支（behind）",
-    blocked: "被阻断（blocked）",
-    clean: "可合并（clean）",
-    dirty: "有冲突（dirty）",
-    draft: "草稿（draft）",
-    has_hooks: "含钩子（has_hooks）",
-    unknown: "未知（GitHub 尚在计算，稍后重试）",
-    unstable: "检查未通过（unstable）",
+    behind: "behind the target branch (behind)",
+    blocked: "blocked (blocked)",
+    clean: "mergeable (clean)",
+    dirty: "conflicting (dirty)",
+    draft: "draft (draft)",
+    has_hooks: "has hooks (has_hooks)",
+    unknown: "unknown (GitHub is still computing; retry later)",
+    unstable: "checks not passing (unstable)",
   };
-  if (v === null || v === undefined || v === "") return "无合并状态";
+  if (v === null || v === undefined || v === "") return "no merge state";
   return map[String(v).toLowerCase()] || String(v);
 }
 
@@ -68,7 +68,7 @@ export function mergeStateText(v) {
  */
 export function reviewSummary(reviews) {
   if (!Array.isArray(reviews) || reviews.length === 0) {
-    return { key: "NONE", text: "无审查数据（REST 无 reviewDecision，此为评审记录聚合）" };
+    return { key: "NONE", text: "no review data (REST has no reviewDecision; this is an aggregation of review records)" };
   }
   const latest = new Map();
   for (const rv of reviews) {
@@ -82,11 +82,11 @@ export function reviewSummary(reviews) {
     latest.set(who, state);
   }
   const states = [...latest.values()];
-  if (states.includes("CHANGES_REQUESTED")) return { key: "CHANGES_REQUESTED", text: "请求修改（CHANGES_REQUESTED）" };
-  if (states.includes("APPROVED")) return { key: "APPROVED", text: "已批准（APPROVED）" };
-  if (states.includes("COMMENTED")) return { key: "COMMENTED", text: "有评论（COMMENTED）" };
-  if (states.includes("DISMISSED")) return { key: "DISMISSED", text: "评审已撤销（DISMISSED）" };
-  return { key: "NONE", text: "无审查数据（REST 无 reviewDecision，此为评审记录聚合）" };
+  if (states.includes("CHANGES_REQUESTED")) return { key: "CHANGES_REQUESTED", text: "changes requested (CHANGES_REQUESTED)" };
+  if (states.includes("APPROVED")) return { key: "APPROVED", text: "approved (APPROVED)" };
+  if (states.includes("COMMENTED")) return { key: "COMMENTED", text: "commented (COMMENTED)" };
+  if (states.includes("DISMISSED")) return { key: "DISMISSED", text: "review dismissed (DISMISSED)" };
+  return { key: "NONE", text: "no review data (REST has no reviewDecision; this is an aggregation of review records)" };
 }
 
 /**
@@ -116,7 +116,7 @@ export function summarizeCheckRuns(json) {
   const truncated = totalCount > runs.length;
 
   if (runs.length === 0) {
-    return { text: "无检查（check-runs 为空）", runs, failed: 0, pending: 0, truncated: false, totalCount };
+    return { text: "no checks (check-runs is empty)", runs, failed: 0, pending: 0, truncated: false, totalCount };
   }
 
   let failed = 0;
@@ -129,10 +129,10 @@ export function summarizeCheckRuns(json) {
     else failed += 1;
   }
   const text =
-    "共 " + runs.length + " 项（通过 " + passed + " · 失败 " + failed + " · 未完成 " + pending + "）" +
+    "total " + runs.length + " (passed " + passed + " · failed " + failed + " · pending " + pending + ")" +
     (truncated
-      ? "（GitHub 共 " + totalCount + " 条，本次只取了前 " + runs.length + " 条，上面的计数不含其余 " +
-        (totalCount - runs.length) + " 条）"
+      ? " (GitHub reports " + totalCount + " in total; this call fetched only the first " + runs.length + " and the counts above exclude the other " +
+        (totalCount - runs.length) + ")"
       : "");
   return { text, runs, failed, pending, truncated, totalCount };
 }
@@ -156,23 +156,23 @@ export async function resolvePrNumber(input, label, c = {}) {
   if (!cwd) {
     return {
       error:
-        label + " 参数错误：未传 prNumber，而缺省值需要 cwd 来确定当前分支（REST 无「当前分支关联 PR」语义）。\n" +
-        "请传 prNumber，或在 git 仓库 cwd 内执行。",
+        label + " invalid arguments: prNumber was not passed, and the default needs cwd to determine the current branch (REST has no \"current branch's PR\" semantics).\n" +
+        "Pass prNumber, or run inside a git repository cwd.",
     };
   }
   const cur = await currentBranch(cwd);
-  if (cur.error) return { error: label + " 无法确定当前分支：" + cur.error };
+  if (cur.error) return { error: label + " cannot determine the current branch: " + cur.error };
 
   const listUrl =
     apiUrl(repo, "/pulls") +
     "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
   const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
-  if (!lr.ok) return { error: label + " 执行失败：" + lr.message };
+  if (!lr.ok) return { error: label + " failed: " + lr.message };
   const lres = lr.results[0];
-  if (!lres || !lres.ok) return { error: label + " 执行失败：" + describeFailure(lres, repoLabel) };
+  if (!lres || !lres.ok) return { error: label + " failed: " + describeFailure(lres, repoLabel) };
   const arr = Array.isArray(lres.json) ? lres.json : [];
   if (arr.length === 0) {
-    return { error: label + "：当前分支（" + cur.branch + "）没有打开的关联 PR。可显式传 prNumber 查看指定 PR。" };
+    return { error: label + ": the current branch (" + cur.branch + ") has no open associated PR. Pass prNumber explicitly to inspect a specific PR." };
   }
   return { num: Number(arr[0].number), prNumber: String(arr[0].number), branch: cur.branch };
 }

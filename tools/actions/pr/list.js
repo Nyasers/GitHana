@@ -13,20 +13,20 @@ import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure, fmtTime } from "../../lib/pr.js";
 
 export const command = "list";
-export const summary = "列出 PR";
+export const summary = "List PRs";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  state: z.enum(["open", "closed", "all"]).optional().describe("PR 状态过滤，默认 open"),
+  state: z.enum(["open", "closed", "all"]).optional().describe("PR state filter, defaults to open"),
   // 上限 50 不写成 max：超过上限在 run() 是**收敛到 50**（不是拒绝），收紧成拒绝会改语义。
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 10，上限 50（超过上限收敛到 50）"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 10, max 50 (values above the max are clamped to 50)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 50"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(50).describe("返回条数，默认 10，上限 50（超过上限收敛到 50）"),
+  limit: z.number().int().min(1).max(50).describe("Number of results, default 10, max 50 (values above the max are clamped to 50)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -46,15 +46,15 @@ export async function run(input, ctx, { label }) {
     "?state=" + encodeURIComponent(state) +
     "&sort=created&direction=desc&per_page=" + String(limit);
   const r = await callRest([{ url, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }], { timeoutSec });
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
-  if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, repoLabel);
+  if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
 
   const items = Array.isArray(res.json) ? res.json : [];
   if (items.length === 0) {
-    return label + "（" + repoLabel + " · state=" + state + "）：没有匹配的 PR。";
+    return label + " (" + repoLabel + " · state=" + state + "): no matching PRs.";
   }
-  const out = [label + "（" + repoLabel + " · state=" + state + " · " + items.length + " 条）："];
+  const out = [label + " (" + repoLabel + " · state=" + state + " · " + items.length + "):"];
   for (const it of items) {
     const head = it && it.head && it.head.ref ? it.head.ref : "?";
     out.push(

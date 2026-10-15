@@ -36,24 +36,24 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { workflowPath } from "../../lib/ci.js";
 
 export const command = "run";
-export const summary = "手动触发工作流（workflow_dispatch；同步触发，不等 CI）";
+export const summary = "Manually trigger a workflow (workflow_dispatch; synchronous trigger, does not wait for CI)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   workflow: params.workflowRef,
-  ref: z.string().optional().describe("可选：从哪个分支 / tag 上跑（缺省取仓库默认分支；必须存在且包含该工作流）"),
+  ref: z.string().optional().describe("Optional: which branch / tag to run on (defaults to the repository default branch; it must exist and contain that workflow)"),
   inputs: z
     .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
     .optional()
-    .describe("可选：workflow_dispatch 的输入（键必须在该工作流的 on.workflow_dispatch.inputs 里声明）；值会被转成字符串，这是 GitHub 的载荷要求"),
+    .describe("Optional: workflow_dispatch inputs (the keys must be declared under the workflow's on.workflow_dispatch.inputs); values are converted to strings, which is what GitHub's payload requires"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "在 GitHub 远端手动触发一个工作流的 workflow_dispatch（CI 会真的跑起来：可能推送 / 部署 / 改远端状态，并占用额度）：执行前请确认 repo、workflow 与 ref",
+    "Manually trigger a workflow_dispatch on remote GitHub (CI really runs: it may push / deploy / change remote state and consumes quota): confirm repo, workflow and ref before running",
   ruleId: "github-toolkit-workflow-run",
 };
 
@@ -63,7 +63,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const wf = input?.workflow !== undefined && input?.workflow !== null ? String(input.workflow).trim() : "";
-  if (!wf) return label + " 参数错误：workflow 必填（数字 ID 或文件名，从 githana_workflow(action=\"list\") 取）。";
+  if (!wf) return label + " argument error: workflow is required (a numeric ID or a file name, get it from githana_workflow(action=\"list\")).";
 
   const payload = {};
   const refIn = input?.ref !== undefined && input?.ref !== null ? String(input.ref).trim() : "";
@@ -87,7 +87,7 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   // 204 No Content 是成功（dispatch 不返回正文，也不返回 run 编号）。
   if (!res || (!res.ok && res.status !== 204)) {
@@ -95,38 +95,38 @@ export async function run(input, ctx, { label }) {
     const st = res && res.status;
     if (st === 404) {
       return (
-        label + " 执行失败：找不到工作流 " + wf + " 或 ref " + (refIn || "（默认分支）") + "（404）。\n" +
-        "两个常见原因：workflow 名字写错，或 ref 上没有这个工作流文件（工作流必须存在于该 ref 上才能被触发）。\n" +
-        "GitHub 原文：" + detail
+        label + " execution failed: cannot find workflow " + wf + " or ref " + (refIn || "(default branch)") + " (404).\n" +
+        "Two common causes: the workflow name is misspelled, or that workflow file does not exist on the ref (a workflow must exist on that ref to be triggered).\n" +
+        "GitHub raw message: " + detail
       );
     }
     if (st === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次触发（422）。最常见的原因是**该工作流没有 workflow_dispatch 触发器**" +
-        "（`on:` 里要写成 `workflow_dispatch:`），其次是 inputs 的键与声明不符 / 缺必填 input。\n" +
-        "GitHub 原文：" + detail
+        label + " execution failed: GitHub rejected this trigger (422). The most common cause is that **the workflow has no workflow_dispatch trigger**" +
+        " (the `on:` block must declare `workflow_dispatch:`), followed by input keys not matching the declaration / a required input missing.\n" +
+        "GitHub raw message: " + detail
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const triggeredAt = new Date().toISOString();
   const out = [
-    label + " 已触发（" + repoLabel + " · workflow " + wf + "）：",
-    "ref：" + (refIn || "（未指定 → GitHub 用仓库默认分支）"),
+    label + " triggered (" + repoLabel + " · workflow " + wf + "):",
+    "ref: " + (refIn || "(not specified → GitHub uses the repository default branch)"),
   ];
   if (payload.inputs) {
-    out.push("inputs：" + Object.entries(payload.inputs).map(([k, v]) => k + "=\"" + v + "\"").join(" · ") + "（值已转成字符串，这是 GitHub 的载荷要求）");
+    out.push("inputs: " + Object.entries(payload.inputs).map(([k, v]) => k + "=\"" + v + "\"").join(" · ") + " (values were converted to strings, which is what GitHub's payload requires)");
   } else {
-    out.push("inputs：无");
+    out.push("inputs: none");
   }
-  out.push("HTTP 204（GitHub 已把 dispatch 事件入队——**不是**「已经开始跑」，更不是「已通过」）");
-  out.push("触发时刻（UTC）：" + triggeredAt);
+  out.push("HTTP 204 (GitHub has queued the dispatch event — this is **not** \"it has started running\", and certainly not \"it has passed\")");
+  out.push("triggered at (UTC): " + triggeredAt);
   out.push("");
-  out.push("说明：这是**同步触发**。dispatch 不回 run 编号（204 无正文），且那条 run 是异步建出来的——");
-  out.push("刚触发时列表里可能还没有它。要找回它：");
-  out.push("  githana_run(action=\"list\", repo=\"" + repo + "\", workflow=\"" + wf + "\") 取最新一条（注意竞态）；");
-  out.push("  或隔一会儿再列一次，取 created_at 晚于上面那个触发时刻的最新一条。");
-  out.push("「等到终态再回报」用任务型的 githana_run(action=\"watch\")：runId 从上面那次 githana_run(action=\"list\", workflow=…) 的结果里拿（返回后台任务句柄，CI 到终态时结论回投本会话）。");
+  out.push("note: this is a **synchronous trigger**. The dispatch returns no run number (204 has no body), and that run is created asynchronously —");
+  out.push("it may not be in the list yet right after triggering. To find it:");
+  out.push("  githana_run(action=\"list\", repo=\"" + repo + "\", workflow=\"" + wf + "\") and take the newest entry (beware of the race);");
+  out.push("  or list again after a while and take the newest entry whose created_at is later than the trigger timestamp above.");
+  out.push("To \"wait for the terminal state and then report\", use the task-style githana_run(action=\"watch\"): take runId from the result of that githana_run(action=\"list\", workflow=…) call above (it returns a background task handle and reports the conclusion back to this session when CI reaches a terminal state).");
   return out.join("\n");
 }

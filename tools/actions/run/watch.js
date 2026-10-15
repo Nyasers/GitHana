@@ -53,7 +53,7 @@ import {
 } from "../../lib/tasks.js";
 
 export const command = "watch";
-export const summary = "盯一次 CI 到终态（返回后台任务句柄，结论回投本会话）";
+export const summary = "Watch a CI run to its terminal state (returns a background task handle; the conclusion is posted back to this session)";
 
 /** 轮询间隔（秒）：默认 15，允许 5~300。CI 以分钟计，取值域按这个量级给。 */
 const DEFAULT_INTERVAL_SEC = 15;
@@ -72,28 +72,28 @@ export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   runId: params.runIdOptional,
-  branch: z.string().optional().describe("可选：runId 缺省时用它过滤出最近一次 run（缺省取 cwd 的当前分支）"),
+  branch: z.string().optional().describe("Optional: used to filter out the most recent run when runId is omitted (defaults to the current branch of cwd)"),
   intervalSec: z
     .number()
     .int()
     .min(MIN_INTERVAL_SEC)
     .max(MAX_INTERVAL_SEC)
     .optional()
-    .describe("可选：轮询间隔秒数，默认 " + DEFAULT_INTERVAL_SEC + "（范围 " + MIN_INTERVAL_SEC + "~" + MAX_INTERVAL_SEC + "）"),
+    .describe("Optional: polling interval in seconds, default " + DEFAULT_INTERVAL_SEC + " (range " + MIN_INTERVAL_SEC + "–" + MAX_INTERVAL_SEC + ")"),
   watchSec: z
     .number()
     .int()
     .min(MIN_WATCH_SEC)
     .max(MAX_WATCH_SEC)
     .optional()
-    .describe("可选：盯守窗口秒数，默认 " + DEFAULT_WATCH_SEC + "（范围 " + MIN_WATCH_SEC + "~" + MAX_WATCH_SEC + "）；到点仍未终结如实回报，不无限盯"),
+    .describe("Optional: watch window in seconds, default " + DEFAULT_WATCH_SEC + " (range " + MIN_WATCH_SEC + "–" + MAX_WATCH_SEC + "); if it has not reached a terminal state by then, this is reported as-is rather than watching forever"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "启动一个宿主后台任务盯住 CI（不改 GitHub 远端状态）：它会定时读 run 状态，并在 run 到终态时把结论贴回本会话；期间可在会话的后台任务项里取消，执行前请确认 repo 与 run 编号",
+    "Start a host background task that watches CI (does not change remote GitHub state): it reads the run state on a timer and posts the conclusion back to this session when the run reaches a terminal state; you can cancel it meanwhile from this session's background task item — confirm repo and run number before running",
   ruleId: "github-toolkit-run-watch",
 };
 
@@ -121,7 +121,7 @@ async function readRun(repo, repoLabel, runId, timeoutSec) {
   const runRes = r.results.find((x) => x.id === "run");
   const jobsRes = r.results.find((x) => x.id === "jobs");
   if (!runRes || !runRes.ok) {
-    if (runRes && runRes.status === 404) return { error: "run #" + runId + " 不存在或不可见（" + repoLabel + "）。", gone: true };
+    if (runRes && runRes.status === 404) return { error: "run #" + runId + " does not exist or is not visible (" + repoLabel + ").", gone: true };
     return { error: describeFailure(runRes, repoLabel) };
   }
   const runJson = runRes.json && typeof runRes.json === "object" ? runRes.json : {};
@@ -140,39 +140,39 @@ function runIsTerminal(runJson) {
  */
 function conclusionTextFor(repoLabel, runJson, jobs) {
   const out = [];
-  out.push("CI 到终态：run #" + (runJson.id !== undefined ? String(runJson.id) : "?") + " · " + repoLabel);
-  out.push("名称：" + (runJson.name || runJson.display_title || "（无名）"));
+  out.push("CI reached a terminal state: run #" + (runJson.id !== undefined ? String(runJson.id) : "?") + " · " + repoLabel);
+  out.push("name: " + (runJson.name || runJson.display_title || "(unnamed)"));
   out.push(
-    "结论：" + String(runJson.conclusion || "?").toUpperCase() +
-      (runJson.conclusion ? "（" + conclusionText(runJson.conclusion) + "）" : "（GitHub 未给 conclusion）"),
+    "conclusion: " + String(runJson.conclusion || "?").toUpperCase() +
+      (runJson.conclusion ? " (" + conclusionText(runJson.conclusion) + ")" : " (GitHub gave no conclusion)"),
   );
   out.push(
-    "分支：" + (runJson.head_branch || "?") + " · 事件 " + (runJson.event || "?") +
-      (runJson.run_attempt !== undefined ? " · 第 " + runJson.run_attempt + " 次尝试" : ""),
+    "branch: " + (runJson.head_branch || "?") + " · event " + (runJson.event || "?") +
+      (runJson.run_attempt !== undefined ? " · attempt " + runJson.run_attempt : ""),
   );
   out.push(
-    "时间：" + (runJson.run_started_at || runJson.created_at || "?") +
-      " · 耗时 " + fmtDuration(runJson.run_started_at || runJson.created_at, runJson.updated_at),
+    "time: " + (runJson.run_started_at || runJson.created_at || "?") +
+      " · took " + fmtDuration(runJson.run_started_at || runJson.created_at, runJson.updated_at),
   );
-  if (runJson.html_url) out.push("URL：" + runJson.html_url);
-  if (runJson.head_sha) out.push("提交：" + String(runJson.head_sha).slice(0, 7));
+  if (runJson.html_url) out.push("URL: " + runJson.html_url);
+  if (runJson.head_sha) out.push("commit: " + String(runJson.head_sha).slice(0, 7));
 
   out.push("");
   if (jobs.length === 0) {
-    out.push("作业：0 个（这一跑没有作业，或作业还没登记）");
+    out.push("jobs: 0 (this run has no jobs, or they have not been registered yet)");
   } else {
     const bad = jobs.filter((j) => {
       const c = String((j && j.conclusion) || "");
       return c && c !== "success" && c !== "skipped" && c !== "neutral";
     });
-    out.push("作业：" + jobs.length + " 个" + (bad.length ? " · 非成功 " + bad.length + " 个" : " · 全部成功 / 跳过"));
+    out.push("jobs: " + jobs.length + (bad.length ? " · " + bad.length + " not successful" : " · all successful / skipped"));
     for (const j of jobs) {
-      out.push("  [" + stateText(j) + "] " + ((j && j.name) || "（无名）") + " · " + fmtDuration(j && j.started_at, j && j.completed_at));
+      out.push("  [" + stateText(j) + "] " + ((j && j.name) || "(unnamed)") + " · " + fmtDuration(j && j.started_at, j && j.completed_at));
       const steps = Array.isArray(j && j.steps) ? j.steps : [];
       for (const s of steps) {
         const c = String((s && s.conclusion) || "");
         if (!c || c === "success" || c === "skipped" || c === "neutral") continue;
-        out.push("      [" + c.toUpperCase() + "] " + (s.name || "（无步名）"));
+        out.push("      [" + c.toUpperCase() + "] " + (s.name || "(no step name)"));
       }
     }
   }
@@ -208,7 +208,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     const delayMs = Math.max(0, Math.min(intervalSec * 1000, remainMs));
     state.timer = setTimeout(() => {
       tick().catch((e) => {
-        taskLog("warn", "轮询异常（task=" + taskId + "）：" + describeTaskErrorText(e));
+        taskLog("warn", "polling error (task=" + taskId + "): " + describeTaskErrorText(e));
       });
     }, delayMs);
     // 不把这个定时器当成进程存活的条件（App 进程的寿命由宿主决定）。
@@ -230,23 +230,23 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     if (state.stopped) return;
     if (rec.error) {
       state.recordErrors += 1;
-      taskLog("warn", "读宿主任务记录失败（第 " + state.recordErrors + " 次，task=" + taskId + "）：" + rec.error);
+      taskLog("warn", "failed to read the host task record (attempt " + state.recordErrors + ", task=" + taskId + "): " + rec.error);
       if (state.recordErrors >= 3) {
         // 结算尽力而为：任务面若真不可用，这次也会失败——那时只剩日志可留（见 tools/lib/tasks.js）。
         await failTask(
           taskId,
-          "盯守中断：连续读不到宿主任务记录（回投落点不可用），已停止轮询。\n" +
-            "最后一条错误：" + rec.error + "\n" +
-            "要此刻的状态用 githana_run(action=\"view\", runId=" + runId + ")。",
+          "watch interrupted: the host task record could not be read repeatedly (the delivery target is unavailable), so polling has stopped.\n" +
+            "Last error: " + rec.error + "\n" +
+            "For the state right now use githana_run(action=\"view\", runId=" + runId + ").",
         );
-        taskLog("warn", "连续读不到宿主任务记录，停止轮询（task=" + taskId + "）：回投落点不可用，继续取数没有意义");
+        taskLog("warn", "host task record unreadable repeatedly; stopping polling (task=" + taskId + "): the delivery target is unavailable, so fetching more data has no point");
         stop();
         return;
       }
     } else {
       state.recordErrors = 0;
       if (rec.record && isTerminalTaskStatus(rec.record.status)) {
-        taskLog("info", "任务 " + taskId + " 已是终态（" + rec.record.status + "，会话内取消）——停止轮询");
+        taskLog("info", "task " + taskId + " is already terminal (" + rec.record.status + ", cancelled in-session) — stopping polling");
         stop();
         return;
       }
@@ -258,9 +258,9 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     if (cur.error) {
       // 单跳失败（网络抖动 / 限流）不放弃：记下来继续下一跳，到窗口末尾一并如实回报。
       state.readErrors += 1;
-      taskLog("warn", "第 " + state.polls + " 跳读 run #" + runId + " 失败：" + cur.error);
+      taskLog("warn", "poll #" + state.polls + " failed to read run #" + runId + ": " + cur.error);
       if (cur.gone) {
-        await failTask(taskId, "盯守中断：run #" + runId + " 在 " + repoLabel + " 上已不存在或不可见（可能被 delete 了）。");
+        await failTask(taskId, "watch interrupted: run #" + runId + " no longer exists or is not visible on " + repoLabel + " (it may have been deleted).");
         stop();
         return;
       }
@@ -274,7 +274,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
           status: "running",
           progress: { phase: phase || "unknown", repo, runId, polls: state.polls },
         });
-        if (u.error) taskLog("warn", "进度回写失败（task=" + taskId + "）：" + u.error);
+        if (u.error) taskLog("warn", "progress write-back failed (task=" + taskId + "): " + u.error);
       }
       // 这次 await 期间可能已被 stop（dispose / 用户取消）：不再往任务面写结算。
       if (state.stopped) return;
@@ -292,8 +292,8 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
             text,
           },
         });
-        if (res.error) taskLog("warn", "结论回投失败（task=" + taskId + "）：" + res.error);
-        else taskLog("info", "run #" + runId + " 结论 " + String(cur.runJson.conclusion || "?") + " 已回投（task=" + taskId + "）");
+        if (res.error) taskLog("warn", "posting the conclusion back failed (task=" + taskId + "): " + res.error);
+        else taskLog("info", "run #" + runId + " conclusion " + String(cur.runJson.conclusion || "?") + " posted back (task=" + taskId + ")");
         stop();
         return;
       }
@@ -302,15 +302,15 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
     if (Date.now() >= deadlineAt) {
       if (state.stopped) return;
       const note = state.readErrors
-        ? "（这次盯守中有 " + state.readErrors + " 跳读失败——窗口末尾能否到终态因此不确定）"
+        ? " (" + state.readErrors + " polls failed to read during this watch — so whether it reaches a terminal state by the end of the window is uncertain)"
         : "";
       await failTask(
         taskId,
-        "盯守窗口已到点：run #" + runId + "（" + repoLabel + "）在 " + watchSec + " 秒内没有到终态" + note + "。\n" +
-          "这不是 CI 失败，只是本动词的盯守窗口结束了。要继续盯请再调一次 githana_run(action=\"watch\", runId=" + runId + ")，" +
-          "要此刻的状态用 githana_run(action=\"view\", runId=" + runId + ")。",
+        "watch window expired: run #" + runId + " (" + repoLabel + ") did not reach a terminal state within " + watchSec + " seconds" + note + ".\n" +
+          "This is not a CI failure; it just means this verb's watch window ended. To keep watching, call githana_run(action=\"watch\", runId=" + runId + ") again, " +
+          "and for the state right now use githana_run(action=\"view\", runId=" + runId + ").",
       );
-      taskLog("info", "盯守窗口到点（task=" + taskId + "，run=" + runId + "）");
+      taskLog("info", "watch window expired (task=" + taskId + ", run=" + runId + ")");
       stop();
       return;
     }
@@ -321,7 +321,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
   // 第一跳立刻（0ms）：runId 已定位好，此刻的状态马上就能取到，不必白等一个间隔。
   state.timer = setTimeout(() => {
     tick().catch((e) => {
-      taskLog("warn", "轮询异常（task=" + taskId + "）：" + describeTaskErrorText(e));
+      taskLog("warn", "polling error (task=" + taskId + "): " + describeTaskErrorText(e));
     });
   }, 0);
   if (state.timer && typeof state.timer.unref === "function") state.timer.unref();
@@ -330,7 +330,7 @@ function startWatchPoller({ taskId, repo, repoLabel, runId, intervalSec, watchSe
 
 /** 轮询链路里的异常文本（日志用，永不抛）。 */
 function describeTaskErrorText(e) {
-  return e && e.message ? String(e.message) : String(e || "未知错误");
+  return e && e.message ? String(e.message) : String(e || "unknown error");
 }
 
 /**
@@ -340,17 +340,17 @@ function describeTaskErrorText(e) {
  */
 async function resumeWatchTask(record) {
   const taskId = record && record.taskId ? String(record.taskId) : "";
-  if (!taskId) return { error: "记录缺 taskId" };
+  if (!taskId) return { error: "record is missing taskId" };
   const meta = githanaMetaOf(record) || {};
   const repo = meta.repo ? String(meta.repo) : "";
   const runId = meta.runId !== undefined && meta.runId !== null ? String(meta.runId) : "";
   if (!repo || !runId) {
     await failTask(
       taskId,
-      "盯守无法恢复：任务记录里缺少 repo / runId（metadata.githana 不完整）。" +
-        "请重新调用 githana_run(action=\"watch\")；要看此刻状态用 githana_run(action=\"view\")。",
+      "the watch cannot be resumed: the task record is missing repo / runId (metadata.githana is incomplete)." +
+        "Please call githana_run(action=\"watch\") again; for the state right now use githana_run(action=\"view\").",
     );
-    return { error: "metadata.githana 缺 repo / runId" };
+    return { error: "metadata.githana is missing repo / runId" };
   }
   const intervalSec = clampInt(meta.intervalSec, DEFAULT_INTERVAL_SEC, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
   const watchSec = clampInt(meta.watchSec, DEFAULT_WATCH_SEC, MIN_WATCH_SEC, MAX_WATCH_SEC);
@@ -366,7 +366,7 @@ async function resumeWatchTask(record) {
     timeoutSec: undefined,
     deadlineAt,
   });
-  taskLog("info", "已恢复盯守（task=" + taskId + "，run #" + runId + "，" + repo + "）");
+  taskLog("info", "watch resumed (task=" + taskId + ", run #" + runId + ", " + repo + ")");
   return { ok: true };
 }
 
@@ -384,9 +384,9 @@ export async function run(input, ctx, { label }) {
   const callToken = input && input.context && input.context.callToken ? String(input.context.callToken) : "";
   if (!callToken) {
     return (
-      label + " 无法建立后台任务：本次调用没有携带宿主注入的 callToken（它把任务绑到来源会话）。\n" +
-      "这个动词只对「模型工具调用」这条路径有意义——从别处（如页面路由）发起时没有可回投的会话。\n" +
-      "现在怎么做：用 githana_run(action=\"view\") 看此刻的 run 状态。"
+      label + " cannot create a background task: this call did not carry the host-injected callToken (which binds the task to the source session).\n" +
+      "This verb is only meaningful on the \"model tool call\" path — starting it from elsewhere (such as a page route) has no session to post back to.\n" +
+      "What to do now: use githana_run(action=\"view\") to see the run's state right now."
     );
   }
 
@@ -401,7 +401,7 @@ export async function run(input, ctx, { label }) {
   // 建任务之前先取一次现状：一是让 runId 的推断结果可核对，二是不存在的 run 当场报错
   // （建了任务再发现 run 不在，只会留一条空转的宿主记录）。
   const first = await readRun(repo, repoLabel, num, timeoutSec);
-  if (first.error) return label + " 执行失败：" + first.error;
+  if (first.error) return label + " execution failed: " + first.error;
 
   const intervalSec = clampInt(input?.intervalSec, DEFAULT_INTERVAL_SEC, MIN_INTERVAL_SEC, MAX_INTERVAL_SEC);
   const watchSec = clampInt(input?.watchSec, DEFAULT_WATCH_SEC, MIN_WATCH_SEC, MAX_WATCH_SEC);
@@ -421,11 +421,11 @@ export async function run(input, ctx, { label }) {
     url: first.runJson.html_url ? String(first.runJson.html_url) : null,
   };
   const created = await createSessionTask({
-    taskLabel: "盯 CI #" + num + (runTitle ? "：" + String(runTitle).slice(0, 40) : ""),
+    taskLabel: "watch CI #" + num + (runTitle ? ": " + String(runTitle).slice(0, 40) : ""),
     callToken,
     metadata: { githana: githanaMeta },
   });
-  if (created.error) return label + " 执行失败：" + created.error;
+  if (created.error) return label + " execution failed: " + created.error;
 
   // 起轮询：本函数**不**等它（纪律①）。
   startWatchPoller({
@@ -440,14 +440,14 @@ export async function run(input, ctx, { label }) {
   });
 
   const out = [
-    label + " 已开始盯守（" + repoLabel + " · run #" + num + "）——**不等结论**，本调用到此结束：",
-    "句柄：taskId " + created.taskId + "（宿主后台任务；delivery=" + String(created.record && created.record.delivery ? created.record.delivery : "next-step") + "）",
-    "此刻状态：" + runLine(first.runJson),
-    "轮询：每 " + intervalSec + " 秒读一次 run 与作业；盯守窗口 " + watchSec + " 秒（到点没终结会如实回报，不无限盯）",
-    "结论去向：run 到终态时，宿主会把结论贴回**本会话**的下一个输入点（next-step 档位），不必为等它结束回合。",
-    "中途要停：在会话的后台任务项里取消——轮询器看到任务已终态就停（不会继续取数，也不会再回投）。",
-    "要此刻的状态而不等：githana_run(action=\"view\", runId=" + num + ")。",
+    label + " watch started (" + repoLabel + " · run #" + num + ") — **it does not wait for the conclusion**; this call ends here:",
+    "handle: taskId " + created.taskId + " (host background task; delivery=" + String(created.record && created.record.delivery ? created.record.delivery : "next-step") + ")",
+    "state right now: " + runLine(first.runJson),
+    "polling: reads the run and its jobs every " + intervalSec + " seconds; watch window " + watchSec + " seconds (if it does not finish by then this is reported as-is rather than watching forever)",
+    "where the conclusion goes: when the run reaches a terminal state, the host posts the conclusion back to **this session**'s next input point (the next-step tier); you do not have to hold the turn open waiting for it.",
+    "to stop it midway: cancel it from this session's background task item — the poller sees the task is terminal and stops (it will fetch no more data and post back nothing more).",
+    "for the state right now without waiting: githana_run(action=\"view\", runId=" + num + ").",
   ];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
+  if (resolved.picked) out.push("note: " + pickedNote(resolved.picked, resolved.branch));
   return out.join("\n");
 }

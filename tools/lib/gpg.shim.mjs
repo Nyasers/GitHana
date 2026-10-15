@@ -131,23 +131,23 @@ function readEnv(name) {
 /** 读并解密 armored 私钥。 */
 function loadPrivateKeyArmored() {
   const keyFile = readEnv("GITHANA_KEY_FILE");
-  if (!keyFile) die("未提供 GITHANA_KEY_FILE：无法定位签名密钥。");
+  if (!keyFile) die("GITHANA_KEY_FILE not provided: cannot locate the signing key.");
   let rec;
   try {
     rec = JSON.parse(fs.readFileSync(keyFile, "utf8"));
   } catch (e) {
-    die("读密钥文件失败（" + keyFile + "）：" + String((e && e.message) || e));
+    die("failed to read the key file (" + keyFile + "): " + String((e && e.message) || e));
   }
   if (!rec || typeof rec.cipher !== "string" || !rec.cipher) {
-    die("密钥文件里没有密文：请到设置页重新生成密钥。");
+    die("the key file contains no ciphertext: go to the settings page and generate the key again.");
   }
   if (rec.alg && rec.alg !== DPAPI_ALG) {
-    die("密钥由 " + rec.alg + " 保护，本机后端是 " + DPAPI_ALG + "：无法解密（换机器或换用户了？）。");
+    die("the key is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).");
   }
   try {
     return dpapiUnprotect(rec.cipher);
   } catch (e) {
-    die("解密私钥失败：" + String((e && e.message) || e) + "（换机器或换用户了？）");
+    die("failed to decrypt the private key: " + String((e && e.message) || e) + " (did you switch machine or user?)");
   }
 }
 
@@ -161,7 +161,7 @@ async function main() {
   try {
     priv = await openpgp.readKey({ armoredKey: armored });
   } catch (e) {
-    die("私钥不可解析：" + String((e && e.message) || e));
+    die("private key is not parsable: " + String((e && e.message) || e));
   }
   const fpr = priv.getFingerprint().toUpperCase();
   const keyId = priv.getKeyID().toHex().toUpperCase();
@@ -179,7 +179,7 @@ async function main() {
     const sigFile = argv.find((a) => !a.startsWith("--") && a !== "-");
     if (!sigFile) {
       status("FAILURE verify_missing_arg");
-      die("验签缺少签名文件参数。", 2);
+      die("verify is missing the signature file argument.", 2);
     }
     let sigText = "";
     let payload = Buffer.alloc(0);
@@ -187,7 +187,7 @@ async function main() {
       sigText = fs.readFileSync(sigFile, "utf8");
     } catch (e) {
       status("FAILURE verify_read");
-      die("读签名文件失败：" + String((e && e.message) || e), 2);
+      die("failed to read the signature file: " + String((e && e.message) || e), 2);
     }
     try {
       // 按**原始字节**读（不定编码）：git 签的是提交对象的精确字节，用文本模式读会把
@@ -201,7 +201,7 @@ async function main() {
       sig = await openpgp.readSignature({ armoredSignature: sigText });
     } catch (e) {
       status("FAILURE verify_read");
-      die("签名文件不可解析：" + String((e && e.message) || e), 2);
+      die("signature file is not parsable: " + String((e && e.message) || e), 2);
     }
     // 先认签名者是不是本机这把密钥。不是的话，这是「本地没有对应公钥」，不是「签名坏了」：
     // GnuPG 对未知密钥发 ERRSIG/NO_PUBKEY 并退 2，而不是 BADSIG。混为一谈会让
@@ -210,7 +210,7 @@ async function main() {
     if (!signerIds.includes(keyId)) {
       status("ERRSIG " + (signerIds[0] || "") + " 22 8 00 0 9");
       status("NO_PUBKEY " + (signerIds[0] || ""));
-      die("本地没有签署该内容的公钥（署名 keyID " + signerIds.join("/") + "，本机是 " + keyId + "）。", 2);
+      die("this machine has no public key for the signer of this content (signing keyID " + signerIds.join("/") + ", this machine is " + keyId + ").", 2);
     }
     try {
       const res = await openpgp.verify({
@@ -253,7 +253,7 @@ async function main() {
     } catch {
       status("BADSIG " + keyId + " " + uid);
       process.stderr.write('gpg: BAD signature from "' + uid + '"\n');
-      die("签名验证不通过（Signed digest did not match）。", 1);
+      die("signature verification failed (Signed digest did not match).", 1);
     }
   }
 
@@ -268,7 +268,7 @@ async function main() {
   if (selector && !keyIdentifiers(priv).has(normId(selector))) {
     status("FAILURE sign 17");
     die(
-      "git 指定的签名密钥（" + selector + "）不是本机密钥（" + fpr + "，keyID " + keyId + "）：拒绝用别的身份签名。",
+      "the signing key git specified (" + selector + ") is not this machine's key (" + fpr + ", keyID " + keyId + "): refusing to sign with a different identity.",
       2,
     );
   }
@@ -287,7 +287,7 @@ async function main() {
       format: "armored",
     });
   } catch (e) {
-    die("签名失败：" + String((e && e.message) || e));
+    die("signing failed: " + String((e && e.message) || e));
   }
   process.stdout.write(sig.endsWith("\n") ? sig : sig + "\n");
   status("SIG_CREATED B 1 22 8 00 0 " + fpr);

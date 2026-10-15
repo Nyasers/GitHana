@@ -23,32 +23,32 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { runLine, actorText } from "../../lib/ci.js";
 
 export const command = "list";
-export const summary = "列 workflow run（可按分支 / 状态 / 工作流过滤）";
+export const summary = "List workflow runs (filterable by branch / status / workflow)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  branch: z.string().optional().describe("可选：只看某分支的 run"),
-  workflow: z.string().optional().describe("可选：只看某个工作流的 run（数字 ID 或文件名，从 githana_workflow(action=\"list\") 取）"),
+  branch: z.string().optional().describe("Optional: only runs on a given branch"),
+  workflow: z.string().optional().describe("Optional: only runs of a given workflow (a numeric ID or a file name, get it from githana_workflow(action=\"list\"))"),
   status: z
     .enum([
       "completed", "action_required", "cancelled", "failure", "neutral", "skipped", "stale",
       "success", "timed_out", "in_progress", "queued", "requested", "waiting", "pending",
     ])
     .optional()
-    .describe("可选：按状态或结论过滤（GitHub 的 status 参数两种值都收，同一个词按语义落在一侧）"),
+    .describe("Optional: filter by status or conclusion (GitHub's status parameter accepts both kinds of value; a given term falls on one side by its meaning)"),
   event: z
     .enum(["push", "pull_request", "workflow_dispatch", "schedule", "release", "issues", "issue_comment", "merge_group", "repository_dispatch", "dynamic"])
     .optional()
-    .describe("可选：按触发事件过滤（GitHub 的 event 参数接受的事件名）"),
-  actor: z.string().optional().describe("可选：只看某人触发的 run（登录名，不带 @）"),
-  limit: z.number().int().min(1).optional().describe("返回条数，默认 15，上限 100（超过上限收敛到 100）"),
+    .describe("Optional: filter by trigger event (the event names GitHub's event parameter accepts)"),
+  actor: z.string().optional().describe("Optional: only runs triggered by a given person (login name, without @)"),
+  limit: z.number().int().min(1).optional().describe("Number of results, default 15, max 100 (values above the max are clamped to 100)"),
   timeoutSec: params.timeoutSec,
 };
 
 /** 模型面专属（不参与运行期校验）：补上"上限 100"这个提示；运行期超过上限是收敛而不是拒绝。 */
 export const modelFields = {
-  limit: z.number().int().min(1).max(100).describe("返回条数，默认 15，上限 100（超过上限收敛到 100）"),
+  limit: z.number().int().min(1).max(100).describe("Number of results, default 15, max 100 (values above the max are clamped to 100)"),
 };
 
 export async function run(input, ctx, { label }) {
@@ -80,13 +80,13 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, path) + "?" + query.join("&"), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (wf && res && res.status === 404) {
-      return label + "：仓库 " + repoLabel + " 里没有工作流 " + wf + "（用 githana_workflow(action=\"list\") 看有哪些）。";
+      return label + ": repository " + repoLabel + " has no workflow " + wf + " (use githana_workflow(action=\"list\") to see what exists).";
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const body = res.json && typeof res.json === "object" ? res.json : {};
@@ -99,10 +99,10 @@ export async function run(input, ctx, { label }) {
     (input?.event ? " · event=" + String(input.event) : "") +
     (input?.actor ? " · actor=@" + String(input.actor).trim() : "");
 
-  if (items.length === 0) return label + "（" + scope + "）：没有匹配的 workflow run。";
+  if (items.length === 0) return label + " (" + scope + "): no matching workflow runs.";
 
-  const out = [label + "（" + scope + " · " + items.length + " 条" +
-    (body.total_count !== undefined ? " / 共 " + body.total_count : "") + " 条 · 最近在前）："];
+  const out = [label + " (" + scope + " · " + items.length +
+    (body.total_count !== undefined ? " / " + body.total_count + " total" : "") + " · newest first):"];
   for (const it of items) {
     out.push(runLine(it) + (actorText(it) ? " · " + actorText(it) : ""));
     if (it.html_url) out.push("  " + it.html_url);

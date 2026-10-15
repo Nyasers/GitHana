@@ -16,20 +16,20 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
 
 export const command = "comment";
-export const summary = "给 PR 加一条评论";
+export const summary = "Add a comment to a PR";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   prNumber: params.prNumberOptional,
-  body: z.string().describe("评论正文（支持 Markdown 与中文）"),
+  body: z.string().describe("Comment body (supports Markdown and Chinese)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "在 GitHub 远端 PR 上发布一条评论（写入 PR 时间线，公开可见且不能撤回，只能再发一条更正）：执行前请确认 repo、prNumber 与正文",
+    "Post a comment on a remote GitHub PR (written to the PR timeline, publicly visible and cannot be withdrawn — you can only post another comment to correct it): confirm repo, prNumber and body before running",
   ruleId: "github-toolkit-pr-comment",
 };
 
@@ -44,30 +44,30 @@ export async function run(input, ctx, { label }) {
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const body = input?.body !== undefined && input?.body !== null ? String(input.body) : "";
-  if (!body.trim()) return label + " 参数错误：body 必填（评论正文不能为空）。";
+  if (!body.trim()) return label + " argument error: body is required (the comment body cannot be empty).";
 
   const r = await callRest(
     [{ method: "POST", url: apiUrl(repo, "/issues/" + numStr + "/comments"), json: { body }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     // PR 被锁（locked）时评论会被拒——这是 pr_lock 的直接后果，单独给引导。
     if (res && res.status === 403 && /lock/i.test(errorDetail(res))) {
       return (
-        label + " 执行失败：PR #" + numStr + " 的对话已被锁定（locked），无法评论。\n" +
-        "需要发言请先用 githana_pr(action=\"unlock\") 解锁（需要仓库写权限）。\nGitHub 原文：" + errorDetail(res)
+        label + " execution failed: the conversation on PR #" + numStr + " is locked, so it cannot be commented on.\n" +
+        "To post, first unlock it with githana_pr(action=\"unlock\") (requires repository write permission).\nGitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const cm = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已发布（PR #" + numStr + " · " + repoLabel + "）：",
-    "评论者：" + (cm.user && cm.user.login ? "@" + cm.user.login : "?") + " · 正文 " + body.length + " 字符",
+    label + " posted (PR #" + numStr + " · " + repoLabel + "):",
+    "author: " + (cm.user && cm.user.login ? "@" + cm.user.login : "?") + " · body " + body.length + " chars",
   ];
-  if (cm.html_url) out.push("URL：" + cm.html_url);
+  if (cm.html_url) out.push("URL: " + cm.html_url);
   return out.join("\n");
 }

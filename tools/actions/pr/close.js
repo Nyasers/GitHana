@@ -15,7 +15,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure, prStateText } from "../../lib/pr.js";
 
 export const command = "close";
-export const summary = "关闭 PR（可用 reopen 还原）";
+export const summary = "Close a PR (can be restored with reopen)";
 
 export const schema = {
   repo: params.repo,
@@ -27,7 +27,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_pr",
   summary:
-    "关闭 GitHub 远端 PR（state=closed；不删除分支与历史，可用 reopen 还原）：修改 GitHub 远端状态，执行前请确认 repo 与 prNumber",
+    "Close a remote GitHub PR (state=closed; does not delete the branch or history, can be restored with reopen): modifies remote GitHub state, confirm repo and prNumber before running",
   ruleId: "github-toolkit-pr-close",
 };
 
@@ -45,22 +45,22 @@ export async function run(input, ctx, { label }) {
     [{ method: "PATCH", url: apiUrl(repo, "/pulls/" + numStr), json: { state: "closed" }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 422) {
-      return label + " 执行失败：无法关闭 PR #" + numStr + "（422）。已合并的 PR 不能再关闭。\nGitHub 原文：" + errorDetail(res);
+      return label + " execution failed: cannot close PR #" + numStr + " (422). A merged PR cannot be closed again.\nGitHub raw message: " + errorDetail(res);
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const pr = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已执行（PR #" + numStr + " · " + repoLabel + "）：",
-    "状态：" + prStateText(pr),
-    "说明：关闭不删分支与历史；要还原用 githana_pr(action=\"reopen\")。",
+    label + " done (PR #" + numStr + " · " + repoLabel + "):",
+    "state: " + prStateText(pr),
+    "note: closing deletes no branch or history; to restore use githana_pr(action=\"reopen\").",
   ];
-  if (pr.html_url) out.push("URL：" + pr.html_url);
+  if (pr.html_url) out.push("URL: " + pr.html_url);
   return out.join("\n");
 }

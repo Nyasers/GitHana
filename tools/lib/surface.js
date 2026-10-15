@@ -69,12 +69,12 @@ function stripEmptyAdditional(schema) {
  * 逐条翻译会引入偏差，而这条通道的第一读者是模型（见 spec tool-surface D6）。
  */
 function formatIssues(label, issues) {
-  const lines = [label + " 参数校验失败（共 " + issues.length + " 处）："];
+  const lines = [label + " argument validation failed (" + issues.length + " issue(s)):"];
   for (const it of issues) {
-    const path = Array.isArray(it.path) && it.path.length ? it.path.join(".") : "(根)";
+    const path = Array.isArray(it.path) && it.path.length ? it.path.join(".") : "(root)";
     lines.push("  · " + path + " [" + it.code + "] " + it.message);
   }
-  lines.push("请按上面的字段路径修正参数后重试；可用 action 与各字段的用法见随包手册 skills/githana/SKILL.md。");
+  lines.push("Fix the arguments along the field paths above and retry; the available actions and each field's usage are documented in the bundled manual skills/githana/SKILL.md.");
   return lines.join("\n");
 }
 
@@ -98,17 +98,17 @@ function assemble(name, actions, modelFields) {
   for (const entry of actions) {
     const mod = entry.module;
     if (!mod || typeof mod.command !== "string" || typeof mod.run !== "function") {
-      throw new Error(name + " 的 action 表里有形状不合法的条目（需要 { command, run }）");
+      throw new Error(name + " has an entry of invalid shape in its action table (expected { command, run })");
     }
     if (typeof mod.schema !== "object" || mod.schema === null) {
-      throw new Error(name + " 的 action「" + mod.command + "」没有导出 zod schema（字段定义的唯一来源）");
+      throw new Error(name + " action \"" + mod.command + "\" does not export a zod schema (the single source of field definitions)");
     }
-    if (byCommand.has(mod.command)) throw new Error(name + " 的 action 表里有重复的 action：" + mod.command);
+    if (byCommand.has(mod.command)) throw new Error(name + " has a duplicate action in its action table: " + mod.command);
     byCommand.set(mod.command, { mod, options: { ...(entry.options || {}), label: name + "(" + mod.command + ")" } });
     commands.push(mod.command);
     branches.push(z.strictObject({ action: z.literal(mod.command), ...mod.schema }).extend(HOST_CONTEXT));
   }
-  if (branches.length === 0) throw new Error(name + " 的 action 表为空");
+  if (branches.length === 0) throw new Error(name + " has an empty action table");
 
   // 模型面 parameters：平表（action 的 enum + 各 action 字段的并集）。
   // 每个 action 贡献 `schema`（运行期的那份）与可选的 `modelFields`（只给模型看的取值域提示，
@@ -156,19 +156,19 @@ function misroutedMessage(name, raw, commands, verbs) {
     // 这时给 `name(action="api")` 是错的指路，所以那种工具在自己的动词表里写明调用形态。
     const call = typeof hit.usage === "string" && hit.usage !== "" ? hit.usage : hit.name + "(action=\"" + raw + "\")";
     return (
-      name + "（action=" + raw + "）不接受该动作：" + raw + " 属于 " + hit.name +
-      "。请改用 " + call + "。"
+      name + "(action=" + raw + ") does not accept this action: " + raw + " belongs to " + hit.name +
+      ". Use " + call + " instead."
     );
   }
   if (hits.length > 1) {
-    const calls = hits.map((h) => h.name + "(action=\"" + raw + "\")").join(" 或 ");
+    const calls = hits.map((h) => h.name + "(action=\"" + raw + "\")").join(" or ");
     return (
-      name + "（action=" + raw + "）不接受该动作：" + raw + " 在 " + hits.map((h) => h.name).join(" / ") +
-      " 上都有。要操作哪个对象就用哪个工具：" + calls + "。"
+      name + "(action=" + raw + ") does not accept this action: " + raw + " exists on " + hits.map((h) => h.name).join(" / ") +
+      ". Use the tool for the object you mean: " + calls + "."
     );
   }
   return (
-    name + " 参数错误：未知 action（收到：" + raw + "）。可用 action：" + commands.join(" / ") + "。"
+    name + " invalid arguments: unknown action (received: " + raw + "). Available actions: " + commands.join(" / ") + "."
   );
 }
 
@@ -206,7 +206,7 @@ export function createSurface({
       action: {
         type: "string",
         enum: commands,
-        description: actionEnumDescription(actions, "要执行的动作："),
+        description: actionEnumDescription(actions, "action to perform: "),
       },
       ...projected.properties,
     },
@@ -219,7 +219,7 @@ export function createSurface({
     await initToolContext(ctx);
     const raw = normalizeAction(input && input.action);
     if (!raw) {
-      return name + " 参数错误：缺少 action。可用 action：" + commands.join(" / ") + "。";
+      return name + " invalid arguments: missing action. Available actions: " + commands.join(" / ") + ".";
     }
     const entry = byCommand.get(raw);
     if (entry) {
@@ -231,12 +231,12 @@ export function createSurface({
       try {
         return await entry.mod.run(parsed.data, ctx, entry.options);
       } catch (e) {
-        return name + "（action=" + raw + "）执行异常：" + (e && e.message ? e.message : String(e));
+        return name + "(action=" + raw + ") threw: " + (e && e.message ? e.message : String(e));
       }
     }
     // 保留位：认得出、本期不实现。明确回报「未实现」+ 为什么 + 可用 action，不静默失败。
     if (reserved[raw]) {
-      return name + "（action=" + raw + "）未实现：" + reserved[raw] + "\n可用 action：" + commands.join(" / ") + "。";
+      return name + "(action=" + raw + ") not implemented: " + reserved[raw] + "\nAvailable actions: " + commands.join(" / ") + ".";
     }
     // 走错名词：该 action 属于另一个工具（指名它，不是「另一个面」）。
     return misroutedMessage(name, raw, commands, verbs);
@@ -275,10 +275,10 @@ export function createSingleSurface({
 }) {
   const mod = module;
   if (!mod || typeof mod.command !== "string" || typeof mod.run !== "function") {
-    throw new Error(name + " 的 action 模块形状不合法（需要 { command, run }）");
+    throw new Error(name + " has an action module of invalid shape (expected { command, run })");
   }
   if (typeof mod.schema !== "object" || mod.schema === null) {
-    throw new Error(name + " 的 action「" + mod.command + "」没有导出 zod schema（字段定义的唯一来源）");
+    throw new Error(name + " action \"" + mod.command + "\" does not export a zod schema (the single source of field definitions)");
   }
   // label 就是工具名：单动词工具的 name 与 command 同义（githana_api / api），拼成
   // "名字(动词)" 只会重复一次，读起来像错。多动词那边仍按 name(动词) 拼，那里它才区分得开。
@@ -307,7 +307,7 @@ export function createSingleSurface({
     try {
       return await mod.run(parsed.data, ctx, { ...options, label });
     } catch (e) {
-      return name + " 执行异常：" + (e && e.message ? e.message : String(e));
+      return name + " threw: " + (e && e.message ? e.message : String(e));
     }
   }
 

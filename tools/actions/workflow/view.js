@@ -24,7 +24,7 @@ import { resolveContext, describeFailure, fmtTime } from "../../lib/gh.js";
 import { workflowStateText, workflowPath } from "../../lib/ci.js";
 
 export const command = "view";
-export const summary = "看一个工作流（定义，不含 YAML 正文）";
+export const summary = "View a workflow (its definition, without the YAML body)";
 
 export const schema = {
   repo: params.repo,
@@ -39,7 +39,7 @@ export async function run(input, ctx, { label }) {
   const { repo, repoLabel, timeoutSec } = c;
 
   const wf = input?.workflow !== undefined && input?.workflow !== null ? String(input.workflow).trim() : "";
-  if (!wf) return label + " 参数错误：workflow 必填（数字 ID 或文件名，从 githana_workflow(action=\"list\") 取）。";
+  if (!wf) return label + " argument error: workflow is required (a numeric ID or a file name, get it from githana_workflow(action=\"list\")).";
 
   const r = await callRest(
     [
@@ -50,30 +50,30 @@ export async function run(input, ctx, { label }) {
     ],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     if (res && res.status === 404) {
       return (
-        label + "：仓库 " + repoLabel + " 里没有工作流 " + wf + "（数字 ID 与文件名都认）。\n" +
-        "用 githana_workflow(action=\"list\") 看这个仓库有哪些。"
+        label + ": repository " + repoLabel + " has no workflow " + wf + " (both numeric IDs and file names are accepted).\n" +
+        "Use githana_workflow(action=\"list\") to see what this repository has."
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const w = res.json && typeof res.json === "object" ? res.json : {};
   const out = [];
-  out.push("工作流：" + (w.name || "（无名）"));
-  out.push("仓库：" + repoLabel + " · 状态 " + workflowStateText(w.state));
-  out.push("ID：" + (w.id !== undefined ? w.id : "?") + " · 路径：" + (w.path || "?"));
-  if (w.created_at) out.push("创建于：" + fmtTime(w.created_at) + (w.updated_at ? " · 更新于 " + fmtTime(w.updated_at) : ""));
-  if (w.html_url) out.push("URL：" + w.html_url);
-  if (w.badge_url) out.push("徽标：" + w.badge_url);
+  out.push("workflow: " + (w.name || "(unnamed)"));
+  out.push("repository: " + repoLabel + " · state " + workflowStateText(w.state));
+  out.push("ID: " + (w.id !== undefined ? w.id : "?") + " · path: " + (w.path || "?"));
+  if (w.created_at) out.push("created: " + fmtTime(w.created_at) + (w.updated_at ? " · updated " + fmtTime(w.updated_at) : ""));
+  if (w.html_url) out.push("URL: " + w.html_url);
+  if (w.badge_url) out.push("badge: " + w.badge_url);
 
   out.push("");
-  out.push("说明：这是工作流的**定义**（状态与路径），不含 YAML 正文。");
-  out.push("要看 YAML 内容：githana_repo(action=\"read-file\", repo=\"" + repo + "\", path=\"" + (w.path || ".github/workflows/<文件名>") + "\")——那是 `contents: read` 那条权限，与这里不同。");
-  out.push("要看它跑过什么：githana_run(action=\"list\", repo=\"" + repo + "\", workflow=\"" + (w.id !== undefined ? w.id : wf) + "\")。");
+  out.push("note: this is the workflow's **definition** (state and path), not the YAML body.");
+  out.push("To see the YAML content: githana_repo(action=\"read-file\", repo=\"" + repo + "\", path=\"" + (w.path || ".github/workflows/<file name>") + "\") — that is the `contents: read` permission, different from this one.");
+  out.push("To see what it has run: githana_run(action=\"list\", repo=\"" + repo + "\", workflow=\"" + (w.id !== undefined ? w.id : wf) + "\").");
   return out.join("\n");
 }

@@ -38,28 +38,28 @@ import { resolveRunId, pickedNote, formatBytes } from "../../lib/ci.js";
 import { normalizeAbsolutePath, transferFailureText, safeFileName } from "../../lib/transfer.js";
 
 export const command = "download";
-export const summary = "取 run 的日志 / 产物到本地（流式写盘 zip）";
+export const summary = "Fetch a run's logs / artifacts to the local disk (streamed zip write)";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   runId: params.runIdOptional,
-  branch: z.string().optional().describe("可选：runId 缺省时用它过滤出最近一次 run（缺省取 cwd 的当前分支）"),
+  branch: z.string().optional().describe("Optional: used to filter out the most recent run when runId is omitted (defaults to the current branch of cwd)"),
   what: z
     .enum(["logs", "artifacts"])
     .optional()
-    .describe("可选：取日志（logs，整个 run 打包成一个 zip）还是产物（artifacts）；缺省 logs"),
-  artifactName: z.string().optional().describe("可选：what=artifacts 时要取哪个产物（缺省取全部）"),
-  path: z.string().optional().describe("可选：目标文件绝对路径（what=logs 时用；与 dir 二选一，path 优先）"),
-  dir: z.string().optional().describe("可选：目标目录（缺省 = 本进程 cwd）；落盘文件名取资产/产物名"),
-  overwrite: z.boolean().optional().describe("可选：目标文件已存在时是否覆盖（缺省 false：不覆盖，报错让你改名或显式覆盖）"),
+    .describe("Optional: fetch logs (logs — the whole run packed into one zip) or artifacts (artifacts); defaults to logs"),
+  artifactName: z.string().optional().describe("Optional: which artifact to fetch when what=artifacts (defaults to all)"),
+  path: z.string().optional().describe("Optional: absolute path of the target file (used when what=logs; mutually exclusive with dir, path wins)"),
+  dir: z.string().optional().describe("Optional: target directory (default = this process's cwd); the file name on disk is taken from the asset/artifact name"),
+  overwrite: z.boolean().optional().describe("Optional: whether to overwrite an existing target file (default false: do not overwrite; the error tells you to pick another name or overwrite explicitly)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "读取 GitHub 远端 run 的日志 / 产物并写入本地磁盘（新建本地文件）：不修改远端状态，但会写本地文件，执行前请确认 repo、run 编号与目标路径",
+    "Read a remote GitHub run's logs / artifacts and write them to the local disk (creates local files): does not modify remote state, but writes local files — confirm repo, run number and target path before running",
   ruleId: "github-toolkit-run-download",
 };
 
@@ -98,12 +98,12 @@ export async function run(input, ctx, { label }) {
   const what = input?.what !== undefined && input?.what !== null ? String(input.what) : "logs";
   const artifactName = input?.artifactName !== undefined && input?.artifactName !== null ? String(input.artifactName).trim() : "";
   const overwrite = input?.overwrite === true;
-  const out = [label + "（" + repoLabel + " · run #" + num + " · " + what + "）："];
-  if (resolved.picked) out.push("说明：" + pickedNote(resolved.picked, resolved.branch));
+  const out = [label + " (" + repoLabel + " · run #" + num + " · " + what + "):"];
+  if (resolved.picked) out.push("note: " + pickedNote(resolved.picked, resolved.branch));
 
   if (what === "logs") {
     const target = targetPathFor(input, "run-" + num + "-logs.zip");
-    if (target.error) return label + " 参数错误：" + target.error;
+    if (target.error) return label + " argument error: " + target.error;
 
     const r = await callRest(
       [
@@ -117,17 +117,17 @@ export async function run(input, ctx, { label }) {
       ],
       { timeoutSec },
     );
-    if (!r.ok) return label + " 执行失败：" + r.message;
+    if (!r.ok) return label + " execution failed: " + r.message;
     const res = r.results[0];
     const byCode = transferFailureText(res);
     if (byCode) {
       return [
-        label + " 落盘失败 —— " + target.path,
+        label + " write to disk failed — " + target.path,
         byCode,
-        "日志端点返回一个 zip 字节流，这里要求一个可写目录；显式传 dir 或 path 指到一个能写的地方。",
+        "the logs endpoint returns a zip byte stream and this needs a writable directory; pass dir or path explicitly to point at a location you can write to.",
       ].join("\n");
     }
-    if (!res || !res.ok) return label + " 执行失败：" + describeFailure(res, repoLabel);
+    if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
 
     pushLogResult(out, target.path, res, target.explicit);
     return out.join("\n");
@@ -138,20 +138,20 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/artifacts") + "?per_page=100", timeoutMs }],
     { timeoutSec },
   );
-  if (!ar.ok) return label + " 执行失败：" + ar.message;
+  if (!ar.ok) return label + " execution failed: " + ar.message;
   const ares = ar.results[0];
-  if (!ares || !ares.ok) return label + " 执行失败：" + describeFailure(ares, repoLabel);
+  if (!ares || !ares.ok) return label + " execution failed: " + describeFailure(ares, repoLabel);
 
   const body = ares.json && typeof ares.json === "object" ? ares.json : {};
   const all = Array.isArray(body.artifacts) ? body.artifacts : [];
   const items = artifactName ? all.filter((a) => a && String(a.name) === artifactName) : all;
 
   if (all.length === 0) {
-    out.push("这条 run 没有留下产物（0 个）。");
+    out.push("this run left no artifacts (0).");
     return out.join("\n");
   }
   if (items.length === 0) {
-    out.push("没有名为 " + artifactName + " 的产物（共 " + all.length + " 个）：");
+    out.push("no artifact named " + artifactName + " (" + all.length + " in total):");
     for (const a of all) out.push("  " + (a.name || "?"));
     return out.join("\n");
   }
@@ -159,8 +159,8 @@ export async function run(input, ctx, { label }) {
   const singlePath = input?.path !== undefined && input?.path !== null && String(input.path).trim() !== "";
   if (singlePath && items.length > 1) {
     return [
-      label + " 参数错误：path 只能配一个产物，而这次选中了 " + items.length + " 个。",
-      "要么传 artifactName 点名一个，要么改用 dir（每个产物各落在它自己的文件名下）。",
+      label + " argument error: path can only go with a single artifact, but this selection contains " + items.length + ".",
+      "Either name one with artifactName, or switch to dir (each artifact then lands under its own file name).",
     ].join("\n");
   }
 
@@ -170,19 +170,19 @@ export async function run(input, ctx, { label }) {
   for (const a of items) {
     const name = a && a.name ? String(a.name) : "";
     if (!name || a.id === undefined || a.id === null) {
-      out.push("  ! 一个产物的响应里缺 name 或 id，跳过。");
+      out.push("  ! an artifact's response is missing name or id; skipping.");
       failed += 1;
       continue;
     }
-    const sizeNote = a.size_in_bytes !== undefined ? "（" + formatBytes(a.size_in_bytes) + "）" : "";
+    const sizeNote = a.size_in_bytes !== undefined ? " (" + formatBytes(a.size_in_bytes) + ")" : "";
     if (a.expired === true) {
-      out.push("  ! " + name + sizeNote + "：**已过期**（GitHub 按仓库设置的保留期删掉了内容），跳过。");
+      out.push("  ! " + name + sizeNote + ": **expired** (GitHub deleted the content under the repository's retention setting); skipping.");
       failed += 1;
       continue;
     }
     const target = targetPathFor(input, name + ".zip");
     if (target.error) {
-      out.push("  ! " + name + "：" + target.error);
+      out.push("  ! " + name + ": " + target.error);
       failed += 1;
       continue;
     }
@@ -200,39 +200,39 @@ export async function run(input, ctx, { label }) {
       { timeoutSec },
     );
     if (!r.ok) {
-      out.push("  ! " + name + "：执行失败：" + r.message);
+      out.push("  ! " + name + ": execution failed: " + r.message);
       failed += 1;
       continue;
     }
     const res = r.results[0];
     const byCode = transferFailureText(res);
     if (byCode) {
-      out.push("  ! " + name + "：落盘失败 —— " + target.path);
+      out.push("  ! " + name + ": write to disk failed — " + target.path);
       out.push("    " + byCode);
       failed += 1;
       continue;
     }
     if (!res || !res.ok) {
-      out.push("  ! " + name + "：GitHub 返回 HTTP " + (res ? res.status : "?") + " —— " + describeFailure(res, repoLabel));
+      out.push("  ! " + name + ": GitHub returned HTTP " + (res ? res.status : "?") + " — " + describeFailure(res, repoLabel));
       failed += 1;
       continue;
     }
     out.push("  ✓ " + name + sizeNote + " → " + target.path +
-      (res.bytes !== null && res.bytes !== undefined ? "（写入 " + res.bytes + " 字节）" : ""));
-    if (target.explicit === false) out.push("     说明：没给 path / dir，落在本进程的当前目录。");
+      (res.bytes !== null && res.bytes !== undefined ? " (" + res.bytes + " bytes written)" : ""));
+    if (target.explicit === false) out.push("     note: no path / dir was given, so it landed in this process's current directory.");
     done += 1;
   }
 
   out.push("");
-  out.push(done === items.length ? "完成：" + done + " 个产物已写盘。" : "完成 " + done + " 个 / 失败 " + failed + " 个（逐条见上）。");
+  out.push(done === items.length ? "done: " + done + " artifact(s) written to disk." : "done " + done + " / failed " + failed + " (see each line above).");
   return out.join("\n");
 }
 
 /** 日志那一跳的回执（单独一段：它只有一次请求，不需要逐条排版）。 */
 function pushLogResult(out, targetPath, res, explicit) {
   out.push("  ✓ → " + targetPath);
-  if (res.bytes !== null && res.bytes !== undefined) out.push("     写入 " + res.bytes + " 字节（" + formatBytes(res.bytes) + "）");
-  if (explicit === false) out.push("     说明：没给 path / dir，落在本进程的当前目录。");
+  if (res.bytes !== null && res.bytes !== undefined) out.push("     wrote " + res.bytes + " bytes (" + formatBytes(res.bytes) + ")");
+  if (explicit === false) out.push("     note: no path / dir was given, so it landed in this process's current directory.");
   out.push("");
-  out.push("这是一个 zip（GitHub 把整个 run 的日志打包成一个字节流，不打 302）。解开它就看到逐作业的日志。");
+  out.push("This is a zip (GitHub packs the whole run's logs into one byte stream, with no 302). Unpack it to see the per-job logs.");
 }

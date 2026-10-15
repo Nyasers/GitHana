@@ -15,7 +15,7 @@ import { resolveContext } from "../../lib/gh.js";
 import { toggleWorkflow } from "../../lib/workflow-toggle.js";
 
 export const command = "enable";
-export const summary = "启用一个工作流（恢复它的自然触发）";
+export const summary = "Enable a workflow (restores its natural triggers)";
 
 export const schema = {
   repo: params.repo,
@@ -27,7 +27,7 @@ export const schema = {
 export const sideEffect = {
   kind: "github_actions",
   summary:
-    "在 GitHub 远端启用一个工作流（改它的状态位：之后 push / pull_request / schedule 等自然触发会恢复生效）：修改 GitHub 远端状态，执行前请确认 repo 与 workflow",
+    "Enable a workflow on remote GitHub (changes its status flag: afterwards natural triggers such as push / pull_request / schedule take effect again): modifies remote GitHub state, confirm repo and workflow before running",
   ruleId: "github-toolkit-workflow-enable",
 };
 

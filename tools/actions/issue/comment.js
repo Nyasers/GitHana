@@ -16,20 +16,20 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 
 export const command = "comment";
-export const summary = "给 issue 加一条评论";
+export const summary = "Add a comment to an issue";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
   issueNumber: params.issueNumber,
-  body: z.string().describe("评论正文（支持 Markdown 与中文）"),
+  body: z.string().describe("Comment body (supports Markdown and Chinese)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_issue",
   summary:
-    "在 GitHub 远端 issue 上发布一条评论（写入时间线，公开可见且不能撤回，只能再发一条更正，会通知订阅者）：执行前请确认 repo、编号与正文",
+    "Post a comment on a remote GitHub issue (written to the timeline, publicly visible and cannot be withdrawn — you can only post another comment to correct it; subscribers are notified): confirm repo, number and body before running",
   ruleId: "github-toolkit-issue-comment",
 };
 
@@ -41,7 +41,7 @@ export async function run(input, ctx, { label }) {
   const numStr = String(input.issueNumber);
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
   const body = input?.body !== undefined && input?.body !== null ? String(input.body) : "";
-  if (!body.trim()) return label + " 参数错误：body 必填（评论正文不能为空）。";
+  if (!body.trim()) return label + " argument error: body is required (the comment body cannot be empty).";
 
   // 先核对这个编号是 issue 而不是 PR：评论本身两边端点相同（都是 issue 评论），但工具面的
   // 归属不同——对 PR 评论该走 githana_pr(action="comment")，这里如实指向它，不代劳。
@@ -53,7 +53,7 @@ export async function run(input, ctx, { label }) {
       numStr,
       repoLabel,
       cur.issue,
-      "要给这个 PR 评论请用 githana_pr(action=\"comment\", prNumber=" + numStr + ")。",
+      "To comment on this PR use githana_pr(action=\"comment\", prNumber=" + numStr + ").",
     );
   }
 
@@ -61,25 +61,25 @@ export async function run(input, ctx, { label }) {
     [{ method: "POST", url: apiUrl(repo, "/issues/" + numStr + "/comments"), json: { body }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：#" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     // 锁定时 GitHub 报 403 且原文含 locked。
     if (res && res.status === 403 && /lock/i.test(errorDetail(res))) {
       return (
-        label + " 执行失败：#" + numStr + " 的对话已被锁定（locked），无法评论。\n" +
-        "需要发言请先用 githana_issue(action=\"unlock\") 解锁。\nGitHub 原文：" + errorDetail(res)
+        label + " execution failed: the conversation on #" + numStr + " is locked, so it cannot be commented on.\n" +
+        "To post, first unlock it with githana_issue(action=\"unlock\").\nGitHub raw message: " + errorDetail(res)
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const cm = res.json && typeof res.json === "object" ? res.json : {};
   const out = [
-    label + " 已发布（issue #" + numStr + " · " + repoLabel + "）：",
-    "评论者：@" + ((cm.user && cm.user.login) || "?") + " · 正文 " + body.length + " 字符",
+    label + " posted (issue #" + numStr + " · " + repoLabel + "):",
+    "author: @" + ((cm.user && cm.user.login) || "?") + " · body " + body.length + " chars",
   ];
-  if (cm.html_url) out.push("URL：" + cm.html_url);
+  if (cm.html_url) out.push("URL: " + cm.html_url);
   return out.join("\n");
 }

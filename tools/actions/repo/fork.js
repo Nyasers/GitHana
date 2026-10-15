@@ -21,20 +21,20 @@ import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure } from "../../lib/gh.js";
 
 export const command = "fork";
-export const summary = "fork 到当前账号下";
+export const summary = "Fork under the current account";
 
 export const schema = {
   repo: params.repo,
   cwd: params.cwdOptional,
-  name: z.string().optional().describe("可选：fork 后的仓库名（缺省同名）"),
-  defaultBranchOnly: z.boolean().optional().describe("可选：只取默认分支（GitHub 会裁掉其它分支，省时间）"),
+  name: z.string().optional().describe("Optional: name of the forked repository (defaults to the same name)"),
+  defaultBranchOnly: z.boolean().optional().describe("Optional: only fetch the default branch (GitHub trims the other branches, saving time)"),
   timeoutSec: params.timeoutSec,
 };
 
 export const sideEffect = {
   kind: "github_repo",
   summary:
-    "在 GitHub 上把仓库 fork 到当前登录账号下（新建一个属于你的仓库副本，父仓库可见地记下这个 fork）：修改 GitHub 远端状态，执行前请确认 repo",
+    "Fork the repository on GitHub under the current login account (creates a copy of the repository that belongs to you, and the parent repository visibly records this fork): modifies remote GitHub state, confirm repo before running",
   ruleId: "github-toolkit-repo-fork",
 };
 
@@ -53,33 +53,33 @@ export async function run(input, ctx, { label }) {
     [{ method: "POST", url: apiUrl(repo, "/forks"), json: payload, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
     const detail = errorDetail(res);
     if (res && res.status === 403) {
       return (
-        label + " 执行失败：GitHub 拒绝这次 fork（403）。常见原因：父仓库不允许 fork（allow_forking=false）、\n" +
-        "或令牌对父仓库没有读权限。\nGitHub 原文：" + detail
+        label + " execution failed: GitHub rejected this fork (403). Common causes: the parent repository does not allow forking (allow_forking=false),\n" +
+        "or the token has no read permission on the parent repository.\nGitHub raw message: " + detail
       );
     }
     if (res && res.status === 422) {
       return (
-        label + " 执行失败：GitHub 拒绝这次 fork（422）。最常见的原因是**你的账号下已经有同名 fork**——\n" +
-        "一仓库一 fork，要更新它请用 githana_repo(action=\"sync\")。\nGitHub 原文：" + detail
+        label + " execution failed: GitHub rejected this fork (422). The most common cause is that **your account already has a fork with the same name** —\n" +
+        "one fork per repository; to update it use githana_repo(action=\"sync\").\nGitHub raw message: " + detail
       );
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   const fork = res.json && typeof res.json === "object" ? res.json : {};
   const parentRepoName = repo.split("/")[1] || repo;
-  const out = [label + " 已受理（" + repoLabel + " → fork）："];
-  out.push("fork 仓库：" + (fork.full_name || "?（GitHub 还在建，响应体里没有 full_name）"));
-  out.push("状态：HTTP " + res.status + (res.status === 202 ? "（GitHub 在后台建，稍后可用 view / clone 确认）" : "") + " · 默认分支 " + (fork.default_branch || "?"));
-  if (fork.html_url) out.push("URL：" + fork.html_url);
-  if (fork.parent && fork.parent.full_name) out.push("上游：" + fork.parent.full_name);
-  out.push("说明：不在克隆。要本地那份接着调 githana_repo(action=\"clone\", repo=\"" + (fork.full_name || "<你的账号>/" + parentRepoName) + "\", cwd=\"<父目录>\")。");
-  out.push("说明：fork 到组织下（--org）不在本动词上（缺 organization 权限），请走 githana_api。");
+  const out = [label + " accepted (" + repoLabel + " → fork):"];
+  out.push("fork repository: " + (fork.full_name || "? (GitHub is still creating it; the response has no full_name)"));
+  out.push("state: HTTP " + res.status + (res.status === 202 ? " (GitHub is creating it in the background; confirm later with view / clone)" : "") + " · default branch " + (fork.default_branch || "?"));
+  if (fork.html_url) out.push("URL: " + fork.html_url);
+  if (fork.parent && fork.parent.full_name) out.push("upstream: " + fork.parent.full_name);
+  out.push("note: no local clone is made. For the local copy, follow up with githana_repo(action=\"clone\", repo=\"" + (fork.full_name || "<your account>/" + parentRepoName) + "\", cwd=\"<parent directory>\").");
+  out.push("note: forking under an organization (--org) is not on this verb (the organization permission is missing); go through githana_api instead.");
   return out.join("\n");
 }

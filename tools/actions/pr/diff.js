@@ -19,7 +19,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
 
 export const command = "diff";
-export const summary = "查看 PR 的 diff（补丁文本，可截断）";
+export const summary = "View a PR's diff (patch text, truncatable)";
 
 /** 缺省截断长度（字符）：够看一轮改动，又不至于把上下文窗口吃掉。 */
 const DEFAULT_MAX_BYTES = 20000;
@@ -29,13 +29,13 @@ export const schema = {
   cwd: params.cwdOptional,
   prNumber: params.prNumberOptional,
   // 取值域确定（两种补丁表示），写成 enum。
-  format: z.enum(["diff", "patch"]).optional().describe("diff（默认，纯补丁）/ patch（带提交头的补丁）"),
+  format: z.enum(["diff", "patch"]).optional().describe("diff (default, plain patch) / patch (patch with commit headers)"),
   maxBytes: z
     .number()
     .int()
     .min(500)
     .optional()
-    .describe("补丁文本的展示上限（字符），默认 20000；超过则截断并说明"),
+    .describe("Display limit for the patch text (characters), default 20000; beyond that it is truncated and noted"),
   timeoutSec: params.timeoutSec,
 };
 
@@ -58,20 +58,20 @@ export async function run(input, ctx, { label }) {
     [{ url: apiUrl(repo, "/pulls/" + numStr), headers: { Accept: accept }, timeoutMs }],
     { timeoutSec },
   );
-  if (!r.ok) return label + " 执行失败：" + r.message;
+  if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
   if (!res || !res.ok) {
-    if (res && res.status === 404) return label + "：PR #" + numStr + " 不存在或不可见（" + repoLabel + "）。";
+    if (res && res.status === 404) return label + ": PR #" + numStr + " does not exist or is not visible (" + repoLabel + ").";
     if (res && res.status === 406) {
-      return label + "：PR #" + numStr + " 的 diff 过大（GitHub 返回 406）。请改用 githana_api 的 files 表示分文件看。";
+      return label + ": the diff for PR #" + numStr + " is too large (GitHub returned 406). Use githana_api's files representation to look at it file by file instead.";
     }
-    return label + " 执行失败：" + describeFailure(res, repoLabel);
+    return label + " execution failed: " + describeFailure(res, repoLabel);
   }
 
   // diff 表示是**文本**不是 JSON：worker 会把非 JSON 响应放进 text（json 为 null）。
   const text = typeof res.text === "string" ? res.text : "";
   if (text.trim() === "") {
-    return label + "：PR #" + numStr + " 没有 diff 内容（可能还没有提交，或已被合并/关闭且无差别）。";
+    return label + ": PR #" + numStr + " has no diff content (it may have no commits yet, or have been merged/closed with no difference).";
   }
 
   const truncated = text.length > maxBytes;
@@ -79,8 +79,8 @@ export async function run(input, ctx, { label }) {
   const out = [
     label + " PR #" + numStr + " · " + repoLabel + " · format=" + format,
     truncated
-      ? "（补丁共 " + text.length + " 字符，已截断到 " + maxBytes + "；要分文件看请用 githana_api 的 files 表示）"
-      : "（补丁共 " + text.length + " 字符，未截断）",
+      ? "(the patch is " + text.length + " chars in total; truncated to " + maxBytes + "; to look at it file by file use githana_api's files representation)"
+      : "(the patch is " + text.length + " chars in total; not truncated)",
     "",
     body,
   ];
