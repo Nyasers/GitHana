@@ -11,6 +11,7 @@
     "app/tools.expose-to-model",
     "app/process.spawn",
     "app/tasks.manage",
+    "app/session.start-turn",
     "app/ui.clipboard-write",
     "app/ui.open-external"
   ],
