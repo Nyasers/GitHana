@@ -61,6 +61,7 @@ import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
 import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
 import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
+import { killLiveChildren } from "./tools/lib/exec.js";
 import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
@@ -219,6 +220,17 @@ export function apply(ctx) {
     // 留着定时器只会往一个已经换代的任务面上写。**宿主任务记录不动**——它是恢复的事实源，
     // 下一个实例会在 apply 里用 ctx.tasks.list() 把未终结的记录接回去（见 tools/lib/tasks.js）。
     try { stopAllPollers(); } catch { /* 忽略 */ }
+    // 再尝试收掉本实例起的子进程。Windows 不会因为父进程退出就杀掉子进程，漏了这一步
+    // 它们会成孤儿继续写磁盘，而任务记录已被推成终态——“任务已终止、活儿还在跑”。
+    //
+    // 但要清楚它的限度：宿主卸载 App 时是几十毫秒内硬杀进程（日志里 stop process 一步
+    // 只花 36ms），这个回调**未必跑得到**（在退出钩子里写标示文件验证过：从未出现）。
+    // 所以它只是机会主义的一道，真正的兼底是 tools/lib/transfer-task.js 里
+    // resumeCommandTask 对新一代装载时看到的“未终结记录”做收尾。
+    try {
+      const n = killLiveChildren();
+      if (n) log("info", "dispose 收掉 " + n + " 个在跑的子进程（避免成为孤儿）");
+    } catch { /* 忽略 */ }
     for (const d of disposers) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }

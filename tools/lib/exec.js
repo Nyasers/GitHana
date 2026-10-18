@@ -22,7 +22,7 @@
  * 走 terminateTree()（见下）——clone 这类命令会 fork 出 index-pack / remote helper，
  * 只杀主进程会留下持有管道的孤儿，close 永远不来。
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveBinExec, buildBinEnv } from "./bin.js";
@@ -158,6 +158,88 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *   timedOut: boolean, message: string | null
  * }>} ok=false 时 message 为中文可读错误；非零退出时 stdout/stderr 保留原始输出。
  */
+/**
+ * 本进程起过的、还没结束的子进程。
+ *
+ * 为什么需要登记：Windows 没有“父进程死了子进程一起死”这回事。App 被卸载 / 重载时，
+ * 旧实例的 git 子进程会变成**孤儿继续跑**——它仍然占着磁盘在写，而宿主已经把任务记录
+ * 推成终态，于是“任务已终止、活儿还在后台”这种最坏形态就出现了（实测重现过：clone
+ * 的 index-pack 在 App 换代后仍在写）。dispose 时靠这份表把它们收掉。
+ */
+const liveChildren = new Set();
+
+/**
+ * 杀掉本进程起过的所有子进程（App 卸载 / 重载时调）。
+ *
+ * 同步树杀：这个方法会从 dispose 与 exit 钩子两处调，后者只能做同步事（事件循环已停），
+ * 异步 spawn 在那里永远不会被调度。
+ *
+ * 两道收：先 child.kill()（同步、立刻、不等任何外部命令），再 taskkill /T 补子孙。
+ * 只做 taskkill 不够可靠——它要 fork 一个进程，在 exit 钩子的最后几毫秒里未必跑得完，
+ * 主进程一死孙进程就成孤儿（实测：单 taskkill 时 git 主进程死了、index-pack 还活着写）。
+ * 反过来只做 child.kill() 又够不着孙进程，所以才要两道。
+ */
+export function killLiveChildren() {
+  const n = liveChildren.size;
+  const kids = [...liveChildren];
+  liveChildren.clear();
+  for (const child of kids) {
+    if (!child || child.exitCode !== null) continue;
+    // ① 立刻杀主进程：同步，不依赖外部命令。
+    try { child.kill("SIGKILL"); } catch { /* 已退出 */ }
+    // ② 补子孙：taskkill /T 把整棵树收完。
+    if (process.platform === "win32" && child.pid) {
+      try {
+        spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true,
+          timeout: 5000,
+        });
+      } catch { /* 尽力而为 */ }
+    }
+  }
+  return n;
+}
+
+/**
+ * 在进程退出前收掉子进程。
+ *
+ * 为什么必须靠这个钩子而不是 apply 返回的 teardown：宿主卸载 App 时走的是
+ * `handle.kill()` 发 SIGTERM 消息，而实测那条路只花几十毫秒就宣告“stop process”成功——
+ * 直接硬杀，apply 返回的函数与本进程的 exit 钩子**都没有机会跑**（在钩子里写标示文件
+ * 验证过：文件从未出现）。所以这些钩子不能当作真正的保障，只能当机会主义的一道。
+ *
+ * 真正的兼底在 resumeCommandTask 那一侧：新实例装载时扫到旧任务记录，把上一个实例
+ * 死于硬杀时留下的半成品目录收掉。
+ *
+ * 钩子里只能做**同步**事：事件循环已停，异步 spawn 永远不会被调度。所以用 spawnSync。
+ */
+function installExitHook() {
+  if (installExitHook.installed) return;
+  installExitHook.installed = true;
+  const flush = () => {
+    try { killLiveChildren(); } catch { /* 尽力而为 */ }
+  };
+  process.on("exit", flush);
+  process.once("disconnect", flush);
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    try {
+      process.on(sig, () => { flush(); process.exit(0); });
+    } catch { /* 平台不支持该信号 */ }
+  }
+}
+
+/**
+ * 登记一个外来子进程（REST worker 这类不走 runCli 的），让它也能被 dispose 收掉。
+ * @returns {() => void} 注销函数（子进程结束时调）
+ */
+export function trackChildProcess(child) {
+  if (!child) return () => {};
+  installExitHook();
+  liveChildren.add(child);
+  return () => { liveChildren.delete(child); };
+}
+
 export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {}) {
   const cwdErr = checkCwd(cwd);
   if (cwdErr) {
@@ -202,6 +284,9 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {})
         windowsHide: true,
         env: buildBinEnv(process.env, resolved, { bin, args: argList }),
       });
+      liveChildren.add(child);
+      installExitHook();
+      child.on("close", () => { liveChildren.delete(child); });
     } catch (err) {
       finish({
         ok: false, exitCode: null, stdout: "", stderr: "",
@@ -440,11 +525,25 @@ async function removeDirEntry(target) {
   const r = win
     ? await runCli("cmd", ["/d", "/s", "/c", "rmdir", "/s", "/q", target], { timeoutSec: 60 })
     : await runCli("rm", ["-rf", "--", target], { timeoutSec: 60 });
-  if (!r.ok) {
-    return {
-      ok: false,
-      message: "could not remove " + target + ": " + (((r.stderr || "") + "\n" + (r.stdout || "")).trim() || r.message || "unknown error"),
-    };
+
+  // 不以退出码为准，以**目录真没了**为准。两个理由：
+  //   1) `rmdir` 对“路径不存在”返回非零，而那恰好是想要的结果（幂等）；
+  //   2) Windows 下 cmd/rmdir 的错误输出是 GBK，塞进 stderr 会变成乱码，
+  //      拼进用户看的文案等于没有信息（"ϵͳ�Ҳ���ָ�����ļ���" 就是这样来的）。
+  let gone = false;
+  try {
+    if (!fs.existsSync(target)) gone = true;
+  } catch {
+    // 许可模型挡住 existsSync 时不能断言还在——退回看退出码
+    gone = r.ok;
   }
-  return { ok: true, message: "removed " + target };
+  if (gone) return { ok: true, message: "removed " + target };
+
+  // 真没删掉才需要一句可读的原因；不用子进程的原话（可能是 GBK 乱码）。
+  return {
+    ok: false,
+    message:
+      "could not remove " + target +
+      " (it still exists after the attempt; something may hold a handle on it, or the path needs different permissions)",
+  };
 }

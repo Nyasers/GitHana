@@ -45,7 +45,10 @@ import {
   failTask,
   isTerminalTaskStatus,
   taskLog,
+  githanaMetaOf,
+  registerTaskResumer,
 } from "./tasks.js";
+import { removeTree } from "./exec.js";
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "./rest.js";
 import { transferFailureText, normalizeAbsolutePath, safeFileName } from "./transfer.js";
 
@@ -158,6 +161,77 @@ export async function startCommandTask(input, { label, callToken, repo, meta, co
 
   return { taskId: created.taskId, record: created.record };
 }
+
+/**
+ * App 换代后，把未完成的命令类任务（clone）收尾。
+ *
+ * 为什么是「收尾」而不是「接回去继续跑」：App 重载会把进程内的 git 子进程一起带走
+ * （它是本进程的子进程），而且 metadata 里存的是 dest 与参数，没有可重建的完整调用上下文。
+ * 真要紧的是**不能留假活**：宿主记录若停在 running，任务 chip 会永远转圈，看起来像
+ * 有东西在跑，实际什么都不在了。所以这里一律结算成失败，并删掉半个目录（否则下次
+ * 重试撞 target directory already exists）。
+ */
+async function resumeCommandTask(record) {
+  const taskId = record && record.taskId ? String(record.taskId) : "";
+  if (!taskId) return { error: "record is missing taskId" };
+  const meta = githanaMetaOf(record) || {};
+  const dest = meta.dest ? String(meta.dest) : "";
+  const repo = meta.repo ? String(meta.repo) : "?";
+
+  // 只收未终结记录（宿主自己推成终态的不管：那时用户已经看到那个任务结束了，
+  // 再动它的副作用属于越界——实测过，一旦把终态也纳入，上一批历史记录会被反复扫到，
+  // 31 条旧任务每条都去删同一个路径，把本代正在跑的 clone 目录也删了）。
+  //
+  // 能走到这里的，是“上一代没来得及结算”的那种：记录还挂在 running，而进程已经没了。
+  let cleanupNote = "";
+  if (dest) {
+    const r = await removeTree(dest);
+    cleanupNote = r.ok
+      ? "the partial directory was removed: " + dest
+      : r.message + " — delete it yourself before retrying.";
+  }
+
+  const text = [
+    "the clone of " + repo + " was interrupted by an App reload:",
+    "the git process belonged to the previous App instance, so it is gone; this task was settled as failed rather than left looking alive.",
+    cleanupNote,
+    "retry with the same githana_repo(action=\"clone\") call.",
+  ].filter(Boolean).join("\n");
+  await failTask(taskId, text);
+  taskLog("info", "command task " + taskId + " settled after App reload (interrupted clone of " + repo + ")");
+  return { ok: true };
+}
+
+/**
+ * App 换代后，把未完成的传输任务收尾。
+ *
+ * 与命令类同理：REST worker 是独立子进程，App 重载会把它一起收掉（或留下一个已经写完
+ * 但没人结算的孤儿），而 metadata 里没有可重建请求的 url，无法在这里自动重跑。
+ * 关键是如实告知并给出去重指引：目标文件可能已经完整落地，也可能只有一半，不能猜。
+ */
+async function resumeTransferTask(record) {
+  const taskId = record && record.taskId ? String(record.taskId) : "";
+  if (!taskId) return { error: "record is missing taskId" };
+  const meta = githanaMetaOf(record) || {};
+  const repo = meta.repo ? String(meta.repo) : "?";
+  const items = Array.isArray(meta.items) ? meta.items : [];
+  const targets = items.map((it) => (it && it.target ? String(it.target) : "?")).filter(Boolean);
+
+  const text = [
+    "the transfer from " + repo + " was interrupted by an App reload:",
+    "the REST worker belonged to the previous App instance, so nothing is writing any more; this task was settled as failed rather than left looking alive.",
+    targets.length
+      ? "targets that may be complete or partial — check them before retrying:\n" + targets.map((t) => "  · " + t).join("\n")
+      : "the task record carries no target paths.",
+    "retry the same download / upload call; pass overwrite=true if a partial file is in the way.",
+  ].join("\n");
+  await failTask(taskId, text);
+  taskLog("info", "transfer task " + taskId + " settled after App reload (interrupted transfer from " + repo + ")");
+  return { ok: true };
+}
+
+registerTaskResumer(COMMAND_TASK_KIND, resumeCommandTask);
+registerTaskResumer(TRANSFER_TASK_KIND, resumeTransferTask);
 
 /**
  * 一个下载项的描述。`fetch` 是真正发请求的函数，由各动词自己给（release 与 run 的
