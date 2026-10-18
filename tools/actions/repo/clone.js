@@ -19,16 +19,31 @@
  * remote helper** 使用（tools/lib/remote-helper-shim.js 在 spawn git 时注入 insteadOf 与 PATH）。
  * helper 自己从 dataDir 解 DPAPI 密文、自己发 HTTPS，所以令牌不进命令行、不进远端 URL、
  * 不进 gitconfig、**不进 git 子进程的 env**，也不会出现在返回值里。
+ *
+ * ## 为什么它返回句柄
+ *
+ * 克隆大仓库要几分钟，工具回调只有 30 秒。所以与 `githana_run(action="watch")` 同形：
+ * 建宿主后台任务、把 git clone 丢后台、立即返回句柄，结束后由宿主把结论贴回来源会话。
+ *
+ * 比传输类多了两件事：
+ *
+ *   · **能被真中止**——`runCli` 接 `signal`，取消时 kill 掉 git 子进程；
+ *   · **中止后要清理**——半个目录会让下次重试撞上“target directory already exists”，
+ *     所以中止后删掉这个只由本次 clone 创建的目录。只删它没动过的：目录里原本就
+ *     有东西时（clone 本来就会被拒）不会走到这条路径。
  */
 import { z } from "zod";
 import path from "node:path";
+import { rmSync } from "node:fs";
 import { runCli, checkCwd } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { parseRepo } from "../../lib/gh.js";
 import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
+import { taskCapabilityError } from "../../lib/tasks.js";
+import { startCommandTask } from "../../lib/transfer-task.js";
 
 export const command = "clone";
-export const summary = "Clone a repository locally (runs git clone)";
+export const summary = "Clone a repository locally in the background (runs git clone); returns a task handle and posts the result back to this session";
 
 export const schema = {
   repo: params.repo.describe("Required: the repository to clone, in owner/repo form (this verb does not infer it from cwd)"),
@@ -110,24 +125,64 @@ export async function run(input, ctx, { label }) {
   // （实测 `--branch '-x'` 被当分支名而非注入），挪到 `--` 之后就变成位置参数了。
   args.push("--", "https://github.com/" + repo + ".git", dirName);
 
-  const r = await runCli("git", args, { cwd, timeoutSec: input?.timeoutSec });
   const dest = path.join(cwd, dirName);
-  if (!r.ok) {
-    const raw = ((r.stderr || "") + "\n" + (r.stdout || "")).trim();
-    const guide = gitGuide(raw);
+
+  const callToken = input && input.context && input.context.callToken ? String(input.context.callToken) : "";
+  if (!callToken) {
     return (
-      label + " clone failed (" + repo + " → " + dest + "):\n" +
-      (raw || r.message) + (guide ? "\n" + guide : "")
+      label + " cannot start: this call did not carry the host-injected callToken (which binds the background task to the source session).\n" +
+      "This verb clones in the background so the tool callback does not hit its 30s limit; without a token the result has no session to come back to."
     );
   }
+  const capErr = taskCapabilityError(label);
+  if (capErr) return capErr;
 
-  const out = [
-    label + " done:",
-    "repository: " + repo,
-    "local path: " + dest,
-  ];
-  if (input?.depth) out.push("shallow clone: --depth " + input.depth);
-  if (input?.branch) out.push("branch: " + String(input.branch).trim());
-  out.push("next step: githana_git(action=\"exec\", cwd=\"" + dest + "\", args=[\"status\"]) to see the working tree.");
-  return out.join("\n");
+  const started = await startCommandTask(input, {
+    label: label + " clone " + repo,
+    callToken,
+    repo,
+    meta: { verb: "repo.clone", dest, fullArgs: args.slice(0, -2) },
+    command: "git " + args.join(" "),
+    run: async ({ signal }) => {
+      const r = await runCli("git", args, { cwd, timeoutSec: input?.timeoutSec, signal });
+      if (!r.ok) {
+        const raw = ((r.stderr || "") + "\n" + (r.stdout || "")).trim();
+        const guide = gitGuide(raw);
+        return {
+          ok: false,
+          text: label + " clone failed (" + repo + " → " + dest + "):\n" + (raw || r.message) + (guide ? "\n" + guide : ""),
+        };
+      }
+      const out = [label + " done:", "repository: " + repo, "local path: " + dest];
+      if (input?.depth) out.push("shallow clone: --depth " + input.depth);
+      if (input?.branch) out.push("branch: " + String(input.branch).trim());
+      out.push("next step: githana_git(action=\"exec\", cwd=\"" + dest + "\", args=[\"status\"]) to see the working tree.");
+      return { ok: true, text: out.join("\n") };
+    },
+    // 中止后删掉半个目录：只删本次 clone 建的。目录不为空时 clone 本来就会被拒
+    // （不会走到这条路径），所以这里遇到的空/半成品目录就是本次的产物。
+    cleanup: async () => {
+      try {
+        rmSync(dest, { recursive: true, force: true });
+        return "the partial clone directory was removed: " + dest;
+      } catch (e) {
+        return (
+          "could not remove the partial clone directory " + dest + " (" + (e && e.message ? e.message : String(e)) +
+          "); delete it yourself before retrying, or the next clone will refuse to overwrite it."
+        );
+      }
+    },
+  });
+  if (started.error) return label + " execution failed: " + started.error;
+
+  return [
+    label + " clone started (" + repo + ") — **it does not wait for the history to land**; this call ends here:",
+    "handle: taskId " + started.taskId + " (host background task; delivery=" + String(started.record && started.record.delivery ? started.record.delivery : "next-step") + ")",
+    "destination: " + dest,
+    input?.depth ? "shallow: --depth " + input.depth : "full history",
+    input?.branch ? "branch: " + String(input.branch).trim() : null,
+    "",
+    "where the conclusion goes: when the clone settles (success or failure), the host posts the result back to **this session**'s next input point.",
+    "to stop it midway: cancel it from this session's background task item — the git process is killed and the partial directory is removed, so you can retry.",
+  ].filter((x) => x !== null).join("\n");
 }
