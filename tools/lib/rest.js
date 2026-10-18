@@ -62,6 +62,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pluginRoot } from "./bin.js";
+import { trackChildProcess } from "./exec.js";
 import { getToolSecretToken } from "./context.js";
 
 /** worker 单次调用的缺省超时（秒）：一次工具调用可能含多个请求，留出余量。 */
@@ -242,6 +243,9 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
       });
       return;
     }
+    // 登记到 exec.js 的子进程表：App 卸载 / 重载时随其它子进程一起收掉，
+    // 不让 worker 成了孤儿还在往磁盘里写（与 clone 同一个理由）。
+    const untrack = trackChildProcess(child);
 
     child.stdout.on("data", (d) => {
       if (out.length < OUT_LIMIT) out += d.toString("utf8");
@@ -251,6 +255,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
     });
 
     child.on("error", (e) => {
+      untrack();
       finish({
         ok: false,
         results: [],
@@ -259,6 +264,7 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
     });
 
     child.on("close", (code) => {
+      untrack();
       if (timedOut) {
         finish({
           ok: false,
