@@ -13,7 +13,8 @@
  *      分块编码。发布资产端点要的正是原始二进制体（不是 multipart），所以这条路对得上。
  *   2. **主机白名单**。出站白名单含 `uploads.github.com`（上传端点与 api 不同域）；
  *      `REDIRECT_HOSTS` 含下载侧的跳转目标（`release-assets.githubusercontent.com`、
- *      `objects.githubusercontent.com`，以及 `*.blob.core.windows.net` 这条后缀）。
+ *      `objects.githubusercontent.com`、`results-receiver.actions.githubusercontent.com`，
+ *      以及 `*.blob.core.windows.net` 这条后缀）。
  *   3. **二进制响应体**。下载时由 worker 把响应流式写进 `toFile` 指名的路径，不经过
  *      `Buffer.concat(...).toString("utf8")`、也不套那个 2MB 的有界读。
  *
@@ -235,7 +236,7 @@ function formatBytes(n) {
 export const BINARY_CHANNEL_NOTES = [
   "request bodies can be binary: the worker accepts a `file` (local path) form, uses fs.createReadStream as the fetch body and sets Content-Length explicitly; the file never enters memory and chunked encoding is not used.",
   "response bodies can be binary: the worker accepts a `toFile` (local path) form and streams the response to disk, without UTF-8 decoding and without the 2MB bounded read.",
-  "the host allowlist includes the upload endpoint uploads.github.com and the download-side redirect targets (release-assets.githubusercontent.com / objects.githubusercontent.com, plus the *.blob.core.windows.net suffix).",
+  "the host allowlist includes the upload endpoint uploads.github.com and the download-side redirect targets (release-assets.githubusercontent.com / objects.githubusercontent.com / results-receiver.actions.githubusercontent.com, plus the *.blob.core.windows.net suffix).",
   "the per-file limit is GitHub's hard limit (< 2 GiB); files above it are rejected **before the request is sent**, so nothing is uploaded in vain; there is no chunking and no resumable upload (GitHub's asset API has no such semantics — a retry means re-uploading).",
 ];
 

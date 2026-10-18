@@ -58,8 +58,9 @@ export const COMMAND_TASK_KIND = "transfer-command";
 /**
  * 后台跑一个外部命令（clone 这类）。
  *
- * 与 REST 传输不同，它只有一步，但它能**真被取消**——`runCli` 现在接 `signal`，
- * 取消时 kill 子进程，而不是像 REST 传输那样只能“不再发下一个”。
+ * 与 REST 传输不同，它只有一步，但它能**真被取消**——`runCli` 接 `signal`，取消时杀掉
+ * 子进程树（clone 会 fork 出 index-pack 与 remote helper，只杀主进程会让 close 永不到来），
+ * 而不是像 REST 传输那样只能“不再发下一个”。
  *
  * 取消后不留半成品：`cleanup` 给了就在中止后调它。这对 clone 是必须的——半个目录
  * 会阻止下次重试（“target directory already exists”）。
@@ -74,6 +75,8 @@ export async function runCommandTask({ taskId, label, command, run, cleanup }) {
   await updateTask(taskId, { status: "running", progress: { phase: "running", command } });
 
   // 取消信号：由轮询宿主任务记录派生（宿主没有把取消事件推给 App，只能自己看）。
+  // 轮询的 2 秒间隔意味着 abort 可能比命令自己的结束晚到，所以**不以这个标志为最终
+  // 判据**：run 返回后回读一次记录，以宿主那份为准（下面 cancelled 的复核）。
   const ac = new AbortController();
   let cancelled = false;
   const watcher = setInterval(async () => {
@@ -98,7 +101,13 @@ export async function runCommandTask({ taskId, label, command, run, cleanup }) {
     clearInterval(watcher);
   }
 
-  // 取消与完成撞在同一轮：命令已经跑完就以结果为准，不把一个完整的产物当半成品清掉。
+  // 以宿主记录为准复核一次：轮询还没跳到、但用户已取消的情形也算取消。
+  // 例外是「命令其实已经跑完」——那以结果为准，不把一个完整的产物当半成品清掉。
+  if (!cancelled) {
+    const after = await readTaskRecord(taskId);
+    if (!after.error && after.record && isTerminalTaskStatus(after.record.status)) cancelled = true;
+  }
+
   if (cancelled && !(result && result.ok)) {
     let cleanupNote = "";
     if (typeof cleanup === "function") {
@@ -108,8 +117,10 @@ export async function runCommandTask({ taskId, label, command, run, cleanup }) {
         cleanupNote = "cleanup failed: " + (e && e.message ? e.message : String(e));
       }
     }
-    const text = label + " was cancelled: the process was terminated." + (cleanupNote ? "\n" + cleanupNote : "");
-    await completeTask(taskId, { githana: { action: "command", cancelled: true, text } });
+    const text = label + " was cancelled: the process tree was terminated." + (cleanupNote ? "\n" + cleanupNote : "");
+    // 不调 completeTask：用户取消已经把记录推成终态（aborted），宿主不允许再替换终态结果。
+    // 取消是用户意图，“结论”就是他自己的动作，再回投一句话反而像在闯他。
+    taskLog("info", "task " + taskId + " cancelled in-session: " + text.replace(/\n/g, " "));
     return { ok: false, cancelled: true, text };
   }
 
@@ -246,13 +257,12 @@ export async function runTransferTask({ taskId, label, repoLabel, scenario, item
   const failed = results.length - done;
 
   // 取消：已完成的照实说，未开始的说没跑。不谎称「全都停下了」。
+  // 不调 completeTask：取消已经把记录推成终态（aborted），宿主不允许再替换。
   if (cancelled) {
-    const tail = "watch cancelled from this session: " + done + " file(s) already written, " +
+    const tail = "transfer cancelled from this session: " + done + " file(s) already written, " +
       (items.length - results.length) + " not started.\n" +
       "note: a transfer already in flight when you cancelled keeps running to completion (the REST worker is a separate process and there is no mid-stream abort); only the remaining items are skipped.";
-    await completeTask(taskId, {
-      githana: { action: "download", cancelled: true, done, failed, text: text + "\n\n" + tail },
-    });
+    taskLog("info", "task " + taskId + " cancelled in-session: " + done + " written, " + (items.length - results.length) + " not started");
     return { ok: failed === 0, done, failed, cancelled: true, text: text + "\n\n" + tail };
   }
 
@@ -320,7 +330,19 @@ export function makeRestTransfer({ id, url, target, overwrite, timeoutSec }) {
     const res = r.results[0];
     const byCode = transferFailureText(res);
     if (byCode) return { ok: false, message: "write to disk failed — " + target + "\n    " + byCode };
-    if (!res || !res.ok) return { ok: false, message: "GitHub returned HTTP " + (res ? res.status : "?") };
+    // 没有状态码说明请求没走到拿响应那一步（白名单拒、连接断）：worker 的原话才是唯一的线索，
+    // 不能只报“HTTP null”——那等于把根因丢了。
+    if (!res) return { ok: false, message: "execution failed: the REST worker returned no result." };
+    if (!res.ok) {
+      const status = res.status === undefined || res.status === null ? null : res.status;
+      const detail = res.error ? String(res.error) : "";
+      return {
+        ok: false,
+        message: status === null
+          ? "the request did not produce an HTTP response" + (detail ? ": " + detail : ".")
+          : "GitHub returned HTTP " + status + (detail ? " — " + detail : ""),
+      };
+    }
     return { ok: true, bytes: res.bytes ?? null, res };
   };
 }
@@ -345,7 +367,18 @@ export function makeRestUpload({ id, url, file, contentType, maxFileBytes, timeo
     if (!res) return { ok: false, message: "execution failed: the REST worker returned no result." };
     const byCode = transferFailureText(res);
     if (byCode) return { ok: false, message: byCode };
-    if (!res.ok) return { ok: false, message: "HTTP " + res.status, status: res.status, json: res.json ?? null };
+    if (!res.ok) {
+      const status = res.status === undefined || res.status === null ? null : res.status;
+      const detail = res.error ? String(res.error) : "";
+      return {
+        ok: false,
+        status,
+        json: res.json ?? null,
+        message: status === null
+          ? "the request did not produce an HTTP response" + (detail ? ": " + detail : ".")
+          : "HTTP " + status + (detail ? " — " + detail : ""),
+      };
+    }
     return { ok: true, bytes: res.size ?? null, res, json: res.json ?? null };
   };
 }

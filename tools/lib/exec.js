@@ -17,12 +17,14 @@
  * - stdin 可选（input 字符串）：不传也立即关闭 stdin（EOF），非交互命令不挂起；
  *   一律注入 GIT_TERMINAL_PROMPT=0，杜绝 git/gh 子进程弹交互式凭据/确认。
  *
- * Windows 实现说明：git/gh 均为 PATH 中 .exe（spawn 经 PATH+PA THEXT 解析），
- * windowsHide 防弹窗；kill 超时进程用 child.kill()（TerminateProcess 单进程，
- * git 自身不常驻子进程；commit hook 等子进程由 git 自行收尾）。
+ * Windows 实现说明：git/gh 均为 PATH 中 .exe（spawn 经 PATH+PATHEXT 解析），
+ * windowsHide 防弹窗；超时 kill 用 child.kill()（TerminateProcess 单进程），外部中止
+ * 走 terminateTree()（见下）——clone 这类命令会 fork 出 index-pack / remote helper，
+ * 只杀主进程会留下持有管道的孤儿，close 永远不来。
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import { resolveBinExec, buildBinEnv } from "./bin.js";
 
 export const DEFAULT_TIMEOUT_SEC = 120;
@@ -37,8 +39,36 @@ export function normalizeNewlines(text) {
 }
 
 /**
+ * 杀掉一个子进程**及其子孙**。
+ *
+ * 单 `child.kill()` 在 Windows 上只是 TerminateProcess 那一个进程：clone 会同时跑
+ * `index-pack` 与 `git-remote-*` helper，它们继承 stdout/stderr 管道；主进程死了、孙进
+ * 程还活着，`close` 事件就不会来（管道未关），等待方永远返回不了。
+ *
+ * POSIX 侧 git 被 SIGTERM 后会自己收尾；这里只做 Windows 的树杀（taskkill /T），
+ * 失败时退回 child.kill()——宁可少杀也不抛。
+ */
+function terminateTree(child) {
+  if (!child || child.killed || child.exitCode !== null) return;
+  if (process.platform === "win32" && child.pid) {
+    try {
+      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      }).on("error", () => {
+        try { child.kill(); } catch { /* 已退出 */ }
+      });
+      return;
+    } catch {
+      /* 落到下面的单进程 kill */
+    }
+  }
+  try { child.kill(); } catch { /* 已退出 */ }
+}
+
+/**
  * cwd 预校验：必须存在且为目录。cwd 为空/未传时返回 null（不强制——是否必填由各工具契约决定）；
- * 非法返回中文错误消息。
+ * 非法返回中文可读错误消息。
  * @param {unknown} cwd
  * @returns {string | null}
  */
@@ -226,12 +256,25 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {})
     });
 
     // 外部中止（后台任务取消）：与超时同一套收尾，只是文案不同——取消是用户意图，
-    // 不是“任务太长了”。已 settled 就不再动子进程。
+    // 不是“任务太长了”。必须树杀：留下持管道的孙进程，close 就永远不来，
+    // 而 cleanup（删半个克隆目录）也就永远没机会跑。已 settled 就不再动进程。
     if (signal && typeof signal.addEventListener === "function") {
       const onAbort = () => {
         if (settled || !child) return;
         abortedTriggered = true;
-        try { child.kill(); } catch { /* 进程已退出 */ }
+        terminateTree(child);
+        // 与超时同一套兜底：树杀后 close 仍不来（句柄被别处继承），3 秒后自行结算。
+        const guard = setTimeout(() => {
+          finish({
+            ok: false, exitCode: null,
+            stdout: normalizeNewlines(stdoutCol.text()),
+            stderr: normalizeNewlines(stderrCol.text()),
+            stdoutTruncated: stdoutCol.truncated(), stderrTruncated: stderrCol.truncated(),
+            timedOut: false,
+            message: bin + " command was aborted (the background task was cancelled): the process tree was terminated.",
+          });
+        }, 3000);
+        guard.unref?.();
       };
       if (signal.aborted) onAbort();
       else signal.addEventListener("abort", onAbort, { once: true });
@@ -350,4 +393,58 @@ export function formatCliResult(bin, args, result) {
 function blockIfAny(title, text) {
   if (!text) return "";
   return "—— " + title + " ——\n" + text;
+}
+
+/**
+ * 删掉一棵目录树，**绕开本进程的 fs 许可边界**。
+ *
+ * App 进程开着 Node Permission Model（只能写 installDir / dataDir），但 clone / download 的
+ * 落点是用户指定的任意盘位——那些字节是外部命令（不受该模型约束）写的，回收也必须由外部
+ * 命令来做。`fs.rmSync` 在许可根外会抛 ERR_ACCESS_DENIED，那会把“中止后清理”变成空话。
+ *
+ * 优先用 git 自带的干净收尾路径（clone 出来的目录本来就是个 git 仓库，`clean -xdff`
+ * 能一次抹掉工作区与 .git），不行再退回系统命令。目标不存在算成功（清已是幂等语义）。
+ *
+ * @returns {Promise<{ ok: boolean, message: string }>}
+ */
+export async function removeTree(dir) {
+  const target = String(dir ?? "").trim();
+  if (!target) return { ok: false, message: "removeTree: an absolute path is required." };
+  if (!path.isAbsolute(target)) return { ok: false, message: "removeTree: " + target + " is not an absolute path." };
+
+  let exists = true;
+  try {
+    fs.statSync(target);
+  } catch (e) {
+    if (e && (e.code === "ERR_ACCESS_DENIED" || e.code === "EPERM")) {
+      exists = true; // 权限模型挡住了 stat，不代表不存在——交给外部命令去碰
+    } else {
+      exists = false;
+    }
+  }
+  if (!exists) return { ok: true, message: "nothing to remove: " + target + " does not exist." };
+
+  // ① git clean：只对真仓库生效（没有 .git 时 git 会报 not a git repository，自然落到 ②）
+  const cleaned = await runCli("git", ["-C", target, "clean", "-xdff"], { timeoutSec: 30 });
+  if (cleaned.ok) {
+    const gone = await removeDirEntry(target);
+    if (gone.ok) return { ok: true, message: "removed " + target };
+  }
+  // ② 直接删条目本身（整个目录）
+  return removeDirEntry(target);
+}
+
+/** 删掉路径本身：POSIX 用 rm -rf，Windows 用 rmdir /s /q。 */
+async function removeDirEntry(target) {
+  const win = process.platform === "win32";
+  const r = win
+    ? await runCli("cmd", ["/d", "/s", "/c", "rmdir", "/s", "/q", target], { timeoutSec: 60 })
+    : await runCli("rm", ["-rf", "--", target], { timeoutSec: 60 });
+  if (!r.ok) {
+    return {
+      ok: false,
+      message: "could not remove " + target + ": " + (((r.stderr || "") + "\n" + (r.stdout || "")).trim() || r.message || "unknown error"),
+    };
+  }
+  return { ok: true, message: "removed " + target };
 }

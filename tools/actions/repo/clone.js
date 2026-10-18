@@ -27,15 +27,15 @@
  *
  * 比传输类多了两件事：
  *
- *   · **能被真中止**——`runCli` 接 `signal`，取消时 kill 掉 git 子进程；
+ *   · **能被真中止**——`runCli` 接 `signal`，取消时杀掉 git 进程树（clone 会 fork
+ *     出 index-pack 与 remote helper，只杀主进程会让 close 永不到来）；
  *   · **中止后要清理**——半个目录会让下次重试撞上“target directory already exists”，
  *     所以中止后删掉这个只由本次 clone 创建的目录。只删它没动过的：目录里原本就
  *     有东西时（clone 本来就会被拒）不会走到这条路径。
  */
 import { z } from "zod";
 import path from "node:path";
-import { rmSync } from "node:fs";
-import { runCli, checkCwd } from "../../lib/exec.js";
+import { runCli, checkCwd, removeTree } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { parseRepo } from "../../lib/gh.js";
 import { GIT_FETCH_AUTH_NOTE } from "../../lib/remote-helper-shim.js";
@@ -160,17 +160,14 @@ export async function run(input, ctx, { label }) {
       return { ok: true, text: out.join("\n") };
     },
     // 中止后删掉半个目录：只删本次 clone 建的。目录不为空时 clone 本来就会被拒
-    // （不会走到这条路径），所以这里遇到的空/半成品目录就是本次的产物。
+    // （不会走到这条路径），所以这里遇到的空或半成品目录就是本次的产物。
+    // 走 removeTree 而不是 fs.rmSync：App 进程的 fs 只能写 installDir / dataDir，
+    // clone 的落点是用户指定的任意盘位，删得掉它只能靠外部命令。
     cleanup: async () => {
-      try {
-        rmSync(dest, { recursive: true, force: true });
-        return "the partial clone directory was removed: " + dest;
-      } catch (e) {
-        return (
-          "could not remove the partial clone directory " + dest + " (" + (e && e.message ? e.message : String(e)) +
-          "); delete it yourself before retrying, or the next clone will refuse to overwrite it."
-        );
-      }
+      const r = await removeTree(dest);
+      return r.ok
+        ? "the partial clone directory was removed: " + dest
+        : r.message + " — delete it yourself before retrying, or the next clone will refuse to overwrite it.";
     },
   });
   if (started.error) return label + " execution failed: " + started.error;
@@ -183,6 +180,7 @@ export async function run(input, ctx, { label }) {
     input?.branch ? "branch: " + String(input.branch).trim() : null,
     "",
     "where the conclusion goes: when the clone settles (success or failure), the host posts the result back to **this session**'s next input point.",
-    "to stop it midway: cancel it from this session's background task item — the git process is killed and the partial directory is removed, so you can retry.",
+    "to stop it midway: cancel it from this session's background task item — the git process tree is killed and the partial directory is removed, so you can retry.",
+    "a cancelled task posts no conclusion back (the cancel was your own action); check the destination path before retrying.",
   ].filter((x) => x !== null).join("\n");
 }
