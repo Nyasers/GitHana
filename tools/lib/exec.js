@@ -117,9 +117,10 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *
  * @param {string} bin 可执行文件名（经 PATH 解析，如 "git" / "gh"）
  * @param {string[]} args 参数数组（无 shell 拼接）
- * @param {{ cwd?: string, timeoutSec?: number, input?: string }} [options]
+ * @param {{ cwd?: string, timeoutSec?: number, input?: string, signal?: AbortSignal }} [options]
  *   cwd 工作目录（绝对路径，可选但 git 工具必填）；timeoutSec 超时秒数（缺省 120）；
- *   input stdin 内容（多行/中文无损，git commit -F - 用）。
+ *   input stdin 内容（多行/中文无损，git commit -F - 用）；
+ *   signal 外部中止信号（后台任务的取消用它）——它 kill 子进程并返回可读的中止文案。
  * @returns {Promise<{
  *   ok: boolean, exitCode: number | null,
  *   stdout: string, stderr: string,
@@ -127,7 +128,7 @@ function buildExitDiagnosis(bin, code, stdout, stderr) {
  *   timedOut: boolean, message: string | null
  * }>} ok=false 时 message 为中文可读错误；非零退出时 stdout/stderr 保留原始输出。
  */
-export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
+export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {}) {
   const cwdErr = checkCwd(cwd);
   if (cwdErr) {
     return {
@@ -147,6 +148,7 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
     let child = null;
     let settled = false;
     let timedOutTriggered = false; // 超时 kill 已触发（区分信号终止与超时终止的文案）
+    let abortedTriggered = false; // 外部中止已触发（后台任务取消）
     const stdoutCol = makeCollector(MAX_OUTPUT_BYTES);
     const stderrCol = makeCollector(MAX_OUTPUT_BYTES);
     let timer = null;
@@ -204,7 +206,9 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
           timedOut: timedOutTriggered,
           message: timedOutTriggered
             ? bin + " command timed out (" + sec + "s): the process was terminated. If this is a legitimately long task, raise timeoutSec (the git/gh tools cap it at 600 seconds) and retry."
-            : bin + " command was terminated externally (signal" + (signal ? " " + signal : "") + "); execution stopped.",
+            : abortedTriggered
+              ? bin + " command was aborted (the background task was cancelled): the process was terminated."
+              : bin + " command was terminated externally (signal" + (signal ? " " + signal : "") + "); execution stopped.",
         });
         return;
       }
@@ -220,6 +224,18 @@ export async function runCli(bin, args, { cwd, timeoutSec, input } = {}) {
         message: ok ? null : buildExitDiagnosis(bin, code, stdout, stderr),
       });
     });
+
+    // 外部中止（后台任务取消）：与超时同一套收尾，只是文案不同——取消是用户意图，
+    // 不是“任务太长了”。已 settled 就不再动子进程。
+    if (signal && typeof signal.addEventListener === "function") {
+      const onAbort = () => {
+        if (settled || !child) return;
+        abortedTriggered = true;
+        try { child.kill(); } catch { /* 进程已退出 */ }
+      };
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }
 
     // 超时 kill：先置标志，终止后由 close 事件收尾（code null → 可读超时消息）
     timer = setTimeout(() => {

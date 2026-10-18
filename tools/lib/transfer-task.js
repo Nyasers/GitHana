@@ -49,8 +49,104 @@ import {
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "./rest.js";
 import { transferFailureText, normalizeAbsolutePath, safeFileName } from "./transfer.js";
 
-/** 元数据里的 kind：恢复实现按它认领记录。 */
+/** 元数据里的 kind：传输入类的后台任务（下载 / 上传）。 */
 export const TRANSFER_TASK_KIND = "transfer-download";
+
+/** 元数据里的 kind：命令类后台任务（clone 这类走外部进程的）。 */
+export const COMMAND_TASK_KIND = "transfer-command";
+
+/**
+ * 后台跑一个外部命令（clone 这类）。
+ *
+ * 与 REST 传输不同，它只有一步，但它能**真被取消**——`runCli` 现在接 `signal`，
+ * 取消时 kill 子进程，而不是像 REST 传输那样只能“不再发下一个”。
+ *
+ * 取消后不留半成品：`cleanup` 给了就在中止后调它。这对 clone 是必须的——半个目录
+ * 会阻止下次重试（“target directory already exists”）。
+ */
+export async function runCommandTask({ taskId, label, command, run, cleanup }) {
+  const rec = await readTaskRecord(taskId);
+  if (!rec.error && rec.record && isTerminalTaskStatus(rec.record.status)) {
+    taskLog("info", "task " + taskId + " is already terminal (" + rec.record.status + "): not starting the command");
+    return { ok: false, cancelled: true, text: label + " was cancelled before it started; nothing was run." };
+  }
+
+  await updateTask(taskId, { status: "running", progress: { phase: "running", command } });
+
+  // 取消信号：由轮询宿主任务记录派生（宿主没有把取消事件推给 App，只能自己看）。
+  const ac = new AbortController();
+  let cancelled = false;
+  const watcher = setInterval(async () => {
+    const r = await readTaskRecord(taskId);
+    if (r.error || !r.record) return;
+    if (isTerminalTaskStatus(r.record.status) && !cancelled) {
+      cancelled = true;
+      ac.abort();
+    }
+  }, 2000);
+  watcher.unref?.();
+
+  let result;
+  try {
+    result = await run({ signal: ac.signal });
+  } catch (e) {
+    // run 抛了（不是「返回 ok:false」）：必须结算成失败，否则任务记录会永远停在 running。
+    const text = label + " failed: " + (e && e.message ? e.message : String(e));
+    await failTask(taskId, text);
+    return { ok: false, cancelled: false, text };
+  } finally {
+    clearInterval(watcher);
+  }
+
+  // 取消与完成撞在同一轮：命令已经跑完就以结果为准，不把一个完整的产物当半成品清掉。
+  if (cancelled && !(result && result.ok)) {
+    let cleanupNote = "";
+    if (typeof cleanup === "function") {
+      try {
+        cleanupNote = await cleanup();
+      } catch (e) {
+        cleanupNote = "cleanup failed: " + (e && e.message ? e.message : String(e));
+      }
+    }
+    const text = label + " was cancelled: the process was terminated." + (cleanupNote ? "\n" + cleanupNote : "");
+    await completeTask(taskId, { githana: { action: "command", cancelled: true, text } });
+    return { ok: false, cancelled: true, text };
+  }
+
+  const text = String(result.text ?? "");
+  if (result.ok) {
+    await completeTask(taskId, { githana: { action: "command", cancelled: false, text } });
+    return { ok: true, cancelled: false, text };
+  }
+  await failTask(taskId, text);
+  return { ok: false, cancelled: false, text };
+}
+
+/**
+ * 建任务并把外部命令丢到后台；**立刻**返回句柄。
+ */
+export async function startCommandTask(input, { label, callToken, repo, meta, command, run, cleanup }) {
+  const created = await createSessionTask({
+    taskLabel: label,
+    callToken,
+    metadata: {
+      githana: {
+        kind: COMMAND_TASK_KIND,
+        repo,
+        ...meta,
+        command,
+        startedAt: Date.now(),
+      },
+    },
+  });
+  if (created.error) return { error: created.error };
+
+  void runCommandTask({ taskId: created.taskId, label, command, run, cleanup }).catch((e) => {
+    taskLog("warn", "command task " + created.taskId + " threw: " + (e && e.message ? e.message : String(e)));
+  });
+
+  return { taskId: created.taskId, record: created.record };
+}
 
 /**
  * 一个下载项的描述。`fetch` 是真正发请求的函数，由各动词自己给（release 与 run 的
