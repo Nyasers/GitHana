@@ -9,7 +9,8 @@
  * 「等 CI 跑完」以分钟计，任何形式的「在工具回调里等」都会占着宿主通道（spec gh-cli-parity
  * 的 AC10 第一条纪律）。所以本动词的返回契约与同工具的其它动词不同：它建一个**宿主后台任务**
  * 并立刻返回一个**句柄**——`ctx.tasks.create({ scope: "session", delivery: "next-step",
- * chipVisibility: "show" })`（AC9：唤醒由 delivery 档位负责，不申请 app/session.start-turn），
+ * chipVisibility: "show" })`。会话任务的创建与投递要两项能力：`app/tasks.manage`（建、结算）
+ * 与 `app/session.start-turn`（把结果送进会话起回合）；挡位只决定「怎么投」，不代替权限。
  * 由后台轮询器在 CI 到终态时 `complete` 那个任务，宿主按档位把结论贴回来源会话。
  *
  * ## 三条纪律（AC10）在本文件里的落点
