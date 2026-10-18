@@ -29,16 +29,27 @@
  * ——猜错比不猜更坏）。本地 sha256 **由 worker 顺带算**（App 进程通常读不到那个文件），
  * 上传成功后与响应里的 `digest` 对照报出来（AC4 的核对入口）；响应不带 digest 就如实说明
  * 「这次没有远端摘要可核对」，不假装核对过。
+ *
+ * ## 为什么它返回句柄而不是「已经传好了」
+ *
+ * 上传比下载慢（出网带宽通常小于入网，且 worker 还要先读一遍算 sha256），而工具回调只有
+ * 30 秒。所以与 `githana_run(action="watch")` 同形：建宿主后台任务、把上传丢后台、立即返回
+ * 句柄，结束后由宿主把结论贴回来源会话。细节见 `tools/lib/transfer-task.js`。
+ *
+ * 注意：后台化之后，**422 同名冲突这类需要人看着办的错**也是在结论里回来，不再是同步报错。
+ * 文案仍然保留了「先 delete-asset 再传」的指引，只是晚一步到手上。
  */
 import { z } from "zod";
 import * as params from "../../lib/params.js";
 import { resolveContext } from "../../lib/gh.js";
 import { locateRelease } from "../../lib/release.js";
-import { callRest, uploadsUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
-import { MAX_ASSET_BYTES, normalizeAbsolutePath, transferFailureText, parseDigest } from "../../lib/transfer.js";
+import { uploadsUrl } from "../../lib/rest.js";
+import { MAX_ASSET_BYTES, normalizeAbsolutePath, parseDigest } from "../../lib/transfer.js";
+import { taskCapabilityError } from "../../lib/tasks.js";
+import { startTransferTask, makeRestUpload } from "../../lib/transfer-task.js";
 
 export const command = "upload";
-export const summary = "Upload a release asset (local file → uploads.github.com, bytes streamed)";
+export const summary = "Upload a release asset in the background (local file → uploads.github.com, bytes streamed); returns a task handle and posts the result back to this session";
 
 export const schema = {
   repo: params.repo,
@@ -86,59 +97,83 @@ export async function run(input, ctx, { label }) {
   const nameIn = input?.assetName !== undefined && input?.assetName !== null ? String(input.assetName).trim() : "";
   const assetName = nameIn || baseName(file);
 
-  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
   const query = "?name=" + encodeURIComponent(assetName) + (input?.assetLabel ? "&label=" + encodeURIComponent(String(input.assetLabel)) : "");
   const url = uploadsUrl("/repos/" + repo + "/releases/" + encodeURIComponent(String(rel.id)) + "/assets" + query);
 
-  const r = await callRest(
-    [
-      {
-        id: "upload",
-        method: "POST",
-        url,
-        file,
-        // 本地摘要在 worker 侧算：资产文件通常落在 App 的许可根之外，本进程读不到它，
-        // 而字节反正要从 worker 手上过一遍（见 rest.worker.mjs 的 withHash）。
-        hashFile: true,
-        // 显式给 contentType：worker 的缺省也是 octet-stream，但这里写出来是为了让「调用方覆盖」
-        // 这条路在代码里看得见（AC3）。
-        contentType: input?.contentType ? String(input.contentType) : "application/octet-stream",
-        maxFileBytes: MAX_ASSET_BYTES,
-        timeoutMs,
-      },
-    ],
-    { timeoutSec },
-  );
-  if (!r.ok) return label + " execution failed: " + r.message;
-  const res = r.results[0];
-  if (!res) return label + " execution failed: the REST worker returned no result.";
+  const callToken = input && input.context && input.context.callToken ? String(input.context.callToken) : "";
+  if (!callToken) {
+    return (
+      label + " cannot start: this call did not carry the host-injected callToken (which binds the background task to the source session).\n" +
+      "This verb uploads in the background so the tool callback does not hit its 30s limit; without a token the result has no session to come back to."
+    );
+  }
+  const capErr = taskCapabilityError(label);
+  if (capErr) return capErr;
 
-  // 二进制通道自己的失败（读不到文件 / 超限）：给点名的可读文案，不是 HTTP 错误。
-  const byCode = transferFailureText(res);
-  if (byCode) return label + " execution failed: " + byCode;
+  // 上传与下载共用同一个后台任务机制：一个 item、一次 RPC，只是字段不同（见 transfer-task.js）。
+  const item = {
+    name: assetName,
+    target: file,
+    run: makeRestUpload({
+      id: "upload",
+      url,
+      file,
+      contentType: input?.contentType ? String(input.contentType) : "application/octet-stream",
+      maxFileBytes: MAX_ASSET_BYTES,
+      timeoutSec,
+    }),
+  };
 
-  if (!res.ok) {
-    const detail = errorDetail(res);
-    if (res.status === 422) {
+  const started = await startTransferTask(input, {
+    label: label + " upload " + assetName,
+    callToken,
+    repo,
+    repoLabel,
+    scenario: (rel.tag_name || input?.tag || "?") + " · " + assetName,
+    items: [item],
+    overwrite: false,
+    timeoutSec,
+    meta: { verb: "release.upload" },
+    // 上传的结论不是「写了几字节」，而是与远端摘要的对照，以及 422 这种要人看着办的错。
+    describeResult: (r) => describeUploadResult(r, { label, repoLabel, rel, assetName, file, url, input }),
+  });
+  if (started.error) return label + " execution failed: " + started.error;
+
+  return [
+    label + " upload started (" + repoLabel + " · " + (rel.tag_name || "?") + ") — **it does not wait for the bytes to leave**; this call ends here:",
+    "handle: taskId " + started.taskId + " (host background task; delivery=" + String(started.record && started.record.delivery ? started.record.delivery : "next-step") + ")",
+    "file: " + file + " → asset \"" + assetName + "\"",
+    "",
+    "where the conclusion goes: when the upload settles (success or failure), the host posts the result back to **this session**'s next input point — including the remote-digest comparison, and for a 422 the delete-asset guidance.",
+    "to stop it midway: cancel it from this session's background task item — a transfer already in flight runs to completion (the REST worker is a separate process with no mid-stream abort).",
+  ].join("\n");
+}
+
+/** 上传成功 / 失败时的结论文本（在后台任务里拼，这里拿得到 res.json 与 res.sha256）。 */
+function describeUploadResult(r, { label, repoLabel, rel, assetName, file, url, input }) {
+  if (!r.ok) {
+    if (r.status === 422) {
+      const detail = r.json ? JSON.stringify(r.json) : "(no body)";
       return [
         label + " execution failed: GitHub rejected this upload (422). The most common cause is that **an asset with the same name already exists** —",
         "asset names are unique within a release. GitHub raw message: " + detail,
         "What to do: delete that asset first, then upload —",
-        "  githana_release(action=\"delete-asset\", tag=\"" + (rel.tag_name || input.tag || "?") + "\", assetName=\"" + assetName + "\", confirm=true)",
+        "  githana_release(action=\"delete-asset\", tag=\"" + (rel.tag_name || input?.tag || "?") + "\", assetName=\"" + assetName + "\", confirm=true)",
         "Or use a different asset name (pass assetName).",
       ].join("\n");
     }
-    return label + " execution failed: HTTP " + res.status + ": " + detail + "\n(upload endpoint " + url + ")";
+    return [label + " execution failed: " + r.message, "(upload endpoint " + url + ")"].join("\n");
   }
 
-  const asset = res.json && typeof res.json === "object" ? res.json : {};
+  const res = r.res;
+  const asset = r.json && typeof r.json === "object" ? r.json : {};
   const out = [
     label + " uploaded (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
     "asset: " + (asset.name || assetName) + (asset.id !== undefined ? " · id " + asset.id : ""),
-    "HTTP " + res.status + " (a newly created asset should be 201)",
+    "HTTP " + (res ? res.status : "?") + " (a newly created asset should be 201)",
   ];
   if (asset.size !== undefined) out.push("remote size: " + asset.size + " bytes");
-  if (res.size !== null && res.size !== undefined && asset.size !== undefined && Number(asset.size) !== res.size) {
+  if (res && res.size !== null && res.size !== undefined && asset.size !== undefined && Number(asset.size) !== res.size) {
     out.push("      note: does not match the local size of " + res.size + " bytes; please double-check.");
   }
   if (asset.content_type) out.push("type: " + asset.content_type);
@@ -152,8 +187,8 @@ export async function run(input, ctx, { label }) {
   }
 
   out.push("");
-  out.push("local file: " + file + (res.size !== null && res.size !== undefined ? " (" + res.size + " bytes)" : ""));
-  const localHex = res.sha256;
+  out.push("local file: " + file + (res && res.size !== null && res.size !== undefined ? " (" + res.size + " bytes)" : ""));
+  const localHex = res ? res.sha256 : null;
   const remote = parseDigest(asset.digest);
   if (localHex) out.push("local sha256: " + localHex);
   if (remote && remote.algorithm === "sha256" && localHex) {
@@ -167,7 +202,7 @@ export async function run(input, ctx, { label }) {
     out.push("the remote records " + String(asset.digest) + ", which is not a comparable form.");
   } else {
     out.push("note: the response has no digest field, so there is no remote digest to check this upload's bytes against.");
-    out.push("      To compare against the local copy use githana_release(action=\"verify-asset\", tag=…, assetName=\"" + (asset.name || assetName) + "\", file=\"" + file + "\").");
+    out.push("      To compare against the local copy use githana_release(action=\"verify-asset\", tag=\"" + (rel.tag_name || input?.tag || "?") + "\", assetName=\"" + (asset.name || assetName) + "\", file=\"" + file + "\").");
   }
   return out.join("\n");
 }
