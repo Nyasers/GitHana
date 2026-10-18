@@ -125,9 +125,36 @@ function assemble(name, actions, modelFields) {
   return { byCommand, commands, union: z.discriminatedUnion("action", branches), flat };
 }
 
-/** 各 action 的模型面一句话摘要（进 action 字段的 description）。 */
+/**
+ * 各 action 的模型面一句话摘要（进 action 字段的 description）。
+ *
+ * 除了摘要，还把该 action **自己的必填项**列在后面：模型面是一张平表，`required` 只能写
+ * `["action"]`（各 action 的必填项并在一起后无法区分谁必填），于是以前的模型只能看到
+ * 「有哪些字段」，看不到「这个 action 要哪些」——只能去翻散文手册或者猜。
+ * 猜错的代价是真实的（pr create 把 base 猜成 head / base_branch 各错一次），而这里
+ * 本来就知道答案：每个 action 的 schema 里标了 .isOptional() 的就是必填。
+ */
 function actionEnumDescription(actions, prefix) {
-  return prefix + actions.map((e) => e.module.command + "=" + e.module.summary).join(" / ");
+  return prefix + actions.map((e) => {
+    const required = requiredKeysOf(e.module.schema);
+    const tail = required.length ? " (requires: " + required.join(", ") + ")" : "";
+    return e.module.command + "=" + e.module.summary + tail;
+  }).join(" / ");
+}
+
+/**
+ * 从一个 action 的 zod schema 里找出真正必填的字段。
+ * zod 的 `.optional()` 会让 `isOptional()` 为真；未标的就是必填。
+ * @param {Record<string, import("zod").ZodType>} schema
+ * @returns {string[]} 必填字段名（按声明顺序）
+ */
+function requiredKeysOf(schema) {
+  const out = [];
+  for (const [key, field] of Object.entries(schema || {})) {
+    if (field && typeof field.isOptional === "function" && field.isOptional()) continue;
+    out.push(key);
+  }
+  return out;
 }
 
 /**
