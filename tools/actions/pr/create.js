@@ -153,5 +153,19 @@ export async function run(input, ctx, { label }) {
         ? "App attribution: performed_via_github_app is empty in the issue representation (no badge shown; usually because the token is not a GitHub App user access token)"
         : "App attribution: could not be verified (fetching the issue representation failed; the PR was still created)",
   );
-  return lines.join("\n");
+  return {
+    content: [{ type: "text", text: lines.join("\n") }],
+    details: {
+      ok: true,
+      action: "create",
+      number: pr.number ?? null,
+      url,
+      title,
+      head,
+      base,
+      repo: repoLabel,
+      draft: input?.draft === true,
+      appAttribution: appSlug || null,
+    },
+  };
 }
