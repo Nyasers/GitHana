@@ -311,9 +311,15 @@ export async function callRest(requests, { token, timeoutSec } = {}) {
 
 // ───────────────────────────── 便捷封装 ─────────────────────────────
 
-/** 由 repo（owner/repo）与路径片段拼 REST 地址。 */
+/**
+ * 由 repo（owner/repo）与路径片段拼 REST 地址。
+ *
+ * 空 path 拼的是**仓库本体** `/repos/o/r`（末尾不带斜杠）：`/repos/o/r/` 在 GitHub 上
+ * 是 404，而“取仓库本体”在多个动词里都是第一步。
+ */
 export function apiUrl(repo, pathAndQuery) {
   const p = String(pathAndQuery || "");
+  if (!p) return "https://api.github.com/repos/" + repo;
   const suffix = p.startsWith("/") ? p : "/" + p;
   return "https://api.github.com/repos/" + repo + suffix;
 }

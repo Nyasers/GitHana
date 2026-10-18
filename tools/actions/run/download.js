@@ -31,7 +31,7 @@
  */
 import path from "node:path";
 import { z } from "zod";
-import { apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { apiUrl, callRest, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import { taskCapabilityError } from "../../lib/tasks.js";
 import { startTransferTask, makeRestTransfer } from "../../lib/transfer-task.js";
 import * as params from "../../lib/params.js";
