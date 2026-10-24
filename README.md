@@ -207,7 +207,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 2. 服务端经 REST worker 调 `https://github.com/login/device/code`（必须带
    `Accept: application/json`，否则回 form-encoded），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
    只把 `user_code` / `verification_uri` / `interval` / `expires_in` 回给页面；
-   这一步的上限比其他 REST 更紧（`timeoutMs` 15s × 2 次尝试、外层 20s）：它是用户点完按钮
+   这一步的上限比其他 REST 更紧（每次 `timeoutMs` 15s，连接失败最多 3 次尝试，worker 外层 20s）：它是用户点完按钮
    正在等的第一屏，超时要尽快变成一句可读的话，而不是一个一直转圈的按钮；
 3. 页面按 `interval` 自轮询 `GET /routes/actions/oauth/poll?id=<flowId>`，服务端每次只查一次
    `access_token`；`slow_down` 会把间隔 +5s，`expired_token` / `access_denied` /
