@@ -78,20 +78,35 @@ async function getJson(path) {
     headers: authHeaders({ Accept: "application/json" }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+    // status / code 必须在这里就带上：调用方靠它们分辨「流程已不在服务端（404，重试无意义）」
+    // 与「网络或服务端抖动（可重试）」。不带走的话 `e.status === 404` 永远为假。
+    err.code = data.code || (res.status === 504 ? "timeout" : "http_" + res.status);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
-async function postJson(path, body) {
+async function postJson(path, body, { signal } = {}) {
   const base = baseOrThrow();
   const res = await fetch(`${base}${path}`, {
     method: "POST",
     credentials: "same-origin",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body || {}),
+    signal,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+    // 错误码要活到 catch 之外：页面据此决定给「重试」还是「去改设置」，
+    // 而不是把所有失败都摊成同一行红字。
+    err.code = data.code || (res.status === 504 ? "timeout" : "http_" + res.status);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -149,54 +164,117 @@ function MonoText({ children, title }) {
 /**
  * 把用户送到 GitHub 的验证页，并尽量把验证码送进剪贴板。
  *
- * 两条实测约束决定了这个形态（不是偏好）：
+ * 两条实测约束决定了这个形态：
  *   1. GitHub 的 device/code 响应只有 `verification_uri`，**不返回** RFC 8628 的
  *      `verification_uri_complete`，所以没有「码已嵌好」的 URL 可用；
  *   2. `/login/device` 不接受 `?user_code=` 预填入参，码必须由用户手动粘/敲。
- *      gh 官方（cli/oauth + cli/cli 的 authflow）也是这么做的：打开裸 URL，再把码
- *      写进剪贴板让用户粘。这里沿用同一形态。
+ *      gh 官方（cli/oauth + cli/cli 的 authflow）也是这么做的。
  *
- * 剪贴板优先走宿主的 `hana.clipboard.writeText`（设置页是 App iframe，有账本可查、
- * 拿得到宿主确认）；宿主不可用时回退浏览器原生 API。开外链同理走 `hana.external.open`，
- * 由宿主用系统默认浏览器打开，而不是 `window.open`。
+ * 两件事各自独立成败，所以各自回报：合成一句话会让「浏览器没开」和「剪贴板没写成」
+ * 混成一团，而这两件对用户的下一步不一样（前者要手动点链接，后者要手动输码）。
+ * 两件都不阻断授权：页面上的链接与验证码始终可手动使用。
  *
- * 两件事都不阻断授权：失败只回报文本，轮询照常进行——用户仍可手动打开/手动输码。
- */
+ * @returns {Promise<{ clipboard: {ok: boolean, text: string}, browser: {ok: boolean, text: string} }>}
 async function sendToVerification(verificationUri, userCode) {
-  const notes = [];
+  const out = { clipboard: { ok: false, text: "" }, browser: { ok: false, text: "" } };
 
   try {
     const r = await hana.clipboard.writeText({ text: userCode });
-    notes.push(r && r.written ? "验证码已复制到剪贴板" : "验证码未能复制，请手动输入");
+    out.clipboard = r && r.written
+      ? { ok: true, text: "验证码已复制" }
+      : { ok: false, text: "验证码未能复制，请手动输入" };
   } catch {
     try {
       await navigator.clipboard.writeText(userCode);
-      notes.push("验证码已复制到剪贴板");
+      out.clipboard = { ok: true, text: "验证码已复制" };
     } catch {
-      notes.push("验证码未能复制，请手动输入");
+      out.clipboard = { ok: false, text: "验证码未能复制，请手动输入" };
     }
   }
 
   try {
     const r = await hana.external.open({ url: verificationUri });
-    notes.push(r && r.opened ? "已在浏览器打开验证页" : "请手动打开验证页");
+    out.browser = r && r.opened
+      ? { ok: true, text: "已在浏览器打开验证页" }
+      : { ok: false, text: "没能自动打开浏览器，请点「重新打开」" };
   } catch {
-    notes.push("未能自动打开浏览器，请手动打开验证页");
+    out.browser = { ok: false, text: "没能自动打开浏览器，请点「重新打开」" };
   }
 
-  return notes.join("；");
+  return out;
+}
+
+/**
+ * 再开一次验证页（等待期间用户可能提前关了那个标签页）。
+ * @returns {Promise<string>} 给用户看的一句话
+ */
+async function reopenVerification(verificationUri) {
+  try {
+    const r = await hana.external.open({ url: verificationUri });
+    return r && r.opened ? "已再次打开验证页" : "没能自动打开，请复制链接手动访问";
+  } catch {
+    return "没能自动打开，请复制链接手动访问";
+  }
+}
+
+/** 轮询遇到传输层故障时最多重试几次（之后再判失败）。 */
+const POLL_TRANSIENT_RETRIES = 3;
+
+/** 需要去 GitHub App 设置页才能解决的问题，直接给出地址而不是叫用户自己找。 */
+const APP_SETTINGS_HINT = "https://github.com/organizations/Nyasers/settings/apps/githana-app";
+
+/** 把验证页地址送进剪贴板（自动开浏览器失败时的手动退路）。 */
+async function copyLink(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+    return "链接已复制";
+  } catch {
+    try {
+      const r = await hana.clipboard.writeText({ text: url });
+      return r && r.written ? "链接已复制" : "复制失败，请手动选中地址";
+    } catch {
+      return "复制失败，请手动选中地址";
+    }
+  }
+}
+
+/**
+ * 发起失败 → 一段能直接决定下一步的话。
+ *
+ * 网络类失败是暂时的（重试）；配置类失败重试没用（要去改 GitHub App 设置）。
+ * 把这两类写成同一行英文报错等于把判断推给用户，所以在这里分流。
+ */
+function startFailureText(code, message) {
+  switch (code) {
+    case "timeout":
+      return (
+        "连不上 github.com（请求超时），授权流程没有开始。" +
+        "\n常见原因：代理/VPN 没开、或代理只给浏览器用而 Node 不走它。网络好了再点一次「登录」即可。" +
+        "\n（原始信息：" +
+        message +
+        "）"
+      );
+    case "transport_error":
+      return "与 github.com 的连接中断，授权流程没有开始。稍后重试。\n（原始信息：" + message + "）";
+    case "device_flow_disabled":
+      return "这个 GitHub App 没有启用 Device Flow，点多少次都没用：到 App 设置里打开它再回来。\n（原始信息：" + message + "）";
+    case "incorrect_client_credentials":
+      return "Client ID 不被 GitHub 认可，重试无效。\n（原始信息：" + message + "）";
+    default:
+      return message;
+  }
 }
 
 /** device flow 的初始态。 */
 const OAUTH_IDLE = {
-  starting: false,
   flowId: null,
   userCode: null,
   verificationUri: null,
   interval: 5,
   expiresAt: null,
-  status: "idle", // idle | waiting | ready | error
+  status: "idle", // idle | starting | waiting | ready | error
   error: null,
+  errorCode: null,
 };
 
 function GitHanaSettings() {
@@ -207,7 +285,10 @@ function GitHanaSettings() {
   const [oauth, setOauth] = useState(OAUTH_IDLE);
   const [remaining, setRemaining] = useState(0);
   const [handoff, setHandoff] = useState(null);
+  const [reopenMsg, setReopenMsg] = useState(null);
   const intervalRef = useRef(5);
+  // 发起请求的 AbortController：网络卡住时用户要能停下来，不必等它自己超时。
+  const startAbortRef = useRef(null);
 
   // 面向用户的一条状态消息（退出授权的结果等）
   const [noticeMsg, setNoticeMsg] = useState(null);
@@ -253,14 +334,23 @@ function GitHanaSettings() {
   // ── device flow：发起 → 页面按 interval 自轮询 ──
 
   const startLogin = useCallback(async () => {
-    setOauth({ ...OAUTH_IDLE, starting: true });
+    // 上一次没收尾的发起请求先中止：连点两次不该有两个 flow 在飞。
+    try {
+      startAbortRef.current && startAbortRef.current.abort();
+    } catch {
+      /* 已结束 */
+    }
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    startAbortRef.current = ctl;
+
+    setOauth({ ...OAUTH_IDLE, status: "starting" });
     setNoticeMsg(null);
     setHandoff(null);
+    setReopenMsg(null);
     try {
-      const res = await postJson("actions/oauth/start", {});
+      const res = await postJson("actions/oauth/start", {}, { signal: ctl ? ctl.signal : undefined });
       intervalRef.current = Number(res.interval) > 0 ? Number(res.interval) : 5;
       setOauth({
-        starting: false,
         flowId: res.flowId,
         userCode: res.userCode,
         verificationUri: res.verificationUri,
@@ -268,22 +358,65 @@ function GitHanaSettings() {
         expiresAt: Date.now() + (Number(res.expiresIn) || 900) * 1000,
         status: "waiting",
         error: null,
+        errorCode: null,
       });
       // 先把浏览器与剪贴板推给用户，再做别的：验证码有 15 分钟寿命，越早到手越好。
       setHandoff(await sendToVerification(res.verificationUri, res.userCode));
       await refresh();
     } catch (e) {
-      setOauth({ ...OAUTH_IDLE, status: "error", error: String((e && e.message) || e) });
+      // 只有「本次调用仍然拥有这个槽」才能改状态。连点的第二下会把 startAbortRef 换成新
+      // controller，旧请求的 catch 随后才跑到，此时它不该把新请求的 starting 摸回 idle，
+      // 也不该用旧错误盖住新流程。
+      if (startAbortRef.current !== ctl) return;
+      if (e && e.name === "AbortError") {
+        // 被 abort 的两种来源（cancelLogin / 新的 startLogin）都已经自己安排好状态。
+        setOauth(OAUTH_IDLE);
+        return;
+      }
+      const code = String((e && e.code) || "start_failed");
+      setOauth({
+        ...OAUTH_IDLE,
+        status: "error",
+        errorCode: code,
+        error: startFailureText(code, String((e && e.message) || e)),
+      });
+    } finally {
+      if (startAbortRef.current === ctl) startAbortRef.current = null;
     }
   }, [refresh]);
 
   const cancelLogin = useCallback(() => {
+    try {
+      startAbortRef.current && startAbortRef.current.abort();
+    } catch {
+      /* 已结束 */
+    }
+    startAbortRef.current = null;
     setOauth(OAUTH_IDLE);
     setHandoff(null);
+    setReopenMsg(null);
   }, []);
 
+  const reopenPage = useCallback(async () => {
+    if (!oauth.verificationUri) return;
+    setReopenMsg(await reopenVerification(oauth.verificationUri));
+  }, [oauth.verificationUri]);
+
+  const copyVerifyLink = useCallback(async () => {
+    setReopenMsg(await copyLink(oauth.verificationUri || ""));
+  }, [oauth.verificationUri]);
+
+  // 退出登录 / 重新发起都要把上一轮请求收干净，否则一个迟到的响会盖掉新状态。
   const revokeLogin = useCallback(async () => {
+    try {
+      startAbortRef.current && startAbortRef.current.abort();
+    } catch {
+      /* 已结束 */
+    }
+    startAbortRef.current = null;
     setOauth(OAUTH_IDLE);
+    setHandoff(null);
+    setReopenMsg(null);
     setNoticeMsg(null);
     try {
       await postJson("actions/oauth/revoke", {});
@@ -296,17 +429,40 @@ function GitHanaSettings() {
     }
   }, [refresh]);
 
-  // 轮询：拿到 ready / error / 404 即停；每次间隔按服务端回的 interval（slow_down 会加长）。
+  // 轮询：拿到 ready / 终态 error 即停；每次间隔按服务端回的 interval（slow_down 会加长）。
+  //
+  // 「可重试」有两个来源，两道门都要过：
+  //   · 浏览器到 App 服务端失败：fetch 拓了，没有 status（网络层）；
+  //   · GitHub 到 App 服务端失败：`pollDeviceFlow` 回 `status: "error"` 且 `code: "transport_error"`，
+  //     此时 flow 仍在服务端活着，下一跳完全可能成功。
+  // 其余错误码（expired_token / access_denied / device_flow_disabled …）是终态。
   useEffect(() => {
     if (!oauth.flowId || oauth.status !== "waiting") return undefined;
     let cancelled = false;
     let timer = null;
+    let transient = 0;
+
+    /** 服务端侧的可重试失败：flow 还在，只是这一跳没成。 */
+    const retry = () => {
+      transient += 1;
+      if (transient <= POLL_TRANSIENT_RETRIES) {
+        timer = setTimeout(tick, Math.max(2, intervalRef.current) * 1000);
+        return true;
+      }
+      return false;
+    };
+
+    const giveUp = (errorCode, error) => {
+      setOauth({ ...OAUTH_IDLE, status: "error", errorCode, error });
+    };
+
     const tick = async () => {
       if (cancelled) return;
       try {
         const res = await getJson(`actions/oauth/poll?id=${encodeURIComponent(oauth.flowId)}`);
         if (cancelled) return;
         if (res.status === "pending") {
+          transient = 0;
           if (Number(res.interval) > 0) intervalRef.current = Number(res.interval);
           timer = setTimeout(tick, intervalRef.current * 1000);
           return;
@@ -317,10 +473,35 @@ function GitHanaSettings() {
           await refresh();
           return;
         }
-        setOauth({ ...OAUTH_IDLE, status: "error", error: res.message || "授权失败" });
+        // 服务端明确说「只是这次没查成」：按可重试处理，不当终态。
+        if (res.status === "error" && res.code === "transport_error" && retry()) return;
+        giveUp(res.code || "poll_error", res.message || "授权失败");
       } catch (e) {
         if (cancelled) return;
-        setOauth({ ...OAUTH_IDLE, status: "error", error: String((e && e.message) || e) });
+        // 4xx 是客户端的错，重试也不会变（404 = flow 已不在服务端；401/403 = surface 会话失效）。
+        // 只有没有 status 的网络失败与 5xx 才值得重试。
+        const status = e && e.status;
+        const retryable = status === undefined || status >= 500;
+        if (retryable && retry()) return;
+        if (status === 404) {
+          giveUp("not_found", String((e && e.message) || "授权流程已失效，请重新点「登录」。"));
+          return;
+        }
+        if (status !== undefined && status < 500) {
+          giveUp("http_" + status, String((e && e.message) || `HTTP ${status}`));
+          return;
+        }
+        giveUp(
+          // 轮询中断与发起失败分开命名：两者给用户看的标题不同（一个已经拿到验证码，
+          // 一个还没开始），套同一个 code 会让标题说错话。
+          "poll_transport_error",
+          "查询授权结果时连续失败 " +
+            transient +
+            " 次，已停止查询。验证码仍然有效：网络恢复后重新点「登录」即可，旧流程不影响新流程。" +
+            "\n（最后一次错误：" +
+            String((e && e.message) || e) +
+            "）",
+        );
       }
     };
     timer = setTimeout(tick, intervalRef.current * 1000);
@@ -495,6 +676,12 @@ function GitHanaSettings() {
   const authorized = !!state.tokenConfigured;
   const needsReauth = !!secret.needsReauth;
   const waiting = oauth.status === "waiting";
+  const starting = oauth.status === "starting";
+  // 过期后不再自称「等待浏览器」：验证码已经作废，继续等只是让用户白等 15 分钟。
+  //
+  // 以 `expiresAt` 为凭据而不是 `remaining`：后者是另一个 effect 在首次渲染**之后**才写的，
+  // 刚进 waiting 的那一帧它还是 0，用它判断会让「已过期」和「重新登录」闪一下。
+  const expired = waiting && Boolean(oauth.expiresAt) && Date.now() >= oauth.expiresAt;
 
   return (
     <SettingsPage>
@@ -512,15 +699,29 @@ function GitHanaSettings() {
                 <StatusText ok={authorized} on="已连接" off="未连接" />
               )}
               {authorized && secret.login ? <MonoText>@{secret.login}</MonoText> : null}
-              <Button variant={authorized ? "secondary" : "primary"} disabled={oauth.starting || waiting} onClick={startLogin}>
-                {oauth.starting ? "正在打开…" : waiting ? "等待浏览器…" : authorized ? "重新登录" : "登录"}
+              <Button
+                variant={authorized ? "secondary" : "primary"}
+                disabled={starting || (waiting && !expired)}
+                onClick={startLogin}
+              >
+                {starting
+                  ? "正在连接 GitHub…"
+                  : waiting
+                    ? expired
+                      ? "重新登录"
+                      : "等待浏览器…"
+                    : oauth.status === "error"
+                      ? "重试登录"
+                      : authorized
+                        ? "重新登录"
+                        : "登录"}
               </Button>
-              {waiting ? (
+              {starting || waiting ? (
                 <Button variant="secondary" onClick={cancelLogin}>
                   取消
                 </Button>
               ) : null}
-              {authorized && !waiting ? (
+              {authorized && !waiting && !starting ? (
                 <Button variant="ghost" onClick={revokeLogin}>
                   退出登录
                 </Button>
@@ -528,9 +729,11 @@ function GitHanaSettings() {
             </Inline>
           }
           hint={
-            authorized
-              ? "令牌到期前会自动续期，无需手动操作。"
-              : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
+            starting
+              ? "正在向 GitHub 要一个验证码；连不上会在这里直接说原因，也可以点「取消」。"
+              : authorized
+                ? "令牌到期前会自动续期，无需手动操作。"
+                : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
           }
         />
         {needsReauth ? (
@@ -578,21 +781,65 @@ function GitHanaSettings() {
             <SettingRow
               label="验证码"
               layout="stacked"
-              hint="已复制到剪贴板，到浏览器页面粘贴并批准即可。"
+              hint={
+                handoff && handoff.clipboard.ok
+                  ? "已复制到剪贴板，到浏览器页面粘贴并批准即可。"
+                  : "没能自动复制，选中这串字自己复制到验证页。"
+              }
               control={<span className="gh-usercode">{oauth.userCode}</span>}
+            />
+            <SettingRow
+              label="验证页"
+              truncateText
+              control={
+                <Inline gap="sm" align="center" wrap>
+                  <MonoText title={oauth.verificationUri || ""}>{oauth.verificationUri || "—"}</MonoText>
+                  <Button variant="secondary" onClick={reopenPage}>
+                    重新打开
+                  </Button>
+                  <Button variant="ghost" onClick={copyVerifyLink}>
+                    复制地址
+                  </Button>
+                </Inline>
+              }
+              hint={
+                handoff
+                  ? handoff.browser.text + (reopenMsg ? "；" + reopenMsg : "")
+                  : "浏览器没弹出来时，复制这个地址到浏览器里访问。"
+              }
             />
             <SettingRow
               label="剩余时间"
               control={<MonoText>{formatCountdown(remaining)}</MonoText>}
-              hint={remaining <= 0 ? "已超时，请重新登录" : `${oauth.verificationUri || ""}（每 ${oauth.interval} 秒自动查询一次）`}
+              hint={
+                expired
+                  ? "验证码已过期。点「重新登录」拿一枚新的；旧流程作废不影响新的。"
+                  : `每 ${oauth.interval} 秒自动查一次结果，批准后本行会自动变成「登录成功」。`
+              }
             />
-            {handoff ? <SettingRow label="交接状态" control={<span className="gh-msg">{handoff}</span>} /> : null}
           </>
         ) : null}
         {oauth.status === "ready" ? (
           <SettingRow label="登录结果" hint="已取得令牌，可以生成密钥或发布公钥了。" control={<span className="gh-val gh-ok">登录成功</span>} />
         ) : null}
-        {oauth.status === "error" && oauth.error ? <pre className="gh-out">{oauth.error}</pre> : null}
+        {oauth.status === "error" && oauth.error ? (
+          <SettingRow
+            label={oauth.errorCode === "poll_transport_error" ? "查询中断" : "登录未完成"}
+            layout="stacked"
+            hintVariant="warn"
+            hint={<span className="gh-wrap">{oauth.error}</span>}
+            control={
+              <Inline gap="sm" align="center" wrap>
+                <Button variant="secondary" onClick={startLogin}>
+                  {oauth.errorCode === "not_found" || oauth.errorCode === "expired_token" ? "重新登录" : "重试"}
+                </Button>
+                {oauth.errorCode === "device_flow_disabled" || oauth.errorCode === "incorrect_client_credentials" ? (
+                  <MonoText>{APP_SETTINGS_HINT}</MonoText>
+                ) : null}
+              </Inline>
+            }
+          />
+        ) : null}
       </SettingsSection>
 
       <SettingsSection
