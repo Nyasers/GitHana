@@ -56,6 +56,33 @@ body {
   color: var(--text-muted, #6b6158);
 }
 
+/* 区块内展开的明细（账号明细 / 密钥明细）。
+
+   需要分隔线，但不要 SDK dependent 那一整套：它把缩进、上下各 0.5rem padding、
+   半混底色和分隔线捆绑在一起给，而这里只要线。所以自己声明一条，
+   线色取宿主同一个变量（--border-muted），换算主题时跟着变。 */
+.gh-detail {
+  margin-top: var(--space-8, 0.5rem);
+  padding-top: var(--space-8, 0.5rem);
+  border-top: var(--border-width, 1px) solid var(--border-muted, #d8cfbe);
+}
+
+/* 行间不叠 gap：行自带上下各 12px padding，外层再叠 gap（16px）就变 40px，
+   看着像每行下面预留了副标题位。主区各行没有这层 gap，对比之下更明显。 */
+.gh-detail > *,
+.gh-flush-tail > * {
+  gap: 0;
+}
+
+/* 末行下 padding 只收小一半，不清零：
+   清零会让末行（如「数据目录」）直接贴到卡片底边，反而拥挤；
+   保留原值 12px 又与卡片自己的边界留白叠加，显得空荡荡。
+   取中间值：仍由行自己提供一点呼吸，但不与卡片边界重叠。 */
+.gh-detail > * > :last-child,
+.gh-flush-tail > * > :last-child {
+  padding-bottom: var(--space-6, 0.375rem);
+}
+
 /* 多行诊断文案（多半是带原始错误的三行）：保留换行，不撑破行宽。
    失败原因走这里而不是 .gh-out：错误是一段话，不是一段工具输出，不该套上代码块的皮。 */
 .gh-wrap {
@@ -78,6 +105,26 @@ body {
   border: 1px solid var(--border, #d8cfbe);
   border-radius: 8px;
   user-select: all;
+}
+
+/* 公钥正文：完整展开，不滚动。
+
+   它是给人复制的材料：能一眼看到结尾的 -END- 行才算“完整的公钥”，
+   滚动框会让它看起来像被截断了一截。整段高度固定（65 行以内），
+   不会因为内容多少而跳动。 */
+.gh-pubkey {
+  margin: 0;
+  padding: 9px 11px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted, #6b6158);
+  background: var(--bg, #f5efe4);
+  border: 1px solid var(--border, #d8cfbe);
+  border-radius: 8px;
+  /* 长行宁可换行也不横滚：armored 文本本身 64 列，窄窗口下要能看全。 */
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 手动档的输出块（工具原文，保留换行与等宽） */
