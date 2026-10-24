@@ -56,6 +56,15 @@ body {
   color: var(--text-muted, #6b6158);
 }
 
+/* 多行诊断文案（多半是带原始错误的三行）：保留换行，不撑破行宽。
+   失败原因走这里而不是 .gh-out：错误是一段话，不是一段工具输出，不该套上代码块的皮。 */
+.gh-wrap {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
 /* device flow 的用户验证码：大号等宽 + 字距，方便照着抄。 */
 .gh-usercode {
   display: inline-block;

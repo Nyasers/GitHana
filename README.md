@@ -207,10 +207,23 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 2. 服务端经 REST worker 调 `https://github.com/login/device/code`（必须带
    `Accept: application/json`，否则回 form-encoded），把 `device_code` 留在服务端内存（key = 随机 `flowId`），
    只把 `user_code` / `verification_uri` / `interval` / `expires_in` 回给页面；
+   这一步的上限比其他 REST 更紧（`timeoutMs` 15s × 2 次尝试、外层 20s）：它是用户点完按钮
+   正在等的第一屏，超时要尽快变成一句可读的话，而不是一个一直转圈的按钮；
 3. 页面按 `interval` 自轮询 `GET /routes/actions/oauth/poll?id=<flowId>`，服务端每次只查一次
    `access_token`；`slow_down` 会把间隔 +5s，`expired_token` / `access_denied` /
    `device_flow_disabled` 直接终止并透出可读原因。**不在服务端起长循环**（App 进程生命周期不稳定，
    长任务还会撞宿主回调超时）；进程重启 → flow 丢失，页面拿 404 后提示重新发起。
+
+页面这一侧的三条纪律（失败要让用户看得出下一步，而不是摊一行英文原文）：
+
+- **连不上就是连不上**：`/oauth/start` 把超时/传输层失败归成 `code: "timeout" | "transport_error"`
+  并回 504，页面据此提示「检查代理/VPN，再点一次」；配置类错误（`device_flow_disabled` /
+  `incorrect_client_credentials`）直接说重试无用，并把 App 设置页地址摆出来。
+- **等待中可中断、可重来**：发起请求带 `AbortController`，「取消」立刻停；验证码过期后按钮从
+  「等待浏览器…」变成「重新登录」，不再让用户白等满 15 分钟。
+- **交接失败给退路**：剪贴板与开浏览器各自成败、各自回报；验证页地址始终在页面上，另配
+  「重新打开」「复制地址」两个按钮。轮询遇到传输层故障会重试 3 次再判失败（授权流程本身仍在服务端
+  活着，重新发起会拿到新的 flow，旧的不影响新的）。
 
 令牌**不进** `contributes.settings`，因此不会以明文出现在 `user/preferences.json`。
 它由 App 自己的加密后端写进数据目录 `<dataDir>/credential.json`：
