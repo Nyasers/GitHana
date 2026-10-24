@@ -78,7 +78,14 @@ async function getJson(path) {
     headers: authHeaders({ Accept: "application/json" }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.text || data.error || data.message || `HTTP ${res.status}`);
+    // status / code 必须在这里就带上：调用方靠它们分辨「流程已不在服务端（404，重试无意义）」
+    // 与「网络或服务端抖动（可重试）」。不带走的话 `e.status === 404` 永远为假。
+    err.code = data.code || (res.status === 504 ? "timeout" : "http_" + res.status);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -357,7 +364,12 @@ function GitHanaSettings() {
       setHandoff(await sendToVerification(res.verificationUri, res.userCode));
       await refresh();
     } catch (e) {
+      // 只有「本次调用仍然拥有这个槽」才能改状态。连点的第二下会把 startAbortRef 换成新
+      // controller，旧请求的 catch 随后才跑到，此时它不该把新请求的 starting 摸回 idle，
+      // 也不该用旧错误盖住新流程。
+      if (startAbortRef.current !== ctl) return;
       if (e && e.name === "AbortError") {
+        // 被 abort 的两种来源（cancelLogin / 新的 startLogin）都已经自己安排好状态。
         setOauth(OAUTH_IDLE);
         return;
       }
@@ -417,13 +429,33 @@ function GitHanaSettings() {
     }
   }, [refresh]);
 
-  // 轮询：拿到 ready / error / 404 即停；每次间隔按服务端回的 interval（slow_down 会加长）。
-  // 传输层报错不立即判死：轮询本来就是高频请求，一次网络抽搽不该把用户赶回去重点按钮。
+  // 轮询：拿到 ready / 终态 error 即停；每次间隔按服务端回的 interval（slow_down 会加长）。
+  //
+  // 「可重试」有两个来源，两道门都要过：
+  //   · 浏览器到 App 服务端失败：fetch 拓了，没有 status（网络层）；
+  //   · GitHub 到 App 服务端失败：`pollDeviceFlow` 回 `status: "error"` 且 `code: "transport_error"`，
+  //     此时 flow 仍在服务端活着，下一跳完全可能成功。
+  // 其余错误码（expired_token / access_denied / device_flow_disabled …）是终态。
   useEffect(() => {
     if (!oauth.flowId || oauth.status !== "waiting") return undefined;
     let cancelled = false;
     let timer = null;
     let transient = 0;
+
+    /** 服务端侧的可重试失败：flow 还在，只是这一跳没成。 */
+    const retry = () => {
+      transient += 1;
+      if (transient <= POLL_TRANSIENT_RETRIES) {
+        timer = setTimeout(tick, Math.max(2, intervalRef.current) * 1000);
+        return true;
+      }
+      return false;
+    };
+
+    const giveUp = (errorCode, error) => {
+      setOauth({ ...OAUTH_IDLE, status: "error", errorCode, error });
+    };
+
     const tick = async () => {
       if (cancelled) return;
       try {
@@ -441,43 +473,35 @@ function GitHanaSettings() {
           await refresh();
           return;
         }
-        setOauth({
-          ...OAUTH_IDLE,
-          status: "error",
-          errorCode: res.code || "poll_error",
-          error: res.message || "授权失败",
-        });
+        // 服务端明确说「只是这次没查成」：按可重试处理，不当终态。
+        if (res.status === "error" && res.code === "transport_error" && retry()) return;
+        giveUp(res.code || "poll_error", res.message || "授权失败");
       } catch (e) {
         if (cancelled) return;
-        // 404 = flow 已不在服务端（App 重启过）：立刻报可读原因，重试无意义。
-        if (e && e.status === 404) {
-          setOauth({
-            ...OAUTH_IDLE,
-            status: "error",
-            errorCode: "not_found",
-            error: String((e && e.message) || "授权流程已失效，请重新点「登录」。"),
-          });
+        // 4xx 是客户端的错，重试也不会变（404 = flow 已不在服务端；401/403 = surface 会话失效）。
+        // 只有没有 status 的网络失败与 5xx 才值得重试。
+        const status = e && e.status;
+        const retryable = status === undefined || status >= 500;
+        if (retryable && retry()) return;
+        if (status === 404) {
+          giveUp("not_found", String((e && e.message) || "授权流程已失效，请重新点「登录」。"));
           return;
         }
-        transient += 1;
-        if (transient <= POLL_TRANSIENT_RETRIES) {
-          timer = setTimeout(tick, Math.max(2, intervalRef.current) * 1000);
+        if (status !== undefined && status < 500) {
+          giveUp("http_" + status, String((e && e.message) || `HTTP ${status}`));
           return;
         }
-        setOauth({
-          ...OAUTH_IDLE,
-          status: "error",
+        giveUp(
           // 轮询中断与发起失败分开命名：两者给用户看的标题不同（一个已经拿到验证码，
           // 一个还没开始），套同一个 code 会让标题说错话。
-          errorCode: "poll_transport_error",
-          error:
-            "查询授权结果时网络连续失败 " +
+          "poll_transport_error",
+          "查询授权结果时连续失败 " +
             transient +
             " 次，已停止查询。验证码仍然有效：网络恢复后重新点「登录」即可，旧流程不影响新流程。" +
             "\n（最后一次错误：" +
             String((e && e.message) || e) +
             "）",
-        });
+        );
       }
     };
     timer = setTimeout(tick, intervalRef.current * 1000);
@@ -654,7 +678,10 @@ function GitHanaSettings() {
   const waiting = oauth.status === "waiting";
   const starting = oauth.status === "starting";
   // 过期后不再自称「等待浏览器」：验证码已经作废，继续等只是让用户白等 15 分钟。
-  const expired = waiting && remaining <= 0;
+  //
+  // 以 `expiresAt` 为凭据而不是 `remaining`：后者是另一个 effect 在首次渲染**之后**才写的，
+  // 刚进 waiting 的那一帧它还是 0，用它判断会让「已过期」和「重新登录」闪一下。
+  const expired = waiting && Boolean(oauth.expiresAt) && Date.now() >= oauth.expiresAt;
 
   return (
     <SettingsPage>
