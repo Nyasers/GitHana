@@ -216,8 +216,9 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 
 页面这一侧的三条纪律（失败要让用户看得出下一步，而不是摊一行英文原文）：
 
-- **连不上就是连不上**：`/oauth/start` 把超时/传输层失败归成 `code: "timeout" | "transport_error"`
-  并回 504，页面据此提示「连不上，网络好了再点一次」；配置类错误（`device_flow_disabled` /
+- **按错误类型给下一步**：`/oauth/start` 把超时/传输层失败归成 `code: "timeout" | "transport_error"`
+  并回 504。两者提示不同：`timeout` 说明连不上 GitHub、建议检查代理/VPN 后重试；
+  `transport_error` 说明连接中断，可以稍后重试。配置类错误（`device_flow_disabled` /
   `incorrect_client_credentials`）直接说重试无用，并把 App 设置页地址摆出来。
 - **等待中可中断、可重来**：发起请求带 `AbortController`，「取消」立刻停；验证码过期后按钮从
   「等待浏览器…」变成「重新登录」，不再让用户白等满 15 分钟。
