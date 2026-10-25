@@ -11,6 +11,62 @@ GitHana is an **App-shaped implementation of the gh CLI**: `gh <group> <verb>` c
 card. The tool surface is split by **gh's groups** into ten noun tools — each tool has its own
 parameter table.
 
+## Recipes: task → exact call
+
+The rest of this manual is organized **by verb**, but calls are made **by task**, and the two
+indexes do not line up — that mismatch is where the wrong field name gets guessed. These are the
+shapes actually used often; copy them rather than reconstructing from the verb tables.
+
+**Commit, then push, then open a PR.** Three calls. `commit` returns `details.hash` and `pr create`
+returns `details.number` / `details.url`, so a later step can cite them instead of parsing the
+human-readable text.
+
+```jsonc
+{ "action": "commit", "cwd": "H:\\repo", "message": "fix: …", "paths": ["src/a.ts"] }
+{ "action": "push",   "cwd": "H:\\repo", "setUpstream": true }
+{ "action": "create", "cwd": "H:\\repo", "title": "fix: …", "body": "…" }
+```
+
+The field is **`base`**, not `head` / `target` / `base_branch`: `base` is the branch the PR merges
+*into* (defaults to the repository default branch). The source branch is never passed — `cwd`'s
+current branch is taken as the head.
+
+**Check what a branch's PR looks like before pushing onto it.**
+
+```jsonc
+{ "action": "status", "cwd": "H:\\repo" }        // or "prNumber": 308
+```
+
+**Batch-read a list, then act on one item.** `list` never takes `prNumber`; `view` / `status` /
+`merge` / `comment` always do.
+
+```jsonc
+{ "action": "list", "repo": "owner/name", "state": "open", "limit": 20 }
+{ "action": "view", "cwd": "H:\\repo", "prNumber": 308 }
+```
+
+**Look at CI on the current branch.** `checks` may omit `prNumber` (it resolves the branch's PR);
+`watch` does not conclude — it returns a handle, and the conclusion arrives as a task result.
+
+```jsonc
+{ "action": "checks", "cwd": "H:\\repo" }
+{ "action": "watch",  "cwd": "H:\\repo" }
+```
+
+**Any git subcommand without a dedicated verb** (stash, rebase, log, rev-parse…). `exec` passes
+through verbatim and **appends no signature** — for anything that creates a commit, use `commit`.
+
+```jsonc
+{ "action": "exec", "cwd": "H:\\repo", "args": ["log", "--oneline", "-5"] }
+```
+
+**A GitHub endpoint with no verb at all.** `githana_api` takes `path` only — there is no `action`
+field, and no `method`/`body` unless the endpoint needs a write.
+
+```jsonc
+{ "path": "/repos/owner/name/commits/abc123" }
+```
+
 ## Tool surface
 
 | Tool | Permission tier | Verbs |

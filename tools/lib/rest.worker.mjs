@@ -83,8 +83,9 @@ const ALLOWED_HOSTS = new Set(["api.github.com", "github.com", "uploads.github.c
  * GitHub 的内容端点会 302 到别处：`/repos/{o}/{r}/tarball/...` 与 `/repos/{o}/{r}/zipball/...`
  * 落到 codeload.github.com（GitHub 自己的下载域）；release 资产（`github.com/{o}/{r}/releases/
  * download/{tag}/{name}` 与 API 的 `Accept: application/octet-stream` 那条）落到
- * `release-assets.githubusercontent.com`（实测：一跳 302 → 200）；Actions 的日志与产物落到
- * `objects.githubusercontent.com`（日志直出时不经它）。
+ * Actions 的日志与产物落到 `objects.githubusercontent.com`（日志直出时不经它）——但**日志**
+ * 端点实测是 302 到 `results-receiver.actions.githubusercontent.com`（另一台专门收结果的域），
+ * 不列它 302 就会被白名单拒，1 个字的日志也下不来。
  *
  * 不把这些列进来就会让下载硬失败，而把 redirect 交给 fetch 自己 follow（旧写法）则等于放弃
  * 白名单——两者都不可取。所以：逐跳校验，且离开 api.github.com 后**不带走凭据**（见带 auth 的复件）。
@@ -98,6 +99,7 @@ const REDIRECT_HOSTS = new Set([
   "codeload.github.com",
   "release-assets.githubusercontent.com",
   "objects.githubusercontent.com",
+  "results-receiver.actions.githubusercontent.com",
 ]);
 
 /**

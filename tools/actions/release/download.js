@@ -29,17 +29,24 @@
  *   · 都不给——落到本进程 cwd 下的资产名（`gh release download` 缺省就是当前目录）。
  *
  * 一次可以取一个资产（`assetName` / `assetId`）或该 release 的**全部**资产（都不给）。
+ *
+ * ## 为什么它返回句柄而不是「已经下好了」
+ *
+ * 工具回调有 30 秒硬上限。大资产（实测 31.5 MB 的发布包）里挂上去就撞线，而撞线意味着
+ * 调用方永远收不到回执——尽管 worker 可能已经把字节完整写进盘。所以与
+ * `githana_run(action="watch")` 同形：建宿主后台任务、把下载丢后台、立即返回句柄，
+ * 结束后由宿主按 `next-step` 档位把结论贴回来源会话。下载细节见 `tools/lib/transfer-task.js`。
  */
-import path from "node:path";
 import { z } from "zod";
 import * as params from "../../lib/params.js";
-import { resolveContext, describeFailure } from "../../lib/gh.js";
-import { locateRelease, findAsset, assetLine, formatSize } from "../../lib/release.js";
-import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
-import { normalizeAbsolutePath, transferFailureText, safeFileName } from "../../lib/transfer.js";
+import { resolveContext } from "../../lib/gh.js";
+import { locateRelease, findAsset, assetLine } from "../../lib/release.js";
+import { apiUrl } from "../../lib/rest.js";
+import { taskCapabilityError } from "../../lib/tasks.js";
+import { startTransferTask, resolveTargetPath, makeRestTransfer } from "../../lib/transfer-task.js";
 
 export const command = "download";
-export const summary = "Download release assets (streamed to disk: path or dir, optionally assetName)";
+export const summary = "Download release assets in the background (streamed to disk: path or dir, optionally assetName); returns a task handle and posts the result back to this session";
 
 export const schema = {
   repo: params.repo,
@@ -56,36 +63,19 @@ export const schema = {
 export const sideEffect = {
   kind: "github_release",
   summary:
-    "Read the contents of remote GitHub release assets and write them to the local disk (creates local files): does not modify remote state, but writes local files — confirm repo, tag and target path before running",
+    "Read the contents of remote GitHub release assets and write them to the local disk (creates local files): does not modify remote state, but writes local files — confirm repo, tag and target path before running. Returns a background task handle; the result is posted back to this session",
   ruleId: "github-toolkit-release-download",
 };
 
 /** 组目标路径：path 优先；否则 dir（或 cwd）+ 资产名。 */
 function targetPathFor(input, assetName) {
-  const p = input?.path !== undefined && input?.path !== null ? String(input.path).trim() : "";
-  if (p) {
-    const norm = normalizeAbsolutePath(p, "path");
-    return norm.error ? { error: norm.error } : { path: norm.path, fromPath: true };
-  }
-  // 资产名是远端给的（外部输入），落盘文件名要收成安全的一段——见 safeFileName。
-  const safe = safeFileName(assetName, "asset.bin");
-  const d = input?.dir !== undefined && input?.dir !== null ? String(input.dir).trim() : "";
-  if (d) {
-    const norm = normalizeAbsolutePath(d, "dir");
-    if (norm.error) return { error: norm.error };
-    return { path: path.join(norm.path, safe), fromPath: false };
-  }
-  // 都不给：落到本进程 cwd 下的资产名（gh release download 的缺省就是当前目录）。
-  // cwd 是 App 进程的工作目录，在许可根之外——worker 未必写得进去，但那是**可读的**失败，
-  // 报错里会请调用方显式给 path 或 dir。
-  return { path: path.resolve(process.cwd(), safe), fromPath: false };
+  return resolveTargetPath(input, assetName);
 }
 
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
-  const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
   const located = await locateRelease(input, c, label, { required: true });
   if (located.error) return located.error;
@@ -125,90 +115,89 @@ export async function run(input, ctx, { label }) {
 
   const overwrite = input?.overwrite === true;
 
-  // 每个资产一个请求，但如果落点重名（同一目录下两个资产同名不可能）就不是问题；
-  // 这里逐个请求，是为了让「哪一个失败了」清楚——一个成、一个败比整批失败有用。
-  const lines = [
-    label + " (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
-    "target assets: " + targets.length + (overwrite ? " (overwriting same-named files is allowed)" : " (existing targets are not overwritten)"),
-  ];
-
-  let done = 0;
-  let failed = 0;
+  // 目标集先在这里收成「任务项」——路径、id、名字全部定好，之后的事交给后台。
+  // 这一跳仍然在回调里做，因为它是纯 JSON（定位 release）加本地路径计算，耗时可忽略；
+  // 真正会超时的只有字节落盘那一段。
+  const items = [];
+  const invalid = [];
   for (const a of targets) {
     const assetName = a && a.name ? String(a.name) : "";
     if (!assetName) {
-      lines.push("");
-      lines.push("  ! the asset response has no name, so the file name on disk cannot be determined (id " + (a && a.id !== undefined ? a.id : "?") + ").");
-      failed += 1;
+      invalid.push("  ! the asset response has no name, so the file name on disk cannot be determined (id " + (a && a.id !== undefined ? a.id : "?") + ").");
       continue;
     }
     if (a.id === undefined || a.id === null) {
-      lines.push("");
-      lines.push("  ! " + assetName + ": the asset response has no id, so the endpoint for fetching bytes cannot be built.");
-      failed += 1;
+      invalid.push("  ! " + assetName + ": the asset response has no id, so the endpoint for fetching bytes cannot be built.");
       continue;
     }
-
     const target = targetPathFor(input, assetName);
     if (target.error) {
-      lines.push("");
-      lines.push("  ! " + assetName + ": " + target.error);
-      failed += 1;
+      invalid.push("  ! " + assetName + ": " + target.error);
       continue;
     }
+    items.push({
+      name: assetName,
+      target: target.path,
+      fromPath: target.fromPath === true,
+      digest: a.digest ? String(a.digest) : null,
+      run: makeRestTransfer({
+        id: "asset-" + String(a.id),
+        url: apiUrl(repo, "/releases/assets/" + encodeURIComponent(String(a.id))),
+        target: target.path,
+        overwrite,
+        timeoutSec,
+      }),
+    });
+  }
 
-    const r = await callRest(
-      [
-        {
-          id: "asset-" + String(a.id),
-          // Accept: application/octet-stream 是「取字节」的那条；不带它返回的是资产的 JSON 元数据。
-          headers: { Accept: "application/octet-stream" },
-          url: apiUrl(repo, "/releases/assets/" + encodeURIComponent(String(a.id))),
-          toFile: target.path,
-          overwrite,
-          timeoutMs,
-        },
-      ],
-      { timeoutSec },
+  // 全部目标都在回调这一跳就失败了（没有可跑的东西）：直接报，不值得建任务。
+  if (items.length === 0) {
+    return [
+      label + " (" + repoLabel + " · " + (rel.tag_name || "?") + "):",
+      "nothing to download:",
+      ...invalid,
+    ].join("\n");
+  }
+
+  const callToken = input && input.context && input.context.callToken ? String(input.context.callToken) : "";
+  if (!callToken) {
+    return (
+      label + " cannot start: this call did not carry the host-injected callToken (which binds the background task to the source session).\n" +
+      "This verb downloads in the background so the tool callback does not hit its 30s limit; without a token the result has no session to come back to."
     );
-
-    lines.push("");
-    if (!r.ok) {
-      lines.push("  ! " + assetName + ": execution failed: " + r.message);
-      failed += 1;
-      continue;
-    }
-    const res = r.results[0];
-    const byCode = transferFailureText(res);
-    if (byCode) {
-      lines.push("  ! " + assetName + ": write to disk failed — " + target.path);
-      lines.push("    " + byCode);
-      failed += 1;
-      continue;
-    }
-    if (!res || !res.ok) {
-      lines.push("  ! " + assetName + ": GitHub returned HTTP " + (res ? res.status : "?") + " — " + describeFailure(res, repoLabel));
-      failed += 1;
-      continue;
-    }
-
-    lines.push("  ✓ " + assetName + " → " + target.path);
-    if (res.bytes !== null && res.bytes !== undefined) lines.push("     wrote " + res.bytes + " bytes (" + formatSize(res.bytes) + ")");
-    if (target.fromPath === false && !singlePath && !input?.dir) {
-      lines.push("     note: no path / dir was given, so it landed in this process's current directory. To choose a location pass dir or path.");
-    }
-    if (a.digest) lines.push("     remote digest: " + String(a.digest) + " (to check the local copy use verify-asset)");
-    done += 1;
   }
+  const capErr = taskCapabilityError(label);
+  if (capErr) return capErr;
 
-  lines.push("");
-  lines.push(
-    done === targets.length
-      ? "done: " + done + " asset(s) written to disk."
-      : "done " + done + " / failed " + failed + " (see each line above).",
-  );
-  if (done > 0 && !overwrite) {
-    lines.push("note: this run did not overwrite any existing file (overwrite defaults to false). To overwrite, pass overwrite=true explicitly.");
+  const started = await startTransferTask(input, {
+    label: label + " download " + (rel.tag_name || "?"),
+    callToken,
+    repo,
+    repoLabel,
+    scenario: rel.tag_name || "?",
+    items,
+    overwrite,
+    timeoutSec,
+    meta: { verb: "release.download" },
+  });
+  if (started.error) return label + " execution failed: " + started.error;
+
+  const out = [
+    label + " download started (" + repoLabel + " · " + (rel.tag_name || "?") + ") — **it does not wait for the bytes to land**; this call ends here:",
+    "handle: taskId " + started.taskId + " (host background task; delivery=" + String(started.record && started.record.delivery ? started.record.delivery : "next-step") + ")",
+    "targets: " + items.length + (overwrite ? " (overwriting same-named files is allowed)" : " (existing targets are not overwritten)"),
+  ];
+  for (const it of items) {
+    out.push("  · " + it.name + " → " + it.target + (it.fromPath ? "" : it.digest ? "" : ""));
+    if (!it.fromPath && !input?.dir) out.push("     note: no path / dir was given, so it lands in this process's current directory.");
   }
-  return lines.join("\n");
+  if (invalid.length) {
+    out.push("");
+    out.push("skipped (not handed to the background task):");
+    out.push(...invalid);
+  }
+  out.push("");
+  out.push("where the conclusion goes: when every file is written (or the first failure settles it), the host posts the result back to **this session**'s next input point.");
+  out.push("to stop it midway: cancel it from this session's background task item — remaining files are skipped; a transfer already in flight runs to completion (the REST worker is a separate process with no mid-stream abort).");
+  return out.join("\n");
 }

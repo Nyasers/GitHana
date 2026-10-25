@@ -217,5 +217,20 @@ export async function run(input, ctx, { label }) {
     "files: " + fileCount + (fileLines.length ? "\n  " + fileLines.map((f) => "· " + f).join("\n  ") : ""),
     assembled.note,
   ];
-  return out.join("\n");
+  // 结构化结果：调用方（编排脚本 / 后续步骤）拿得到 hash 与文件列表，不必去解上面那段给人读的文本。
+  return {
+    content: [{ type: "text", text: out.join("\n") }],
+    details: {
+      ok: true,
+      action: "commit",
+      cwd,
+      hash,
+      shortHash: hash,
+      subject,
+      fileCount,
+      files: fileLines,
+      amended: amend,
+      coAuthorAppended: /^Co-authored-by:\s*HanaAgent/im.test(assembled.final),
+    },
+  };
 }
