@@ -168,8 +168,15 @@ export async function startCommandTask(input, { label, callToken, repo, meta, co
  * 为什么是「收尾」而不是「接回去继续跑」：App 重载会把进程内的 git 子进程一起带走
  * （它是本进程的子进程），而且 metadata 里存的是 dest 与参数，没有可重建的完整调用上下文。
  * 真要紧的是**不能留假活**：宿主记录若停在 running，任务 chip 会永远转圈，看起来像
- * 有东西在跑，实际什么都不在了。所以这里一律结算成失败，并删掉半个目录（否则下次
- * 重试撞 target directory already exists）。
+ * 有东西在跑，实际什么都不在了。所以这里一律结算成失败。
+ *
+ * 但**不删目录**：记录停在 running，只能说明「没来得及结算」，不能说明 clone 没跑完。
+ * clone 写完到回投结果之间有一小段窗口，进程正好在那时被重载，目录已经是完整的，
+ * 盲删就把一个刚 clone 好的仓库清掉了。这与 resumeTransferTask 对下载目标的处理
+ * 是同一条原则：可能完整也可能半截，不能猜，如实告知并让人自己看。
+ *
+ * 目录真半截时也没关系：下次 clone 撞「target directory already exists」会拒，
+ * 那句提示里已经说了让人先自己删掉。宁可多一次手工，不能误删已完成的工作。
  */
 async function resumeCommandTask(record) {
   const taskId = record && record.taskId ? String(record.taskId) : "";
@@ -183,19 +190,15 @@ async function resumeCommandTask(record) {
   // 31 条旧任务每条都去删同一个路径，把本代正在跑的 clone 目录也删了）。
   //
   // 能走到这里的，是“上一代没来得及结算”的那种：记录还挂在 running，而进程已经没了。
-  let cleanupNote = "";
-  if (dest) {
-    const r = await removeTree(dest);
-    cleanupNote = r.ok
-      ? "the partial directory was removed: " + dest
-      : r.message + " — delete it yourself before retrying.";
-  }
-
   const text = [
     "the clone of " + repo + " was interrupted by an App reload:",
     "the git process belonged to the previous App instance, so it is gone; this task was settled as failed rather than left looking alive.",
-    cleanupNote,
-    "retry with the same githana_repo(action=\"clone\") call.",
+    dest
+      ? "target directory (may be complete or partial — check it before retrying):\n  · " + dest
+      : "the task record carries no target path.",
+    dest
+      ? "if it is a usable repository, just use it; if it is a half-written leftover, delete it first and then retry with the same githana_repo(action=\"clone\") call."
+      : "retry with the same githana_repo(action=\"clone\") call.",
   ].filter(Boolean).join("\n");
   await failTask(taskId, text);
   taskLog("info", "command task " + taskId + " settled after App reload (interrupted clone of " + repo + ")");
