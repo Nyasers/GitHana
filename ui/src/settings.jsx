@@ -248,8 +248,7 @@ function startFailureText(code, message) {
   switch (code) {
     case "timeout":
       return (
-        "连不上 github.com（请求超时），授权流程没有开始。" +
-        "\n常见原因：代理/VPN 没开、或代理只给浏览器用而 Node 不走它。网络好了再点一次「登录」即可。" +
+        "连不上 github.com（请求超时），授权流程没有开始。网络好了再点一次「登录」即可。" +
         "\n（原始信息：" +
         message +
         "）"
@@ -301,7 +300,6 @@ function GitHanaSettings() {
   const [kgBusy, setKgBusy] = useState(false);
   const [kgConfirm, setKgConfirm] = useState(false);
   const [kgText, setKgText] = useState(null);
-  const [showKey, setShowKey] = useState(false);
   const [keyText, setKeyText] = useState(null);
   const [copyMsg, setCopyMsg] = useState(null);
   const [pubBusy, setPubBusy] = useState(false);
@@ -549,7 +547,8 @@ function GitHanaSettings() {
       setKgText(res.text || "完成");
       setKgConfirm(false);
       await refresh();
-      setShowKey(false);
+      // 旧公钥已经作废，缓存的正文不能再留着；面板保持展开，
+      // 让 effect 自己去拉新的那把。
       setKeyText(null);
     } catch (e) {
       setKgText(`执行失败：${String((e && e.message) || e)}`);
@@ -581,7 +580,6 @@ function GitHanaSettings() {
       setCopyMsg(res.text || "完成");
       await refresh();
       // 密钥已被移除，展开的公钥视图没有内容可看了。
-      setShowKey(false);
       setKeyText(null);
     } catch (e) {
       setCopyMsg(`移除失败：${String((e && e.message) || e)}`);
@@ -606,20 +604,13 @@ function GitHanaSettings() {
 
   /**
    * 展开/收起密钥明细。公钥正文跟着一起开关——它是给别人复制的材料，
-   * 不是拿来读的，默认不该占页面。首次展开时才拉正文。
+   * 不是拿来读的，默认不该占页面。
+   *
+   * 拉正文不在这里做：轮换或移除之后 setKeyText(null) 会把面板留在展开态，
+   * 而此时已经没有人再调用了。改成用 effect 跟着 keyDetailOpen 走，
+   * 只要面板开着、密钥在、正文空，就自己去拉。
    */
-  const toggleKeyDetail = useCallback(async () => {
-    const next = !keyDetailOpen;
-    setKeyDetailOpen(next);
-    setShowKey(next);
-    if (!next || keyText) return;
-    try {
-      const data = await getJson("actions/pubkey");
-      setKeyText((data && data.pubkey) || "（未取到公钥）");
-    } catch (e) {
-      setKeyText(`读取失败：${String((e && e.message) || e)}`);
-    }
-  }, [keyDetailOpen, keyText]);
+  const toggleKeyDetail = useCallback(() => setKeyDetailOpen((v) => !v), []);
 
   const copyPubkey = useCallback(async () => {
     setCopyMsg(null);
@@ -648,6 +639,37 @@ function GitHanaSettings() {
       loadIdentity();
     }
   }, [state, identityTried, loadIdentity]);
+
+  /**
+   * 面板开着、密钥在、正文还空着时，自己去拉正文。
+   *
+   * 拉取失败不写进 keyText：那里存的是公钥正文，写了错误文案就会被“非空”
+   * 挡住，下一次展开不再重试。错误归 copyMsg。
+   * 也不缓存「（未取到公钥）」这种占位串，同样会把重试路径堵死。
+   */
+  useEffect(() => {
+    const hasKey = !!(
+      state &&
+      state.status &&
+      state.status.pubkey &&
+      state.status.pubkey.present
+    );
+    if (!keyDetailOpen || !hasKey || keyText) return undefined;
+    let cancelled = false;
+    getJson("actions/pubkey")
+      .then((data) => {
+        if (cancelled) return;
+        const text = data && data.pubkey;
+        if (text) setKeyText(text);
+        else setCopyMsg("未取到公钥，可稍后重试");
+      })
+      .catch((e) => {
+        if (!cancelled) setCopyMsg(`读取公钥失败：${String((e && e.message) || e)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [keyDetailOpen, keyText, state]);
 
   if (loadError) {
     return (
@@ -1026,7 +1048,7 @@ function GitHanaSettings() {
                 “完整公钥”做成一行、按钮放右侧，与上面“密钥 ID / 指纹 / key_id”
                 共用同一套 label-右值节奏。之前两个按钮是独立一行浮在公钥框下沿，
                 看着像两行无框文字，跟卡片里其他行不是一套语言。 */}
-            {showKey ? (
+            {keyDetailOpen && pk.present ? (
               <>
                 <SettingRow
                   label="完整公钥"
@@ -1053,9 +1075,11 @@ function GitHanaSettings() {
                 {/* 公钥正文：不放在 SettingRow 里（没有 label），也不加左边距，
                     与这一组其他行的左边线对齐。 */}
                 <pre className="gh-pubkey">{keyText || "读取中…"}</pre>
-                {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
               </>
             ) : null}
+            {/* 提示放在展开块之外：移除公钥成功后面板里的内容没了，
+                若把提示留在里面，“已从 GitHub 移除”这句话就永远看不到。 */}
+            {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
             {pubText ? <pre className="gh-out">{pubText}</pre> : null}
             </SettingsStack>
           </div>
