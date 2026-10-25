@@ -59,9 +59,12 @@ import * as githanaApi from "./tools/githana-api.js";
 import { registerStatusRoutes } from "./lib/routes/status.js";
 import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
+import { registerServices, readStatus } from "./lib/services.js";
 import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
 import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
 import { killLiveChildren } from "./tools/lib/exec.js";
+import { runCli } from "./tools/lib/exec.js";
+import * as gitCommit from "./tools/actions/git/commit.js";
 import { pluginRoot } from "./tools/lib/bin.js";
 import { loadSecretIntoContext } from "./lib/secret.js";
 import { ensureFresh } from "./lib/oauth.js";
@@ -195,6 +198,20 @@ export function apply(ctx) {
     .catch((e) => log("warn", "恢复未终结后台任务异常：" + String((e && e.message) || e)));
 
   let unregisterRoutes = null;
+  // 服务面（给别的 App 用：`app:githana/commit` 等）：能力与隔离都在本进程，所以“写一条带
+  // 签名的提交”这件事只能在这里做。注册失败不影响工具面（能力未授就是降级态）。
+  let serviceDisposers = [];
+  try {
+    serviceDisposers = registerServices(ctx, {
+      // 直接复用工具实现的本体（不另写一份并行逻辑）：它的签名、Co-authored-by、
+      // stdin 传 message、路径校验都在那一处。
+      commit: (input) => gitCommit.run({ ...input, action: "commit" }, appCtx, { label: "githana_git" }),
+      readStatus: (cwd) => readStatus(runCli, cwd),
+      log,
+    });
+  } catch (e) {
+    log("warn", "服务面注册失败（不影响工具面）：" + String((e && e.message) || e));
+  }
   if (ctx.routes && typeof ctx.routes.register === "function") {
     unregisterRoutes = ctx.routes.register((app) => {
       registerStatusRoutes(app, { dataDir, appCtx });
@@ -232,6 +249,9 @@ export function apply(ctx) {
       if (n) log("info", "dispose 收掉 " + n + " 个在跑的子进程（避免成为孤儿）");
     } catch { /* 忽略 */ }
     for (const d of disposers) {
+      try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
+    }
+    for (const d of serviceDisposers) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }
     try { if (typeof unregisterRoutes === "function") unregisterRoutes(); } catch { /* 忽略 */ }
