@@ -64,8 +64,10 @@ export const sideEffect = {
  * name/email 写死（对齐「直接写死」决策），GitHub 据 email 把协作者归到 @HanaAgent。 */
 const CO_AUTHOR_NAME = "HanaAgent";
 const CO_AUTHOR_EMAIL = "313794804+HanaAgent@users.noreply.github.com";
-/** 去重检测：消息任一行以 Co-authored-by: 开头（大小写不敏感、multiline） */
-const CO_AUTHOR_LINE = /^Co-authored-by\s*:/im;
+/** 任意一行以 Co-authored-by: 开头（大小写不敏感、multiline），用于找出已有的特雷勒。 */
+const CO_AUTHOR_LINE = /^Co-authored-by\s*:\s*(.*)$/gim;
+/** 本工具自己写的那一行；与之逐字相同的特雷勒视为「已存在」，不重复追加。 */
+const CO_AUTHOR_CANONICAL = "Co-authored-by: " + CO_AUTHOR_NAME + " <" + CO_AUTHOR_EMAIL + ">";
 
 /** CRLF → LF（message 内部归一，避免 git 告警/不一致） */
 function toLf(text) {
@@ -89,15 +91,65 @@ function commitGuidance(stderr, stdout) {
 
 /**
  * 组装最终 message：基底 + Co-authored-by 署名（固定写死）。
- * @returns {{ final: string, note: string }} note 说明署名动作（供返回展示/冒烟验证）
+ *
+ * 去重要比对**内容**，不能只看“有没有这个前缀”。以前的写法是
+ * `/^Co-authored-by\s*:/im` 一命中就跳过，于是手写一行格式合法但地址错的特雷勒
+ * 会把自动追加顶掉：错地址进永久历史，GitHub 按 email 归属协作者，直接在仓库页
+ * 上多一个陌生的灰头像 contributor。
+ *
+ * 现在的规矩：
+ *   - 已经有一行与本工具的规范行逐字相同 → 不重复追加（amend 重放时走这条）
+ *   - 有任何其他形态的 Co-authored-by → 报错，把冲突行与期望行列出来，让人自己改
+ *     （而不是默默追加一条，或者默默跳过）
+ *
+ * `replaceForeignTrailer` 只给 amend 重放用：那种情况下 base 是从 HEAD 读回来的，
+ * 里面若有旧的非规范特雷勒，那是要被修掉的东西，不是用户这次手写的，所以直接换成
+ * 规范行，不报错。
+ *
+ * @param {string} base
+ * @param {{ replaceForeignTrailer?: boolean }} [opts]
+ * @returns {{ final: string, note: string } | { error: string }}
  */
-function assembleMessage(base) {
+function assembleMessage(base, opts = {}) {
   const body = toLf(base).replace(/\s+$/, "");
-  if (CO_AUTHOR_LINE.test(body)) {
-    return { final: body, note: "the message already contains a Co-authored-by line, so automatic signing was skipped (deduplication in effect)" };
+
+  const found = [];
+  CO_AUTHOR_LINE.lastIndex = 0;
+  let m;
+  while ((m = CO_AUTHOR_LINE.exec(body)) !== null) {
+    found.push(m[0].replace(/\r$/, ""));
   }
-  const line = "Co-authored-by: " + CO_AUTHOR_NAME + " <" + CO_AUTHOR_EMAIL + ">";
-  return { final: body + "\n\n" + line, note: "signature appended automatically: " + line };
+
+  if (found.length > 0) {
+    const others = found.filter((line) => line.trim() !== CO_AUTHOR_CANONICAL);
+
+    if (others.length > 0) {
+      if (opts.replaceForeignTrailer) {
+        // amend 重放：把旧的错特雷勒换成规范行，其余行原样保留。
+        const kept = body
+          .split("\n")
+          .filter((line) => !/^co-authored-by\s*:/i.test(line.trim()))
+          .join("\n")
+          .replace(/\s+$/, "");
+        return {
+          final: (kept ? kept + "\n\n" : "") + CO_AUTHOR_CANONICAL,
+          note: "replaced a non-canonical Co-authored-by line with the canonical one",
+        };
+      }
+      return {
+        error:
+          "the message carries a Co-authored-by line that this tool does not own, so it will not be committed as-is.\n" +
+          "  found:    " + others.join("\n            ") + "\n" +
+          "  expected: " + CO_AUTHOR_CANONICAL + "\n" +
+          "Co-authored-by is written by this tool, not by hand: remove that line from the message and retry — the correct one is appended automatically.\n" +
+          "(GitHub credits co-authors by email; a wrong address shows up as a stranger's account on the repository page.)",
+      };
+    }
+
+    return { final: body, note: "the message already carries the canonical Co-authored-by line, so it was not appended again" };
+  }
+
+  return { final: (body ? body + "\n\n" : "") + CO_AUTHOR_CANONICAL, note: "signature appended automatically: " + CO_AUTHOR_CANONICAL };
 }
 
 export async function run(input, ctx, { label }) {
@@ -155,6 +207,7 @@ export async function run(input, ctx, { label }) {
 
   // 基底 message：amend 且用户未给说明 → 读 HEAD 完整 message（git log -1 --format=%B）
   let base = userMessage;
+  let baseFromHead = false;
   if (amend && !base) {
     const headR = await runCli("git", ["log", "-1", "--format=%B"], { cwd });
     if (!headR.ok) {
@@ -168,9 +221,11 @@ export async function run(input, ctx, { label }) {
       return label + " failed to read the HEAD message (git log -1 --format=%B):\n" + (headR.message || raw);
     }
     base = toLf(headR.stdout).trimEnd();
+    baseFromHead = true;
   }
 
-  const assembled = assembleMessage(base);
+  const assembled = assembleMessage(base, { replaceForeignTrailer: baseFromHead });
+  if (assembled.error) return label + ": " + assembled.error;
 
   // paths 模式：先 git add -- <paths>（git commit <paths> 只能提交 git 已知路径——
   // 未跟踪文件必须先暂存；add 后仍按 pathspec 提交，其他已暂存内容不受影响、不会被带入本次提交）
