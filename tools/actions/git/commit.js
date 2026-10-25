@@ -64,10 +64,11 @@ export const sideEffect = {
  * name/email 写死（对齐「直接写死」决策），GitHub 据 email 把协作者归到 @HanaAgent。 */
 const CO_AUTHOR_NAME = "HanaAgent";
 const CO_AUTHOR_EMAIL = "313794804+HanaAgent@users.noreply.github.com";
-/** 任意一行以 Co-authored-by: 开头（大小写不敏感、multiline），用于找出已有的特雷勒。 */
-const CO_AUTHOR_LINE = /^Co-authored-by\s*:\s*(.*)$/gim;
-/** 本工具自己写的那一行；与之逐字相同的特雷勒视为「已存在」，不重复追加。 */
+/** 本工具自己写的那一行。任何其他 Co-authored-by 行都会被它替掉。 */
 const CO_AUTHOR_CANONICAL = "Co-authored-by: " + CO_AUTHOR_NAME + " <" + CO_AUTHOR_EMAIL + ">";
+/** 行首无缩进的 Co-authored-by：git 只把这种当 trailer，缩进的是正文。
+ * 冒号前允许空格——`Co-authored-by :` 同样会被 git 当成 trailer。 */
+const CO_AUTHOR_TRAILER_LINE = /^co-authored-by\s*:/i;
 
 /** CRLF → LF（message 内部归一，避免 git 告警/不一致） */
 function toLf(text) {
@@ -90,66 +91,51 @@ function commitGuidance(stderr, stdout) {
 }
 
 /**
- * 组装最终 message：基底 + Co-authored-by 署名（固定写死）。
+ * 组装最终 message：拿掉所有 trailer 形式的 Co-authored-by，只留工具自己写的那一条。
  *
- * 去重要比对**内容**，不能只看“有没有这个前缀”。以前的写法是
- * `/^Co-authored-by\s*:/im` 一命中就跳过，于是手写一行格式合法但地址错的特雷勒
- * 会把自动追加顶掉：错地址进永久历史，GitHub 按 email 归属协作者，直接在仓库页
- * 上多一个陌生的灰头像 contributor。
+ * 以前的去重是 `/^Co-authored-by\s*:/im` 一命中就跳过。它只看前缀、不看内容，
+ * 于是手写一行格式合法但地址错的 trailer 会把自动追回顶掉：错地址进永久历史，
+ * GitHub 按 email 归属协作者，直接在仓库页上多一个陌生的灰头像 contributor。
  *
- * 现在的规矩：
- *   - 已经有一行与本工具的规范行逐字相同 → 不重复追加（amend 重放时走这条）
- *   - 有任何其他形态的 Co-authored-by → 报错，把冲突行与期望行列出来，让人自己改
- *     （而不是默默追加一条，或者默默跳过）
+ * 现在的规矩：Co-authored-by 归工具写。message 里所有这类行（不管地址对不对、
+ * 谁写的）一律抹掉，末尾补上规范的那一条。
  *
- * `replaceForeignTrailer` 只给 amend 重放用：那种情况下 base 是从 HEAD 读回来的，
- * 里面若有旧的非规范特雷勒，那是要被修掉的东西，不是用户这次手写的，所以直接换成
- * 规范行，不报错。
+ * 抹掉但不静默：被替掉的行原样回传，调用方以 warning 形式展示。
+ * 也不报错：那行本就不该由人写，修法完全确定（抹掉再补），没必要让人为一步机械
+ * 操作多跑一轮。保持原行也是错的：地址不对就多一个假 contributor，地址对了也是重复。
  *
- * @param {string} base
- * @param {{ replaceForeignTrailer?: boolean }} [opts]
- * @returns {{ final: string, note: string } | { error: string }}
+ * 只认行首无缩进的（不 trim）：git 也只把这种当 trailer。正文里缩进的例句
+ * （如文档里“    Co-authored-by: ...”这种）trim 后与真 trailer 长得一样，不能误抹。
+ *
+ * 侧面好处：amend 重放不用特例。从 HEAD 读回的 message 里若有旧的错地址，
+ * 走同一条路就修好了。
+ *
+ * @returns {{ final: string, note: string, replaced: string[] }}
+ *   replaced 是被抹掉的原始行（不含末尾补上的规范行）。
  */
-function assembleMessage(base, opts = {}) {
+function assembleMessage(base) {
   const body = toLf(base).replace(/\s+$/, "");
 
-  const found = [];
-  CO_AUTHOR_LINE.lastIndex = 0;
-  let m;
-  while ((m = CO_AUTHOR_LINE.exec(body)) !== null) {
-    found.push(m[0].replace(/\r$/, ""));
-  }
-
-  if (found.length > 0) {
-    const others = found.filter((line) => line.trim() !== CO_AUTHOR_CANONICAL);
-
-    if (others.length > 0) {
-      if (opts.replaceForeignTrailer) {
-        // amend 重放：把旧的错特雷勒换成规范行，其余行原样保留。
-        const kept = body
-          .split("\n")
-          .filter((line) => !/^co-authored-by\s*:/i.test(line.trim()))
-          .join("\n")
-          .replace(/\s+$/, "");
-        return {
-          final: (kept ? kept + "\n\n" : "") + CO_AUTHOR_CANONICAL,
-          note: "replaced a non-canonical Co-authored-by line with the canonical one",
-        };
+  const replaced = [];
+  const kept = body
+    .split("\n")
+    .filter((line) => {
+      if (CO_AUTHOR_TRAILER_LINE.test(line)) {
+        replaced.push(line.trim());
+        return false;
       }
-      return {
-        error:
-          "the message carries a Co-authored-by line that this tool does not own, so it will not be committed as-is.\n" +
-          "  found:    " + others.join("\n            ") + "\n" +
-          "  expected: " + CO_AUTHOR_CANONICAL + "\n" +
-          "Co-authored-by is written by this tool, not by hand: remove that line from the message and retry — the correct one is appended automatically.\n" +
-          "(GitHub credits co-authors by email; a wrong address shows up as a stranger's account on the repository page.)",
-      };
-    }
+      return true;
+    })
+    .join("\n")
+    .replace(/\s+$/, "");
 
-    return { final: body, note: "the message already carries the canonical Co-authored-by line, so it was not appended again" };
-  }
-
-  return { final: (body ? body + "\n\n" : "") + CO_AUTHOR_CANONICAL, note: "signature appended automatically: " + CO_AUTHOR_CANONICAL };
+  return {
+    final: (kept ? kept + "\n\n" : "") + CO_AUTHOR_CANONICAL,
+    note: replaced.length
+      ? "replaced " + replaced.length + " existing Co-authored-by line(s) with the canonical one: " + CO_AUTHOR_CANONICAL
+      : "signature appended automatically: " + CO_AUTHOR_CANONICAL,
+    replaced,
+  };
 }
 
 export async function run(input, ctx, { label }) {
@@ -207,7 +193,6 @@ export async function run(input, ctx, { label }) {
 
   // 基底 message：amend 且用户未给说明 → 读 HEAD 完整 message（git log -1 --format=%B）
   let base = userMessage;
-  let baseFromHead = false;
   if (amend && !base) {
     const headR = await runCli("git", ["log", "-1", "--format=%B"], { cwd });
     if (!headR.ok) {
@@ -221,11 +206,9 @@ export async function run(input, ctx, { label }) {
       return label + " failed to read the HEAD message (git log -1 --format=%B):\n" + (headR.message || raw);
     }
     base = toLf(headR.stdout).trimEnd();
-    baseFromHead = true;
   }
 
-  const assembled = assembleMessage(base, { replaceForeignTrailer: baseFromHead });
-  if (assembled.error) return label + ": " + assembled.error;
+  const assembled = assembleMessage(base);
 
   // paths 模式：先 git add -- <paths>（git commit <paths> 只能提交 git 已知路径——
   // 未跟踪文件必须先暂存；add 后仍按 pathspec 提交，其他已暂存内容不受影响、不会被带入本次提交）
@@ -272,6 +255,11 @@ export async function run(input, ctx, { label }) {
     "files: " + fileCount + (fileLines.length ? "\n  " + fileLines.map((f) => "· " + f).join("\n  ") : ""),
     assembled.note,
   ];
+  // 被抹的行原样打出来：Co-authored-by 由本工具写，但换了什么不该只我们知道。
+  if (assembled.replaced && assembled.replaced.length) {
+    out.push("warning: these Co-authored-by line(s) in your message were discarded and replaced by the one above:");
+    out.push(...assembled.replaced.map((l) => "  · " + l));
+  }
   // 结构化结果：调用方（编排脚本 / 后续步骤）拿得到 hash 与文件列表，不必去解上面那段给人读的文本。
   return {
     content: [{ type: "text", text: out.join("\n") }],
@@ -286,6 +274,7 @@ export async function run(input, ctx, { label }) {
       files: fileLines,
       amended: amend,
       coAuthorAppended: /^Co-authored-by:\s*HanaAgent/im.test(assembled.final),
+      coAuthorReplaced: assembled.replaced || [],
     },
   };
 }
