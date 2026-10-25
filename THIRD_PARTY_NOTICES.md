@@ -16,7 +16,7 @@ reach the artifact are not listed.
 
 | Component | Version | License | Form |
 |---|---|---|---|
-| @hana/app-sdk | 1.0.16-beta | Apache License 2.0 | 构建期内联 |
+| @hana/app-sdk | 1.1.111-beta | Apache License 2.0 | 构建期内联 |
 | react | 19.2.4 | MIT License | 构建期内联 |
 | react-dom | 19.2.4 | MIT License | 构建期内联 |
 | scheduler | 0.27.0 | MIT License | 构建期内联 |
@@ -30,7 +30,7 @@ reach the artifact are not listed.
 These are inlined into `ui/settings.bundle.js` at build time. Their original packages and
 `LICENSE` files are **not shipped**, so their notices are reproduced in this file.
 
-### @hana/app-sdk 1.0.16-beta
+### @hana/app-sdk 1.1.111-beta
 
 - Purpose: 宿主设置页组件（`AppUiProvider` / `SettingsPage` / `SettingsRow` …）与契约类型，让设置页与宿主观感一致。
 - Form: 构建期依赖（`vendor/hana-app-sdk/hana-app-sdk.tgz`，官方 SDK 不在 npm 上），经 rspack 内联进 `ui/settings.bundle.js` / `.css`；tarball 本身不随包。
