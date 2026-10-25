@@ -248,8 +248,7 @@ function startFailureText(code, message) {
   switch (code) {
     case "timeout":
       return (
-        "连不上 github.com（请求超时），授权流程没有开始。" +
-        "\n常见原因：代理/VPN 没开、或代理只给浏览器用而 Node 不走它。网络好了再点一次「登录」即可。" +
+        "连不上 github.com（请求超时），授权流程没有开始。网络好了再点一次「登录」即可。" +
         "\n（原始信息：" +
         message +
         "）"
@@ -301,7 +300,6 @@ function GitHanaSettings() {
   const [kgBusy, setKgBusy] = useState(false);
   const [kgConfirm, setKgConfirm] = useState(false);
   const [kgText, setKgText] = useState(null);
-  const [showKey, setShowKey] = useState(false);
   const [keyText, setKeyText] = useState(null);
   const [copyMsg, setCopyMsg] = useState(null);
   const [pubBusy, setPubBusy] = useState(false);
@@ -313,7 +311,9 @@ function GitHanaSettings() {
   const [legacyMsg, setLegacyMsg] = useState(null);
 
   // 高级与诊断区：默认折叠，只展示用户要操心的两条主线。
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [accountDetailOpen, setAccountDetailOpen] = useState(false);
+  const [keyDetailOpen, setKeyDetailOpen] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -547,7 +547,8 @@ function GitHanaSettings() {
       setKgText(res.text || "完成");
       setKgConfirm(false);
       await refresh();
-      setShowKey(false);
+      // 旧公钥已经作废，缓存的正文不能再留着；面板保持展开，
+      // 让 effect 自己去拉新的那把。
       setKeyText(null);
     } catch (e) {
       setKgText(`执行失败：${String((e && e.message) || e)}`);
@@ -579,7 +580,6 @@ function GitHanaSettings() {
       setCopyMsg(res.text || "完成");
       await refresh();
       // 密钥已被移除，展开的公钥视图没有内容可看了。
-      setShowKey(false);
       setKeyText(null);
     } catch (e) {
       setCopyMsg(`移除失败：${String((e && e.message) || e)}`);
@@ -602,21 +602,15 @@ function GitHanaSettings() {
     }
   }, [refresh]);
 
-  const toggleKeyText = useCallback(async () => {
-    if (showKey) {
-      setShowKey(false);
-      return;
-    }
-    if (!keyText) {
-      try {
-        const data = await getJson("actions/pubkey");
-        setKeyText((data && data.pubkey) || "（未取到公钥）");
-      } catch (e) {
-        setKeyText(`读取失败：${String((e && e.message) || e)}`);
-      }
-    }
-    setShowKey(true);
-  }, [showKey, keyText]);
+  /**
+   * 展开/收起密钥明细。公钥正文跟着一起开关——它是给别人复制的材料，
+   * 不是拿来读的，默认不该占页面。
+   *
+   * 拉正文不在这里做：轮换或移除之后 setKeyText(null) 会把面板留在展开态，
+   * 而此时已经没有人再调用了。改成用 effect 跟着 keyDetailOpen 走，
+   * 只要面板开着、密钥在、正文空，就自己去拉。
+   */
+  const toggleKeyDetail = useCallback(() => setKeyDetailOpen((v) => !v), []);
 
   const copyPubkey = useCallback(async () => {
     setCopyMsg(null);
@@ -645,6 +639,37 @@ function GitHanaSettings() {
       loadIdentity();
     }
   }, [state, identityTried, loadIdentity]);
+
+  /**
+   * 面板开着、密钥在、正文还空着时，自己去拉正文。
+   *
+   * 拉取失败不写进 keyText：那里存的是公钥正文，写了错误文案就会被“非空”
+   * 挡住，下一次展开不再重试。错误归 copyMsg。
+   * 也不缓存「（未取到公钥）」这种占位串，同样会把重试路径堵死。
+   */
+  useEffect(() => {
+    const hasKey = !!(
+      state &&
+      state.status &&
+      state.status.pubkey &&
+      state.status.pubkey.present
+    );
+    if (!keyDetailOpen || !hasKey || keyText) return undefined;
+    let cancelled = false;
+    getJson("actions/pubkey")
+      .then((data) => {
+        if (cancelled) return;
+        const text = data && data.pubkey;
+        if (text) setKeyText(text);
+        else setCopyMsg("未取到公钥，可稍后重试");
+      })
+      .catch((e) => {
+        if (!cancelled) setCopyMsg(`读取公钥失败：${String((e && e.message) || e)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [keyDetailOpen, keyText, state]);
 
   if (loadError) {
     return (
@@ -688,6 +713,11 @@ function GitHanaSettings() {
       <SettingsSection
         title="GitHub 账号"
         description="连接后，提交会用你的账号署名，签名公钥也直接发布到账号。"
+        context={
+          <Button variant="secondary" onClick={() => setAccountDetailOpen((v) => !v)}>
+            {accountDetailOpen ? "收起明细" : "明细"}
+          </Button>
+        }
       >
         <SettingRow
           label="账号"
@@ -819,9 +849,10 @@ function GitHanaSettings() {
             />
           </>
         ) : null}
-        {oauth.status === "ready" ? (
-          <SettingRow label="登录结果" hint="已取得令牌，可以生成密钥或发布公钥了。" control={<span className="gh-val gh-ok">登录成功</span>} />
-        ) : null}
+        {/*
+          登录成功后不再单起一行「登录成功」：账号那行已经写着「已连接 @login」，
+          而那一行跟着凭据持久存在，这句只是一次性回显。多一行不增加信息量。
+        */}
         {oauth.status === "error" && oauth.error ? (
           <SettingRow
             label={oauth.errorCode === "poll_transport_error" ? "查询中断" : "登录未完成"}
@@ -840,96 +871,13 @@ function GitHanaSettings() {
             }
           />
         ) : null}
-      </SettingsSection>
 
-      <SettingsSection
-        title="签名密钥"
-        description="给提交签名。密钥只保存在 GitHana 自己的目录里，不动系统上的其它 GPG 密钥。"
-      >
-        <SettingRow
-          label="状态"
-          control={
-            <Inline gap="sm" align="center" wrap>
-              <StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />
-              {pk.present && published.published ? <StatusText ok on="已发布到 GitHub" off="未发布" /> : null}
-              {pk.present && !published.published ? <StatusText ok={false} on="已发布" off="未发布到 GitHub" /> : null}
-              {kgConfirm ? (
-                <>
-                  <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
-                    {kgBusy ? "执行中…" : "确认重新生成（旧密钥作废）"}
-                  </Button>
-                  <Button variant="ghost" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
-                    取消
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant={pk.present ? "secondary" : "primary"}
-                  disabled={kgBusy || !authorized}
-                  onClick={() => (pk.present ? setKgConfirm(true) : runKeygen())}
-                >
-                  {kgBusy ? "执行中…" : pk.present ? "重新生成密钥" : "生成签名密钥"}
-                </Button>
-              )}
-              {pk.present ? (
-                <Button variant="secondary" onClick={toggleKeyText}>
-                  {showKey ? "收起公钥" : "查看公钥"}
-                </Button>
-              ) : null}
-            </Inline>
-          }
-          hint={
-            !authorized
-              ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
-              : pk.present
-                ? published.published
-                  ? "提交会自动签名，并在 GitHub 上显示为 Verified。"
-                  : "展开公钥可手动上传；在补齐之前，提交不会显示为 Verified。"
-                : "生成后会直接发布到账号；两边始终一致，不会留单边残留。"
-          }
-        />
-        {pk.present && pk.uid ? <SettingRow label="签名身份" control={<MonoText>{pk.uid}</MonoText>} /> : null}
-        {showKey ? (
-          <>
-            <pre className="gh-out">{keyText || "读取中…"}</pre>
-            <Inline gap="sm" align="center" wrap>
-              <Button variant="secondary" onClick={copyPubkey}>
-                复制公钥
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={pubBusy || !published.published}
-                onClick={() => (unpubConfirm ? unpublishPubkey() : setUnpubConfirm(true))}
-              >
-                {pubBusy ? "处理中…" : unpubConfirm ? "确认移除（本机密钥一并删除）" : "从 GitHub 移除"}
-              </Button>
-              {unpubConfirm ? (
-                <Button variant="ghost" disabled={pubBusy} onClick={() => setUnpubConfirm(false)}>
-                  取消
-                </Button>
-              ) : null}
-              {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
-            </Inline>
-          </>
-        ) : null}
-        {kgText ? <pre className="gh-out">{kgText}</pre> : null}
-      </SettingsSection>
-
-      {/* 收起时用 plain：容器内容高度归零，card 形态会留下一道 2px 高的空描边。
-          展开后恢复 card，与其它区块外形一致。 */}
-      <SettingsSection
-        title="高级"
-        description="一般不需要改动这里的任何东西。安装是否完整、签名与连网是否就绪，都在这一层，出问题时供排查。"
-        surface={advancedOpen ? "card" : "plain"}
-        context={
-          <Button variant="secondary" onClick={() => setAdvancedOpen((v) => !v)}>
-            {advancedOpen ? "收起" : "展开"}
-          </Button>
-        }
-      >
-        <Collapse open={advancedOpen}>
-          <SettingsStack gap="md">
-            {/* ── 账号与凭据明细 ── */}
+        {/* 账号明细：整组展开在账号区块里，不另起「高级」区。
+            不用 SDK 的 dependent：它在给分隔线的同时把内容右挤 2rem、上下各加 0.5rem
+            padding 和半混底色。这里只要那条线，所以自己包一层 .gh-detail。 */}
+        <Collapse open={accountDetailOpen}>
+          <div className="gh-detail">
+            <SettingsStack gap="sm">
             <SettingRow
               label="账号信息"
               control={
@@ -940,10 +888,9 @@ function GitHanaSettings() {
                   {identity.data ? <MonoText>@{identity.data.login}</MonoText> : null}
                 </Inline>
               }
-              hint="点「读取」才向 GitHub 查一次；平时不会自行请求。"
             />
             {identity.data ? (
-              <SettingRow label="提交者名字" control={<MonoText>{identity.data.name || "—"}</MonoText>} hint="账号 name 为空时用登录名" />
+              <SettingRow label="提交者名字" control={<MonoText>{identity.data.name || "—"}</MonoText>} />
             ) : null}
             {identity.data ? (
               <SettingRow
@@ -956,7 +903,10 @@ function GitHanaSettings() {
               <SettingRow label="公开邮箱" control={<MonoText>{identity.data.publicEmail}</MonoText>} />
             ) : null}
             {identity.data ? (
-              <SettingRow label="账号 ID" control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>} />
+              <SettingRow
+                label="账号 ID"
+                control={<MonoText>{identity.data.id === null ? "—" : String(identity.data.id)}</MonoText>}
+              />
             ) : null}
             {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
 
@@ -964,43 +914,126 @@ function GitHanaSettings() {
               <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} />
             ) : null}
             {secret.refreshExpiresAt ? (
-              <SettingRow label="续期凭证到期" control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>} hint="到期后需重新登录" />
+              <SettingRow
+                label="续期凭证到期"
+                control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>}
+                hint="到期后需重新登录"
+              />
             ) : null}
             <SettingRow
               label="凭据保护方式"
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
               hint={secret.location ? `存放：${secret.location}` : null}
             />
+            <SettingRow label="Client ID" control={<MonoText>{state.clientId || "—"}</MonoText>} hint="不开放修改" />
+            </SettingsStack>
+          </div>
+        </Collapse>
+      </SettingsSection>
 
-            <SettingRow
-              label="Client ID"
-              control={<MonoText>{state.clientId || "—"}</MonoText>}
-              hint="GitHana 注册的 GitHub App，权限与发布链路都绑在它上面，不开放修改。"
-            />
+      <SettingsSection
+        title="签名密钥"
+        description="给提交签名。密钥只保存在 GitHana 自己的目录里，不动系统上的其它 GPG 密钥。"
+        context={
+          <Button variant="secondary" onClick={toggleKeyDetail}>
+            {keyDetailOpen ? "收起明细" : "明细"}
+          </Button>
+        }
+      >
+        <SettingRow
+          label="状态"
+          control={
+            <Inline gap="sm" align="center" wrap>
+              <StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />
+              {pk.present && published.published ? <StatusText ok on="已发布到 GitHub" off="未发布" /> : null}
+              {pk.present && !published.published ? <StatusText ok={false} on="已发布" off="未发布到 GitHub" /> : null}
+              {kgConfirm ? (
+                <>
+                  <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
+                    {kgBusy ? "执行中…" : "确认轮换（旧密钥作废）"}
+                  </Button>
+                  <Button variant="ghost" disabled={kgBusy} onClick={() => setKgConfirm(false)}>
+                    取消
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant={pk.present ? "secondary" : "primary"}
+                  disabled={kgBusy || !authorized}
+                  onClick={() => (pk.present ? setKgConfirm(true) : runKeygen())}
+                >
+                  {kgBusy ? "执行中…" : pk.present ? "轮换密钥" : "生成签名密钥"}
+                </Button>
+              )}
+            </Inline>
+          }
+          hint={
+            // 徽标已经说了「已发布 / 未发布」，这里不再复述那个状态，
+            // 只说徽标没说清的那件事：提交会不会显示 Verified。
+            !authorized
+              ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
+              : pk.present
+                ? published.published
+                  ? "提交会自动签名，GitHub 上显示为 Verified。"
+                  : "公钥还没传上去；在那之前提交不会显示为 Verified。"
+                : "生成后会直接发布到账号，两边始终一致。"
+          }
+        />
+        {pk.present && pk.uid ? (
+          <SettingRow label="签名身份" control={<MonoText title={pk.uid}>{pk.uid}</MonoText>} truncateText />
+        ) : null}
+        {kgText ? <pre className="gh-out">{kgText}</pre> : null}
 
-            {/* ── 密钥明细 ── */}
-            {pk.keyId ? <SettingRow label="密钥 ID" control={<MonoText>{pk.keyId}</MonoText>} /> : null}
-            {pk.fpr ? <SettingRow label="完整指纹" truncateText control={<MonoText>{pk.fpr}</MonoText>} /> : null}
-            {published.keyId ? <SettingRow label="已发布 key_id" control={<MonoText>{published.keyId}</MonoText>} /> : null}
-            {published.uploadedAt ? <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} /> : null}
-            {published.login ? <SettingRow label="发布账号" control={<MonoText>@{published.login}</MonoText>} /> : null}
-            <SettingRow
-              label="密钥署名"
-              hint="重新生成会作废旧密钥，并替换账号上本 App 发布的那一把，不可逆。"
-              control={<MonoText>{pk.uid || "—"}</MonoText>}
-            />
+        {/* 密钥本体与明细：两者都是“从属信息”，收进同一组。
+
+            以前公钥正文、复制/移除两个按钮、「签名身份」都铺在主区，主行只剩两行字，
+            下面却排了长长一截——层级是反的。公钥正文是给别人复制的材料，不是拿来读的，
+            只在摊开看时才占位；两个操作按钮跟着它走。 */}
+        <Collapse open={keyDetailOpen}>
+          <div className="gh-detail">
+            <SettingsStack gap="sm">
+            {/* 密钥标识只列两项，不把同一个值说两遍。
+
+                本地「密钥 ID」= 指纹末 16 位（见 lib/routes/pubkey.js 的 keyId）。
+                GitHub 侧的 `gpgKeyId` 也是指纹末 16 位（lib/gpg-publish.js 的
+                `key.key_id || fpr.slice(-16)`）——两者是同一个值。
+                而 GitHub 的 `keyId` 是它自己的数字 id（删除时才用到），跟指纹无关。
+
+                所以：指纹列全量，末 16 位不单列（它就在指纹末尾）；
+                GitHub 数字 id 标清楚它是“账号内编号”，避免与 keyId 混。 */}
+            {pk.fpr ? (
+              <SettingRow
+                label="指纹"
+                truncateText
+                control={<MonoText title={pk.fpr}>{pk.fpr}</MonoText>}
+                hint="GitHub 页面上的 key ID 就是它的末 16 位"
+              />
+            ) : null}
+            {published.keyId ? (
+              <SettingRow
+                label="账号内编号"
+                control={<MonoText>{published.keyId}</MonoText>}
+                hint="GitHub 用来定位这把钥匙的数字 id，不是指纹"
+              />
+            ) : null}
+            {published.uploadedAt ? (
+              <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} />
+            ) : null}
+            {published.login ? (
+              <SettingRow label="发布账号" control={<MonoText>@{published.login}</MonoText>} />
+            ) : null}
             {published.pending ? (
               <SettingRow
                 label="待清理的旧公钥"
                 hintVariant="warn"
-                hint="下次上传或移除时会自动重试清理。"
+                hint="下次上传或移除时自动重试。"
                 control={<MonoText>{published.pending} 把</MonoText>}
               />
             ) : null}
             {!published.published && pk.present ? (
               <SettingRow
                 label="公钥未在账号上"
-                hint="在补齐之前，提交不会显示为 Verified。可在这里补传（只影响本 App 自己那把）。"
+                hint="补传之前，提交不会显示为 Verified。"
                 control={
                   <Button variant="secondary" disabled={pubBusy} onClick={publishPubkey}>
                     {pubBusy ? "处理中…" : "上传公钥"}
@@ -1008,48 +1041,101 @@ function GitHanaSettings() {
                 }
               />
             ) : null}
-            {pubText ? <pre className="gh-out">{pubText}</pre> : null}
 
-            {/* ── 运行环境 ── */}
-            <SettingRow
-              label="git"
-              truncateText
-              control={<StatusText ok={Boolean(tools.git && tools.git.version)} on="可用" off="缺失" />}
-              hint={<MonoText title={(tools.git && tools.git.version) || ""}>{(tools.git && tools.git.version) || "缺失"}</MonoText>}
-            />
-            <SettingRow
-              label="签名组件"
-              truncateText
-              control={<StatusText ok={Boolean(signing && signing.shimPresent && signing.openpgpLibPresent)} on="就绪" off="缺失" />}
-              hint={
-                signing && signing.shimPresent && signing.openpgpLibPresent ? (
-                  <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
-                ) : (
-                  <span className="gh-msg">
-                    安装不完整：缺少 {signing && !signing.shimPresent ? "bin/gpg.shim.mjs" : "bin/openpgp.min.mjs"}，请重装 GitHana。
-                  </span>
-                )
-              }
-            />
-            <SettingRow
-              label="GitHub 通道"
-              truncateText
-              control={<StatusText ok={Boolean(rest.workerPresent)} on="就绪" off="缺失" />}
-              hint={
-                rest.workerPresent ? (
-                  <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
-                ) : (
-                  <span className="gh-msg">安装不完整：缺少 bin/rest.worker.mjs，请重装 GitHana。</span>
-                )
-              }
-            />
-            <SettingRow
-              label="允许访问的域名"
-              control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>}
-              hint="主动请求只打这些域；下载时的 302 跳转另有一份更窄的白名单（release-assets.githubusercontent.com / objects.githubusercontent.com / *.blob.core.windows.net）。"
-            />
-            <SettingRow label="数据目录" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
-          </SettingsStack>
+            {/* 完整公钥放最后：它是长文本（几十行 armored base64），
+                放在元数据前面会把下面所有行都顶下去。
+
+                “完整公钥”做成一行、按钮放右侧，与上面“密钥 ID / 指纹 / key_id”
+                共用同一套 label-右值节奏。之前两个按钮是独立一行浮在公钥框下沿，
+                看着像两行无框文字，跟卡片里其他行不是一套语言。 */}
+            {keyDetailOpen && pk.present ? (
+              <>
+                <SettingRow
+                  label="完整公钥"
+                  control={
+                    <Inline gap="sm" align="center" wrap>
+                      <Button variant="secondary" onClick={copyPubkey}>
+                        复制
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={pubBusy || !published.published}
+                        onClick={() => (unpubConfirm ? unpublishPubkey() : setUnpubConfirm(true))}
+                      >
+                        {pubBusy ? "处理中…" : unpubConfirm ? "确认移除（本机密钥一并删除）" : "从 GitHub 移除"}
+                      </Button>
+                      {unpubConfirm ? (
+                        <Button variant="ghost" disabled={pubBusy} onClick={() => setUnpubConfirm(false)}>
+                          取消
+                        </Button>
+                      ) : null}
+                    </Inline>
+                  }
+                />
+                {/* 公钥正文：不放在 SettingRow 里（没有 label），也不加左边距，
+                    与这一组其他行的左边线对齐。 */}
+                <pre className="gh-pubkey">{keyText || "读取中…"}</pre>
+              </>
+            ) : null}
+            {/* 提示放在展开块之外：移除公钥成功后面板里的内容没了，
+                若把提示留在里面，“已从 GitHub 移除”这句话就永远看不到。 */}
+            {copyMsg ? <span className="gh-msg">{copyMsg}</span> : null}
+            {pubText ? <pre className="gh-out">{pubText}</pre> : null}
+            </SettingsStack>
+          </div>
+        </Collapse>
+      </SettingsSection>
+
+      {/* 运行环境：保留一个可收起的区，因为它只在排查安装问题时才需要看。 */}
+      <SettingsSection
+        title="运行环境"
+        description="安装是否完整、签名与连网是否就绪。出问题时供排查，平时不用看。"
+        surface={envOpen ? "card" : "plain"}
+        context={
+          <Button variant="secondary" onClick={() => setEnvOpen((v) => !v)}>
+            {envOpen ? "收起" : "展开"}
+          </Button>
+        }
+      >
+        <Collapse open={envOpen}>
+          <div className="gh-flush-tail">
+            <SettingsStack gap="md">
+              <SettingRow
+                label="git"
+                truncateText
+                control={<StatusText ok={Boolean(tools.git && tools.git.version)} on="可用" off="缺失" />}
+                hint={<MonoText title={(tools.git && tools.git.version) || ""}>{(tools.git && tools.git.version) || "缺失"}</MonoText>}
+              />
+              <SettingRow
+                label="签名组件"
+                truncateText
+                control={<StatusText ok={Boolean(signing && signing.shimPresent && signing.openpgpLibPresent)} on="就绪" off="缺失" />}
+                hint={
+                  signing && signing.shimPresent && signing.openpgpLibPresent ? (
+                    <MonoText title={signing.shimPath || ""}>{signing.backend || "openpgp.js"}</MonoText>
+                  ) : (
+                    <span className="gh-msg">
+                      安装不完整：缺少 {signing && !signing.shimPresent ? "bin/gpg.shim.mjs" : "bin/openpgp.min.mjs"}，请重装 GitHana。
+                    </span>
+                  )
+                }
+              />
+              <SettingRow
+                label="GitHub 通道"
+                truncateText
+                control={<StatusText ok={Boolean(rest.workerPresent)} on="就绪" off="缺失" />}
+                hint={
+                  rest.workerPresent ? (
+                    <MonoText title={rest.workerPath || ""}>{"node " + (rest.runtimeVersion || "?")}</MonoText>
+                  ) : (
+                    <span className="gh-msg">安装不完整：缺少 bin/rest.worker.mjs，请重装 GitHana。</span>
+                  )
+                }
+              />
+              <SettingRow label="允许访问的域名" control={<MonoText>{(rest.allowedHosts || []).join(" · ") || "—"}</MonoText>} />
+              <SettingRow label="数据目录" truncateText control={<MonoText title={status.dataDir || ""}>{status.dataDir || "—"}</MonoText>} />
+            </SettingsStack>
+          </div>
         </Collapse>
       </SettingsSection>
     </SettingsPage>
