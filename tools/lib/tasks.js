@@ -21,9 +21,13 @@
  *
  * ## 能力未授予时报可读错误，不空转
  *
- * `ctx.tasks` 只在宿主授予 `app/tasks.manage` 时才可用（清单声明在 manifest.json 的
- * capabilities 里，安装时授予、改清单不就地生效）。拿不到它时 taskCapabilityError 给出
- * 「什么没授予 + 现在怎么做 + 怎么恢复」，而不是让调用方以为盯上了却永远收不到结论。
+ * session 范围的后台任务要两项能力：`app/tasks.manage`（建、结算、调度）与
+ * `app/session.start-turn`（把结果送进会话、起回合）。前者不授予时 `ctx.tasks` 根本不可用；
+ * 后者不授予时**建任务这一跳就会被拒**（错误文本里带 `session.start-turn`）。两种情况都在
+ * taskCapabilityError / describeTaskError 里给出「缺什么 + 现在怎么做 + 怎么恢复」，
+ * 而不是让调用方以为盯上了却永远收不到结论。
+ *
+ * 声明与授予是两件事：权限在安装时授予，改清单不就地生效，装完要重启 App。
  *
  * ## 轮询器登记表
  *
@@ -89,8 +93,9 @@ function describeTaskError(e) {
   if (/session\.start-turn|start-turn/i.test(raw)) {
     return (
       raw +
-      "\n(this is the host saying the \"wake the session\" tier was not granted: per APPS.md \"background tasks and approvals\", creating/delivering to a session needs" +
-      " app/session.start-turn. This manifest only declares app/tasks.manage; to make it work, add that entry to the manifest and reinstall / restart this App.)"
+      "\n(this is the host saying the \"wake the session\" tier was not granted. Per APPS.md, a session-scope task that delivers its result back needs both" +
+      " app/tasks.manage and app/session.start-turn; a delivery tier only decides how the result travels, it does not stand in for the grant." +
+      " This manifest declares both — if you are seeing this, the installed copy predates that, so reinstall / restart the App so the capability is granted at install time.)"
     );
   }
   if (/permission|not granted|denie|forbidden|capabilit|EPERM|EACCES/i.test(raw)) {

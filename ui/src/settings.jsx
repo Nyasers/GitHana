@@ -24,13 +24,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AppUiProvider,
+  Busy,
   Button,
   Collapse,
+  ErrorState,
   Inline,
   SettingRow,
   SettingsPage,
   SettingsSection,
   SettingsStack,
+  Tooltip,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
 import { hana } from "@hana/app-sdk/ui";
@@ -175,6 +178,7 @@ function MonoText({ children, title }) {
  * 两件都不阻断授权：页面上的链接与验证码始终可手动使用。
  *
  * @returns {Promise<{ clipboard: {ok: boolean, text: string}, browser: {ok: boolean, text: string} }>}
+ */
 async function sendToVerification(verificationUri, userCode) {
   const out = { clipboard: { ok: false, text: "" }, browser: { ok: false, text: "" } };
 
@@ -805,6 +809,13 @@ function GitHanaSettings() {
             }
           />
         ) : null}
+        {starting ? (
+          <SettingRow
+            label="正在连接"
+            control={<Busy label="向 GitHub 要验证码…" />}
+            hint="这个屏就在等它；连不上会直接说原因，也可以点「取消」。"
+          />
+        ) : null}
         {noticeMsg ? <SettingRow label="状态" control={<span className="gh-msg">{noticeMsg}</span>} /> : null}
         {waiting ? (
           <>
@@ -824,12 +835,16 @@ function GitHanaSettings() {
               control={
                 <Inline gap="sm" align="center" wrap>
                   <MonoText title={oauth.verificationUri || ""}>{oauth.verificationUri || "—"}</MonoText>
-                  <Button variant="secondary" onClick={reopenPage}>
-                    重新打开
-                  </Button>
-                  <Button variant="ghost" onClick={copyVerifyLink}>
-                    复制地址
-                  </Button>
+                  <Tooltip content="在系统默认浏览器里打开验证页" placement="bottom">
+                    <Button variant="secondary" onClick={reopenPage}>
+                      重新打开
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="复制地址，自己粘到任意浏览器" placement="bottom">
+                    <Button variant="ghost" onClick={copyVerifyLink}>
+                      复制地址
+                    </Button>
+                  </Tooltip>
                 </Inline>
               }
               hint={
@@ -854,12 +869,10 @@ function GitHanaSettings() {
           而那一行跟着凭据持久存在，这句只是一次性回显。多一行不增加信息量。
         */}
         {oauth.status === "error" && oauth.error ? (
-          <SettingRow
-            label={oauth.errorCode === "poll_transport_error" ? "查询中断" : "登录未完成"}
-            layout="stacked"
-            hintVariant="warn"
-            hint={<span className="gh-wrap">{oauth.error}</span>}
-            control={
+          <ErrorState
+            title={oauth.errorCode === "poll_transport_error" ? "查询中断" : "登录未完成"}
+            message={<span className="gh-wrap">{oauth.error}</span>}
+            action={
               <Inline gap="sm" align="center" wrap>
                 <Button variant="secondary" onClick={startLogin}>
                   {oauth.errorCode === "not_found" || oauth.errorCode === "expired_token" ? "重新登录" : "重试"}

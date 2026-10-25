@@ -31,11 +31,13 @@
  */
 import path from "node:path";
 import { z } from "zod";
-import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { apiUrl, callRest, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
+import { taskCapabilityError } from "../../lib/tasks.js";
+import { startTransferTask, makeRestTransfer } from "../../lib/transfer-task.js";
 import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { resolveRunId, pickedNote, formatBytes } from "../../lib/ci.js";
-import { normalizeAbsolutePath, transferFailureText, safeFileName } from "../../lib/transfer.js";
+import { normalizeAbsolutePath, safeFileName } from "../../lib/transfer.js";
 
 export const command = "download";
 export const summary = "Fetch a run's logs / artifacts to the local disk (streamed zip write)";
@@ -95,6 +97,16 @@ export async function run(input, ctx, { label }) {
   if (resolved.error) return resolved.error;
   const num = resolved.runId;
 
+  const callToken = input && input.context && input.context.callToken ? String(input.context.callToken) : "";
+  if (!callToken) {
+    return (
+      label + " cannot start: this call did not carry the host-injected callToken (which binds the background task to the source session).\n" +
+      "This verb downloads in the background so the tool callback does not hit its 30s limit; without a token the result has no session to come back to."
+    );
+  }
+  const capErr = taskCapabilityError(label);
+  if (capErr) return capErr;
+
   const what = input?.what !== undefined && input?.what !== null ? String(input.what) : "logs";
   const artifactName = input?.artifactName !== undefined && input?.artifactName !== null ? String(input.artifactName).trim() : "";
   const overwrite = input?.overwrite === true;
@@ -105,32 +117,48 @@ export async function run(input, ctx, { label }) {
     const target = targetPathFor(input, "run-" + num + "-logs.zip");
     if (target.error) return label + " argument error: " + target.error;
 
-    const r = await callRest(
-      [
+    const started = await startTransferTask(input, {
+      label: label + " logs #" + num,
+      callToken,
+      repo,
+      repoLabel,
+      scenario: "run #" + num + " · logs",
+      items: [
         {
-          id: "logs",
-          url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/logs"),
-          toFile: target.path,
-          overwrite,
-          timeoutMs,
+          name: "run-" + num + "-logs.zip",
+          target: target.path,
+          run: makeRestTransfer({
+            id: "logs",
+            url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/logs"),
+            target: target.path,
+            overwrite,
+            timeoutSec,
+          }),
         },
       ],
-      { timeoutSec },
-    );
-    if (!r.ok) return label + " execution failed: " + r.message;
-    const res = r.results[0];
-    const byCode = transferFailureText(res);
-    if (byCode) {
-      return [
-        label + " write to disk failed — " + target.path,
-        byCode,
-        "the logs endpoint returns a zip byte stream and this needs a writable directory; pass dir or path explicitly to point at a location you can write to.",
-      ].join("\n");
-    }
-    if (!res || !res.ok) return label + " execution failed: " + describeFailure(res, repoLabel);
+      overwrite,
+      timeoutSec,
+      meta: { verb: "run.download", what: "logs", runId: num },
+      describeResult: (r) =>
+        r && r.ok
+          ? [
+              label + " logs (" + repoLabel + " · run #" + num + "):",
+              "  ✓ → " + target.path + (r.bytes !== null && r.bytes !== undefined ? " (" + r.bytes + " bytes written)" : ""),
+              "",
+              "This is a zip (GitHub packs the whole run's logs into one byte stream, with no 302). Unpack it to see the per-job logs.",
+            ].join("\n")
+          : label + " logs write failed: " + (r ? r.message : "not attempted"),
+    });
+    if (started.error) return label + " execution failed: " + started.error;
 
-    pushLogResult(out, target.path, res, target.explicit);
-    return out.join("\n");
+    return [
+      label + " logs download started (" + repoLabel + " · run #" + num + ") — **it does not wait for the zip to land**; this call ends here:",
+      "handle: taskId " + started.taskId + " (host background task; delivery=" + String(started.record && started.record.delivery ? started.record.delivery : "next-step") + ")",
+      "target: " + target.path,
+      "",
+      "where the conclusion goes: the host posts the result back to **this session**'s next input point when the transfer settles.",
+      "to stop it midway: cancel it from this session's background task item — a transfer already in flight runs to completion.",
+    ].join("\n");
   }
 
   // what=artifacts：先列清单（纯 JSON），再按名字或全量逐个下。
@@ -164,75 +192,71 @@ export async function run(input, ctx, { label }) {
     ].join("\n");
   }
 
-  let done = 0;
-  let failed = 0;
-  out.push("");
+  // 目标集先收成任务项（纯本地计算 + 已拿到的清单，耗时可忽略），再把字节那段交给后台。
+  const transferItems = [];
+  const skipped = [];
   for (const a of items) {
     const name = a && a.name ? String(a.name) : "";
     if (!name || a.id === undefined || a.id === null) {
-      out.push("  ! an artifact's response is missing name or id; skipping.");
-      failed += 1;
+      skipped.push("  ! an artifact's response is missing name or id; skipping.");
       continue;
     }
     const sizeNote = a.size_in_bytes !== undefined ? " (" + formatBytes(a.size_in_bytes) + ")" : "";
     if (a.expired === true) {
-      out.push("  ! " + name + sizeNote + ": **expired** (GitHub deleted the content under the repository's retention setting); skipping.");
-      failed += 1;
+      skipped.push(
+        "  ! " + name + sizeNote + ": **expired** (GitHub deleted the content under the repository's retention setting); skipping.",
+      );
       continue;
     }
     const target = targetPathFor(input, name + ".zip");
     if (target.error) {
-      out.push("  ! " + name + ": " + target.error);
-      failed += 1;
+      skipped.push("  ! " + name + ": " + target.error);
       continue;
     }
-
-    const r = await callRest(
-      [
-        {
-          id: "artifact-" + String(a.id),
-          url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/artifacts/" + encodeURIComponent(String(a.id)) + "/zip"),
-          toFile: target.path,
-          overwrite,
-          timeoutMs,
-        },
-      ],
-      { timeoutSec },
-    );
-    if (!r.ok) {
-      out.push("  ! " + name + ": execution failed: " + r.message);
-      failed += 1;
-      continue;
-    }
-    const res = r.results[0];
-    const byCode = transferFailureText(res);
-    if (byCode) {
-      out.push("  ! " + name + ": write to disk failed — " + target.path);
-      out.push("    " + byCode);
-      failed += 1;
-      continue;
-    }
-    if (!res || !res.ok) {
-      out.push("  ! " + name + ": GitHub returned HTTP " + (res ? res.status : "?") + " — " + describeFailure(res, repoLabel));
-      failed += 1;
-      continue;
-    }
-    out.push("  ✓ " + name + sizeNote + " → " + target.path +
-      (res.bytes !== null && res.bytes !== undefined ? " (" + res.bytes + " bytes written)" : ""));
-    if (target.explicit === false) out.push("     note: no path / dir was given, so it landed in this process's current directory.");
-    done += 1;
+    transferItems.push({
+      name: name + sizeNote,
+      target: target.path,
+      run: makeRestTransfer({
+        id: "artifact-" + String(a.id),
+        url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/artifacts/" + encodeURIComponent(String(a.id)) + "/zip"),
+        target: target.path,
+        overwrite,
+        timeoutSec,
+      }),
+    });
   }
 
-  out.push("");
-  out.push(done === items.length ? "done: " + done + " artifact(s) written to disk." : "done " + done + " / failed " + failed + " (see each line above).");
-  return out.join("\n");
-}
+  if (transferItems.length === 0) {
+    out.push("");
+    out.push(...skipped);
+    out.push("nothing to download.");
+    return out.join("\n");
+  }
 
-/** 日志那一跳的回执（单独一段：它只有一次请求，不需要逐条排版）。 */
-function pushLogResult(out, targetPath, res, explicit) {
-  out.push("  ✓ → " + targetPath);
-  if (res.bytes !== null && res.bytes !== undefined) out.push("     wrote " + res.bytes + " bytes (" + formatBytes(res.bytes) + ")");
-  if (explicit === false) out.push("     note: no path / dir was given, so it landed in this process's current directory.");
+  const started = await startTransferTask(input, {
+    label: label + " artifacts #" + num,
+    callToken,
+    repo,
+    repoLabel,
+    scenario: "run #" + num + " · artifacts",
+    items: transferItems,
+    overwrite,
+    timeoutSec,
+    meta: { verb: "run.download", what: "artifacts", runId: num },
+  });
+  if (started.error) return label + " execution failed: " + started.error;
+
+  out.push(label + " artifact download started (" + repoLabel + " · run #" + num + ") — **it does not wait for the bytes to land**; this call ends here:");
+  out.push("handle: taskId " + started.taskId + " (host background task; delivery=" + String(started.record && started.record.delivery ? started.record.delivery : "next-step") + ")");
+  out.push("targets: " + transferItems.length);
+  for (const it of transferItems) out.push("  · " + it.name + " → " + it.target);
+  if (skipped.length) {
+    out.push("");
+    out.push("skipped (not handed to the background task):");
+    out.push(...skipped);
+  }
   out.push("");
-  out.push("This is a zip (GitHub packs the whole run's logs into one byte stream, with no 302). Unpack it to see the per-job logs.");
+  out.push("where the conclusion goes: the host posts the result back to **this session**'s next input point when every artifact settles.");
+  out.push("to stop it midway: cancel it from this session's background task item — remaining artifacts are skipped.");
+  return out.join("\n");
 }
