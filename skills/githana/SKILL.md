@@ -45,12 +45,16 @@ current branch is taken as the head.
 { "action": "view", "cwd": "H:\\repo", "prNumber": 308 }
 ```
 
-**Look at CI on the current branch.** `checks` may omit `prNumber` (it resolves the branch's PR);
-`watch` does not conclude — it returns a handle, and the conclusion arrives as a task result.
+**Look at CI on the current branch, or wait for it.** `checks` may omit `prNumber` (it resolves the
+branch's PR). Two watches exist and they are not interchangeable: `githana_pr`'s `watch` covers every
+check-run on the PR head (Actions checks and GitHub App checks such as CodeRabbit); `githana_run`'s
+`watch` covers one Actions run and its jobs. Neither returns a conclusion — each returns a task
+handle, and the conclusion arrives as a task result.
 
 ```jsonc
-{ "action": "checks", "cwd": "H:\\repo" }
-{ "action": "watch",  "cwd": "H:\\repo" }
+{ "action": "checks", "cwd": "H:\\repo" }                       // githana_pr: check-runs right now
+{ "action": "watch",  "cwd": "H:\\repo" }                       // githana_pr: wait for all of them
+{ "action": "watch",  "repo": "owner/name", "runId": 123456 }   // githana_run: one Actions run
 ```
 
 **Any git subcommand without a dedicated verb** (stash, rebase, log, rev-parse…). `exec` passes
@@ -73,7 +77,7 @@ field, and no `method`/`body` unless the endpoint needs a write.
 |---|---|---|
 | `githana_git` | `external_side_effect` (approval required) | `exec` · `commit` · `push` |
 | `githana_repo` | `external_side_effect` | `create` · `list` · `view` · `clone` · `fork` · `sync` · `gitignore` · `license` · `read-dir` · `read-file` |
-| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
+| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `watch` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
 | `githana_issue` | `external_side_effect` | `create` · `list` · `view` · `status` · `edit` · `comment` · `close` · `reopen` · `delete` · `develop` · `transfer` · `lock` · `unlock` · `pin` · `unpin` |
 | `githana_release` | `external_side_effect` | `create` · `list` · `view` · `edit` · `delete` · `upload` · `download` · `delete-asset` · `verify` · `verify-asset` |
 | `githana_run` | `external_side_effect` | `list` · `view` · `watch` · `rerun` · `cancel` · `delete` · `download` |
@@ -142,6 +146,7 @@ the former, to change code use the latter.
 | `status` | PR **status at a glance** (including review and check counts): when you only want a one-line conclusion, not the body | `prNumber` may be omitted |
 | `diff` | When you need the **patch body** (what changed) | `prNumber`; `format` (`diff` / `patch`) |
 | `checks` | Only the **CI check** status (no code, no reviews) | `prNumber` may be omitted |
+| `watch` | Wait for **every check-run on the PR head** to reach a terminal state (Actions checks and GitHub App checks alike). **Returns a background task handle, not the conclusion** | `prNumber` may be omitted; `checkName` (name substring filter) / `intervalSec` / `watchSec` / `graceSec` / `settleSec` |
 | `create` | Open a new PR. **Does not push the branch automatically**: if the head branch has not been pushed it reports an explicit error and points you to `push` first | `cwd` effectively required (used to take head and the default title); `base` defaults to the default branch; `title` / `body` / `draft` |
 | `ready` | The **state-bit toggle** between draft PR ↔ ready for review (`undo=true` flips it back to a draft). Changing the title/body is not it | `prNumber`; `undo` |
 | `merge` | Merge (**irreversible**). To abandon the changes use `close` | `prNumber` required; `method` (`merge` / `squash` / `rebase`); `deleteBranch` |
@@ -156,8 +161,10 @@ the former, to change code use the latter.
 | `update-branch` | **Merge the base branch into the PR's source branch** (the equivalent of the "Update branch" button) | `prNumber`; `expectedHeadSha` (optimistic concurrency guard) |
 
 Four easily confused dividing lines: **find `list` / look `view` / glance `status` / patch `diff`**.
-To "wait for CI to reach a terminal state" use `githana_run(action="watch")`, not `checks` (the
-latter reports only this moment).
+To "wait for CI to reach a terminal state" use `watch`, not `checks` (the latter reports only this
+moment). Both watches are task-shaped, but they cover different things: this tool's `watch` covers the
+whole check-run set on the PR head (GitHub App checks such as CodeRabbit included), while
+`githana_run(action="watch")` covers one Actions run and its jobs.
 
 ### githana_issue (Issues)
 
@@ -205,7 +212,7 @@ boundary and escape hatch").
 |---|---|---|
 | `view` | View a run's details **at this moment** (including each job's status). To "wait for it to finish" use `watch` | `runId` or `branch`; `job` (filter by name) |
 | `list` | List runs (filter by branch / status / workflow / actor) | `branch` / `workflow` / `actor` / `limit` |
-| `watch` | When you need to **wait for CI to reach a terminal state** and get the conclusion. **Returns a background task handle, not the conclusion** | `runId` or `branch`; `intervalSec` / `watchSec` |
+| `watch` | When you need to **wait for CI to reach a terminal state** and get the conclusion. **Returns a background task handle, not the conclusion**; covers only Actions runs — for the check-runs on a PR head (GitHub App checks included) use `githana_pr(action="watch")` | `runId` or `branch`; `intervalSec` / `watchSec` |
 | `rerun` | Re-run (`failedOnly=true` re-runs only the failed jobs) | `runId` or `branch`; `failedOnly` / `debugLogging` |
 | `cancel` | Cancel an in-progress run (best effort) | `runId` or `branch` |
 | `delete` | Delete a run record (**irreversible**, requires `confirm=true`) | `runId` **required** (no "most recent one" default accepted); `confirm` |
@@ -214,7 +221,7 @@ boundary and escape hatch").
 The dividing line between `view` and `watch` is **whether you need to wait**: `view` reports this
 moment (to get an update, just look again yourself), while `watch` reports the conclusion at the
 moment of the terminal state and does not occupy the caller's turn. For details on `watch`, see
-"Three verbs with unusual shapes" below.
+"Four verbs with unusual shapes" below.
 
 ### githana_workflow (workflows)
 
@@ -273,9 +280,9 @@ permission this App does not declare, so `api` gets a 403 there — the absence 
 oversight. The tables in "Capability boundary" below record the *gaps* (what is missing and what to
 do instead); `references/` records the *reachable surface*.
 
-## Three verbs with unusual shapes
+## Four verbs with unusual shapes
 
-These three have shapes different from the other verbs in their tools, and are easy to call wrong out
+These four have shapes different from the other verbs in their tools, and are easy to call wrong out
 of habit, so they are spelled out separately.
 
 ### `githana_pr(action="ready")` — turn a draft PR ready (reversible)
@@ -318,6 +325,35 @@ of habit, so they are spelled out separately.
   `githana_api` hitting `PATCH /repos/{owner}/{repo}/releases/{id}` (the endpoint is on the
   capability surface).
 - Supporting permission `contents: write`.
+
+### `githana_pr(action="watch")` — wait for a PR's check-runs (**same handle shape as the CI watch**)
+
+```jsonc
+{ "action": "watch", "repo": "liliMozi/openhanako", "prNumber": 358 }
+{ "action": "watch", "repo": "liliMozi/openhanako", "prNumber": 358, "checkName": "CodeRabbit", "intervalSec": 30 }
+```
+
+- **Why `githana_run(action="watch")` cannot do this**: that verb polls `GET /actions/runs/{id}`. A
+  GitHub App's check-run (CodeRabbit, SonarCloud, DCO…) has no workflow run at all, so it is
+  invisible there. This verb polls `GET /commits/{head_sha}/check-runs`, where both kinds appear.
+- **It follows the head**: every poll re-reads the PR, and when the head has moved (new push) it
+  switches to the new commit and restarts the grace window. Sitting on a superseded commit means
+  waiting for a result that can no longer change.
+- **An empty list is not "passed"**: GitHub Apps register their check-runs asynchronously, so a fresh
+  push can legitimately have none for a while. It waits `graceSec` (default 180) for some to appear,
+  then settles as "nothing to watch" — reported as success, not as a failure.
+- **A finished batch is not "everything finished"**: Actions checks are registered at push time and
+  often finish first, while a GitHub App's check may show up tens of seconds later. So even when every
+  visible check has a conclusion, it holds `settleSec` (default 30) before settling — otherwise a PR
+  with only a finished CI run would be reported PASSED and the review bot missed. `settleSec=0` turns
+  the quiet period off.
+- **`checkName`** narrows the watch to check-runs whose name contains that text (case-insensitive),
+  e.g. only the review bot. Omit it to wait for the whole set.
+- Everything else matches `githana_run`'s `watch`: it returns a handle rather than a conclusion, you
+  cancel it from the session's background task item, it recovers from `metadata.githana` after an
+  App generation change, and an elapsed window settles as failed with the original text.
+- Supporting permissions `checks: read` (polling check-runs) and `pull_requests: read` (reading the
+  head).
 
 ### `githana_run(action="watch")` — watch CI to a terminal state (**returns a handle, not a conclusion**)
 

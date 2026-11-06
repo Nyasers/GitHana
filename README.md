@@ -30,7 +30,7 @@
 |---|---|---|
 | `githana_git` | `external_side_effect` | `exec` · `commit` · `push` |
 | `githana_repo` | `external_side_effect` | `create` · `list` · `view` · `clone` · `fork` · `sync` · `gitignore` · `license` · `read-dir` · `read-file` |
-| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
+| `githana_pr` | `external_side_effect` | `create` · `list` · `view` · `status` · `diff` · `checks` · `watch` · `ready` · `merge` · `review` · `comment` · `close` · `reopen` · `revert` · `edit` · `checkout` · `lock` · `unlock` · `update-branch` |
 | `githana_issue` | `external_side_effect` | `create` · `list` · `view` · `status` · `edit` · `comment` · `close` · `reopen` · `delete` · `develop` · `transfer` · `lock` · `unlock` · `pin` · `unpin` |
 | `githana_release` | `external_side_effect` | `create` · `list` · `view` · `edit` · `delete` · `upload` · `download` · `delete-asset` · `verify` · `verify-asset` |
 | `githana_run` | `external_side_effect` | `list` · `view` · `watch` · `rerun` · `cancel` · `delete` · `download` |
@@ -150,6 +150,10 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 `githana_run` / `githana_workflow` / `githana_cache` 三组真实动词，`githana_run(action="watch")`
 就是其中的「等 CI 到终态」。
 
+两个 `watch` 分工**不重叠**：`githana_run(action="watch")` 盯一条 Actions run（`GET /actions/runs/{id}`）；
+`githana_pr(action="watch")` 盯 PR head 上**全部 check-runs**（`GET /commits/{sha}/check-runs`），
+所以 GitHub App 自己注册的检查（CodeRabbit 那类，没有 workflow run）只有后者能等。
+
 
 ## 与 v1 插件的关键差异
 
@@ -172,7 +176,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 
 - `app/tools.expose-to-model` — 让模型能主动调用这十个名词工具
 - `app/process.spawn` — 开 `--allow-child-process`，跑外部 git 与随包的两个子进程入口（REST worker / 签名 shim）（**需要用户在安装审阅里批准**）
-- `app/tasks.manage` — 宿主后台任务面，给 `githana_run(action="watch")` 的「等 CI 到终态」用（**需要用户在安装审阅里批准**）
+- `app/tasks.manage` — 宿主后台任务面，给 `githana_run(action="watch")` 与 `githana_pr(action="watch")` 的「等到终态」用（**需要用户在安装审阅里批准**）
 - `app/ui.clipboard-write` — 设置页的「复制公钥」按钮
 - `app/ui.open-external` — 设置页开 GitHub 验证页
 

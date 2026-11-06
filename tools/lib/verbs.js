@@ -21,6 +21,9 @@
  *     githana_run」比报「未知 action」有用——顺着指路过去会拿到那个工具自己的说明，那是两段式的
  *     如实回报，不是死路。
  *
+ * 有两个工具收同一个动词时要靠上面那条规则分开：`watch` 在 `githana_run`（盯一次 Actions run）
+ * 与 `githana_pr`（盯 PR 的 check-runs）上都有，报错会列出两个持有者让调用方按对象选。
+ *
  * 当前**没有一个工具**带保留位：`pr ready` / `release edit` / `run watch` 三个空洞都已实现并
  * 入 enum（见 tools/actions/pr/ready.js、release/edit.js、run/watch.js）。`reserved` 这个字段
  * 留着是因为 surface.js 的装配路径仍然支持它，下一次出现「认得出但还没有实现」的动词时用它。
@@ -38,7 +41,7 @@ export const VERB_INDEX = [
   {
     name: "githana_pr",
     commands: [
-      "create", "list", "view", "status", "diff", "checks", "ready", "merge", "review", "comment",
+      "create", "list", "view", "status", "diff", "checks", "watch", "ready", "merge", "review", "comment",
       "close", "reopen", "revert", "edit", "checkout", "lock", "unlock", "update-branch",
     ],
   },

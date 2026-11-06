@@ -19,7 +19,7 @@ Read one category file when you need it — each is small enough to read in one 
 | `dependency-graph` | 5 | [`dependency-graph.md`](dependency-graph.md) |
 | `deployments` | 6 | [`deployments.md`](deployments.md) |
 | `git` | 13 | [`git.md`](git.md) |
-| `issues` | 58 | [`issues.md`](issues.md) |
+| `issues` | 63 | [`issues.md`](issues.md) |
 | `licenses` | 1 | [`licenses.md`](licenses.md) |
 | `markdown` | 1 | [`markdown.md`](markdown.md) |
 | `metrics` | 6 | [`metrics.md`](metrics.md) |

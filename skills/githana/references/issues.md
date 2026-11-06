@@ -1,6 +1,6 @@
 # `githana_api` — issues
 
-58 endpoints reachable with this App's permission set.
+63 endpoints reachable with this App's permission set.
 Any endpoint outside this list needs a permission this App does not declare, so `api` gets a 403.
 
 | Endpoint | Permission | Action | Notes |
@@ -11,6 +11,11 @@ Any endpoint outside this list needs a permission this App does not declare, so 
 | `POST /repos/{owner}/{repo}/issues` | issues | write | prefer `githana_issue` |
 | `GET /repos/{owner}/{repo}/issues/{issue_number}` | issues | read | prefer `githana_issue` |
 | `PATCH /repos/{owner}/{repo}/issues/{issue_number}` | issues or pull_requests | write | prefer `githana_issue` |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/artifacts` | issues or pull_requests | read | prefer `githana_issue` |
+| `POST /repos/{owner}/{repo}/issues/{issue_number}/artifacts` | issues | write | prefer `githana_issue` |
+| `DELETE /repos/{owner}/{repo}/issues/{issue_number}/artifacts/{artifact_number}` | issues | write | prefer `githana_issue` |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/artifacts/{artifact_number}` | issues or pull_requests | read | prefer `githana_issue` |
+| `PATCH /repos/{owner}/{repo}/issues/{issue_number}/artifacts/{artifact_number}` | issues | write | prefer `githana_issue` |
 | `DELETE /repos/{owner}/{repo}/issues/{issue_number}/assignees` | issues or pull_requests | write | prefer `githana_issue` |
 | `POST /repos/{owner}/{repo}/issues/{issue_number}/assignees` | issues or pull_requests | write | prefer `githana_issue` |
 | `GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}` | issues or pull_requests | read | prefer `githana_issue` |
