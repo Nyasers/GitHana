@@ -90,6 +90,43 @@ export function reviewSummary(reviews) {
 }
 
 /**
+ * 单条 check-run 的结论渲染（`checks` 与 `watch` 两个动词共用一份）。
+ *
+ * conclusion 为空表示还没跑完（status 仍是 queued / in_progress / waiting…），此时报的是状态
+ * 而不是结论——两者不是一件事（见 tools/lib/ci.js 头部的同一段区分）。未知结论值原样透出，
+ * 不假装认识。
+ */
+export function checkConclusionText(run) {
+  const status = run && run.status ? String(run.status) : "";
+  const conclusion = run && run.conclusion ? String(run.conclusion) : "";
+  if (!conclusion) return "not finished (" + (status || "?") + ")";
+  const map = {
+    success: "success",
+    failure: "failure",
+    neutral: "neutral",
+    cancelled: "cancelled",
+    skipped: "skipped",
+    timed_out: "timed out",
+    action_required: "action required",
+    stale: "stale",
+  };
+  return map[conclusion] || conclusion;
+}
+
+/**
+ * check-run 是否已到终态。
+ *
+ * GitHub 只在跑完时给 `conclusion`，`status` 走到 `completed`；两者任一成立即终结。用
+ * 「没有 conclusion」判未终结是安全的：还在跑的 check-run 不会带 conclusion（`watch` 的
+ * 轮询终止条件就落在这里）。
+ */
+export function checkRunIsTerminal(run) {
+  if (!run) return false;
+  if (String(run.status || "") === "completed") return true;
+  return Boolean(run.conclusion);
+}
+
+/**
  * check-runs 响应的**渲染**（`checks` 与 `status` 两个动词都要报检查现状，所以收在这里一处）。
  *
  * conclusion 为空表示还没跑完（status 仍是 queued / in_progress）；success / neutral / skipped
