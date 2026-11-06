@@ -18,6 +18,13 @@
  * edit / ready / lock / unlock / update-branch / revert / checkout 都会改状态，整体只能按写面声明。
  * （只读的 view / status / diff / checks / list 因此也要过审；读免审那条路在收敛前由独立的
  * 只读面承担，名词分家后按 gh 的组走。）
+ *
+ * ## `watch` 是任务型动词（返回句柄，不返回结论）
+ *
+ * 它盯的是 **PR head 上全部 check-runs**（`GET /commits/{sha}/check-runs`），Actions 跑出来的
+ * check-run 与 GitHub App 自己注册的 check-run 一视同仁。`githana_run(action="watch")` 盯的是
+ * Actions run，覆盖不到 App 的检查（CodeRabbit 那类没有 workflow run），所以这一档单独放在这里。
+ * 宿主任务与恢复的纪律落在 tools/actions/pr/watch.js。
  */
 import * as create from "./actions/pr/create.js";
 import * as list from "./actions/pr/list.js";
@@ -25,6 +32,7 @@ import * as view from "./actions/pr/view.js";
 import * as status from "./actions/pr/status.js";
 import * as diff from "./actions/pr/diff.js";
 import * as checks from "./actions/pr/checks.js";
+import * as watch from "./actions/pr/watch.js";
 import * as ready from "./actions/pr/ready.js";
 import * as merge from "./actions/pr/merge.js";
 import * as review from "./actions/pr/review.js";
@@ -44,9 +52,10 @@ export const name = "githana_pr";
 
 export const description = [
   "GitHana GitHub PR: query and modify Pull Requests.",
-  "action=create / list / view / status / diff / checks / ready / merge / review / comment / close / reopen",
+  "action=create / list / view / status / diff / checks / watch / ready / merge / review / comment / close / reopen",
   "/ revert / edit / checkout / lock / unlock / update-branch.",
   "For read-only fetches use list / view / status / diff / checks; ready changes the draft state bit (undo=true flips it back to draft).",
+  "checks reports the check-runs on the PR head right now; watch is task-shaped: it returns a host background task handle (not the conclusion) and posts the terminal state of those check-runs back to this session.",
   "Local git is in githana_git, repositories in githana_repo,",
   "issues in githana_issue, releases in githana_release, CI in githana_run / githana_workflow / githana_cache,",
   "labels in githana_label, and other endpoints go through githana_api.",
@@ -61,6 +70,7 @@ const ACTIONS = [
   { module: status },
   { module: diff },
   { module: checks },
+  { module: watch },
   { module: ready },
   { module: merge },
   { module: review },
@@ -79,7 +89,7 @@ const ACTIONS = [
 const FALLBACK_SIDE_EFFECT = {
   kind: "external_side_effect",
   summary:
-    "GitHana PR actions: most verbs modify remote GitHub state (create / merge / comment / close / review / edit / lock / update-branch / change draft state bit), and revert and checkout additionally modify the local repository — confirm action and parameters before executing",
+    "GitHana PR actions: most verbs modify remote GitHub state (create / merge / comment / close / review / edit / lock / update-branch / change draft state bit), and revert and checkout additionally modify the local repository; watch does not change remote state but starts a host background task that polls the PR's check-runs and posts the conclusion back to this session — confirm action and parameters before executing",
   ruleId: "github-toolkit-githana-pr",
 };
 
