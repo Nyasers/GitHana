@@ -13,7 +13,7 @@
  */
 import { callRest, apiUrl, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import * as params from "../../lib/params.js";
-import { resolveContext, resolvePrNumber, describeFailure, summarizeCheckRuns } from "../../lib/pr.js";
+import { resolveContext, resolvePrNumber, describeFailure, summarizeCheckRuns, checkConclusionText } from "../../lib/pr.js";
 
 export const command = "checks";
 export const summary = "A PR's CI check status";
@@ -24,23 +24,6 @@ export const schema = {
   prNumber: params.prNumberOptional,
   timeoutSec: params.timeoutSec,
 };
-
-/** check-run 的 conclusion → 中文可读（未知值原样透出，不假装认识）。 */
-function conclusionText(run) {
-  const conclusion = run && run.conclusion ? String(run.conclusion) : "";
-  if (!conclusion) return "not finished (" + (run && run.status ? String(run.status) : "?") + ")";
-  const map = {
-    success: "success",
-    failure: "failure",
-    neutral: "neutral",
-    cancelled: "cancelled",
-    skipped: "skipped",
-    timed_out: "timed out",
-    action_required: "action required",
-    stale: "stale",
-  };
-  return map[conclusion] || conclusion;
-}
 
 export async function run(input, ctx, { label }) {
   const c = await resolveContext(input, label);
@@ -82,7 +65,7 @@ export async function run(input, ctx, { label }) {
   ];
   for (const run of summary.runs) {
     const name = run && run.name ? String(run.name) : "(unnamed)";
-    out.push("  [" + conclusionText(run) + "] " + name);
+    out.push("  [" + checkConclusionText(run) + "] " + name);
     if (run && run.html_url) out.push("      " + String(run.html_url));
   }
   return out.join("\n");
