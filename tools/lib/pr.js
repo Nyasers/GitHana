@@ -182,7 +182,7 @@ export function summarizeCheckRuns(json) {
  *
  * @returns {{ error: string } | { num: number, prNumber: string, branch: string }}
  */
-export async function resolvePrNumber(input, label, c = {}) {
+export async function resolvePrNumber(input, label, c = {}, token) {
   const { repo, repoLabel, cwd, timeoutSec } = c;
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
@@ -203,7 +203,7 @@ export async function resolvePrNumber(input, label, c = {}) {
   const listUrl =
     apiUrl(repo, "/pulls") +
     "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
-  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
+  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec, token });
   if (!lr.ok) return { error: label + " failed: " + lr.message };
   const lres = lr.results[0];
   if (!lres || !lres.ok) return { error: label + " failed: " + describeFailure(lres, repoLabel) };

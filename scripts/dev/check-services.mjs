@@ -55,6 +55,23 @@ case_("allowEmpty 只认布尔真", () => {
   assert.equal(normalizeCommitPayload({ cwd: "/r", allowEmpty: true }).value.allowEmpty, true);
 });
 
+case_("服务边界：只接受本地提交（拒 via=\"api\" 与 repo/branch）", () => {
+  for (const bad of [
+    { cwd: "/r", via: "api" },
+    { cwd: "/r", repo: "o/n" },
+    { cwd: "/r", branch: "main" },
+  ]) {
+    assert.equal(normalizeCommitPayload(bad).ok, false, JSON.stringify(bad));
+  }
+  assert.equal(normalizeCommitPayload({ cwd: "/r", via: "local" }).ok, true);
+});
+
+case_("未知键（例如 amend）拒，不静默当普通提交", () => {
+  const r = normalizeCommitPayload({ cwd: "/r", amend: true });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /unsupported field/);
+});
+
 console.log("[check-services] commitOutcome");
 
 case_("结构化回执（details 里就有事实）→ 直接用，不去解文本", () => {

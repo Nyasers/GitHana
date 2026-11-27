@@ -711,6 +711,53 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 `deriveNameFromUser`）同时供 `lib/gpg-keygen.js` 与 `/routes/actions/identity` 使用，
 两处不会跑偏。
 
+### 提交人与共同署名
+
+`githana_git(action="commit")` 的署名分两层：
+
+- 作者由 `via` 决定：`local`（默认）是隔离 gitconfig 里的用户，提交带 OpenPGP 签名；`api` 是
+  `githana-app[bot]`，由 GitHub 生成提交并代签（Verified）。
+- `coAuthors`：`Co-authored-by` 的组合，值可取 `user` / `hanaagent` / `githana-bot`，任意组合；
+  缺省在本地提交时是 `["hanaagent"]`，在 `via="api"` 时是 `["user","hanaagent"]`；`[]` 表示不写
+  trailer。与作者相同的项会被去掉（不自署）。已有的 trailer 由工具接管：抹掉后按所选组合重写，
+  被丢弃的行以 warning 回传。
+
+两个固定实体的身份与用户身份不同源：
+
+| 实体 | name | email |
+|---|---|---|
+| HanaAgent | `HanaAgent` | liliMozi 注册的官方账号地址 |
+| GitHana App bot | `githana-app[bot]` | `340878445+githana-app[bot]@users.noreply.github.com` |
+
+bot 的 email 是 GitHub App 的 noreply 格式 `{bot user id}+{login}@users.noreply.github.com`；
+App id 5271075、slug `githana-app`，bot user id 340878445 取自 `GET /users/githana-app[bot]`。
+
+PR 作者只能是已登录用户：GitHub 的 PR 作者由发请求的令牌决定，本 App 没有把 PR 创建切到 App 身份的入口。
+
+### API 提交（Verified 的 bot 提交）
+
+本地提交的 bot 作者无法 Verified：bot 账号不能挂签名公钥，用用户密钥签又只会是 Unverified。
+GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名时代签，所以
+`githana_git(action="commit", via="api")` 改走 Git Data API：
+
+- 私钥只放在公共签发服务上：客户端默认用 `https://githana.nyase.ru`，不需要配置；服务端用用户的
+  GitHub 令牌验明身份、校验他对目标仓库有 push 权限，再签发 installation token。每个用户只需把
+  `githana-app` 安装到目标仓库。self-host 时可在设置页改成自己的服务地址，部署见 `deploy/README.md`。
+- 使用公共签发服务意味着那张 GitHub 用户令牌会发送到 `githana.nyase.ru` 做身份与 push 权限校验：
+  服务运营方（或服务被攻破时）可以拿它代你调用 GitHub。服务端代码就在 `deploy/` 里，自建即可
+  完全避开这个信任假设；签发地址只接受 https（回环地址除外）。
+- App 需已安装到目标仓库且有 `Contents: write`；
+- 本地分支必须与远端 tip 一致，否则拒绝（避免把远端历史改成分叉）；
+- 变更取自工作树（传 `paths`）或 index（不传），上传 blob 后以 App 身份建 tree / commit，
+  不传 author / committer，GitHub 自动代签；
+- 完成后本地分支快进（fetch + merge --ff-only）；`details.verified` 回报 GitHub 的验证结果。
+
+`amend` / `allowEmpty` 在 API 通道不支持。代签链路在 `lib/app-auth.js`（向签发服务换 installation token，进程内缓存）；签发服务在 `deploy/githana-token-server.mjs`。客户端不需要额外共享密钥。
+
+同一份 installation token 也用于评论：`githana_pr(action="comment")` 与
+`githana_issue(action="comment")` 的 `as="githana-bot"` 会以 `githana-app[bot]` 发言。
+PR 作者不能选（永远是用已登录用户令牌创建的）。
+
 ## 签名隔离机制
 
 私钥只落 `app-data/githana/gpg.key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖

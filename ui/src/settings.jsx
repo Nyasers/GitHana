@@ -314,10 +314,20 @@ function GitHanaSettings() {
   const [legacyBusy, setLegacyBusy] = useState(false);
   const [legacyMsg, setLegacyMsg] = useState(null);
 
+  // 令牌签发服务（私钥只在服务器上）
+  const [issuer, setIssuer] = useState({ loading: true, data: null, error: null });
+  const [issuerUrl, setIssuerUrl] = useState("");
+  const [issuerMsg, setIssuerMsg] = useState(null);
+
   // 高级与诊断区：默认折叠，只展示用户要操心的两条主线。
   const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [keyDetailOpen, setKeyDetailOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
+
+  const botReady = Boolean(issuer.data && issuer.data.url);
+  const botSource = issuer.data && issuer.data.url
+    ? (issuer.data.isDefault ? "公共签发服务 · " : "自定义服务 · ") + issuer.data.url
+    : "未配置";
 
   const refresh = useCallback(async () => {
     try {
@@ -332,6 +342,35 @@ function GitHanaSettings() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const loadIssuer = useCallback(async () => {
+    try {
+      const data = await getJson("actions/token-issuer");
+      setIssuer({ loading: false, data, error: null });
+      setIssuerUrl(data && data.url ? data.url : "");
+    } catch (e) {
+      setIssuer({ loading: false, data: null, error: String((e && e.message) || e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIssuer();
+  }, [loadIssuer]);
+
+  const saveIssuer = useCallback(async () => {
+    if (!issuerUrl.trim()) {
+      setIssuerMsg("服务地址不能为空（例如 https://githana-token.example.com）。");
+      return;
+    }
+    setIssuerMsg(null);
+    try {
+      const r = await postJson("actions/token-issuer", { url: issuerUrl.trim() });
+      setIssuerMsg("已保存签发服务：" + ((r.issuer && r.issuer.url) || issuerUrl.trim()));
+      await loadIssuer();
+    } catch (e) {
+      setIssuerMsg(String((e && e.message) || e));
+    }
+  }, [issuerUrl, loadIssuer]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -942,6 +981,36 @@ function GitHanaSettings() {
             </SettingsStack>
           </div>
         </Collapse>
+      </SettingsSection>
+
+      <SettingsSection
+        title="App 身份（bot）"
+        description="以 githana-app[bot] 提交或评论。把 GitHub App 安装到目标仓库、并拥有该仓库写权限即可，私钥在签发服务上。"
+      >
+        <SettingRow
+          label="状态"
+          control={issuer.loading ? <MonoText>读取中…</MonoText> : <StatusText ok={botReady} on="已配置" off="未配置" />}
+          hint={issuer.error || (botReady ? "签发来源：" + botSource : "还没有配置签发服务。")}
+        />
+        <SettingRow
+          label="服务地址"
+          control={
+            <input
+              className="gh-input"
+              value={issuerUrl}
+              onChange={(e) => setIssuerUrl(e.target.value)}
+              placeholder="https://githana-token.example.com"
+              spellCheck={false}
+            />
+          }
+          hint="默认使用公共签发服务；self-host 时填自己的地址。客户端用自己的 GitHub 登录身份认证。使用公共实例时，那张 GitHub 令牌会发送到该服务做身份与 push 权限校验，它据此可以代你调用 GitHub。"
+        />
+        <Inline gap="sm" align="center" wrap>
+          <Button variant="primary" onClick={saveIssuer}>
+            保存
+          </Button>
+        </Inline>
+        {issuerMsg ? <pre className="gh-out">{issuerMsg}</pre> : null}
       </SettingsSection>
 
       <SettingsSection
