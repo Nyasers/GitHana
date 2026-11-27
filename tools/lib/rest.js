@@ -171,7 +171,28 @@ function collectFsGrants(list) {
  *   ok=false 时 message 是可读的基础设施错误（worker 缺失/启动失败/超时/输出非法）；
  *   单条请求的失败体现在 results[i].ok / .status / .error，不影响 ok。
  */
-export async function callRest(requests, { token, timeoutSec } = {}) {
+export async function callRest(requests, opts = {}) {
+  const first = await callRestOnce(requests, opts);
+  // 401 且用的是本进程的用户令牌：先强制刷新一次再重放。本地过期判定可能因为时钟偏差/
+  // 服务端撤销而不准，以服务端为准才是准的。显式传 token（例如 installation token）不重试。
+  const auth401 =
+    opts.token === undefined &&
+    !opts.authRetried &&
+    first &&
+    Array.isArray(first.results) &&
+    first.results.some((r) => r && r.status === 401);
+  if (!auth401) return first;
+  try {
+    const { ensureFresh } = await import("../../lib/oauth.js");
+    const r = await ensureFresh({ force: true });
+    if (!r || r.refreshed !== true) return first;
+  } catch {
+    return first;
+  }
+  return callRestOnce(requests, { ...opts, authRetried: true });
+}
+
+async function callRestOnce(requests, { token, timeoutSec } = {}) {
   const list = Array.isArray(requests) ? requests : [];
   if (list.length === 0) return { ok: true, results: [], message: null };
 

@@ -83,7 +83,7 @@ export function describeFailure(res, repoLabel) {
   const status = res && res.status;
   const detail = errorDetail(res);
   if (status === 401) {
-    return "GitHub rejected the request (401): the OAuth token is invalid or has expired. " + AUTH_GUIDANCE + "\nGitHub response: " + detail;
+    return "GitHub rejected the request (401): the OAuth token is invalid, expired, or was revoked. A refresh was attempted first and did not help, so re-authorize. " + AUTH_GUIDANCE + "\nGitHub response: " + detail;
   }
   if (status === 403) {
     return "GitHub rejected the request (403): the token lacks the required permission, or a rate limit was hit.\nGitHub response: " + detail;
