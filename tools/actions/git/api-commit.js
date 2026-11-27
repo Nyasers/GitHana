@@ -17,8 +17,6 @@
  * 不传 author / committer：这是 bot 获得自动签名的前提。用户只以 Co-authored-by trailer
  * 的形式出现在 message 里。
  */
-import fs from "node:fs";
-import path from "node:path";
 import { runCli } from "../../lib/exec.js";
 import { callRest } from "../../lib/rest.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
@@ -118,40 +116,38 @@ function parseNameStatus(raw) {
   return out;
 }
 
-/** 取工作区文件内容与 mode；不存在返回 null。导出供自检脚本直接验证路径边界。 */
-export function readWorkingFile(cwd, rel) {
-  const root = path.resolve(cwd);
-  const abs = path.resolve(root, rel);
-  // 路径必须落在 cwd 之内：API 通道绕过了 git 的 pathspec 校验，不能让它把仓库外的文件
-  // （如 ../.env）当成"变更"上传到远端。
-  if (abs !== root && !abs.startsWith(root + path.sep)) {
-    throw new Error("path escapes the repository: " + rel);
-  }
-  let stat;
-  try {
-    stat = fs.lstatSync(abs);
-  } catch {
-    return null;
-  }
-  // 符号链接按 git 语义提交（mode 120000，内容是链接目标字符串）；不跟随读取目标文件，
-  // 否则一个指向仓库外的链接就能把别的文件当成本次变更上传到远端。
-  if (stat.isSymbolicLink()) {
-    const content = Buffer.from(fs.readlinkSync(abs), "utf8");
-    if (content.length > MAX_FILE_BYTES) {
-      throw new Error("file too large for an API commit: " + rel + " (" + content.length + " bytes; limit " + MAX_FILE_BYTES + ").");
-    }
-    return { content, mode: "120000" };
-  }
-  if (!stat.isFile()) {
+/**
+ * 从 index 取文件内容与 mode。
+ *
+ * 为什么不读文件系统：App 运行在宿主的权限模型下，只能读 App 自己的目录，用户仓库
+ * 不一定在里面（实测读仓库文件会 EACCES）。git 子进程不受这个限制，所以内容一律从
+ * index 取——调用前先 `git add` 过 paths，index 就是待提交的内容。
+ * 符号链接在 index 里是 mode 120000，blob 内容就是链接目标，不会跟随到仓库外。
+ */
+export async function readStagedFile(cwd, rel) {
+  const ls = await runCli("git", ["ls-files", "-s", "-z", "--", rel], { cwd });
+  if (!ls.ok) throw new Error("reading the index failed for " + rel + ": " + (ls.message || ""));
+  const first = String(ls.stdout || "").split("\0").find((x) => x);
+  if (!first) return null;
+  const tab = first.indexOf("\t");
+  const head = tab >= 0 ? first.slice(0, tab) : first;
+  const [mode, sha] = head.split(" ");
+  if (!mode || !sha) return null;
+  if (mode === "160000") {
     throw new Error(
-      "cannot upload " + rel + " through the API: it is not a regular file " +
-        "(submodule/gitlink and directory changes are not supported by an API commit).",
+      "cannot upload " + rel + " through the API: submodule/gitlink changes are not supported by an API commit.",
     );
   }
-  if (stat.size > MAX_FILE_BYTES) {
-    throw new Error("file too large for an API commit: " + rel + " (" + stat.size + " bytes; limit " + MAX_FILE_BYTES + ").");
+  if (/^0+$/.test(sha)) return null; // intent-to-add：内容还没进 index
+  const blob = await runCli("git", ["cat-file", "blob", sha], { cwd });
+  if (!blob.ok) {
+    throw new Error("reading blob " + sha.slice(0, 7) + " for " + rel + " failed: " + (blob.message || ""));
   }
-  return { content: fs.readFileSync(abs), mode: stat.mode & 0o111 ? "100755" : "100644" };
+  const content = blob.stdoutBytes && blob.stdoutBytes.length ? blob.stdoutBytes : Buffer.from(blob.stdout || "", "utf8");
+  if (content.length > MAX_FILE_BYTES) {
+    throw new Error("file too large for an API commit: " + rel + " (" + content.length + " bytes; limit " + MAX_FILE_BYTES + ").");
+  }
+  return { content, mode };
 }
 
 /** 变更集：paths 给定则按工作区相对 HEAD，否则按 index（已暂存）。 */
@@ -239,6 +235,14 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
     );
   }
 
+  // paths 模式先入 index：内容从 index 取（见 readStagedFile），不读文件系统。
+  if (paths.length) {
+    const addR = await runCli("git", ["add", "--", ...paths], { cwd });
+    if (!addR.ok) {
+      throw new Error("staging the given paths failed (git add):\n" + ((addR.stderr || "") + "\n" + (addR.stdout || "")).trim());
+    }
+  }
+
   const changes = await collectChanges(cwd, paths);
   if (changes.length === 0) {
     throw new Error("nothing to commit: no staged files and no changes under the given paths.");
@@ -262,9 +266,9 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   const uploadable = [];
   for (const c of changes) {
     if (c.status === "D") continue;
-    const file = readWorkingFile(cwd, c.path);
+    const file = await readStagedFile(cwd, c.path);
     if (!file) {
-      throw new Error("cannot read " + c.path + " from the working tree (deleted after the change set was computed?).");
+      throw new Error("cannot read " + c.path + " from the index (deleted after the change set was computed?).");
     }
     uploadable.push({ path: c.path, ...file });
   }
