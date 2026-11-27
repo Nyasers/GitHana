@@ -376,7 +376,7 @@ function GitHanaSettings() {
 
   const commitPref = prefs.data || {
     defaultVia: "local",
-    coAuthors: { local: ["hanaagent"], api: ["user", "hanaagent"] },
+    coAuthors: ["user", "hanaagent"],
   };
 
   const saveCommitPrefs = useCallback(
@@ -395,10 +395,9 @@ function GitHanaSettings() {
 
   const toggleCoAuthor = useCallback(
     (key) => {
-      const via = commitPref.defaultVia;
-      const current = commitPref.coAuthors[via] || [];
+      const current = commitPref.coAuthors || [];
       const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
-      saveCommitPrefs({ coAuthors: { [via]: next } });
+      saveCommitPrefs({ coAuthors: next });
     },
     [commitPref, saveCommitPrefs],
   );
@@ -1059,7 +1058,7 @@ function GitHanaSettings() {
           control={
             <Inline gap="sm" align="center" wrap>
               {CO_AUTHOR_KEYS.map((key) => {
-                const on = (commitPref.coAuthors[commitPref.defaultVia] || []).includes(key);
+                const on = (commitPref.coAuthors || []).includes(key);
                 return (
                   <Inline key={key} gap="sm" align="center">
                     <Toggle ariaLabel={CO_AUTHOR_LABELS[key]} checked={on} onChange={() => toggleCoAuthor(key)} />
@@ -1069,7 +1068,7 @@ function GitHanaSettings() {
               })}
             </Inline>
           }
-          hint={"按「" + (commitPref.defaultVia === "local" ? "本地提交" : "App bot") + "」保存；作者本身不会重复署名。"}
+          hint="作者本身不会重复署名：本地提交时作者就是你，「用户」那一项会自动略过。"
         />
         {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>

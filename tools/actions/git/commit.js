@@ -231,7 +231,7 @@ export async function run(input, ctx, { label }) {
   const author = via === "api" ? "githana-bot" : "user";
 
   // 署名组合来自设置页；作者本身不重复署名。
-  const coAuthors = commitPrefs.coAuthors[via].filter((k) => k !== author);
+  const coAuthors = commitPrefs.coAuthors.filter((k) => k !== author);
 
   // paths："字符串数组"由 schema 保证；这里只做逐项的语义规则（空项、必须相对 cwd）。
   let paths = [];
