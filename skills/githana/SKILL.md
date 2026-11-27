@@ -110,12 +110,50 @@ parameter list). Parameter shapes are whatever the tool's own `parameters` say.
 | action | When to use | Key parameters |
 |---|---|---|
 | `exec` | Passthrough for any git subcommand: local operations the common verbs do not cover (`pull` / `stash` / `checkout -b` / `show` / `log --stat`). **It appends no signature**, pure passthrough | `cwd` required; `args` required (array, no shell interpolation) |
-| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Automatic CoA + OpenPGP signing | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` |
+| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Automatic CoA + OpenPGP signing; `via="api"` produces a bot commit signed by GitHub | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` / `coAuthors` / `via` / `repo` / `branch` |
 | `push` | When local commits are to be sent to the remote. Authenticates with the App token when logged in (see "Remote credentials" below) | `cwd` required; `branch` / `remote` / `setUpstream` / `force` / `dryRun` |
 
 The dividing line between `commit` and `exec` is **signature governance**: to get CoA and signing use
 `commit`, to get git's raw behaviour use `exec`. Read-only details such as `git diff` also go through
 `exec` (`commit` carries no diff output).
+
+**Author.** The author follows `via`: `local` (default) is the isolated gitconfig identity and keeps
+the OpenPGP signature; `api` is `githana-app[bot]` and GitHub signs the commit automatically
+(Verified). There is no local bot-author mode: a local bot commit can only be unsigned or
+unverified, which the API channel already covers.
+
+**Credit combination (`coAuthors`).** Independent of `author`, `coAuthors` chooses the
+`Co-authored-by` trailers:
+
+| value | entity credited in `Co-authored-by` |
+|---|---|
+| `user` | the isolated gitconfig identity (name/email read at commit time) |
+| `hanaagent` | `HanaAgent <313794804+HanaAgent@users.noreply.github.com>` — the official collaboration account |
+| `githana-bot` | `githana-app[bot] <340878445+githana-app[bot]@users.noreply.github.com>` — the GitHana App bot |
+
+The value is an array, so every combination is expressible. Default: `["hanaagent"]` for a local
+commit, `["user","hanaagent"]` for `via="api"`. Pass `[]` for no trailer. An entry equal to the
+author is dropped (an author is not its own co-author). Trailers are written in the table order, and
+any `Co-authored-by` line already present in `message` is replaced by the selection (the discarded
+lines are returned as a warning).
+
+**Bot commit with a Verified signature (`via="api"`).** GitHub signs a commit automatically only
+when the request is authenticated as the App and carries no custom author, committer or signature.
+A local `git commit` with `author="githana-bot"` therefore cannot be verified. `via="api"` creates
+the commit through the Git Data API instead:
+
+- the token issuer defaults to the public service; the client authenticates with the signed-in
+  GitHub user token, and the issuer checks push permission on the target repository before issuing
+  a token. The App key lives only on the issuer (`deploy/githana-token-server.mjs`);
+- the App must be installed on the repository with `Contents: write`;
+- the local branch must already equal the remote tip, otherwise the call is refused to avoid forking;
+- changes are read from the working tree (`paths` given) or from the index (no `paths`), uploaded as
+  blobs, and committed with no custom author; the author is always the bot and the user appears only
+  through `coAuthors`;
+- after the commit, the local branch is fast-forwarded (fetch + `merge --ff-only`).
+
+`amend` and `allowEmpty` are not supported with `via="api"`. The response reports whether GitHub
+marked the commit Verified (`details.verified`).
 
 ### githana_repo (repositories)
 
@@ -139,6 +177,11 @@ the former, to change code use the latter.
 
 ### githana_pr (Pull Requests)
 
+PR **authors cannot be chosen**: a PR is always created by the signed-in user's token. The bot
+identity is available only where GitHub accepts an App token for that object: `comment` takes
+`as="githana-bot"` (requires the token issuer configured in Settings), which makes the comment
+author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`.
+
 | action | When to use | Key parameters |
 |---|---|---|
 | `view` | **Look at** one PR's details (including reviews): when you need the body, review state, merge state | `prNumber` (default = the PR associated with the current branch, in which case `cwd` is needed) |
@@ -151,7 +194,7 @@ the former, to change code use the latter.
 | `ready` | The **state-bit toggle** between draft PR ↔ ready for review (`undo=true` flips it back to a draft). Changing the title/body is not it | `prNumber`; `undo` |
 | `merge` | Merge (**irreversible**). To abandon the changes use `close` | `prNumber` required; `method` (`merge` / `squash` / `rebase`); `deleteBranch` |
 | `review` | Submit a **review verdict** (approve / request changes / leave comments), optionally with inline comments | `event` required; `body` (required for `request-changes`); `comments[]` |
-| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required |
+| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required; `as` (`user` default / `githana-bot`) |
 | `close` | Close a PR (restorable with `reopen`). **Deletes neither the branch nor history** | `prNumber` may be omitted |
 | `reopen` | Reopen a closed PR | `prNumber` may be omitted |
 | `edit` | Change a PR's **metadata**: title / body / base branch / state bit | `title` / `body` / `base` / `state` — give at least one |
@@ -175,7 +218,7 @@ whole check-run set on the PR head (GitHub App checks such as CodeRabbit include
 | `status` | Issue status at a glance (reports state only, does not fetch the body or comments) | `issueNumber` required |
 | `create` | Create a new issue | `title` required; `body` / `labels` / `assignees` |
 | `edit` | Change title / body / labels / assignees / milestone | `issueNumber` required; `labels` (whole replacement) is mutually exclusive with `addLabels` / `removeLabels` |
-| `comment` | Add a comment to an issue | `body` required |
+| `comment` | Add a comment to an issue | `body` required; `as` (`user` default / `githana-bot`) |
 | `close` / `reopen` | Close / reopen (optionally with one explanatory comment attached; comments first, then changes the state) | `issueNumber`; `comment` |
 | `delete` | Delete an issue (**irreversible**, requires `confirm=true`) | `issueNumber` required; `confirm` |
 | `develop` | **Create a linked development branch** from the issue (branch name defaults to `<number>-<title-in-hyphenated-form>`) | `issueNumber` required; `name` / `base` |

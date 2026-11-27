@@ -123,9 +123,13 @@ export function requireAuth(label) {
 /**
  * 解析仓库上下文（repo 显式优先，否则从 cwd 的 git remote 推断）。
  *
+ * @param {object} input
+ * @param {string} label
+ * @param {{ skipAuth?: boolean }} [options] skipAuth 供 App 身份通道使用：bot 评论不需要
+ *   用户 OAuth 令牌（签发服务即可），不该被「未登录」拦住。
  * @returns {{ error: string } | { repo: string, repoLabel: string, cwd: string, timeoutSec: * }}
  */
-export async function resolveContext(input, label) {
+export async function resolveContext(input, label, { skipAuth = false } = {}) {
   const repoRes = parseRepo(input?.repo);
   if (repoRes && repoRes.error) return { error: label + " invalid arguments: " + repoRes.error };
 
@@ -155,8 +159,11 @@ export async function resolveContext(input, label) {
 
   // 凭据前置检查：令牌由 rest.js 从进程缓存取（DPAPI 解密结果）。这里先判一次，
   // 好给出比 HTTP 401 更直接的引导——只有 OAuth 一条路，没有 keyring 兜底。
-  const authErr = requireAuth(label);
-  if (authErr) return { error: authErr };
+  // skipAuth 给 App 身份通道：bot 请求用 installation token，不依赖用户登录。
+  if (!skipAuth) {
+    const authErr = requireAuth(label);
+    if (authErr) return { error: authErr };
+  }
 
   return { repo, repoLabel, cwd, timeoutSec };
 }
