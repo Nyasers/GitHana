@@ -125,7 +125,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   （报 `git: 'remote-githana' is not a git command`），所以由 git for Windows 自带的 msys sh
   解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
 - 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
-  **不进** git 子进程的 env：helper 自己读 `<dataDir>/credential.json` 解 DPAPI（`lib/dpapi.js`）。
+  **不进** git 子进程的 env：helper 自己读 `data.db` 的 `secret/credential` 记录解 DPAPI（`lib/dpapi.js`）。
 - 不改主机文件：上面那些前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
   `git remote -v` 看到的仍是原 URL。
 - 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
@@ -167,7 +167,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | GitHub 域 | gh CLI（外部二进制） | 随包 REST worker（Node 内置 fetch，见「GitHub 通道」） |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
-| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`credential.json`，`kind: "oauth"`），不进宿主设置表 |
+| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`data.db` 的 `secret/credential`，`kind: "oauth"`），不进宿主设置表 |
 
 `tools/actions/` 与 `tools/lib/` 的实现基本原样复用：`app.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给各 action 的 `run(input, ctx, options)`，因此实现代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
@@ -231,7 +231,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   活着，重新发起会拿到新的 flow，旧的不影响新的）。
 
 令牌**不进** `contributes.settings`，因此不会以明文出现在 `user/preferences.json`。
-它由 App 自己的加密后端写进数据目录 `<dataDir>/credential.json`：
+它由 App 自己的加密后端写进数据目录的 `data.db`（`secret/credential` 记录）：
 
 ```jsonc
 { "schemaVersion": 2, "kind": "oauth", "backend": "win32-dpapi", "alg": "dpapi-current-user",
@@ -678,7 +678,7 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
   返回结果数组（`githana_pr(action="view")` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
 - **令牌边界不变**：REST 侧仍只在 App 进程内存与 worker 之间流转（经 stdin 传，更不进宿主 IPC）。
-  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `<dataDir>/credential.json` 解 DPAPI，
+  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `data.db` 的 `secret/credential` 解 DPAPI，
   见「远端凭据（git 传输层）」）：两条都不落磁盘明文、不进宿主设置表。
   OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
 
@@ -766,7 +766,7 @@ PR 作者不能选（永远是用已登录用户令牌创建的）。
 任何 gpg 二进制：
 
 1. **keygen 侧**：`lib/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
-   加密落盘（与 `credential.json` 同一套后端抽象，见 `lib/secret.js` / `lib/dpapi.js`）。
+   加密落盘（与 OAuth 凭据同一套后端抽象，见 `lib/secret.js` / `lib/dpapi.js`）。
 2. **签名侧（git）**：隔离 gitconfig 写 `user.signingkey` / `commit.gpgsign=true`；`gpg.program` **不写文件**，
    由 `buildBinEnv` 每次 spawn 按当前安装现算并用 `GIT_CONFIG_*` 注入，同时注入
    `GIT_CONFIG_GLOBAL` / `GIT_TERMINAL_PROMPT=0` 与 `GITHANA_KEY_FILE`（后者告诉 shim 密钥在哪）。
@@ -782,4 +782,4 @@ shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
 GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧由 remote helper 自读
-`<dataDir>/credential.json` 解 DPAPI，见「远端凭据（git 传输层）」）。
+`data.db` 的 `secret/credential` 解 DPAPI，见「远端凭据（git 传输层）」）。

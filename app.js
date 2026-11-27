@@ -61,6 +61,7 @@ import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
 import { registerServices, readStatus } from "./lib/services.js";
 import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
+import { closeDatabases } from "./lib/db.js";
 import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
 import { killLiveChildren } from "./tools/lib/exec.js";
 import { runCli } from "./tools/lib/exec.js";
@@ -237,6 +238,7 @@ export function apply(ctx) {
     // 留着定时器只会往一个已经换代的任务面上写。**宿主任务记录不动**——它是恢复的事实源，
     // 下一个实例会在 apply 里用 ctx.tasks.list() 把未终结的记录接回去（见 tools/lib/tasks.js）。
     try { stopAllPollers(); } catch { /* 忽略 */ }
+    try { closeDatabases(); } catch { /* 忽略 */ }
     // 再尝试收掉本实例起的子进程。Windows 不会因为父进程退出就杀掉子进程，漏了这一步
     // 它们会成孤儿继续写磁盘，而任务记录已被推成终态——“任务已终止、活儿还在跑”。
     //

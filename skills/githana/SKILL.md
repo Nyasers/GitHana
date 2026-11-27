@@ -691,7 +691,7 @@ Git actions that access github.com (`push` / `fetch` / `pull` / `clone` / `ls-re
 - Tokens and private keys **do not enter** tool return values, logs or settings-page echoes. GitHub
   requests are sent directly in a subprocess by the bundled REST worker, with the token passed to the
   worker over stdin; on the git side the token is read by the remote helper itself from
-  `<dataDir>/credential.json` and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
+  `data.db` (`secret/credential`) and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
   the command line or config files either). **Upload / download URLs contain no token either** —
   credentials go in the `Authorization` header.
 - **The binary channel's reads and writes are done on the App's behalf by the worker**: at spawn time
