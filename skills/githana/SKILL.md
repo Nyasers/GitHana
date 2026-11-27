@@ -143,9 +143,10 @@ when the request is authenticated as the App and carries no custom author, commi
 A local `git commit` as the bot therefore cannot be verified. The App bot channel creates the commit
 through the Git Data API instead:
 
-- the token issuer defaults to the public service; the client authenticates with the signed-in
-  GitHub user token, and the issuer checks push permission on the target repository before issuing
-  a token. The App key lives only on the issuer (`deploy/githana-token-server.mjs`);
+- the token issuer is the fixed public service (`ISSUER_URL` in `lib/app-auth.js`); the client
+  authenticates with the signed-in GitHub user token, and the issuer checks push permission on the
+  target repository before issuing a token. The App key lives only on the issuer
+  (`deploy/githana-token-server.mjs`);
 - the App must be installed on the repository with `Contents: write`;
 - the local branch must already equal the remote tip, otherwise the call is refused to avoid forking;
 - changes are read from the working tree (`paths` given) or from the index (no `paths`), uploaded as
@@ -180,7 +181,7 @@ the former, to change code use the latter.
 
 PR **authors cannot be chosen**: a PR is always created by the signed-in user's token. The bot
 identity is available only where GitHub accepts an App token for that object: `comment` takes
-`as="githana-bot"` (requires the token issuer configured in Settings), which makes the comment
+`as="githana-bot"` (uses the public token issuer), which makes the comment
 author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`.
 
 | action | When to use | Key parameters |

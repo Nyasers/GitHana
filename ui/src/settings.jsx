@@ -322,8 +322,6 @@ function GitHanaSettings() {
 
   // 令牌签发服务（私钥只在服务器上）
   const [issuer, setIssuer] = useState({ loading: true, data: null, error: null });
-  const [issuerUrl, setIssuerUrl] = useState("");
-  const [issuerMsg, setIssuerMsg] = useState(null);
 
   // 高级与诊断区：默认折叠，只展示用户要操心的两条主线。
   const [accountDetailOpen, setAccountDetailOpen] = useState(false);
@@ -350,7 +348,6 @@ function GitHanaSettings() {
     try {
       const data = await getJson("actions/token-issuer");
       setIssuer({ loading: false, data, error: null });
-      setIssuerUrl(data && data.url ? data.url : "");
     } catch (e) {
       setIssuer({ loading: false, data: null, error: String((e && e.message) || e) });
     }
@@ -359,35 +356,6 @@ function GitHanaSettings() {
   useEffect(() => {
     loadIssuer();
   }, [loadIssuer]);
-
-  const saveIssuer = useCallback(async () => {
-    if (!issuerUrl.trim()) {
-      setIssuerMsg("服务地址不能为空（例如 https://githana-token.example.com）。");
-      return;
-    }
-    setIssuerMsg(null);
-    try {
-      const r = await postJson("actions/token-issuer", { url: issuerUrl.trim() });
-      setIssuerMsg("已保存签发服务：" + ((r.issuer && r.issuer.url) || issuerUrl.trim()));
-      await loadIssuer();
-    } catch (e) {
-      setIssuerMsg(String((e && e.message) || e));
-    }
-  }, [issuerUrl, loadIssuer]);
-
-  const resetIssuer = useCallback(async () => {
-    const fallback = (issuer.data && issuer.data.defaultUrl) || "";
-    if (!fallback) return;
-    setIssuerUrl(fallback);
-    setIssuerMsg(null);
-    try {
-      await postJson("actions/token-issuer", { url: fallback });
-      setIssuerMsg("已恢复默认签发服务。");
-      await loadIssuer();
-    } catch (e) {
-      setIssuerMsg(String((e && e.message) || e));
-    }
-  }, [issuer.data, loadIssuer]);
 
   // 提交署名偏好（非机密）：工具没显式传 via / coAuthors 时的默认值。
   const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
@@ -1061,31 +1029,10 @@ function GitHanaSettings() {
           }
         />
         <SettingRow
-          label="服务地址"
-          control={
-            <Inline gap="sm" align="center" wrap>
-              <input
-                className="gh-input"
-                value={issuerUrl}
-                onChange={(e) => setIssuerUrl(e.target.value)}
-                placeholder="https://githana-token.example.com"
-                spellCheck={false}
-              />
-              <Button variant="primary" onClick={saveIssuer}>
-                保存
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={resetIssuer}
-                disabled={Boolean(issuer.data && issuer.data.isDefault)}
-              >
-                恢复默认
-              </Button>
-            </Inline>
-          }
-          hint="默认公共实例 https://githana.nyase.ru（GitHana 官方）。它校验你的 GitHub 令牌与 push 权限后签发 installation token。"
+          label="签发服务"
+          control={<MonoText>{issuer.data && issuer.data.url ? issuer.data.url : "—"}</MonoText>}
+          hint="地址固定在客户端里；自建服务需要改 lib/app-auth.js 的 ISSUER_URL 并重新打包。"
         />
-        {issuerMsg ? <pre className="gh-out">{issuerMsg}</pre> : null}
       </SettingsSection>
 
       <SettingsSection

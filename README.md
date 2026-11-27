@@ -743,7 +743,8 @@ GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名�
 
 - 私钥只放在公共签发服务上：客户端默认用 `https://githana.nyase.ru`，不需要配置；服务端用用户的
   GitHub 令牌验明身份、校验他对目标仓库有 push 权限，再签发 installation token。每个用户只需把
-  `githana-app` 安装到目标仓库。self-host 时可在设置页改成自己的服务地址，部署见 `deploy/README.md`。
+  `githana-app` 安装到目标仓库。地址写死在 `lib/app-auth.js`；self-host 需要改那个常量并重新
+  打包，部署见 `deploy/README.md`。
 - 使用公共签发服务意味着那张 GitHub 用户令牌会发送到 `githana.nyase.ru` 做身份与 push 权限校验：
   服务运营方（或服务被攻破时）可以拿它代你调用 GitHub。服务端代码就在 `deploy/` 里，自建即可
   完全避开这个信任假设；签发地址只接受 https（回环地址除外）。
