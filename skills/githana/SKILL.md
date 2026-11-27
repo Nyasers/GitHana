@@ -110,20 +110,23 @@ parameter list). Parameter shapes are whatever the tool's own `parameters` say.
 | action | When to use | Key parameters |
 |---|---|---|
 | `exec` | Passthrough for any git subcommand: local operations the common verbs do not cover (`pull` / `stash` / `checkout -b` / `show` / `log --stat`). **It appends no signature**, pure passthrough | `cwd` required; `args` required (array, no shell interpolation) |
-| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Automatic CoA + OpenPGP signing; `via="api"` produces a bot commit signed by GitHub | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` / `coAuthors` / `via` / `repo` / `branch` |
+| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Author and Co-authored-by come from the settings page; automatic signing | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` / `repo` / `branch` |
 | `push` | When local commits are to be sent to the remote. Authenticates with the App token when logged in (see "Remote credentials" below) | `cwd` required; `branch` / `remote` / `setUpstream` / `force` / `dryRun` |
 
 The dividing line between `commit` and `exec` is **signature governance**: to get CoA and signing use
 `commit`, to get git's raw behaviour use `exec`. Read-only details such as `git diff` also go through
 `exec` (`commit` carries no diff output).
 
-**Author.** The author follows `via`: `local` (default) is the isolated gitconfig identity and keeps
-the OpenPGP signature; `api` is `githana-app[bot]` and GitHub signs the commit automatically
-(Verified). There is no local bot-author mode: a local bot commit can only be unsigned or
-unverified, which the API channel already covers.
+**Author and credits come from the settings page.** The commit channel and the `Co-authored-by`
+set are configured in GitHana's 「提交署名」 section and apply to every commit. The tool does not accept
+`via` or `coAuthors`; passing either is an argument error.
 
-**Credit combination (`coAuthors`).** Independent of `author`, `coAuthors` chooses the
-`Co-authored-by` trailers:
+| channel | author | signature |
+|---|---|---|
+| 本地提交 (local) | the isolated gitconfig identity | OpenPGP, this App's signing key |
+| App bot | `githana-app[bot]` | created through the GitHub API, signed by GitHub (Verified) |
+
+The credit set is an array, so every combination is expressible:
 
 | value | entity credited in `Co-authored-by` |
 |---|---|
@@ -131,16 +134,14 @@ unverified, which the API channel already covers.
 | `hanaagent` | `HanaAgent <313794804+HanaAgent@users.noreply.github.com>` — the official collaboration account |
 | `githana-bot` | `githana-app[bot] <340878445+githana-app[bot]@users.noreply.github.com>` — the GitHana App bot |
 
-The value is an array, so every combination is expressible. Default: `["hanaagent"]` for a local
-commit, `["user","hanaagent"]` for `via="api"`. Pass `[]` for no trailer. An entry equal to the
-author is dropped (an author is not its own co-author). Trailers are written in the table order, and
-any `Co-authored-by` line already present in `message` is replaced by the selection (the discarded
-lines are returned as a warning).
+An entry equal to the author is dropped (an author is not its own co-author). Trailers are written
+in the table order, and any `Co-authored-by` line already present in `message` is replaced by the
+selection (the discarded lines are returned as a warning).
 
-**Bot commit with a Verified signature (`via="api"`).** GitHub signs a commit automatically only
+**Bot commit with a Verified signature (App bot channel).** GitHub signs a commit automatically only
 when the request is authenticated as the App and carries no custom author, committer or signature.
-A local `git commit` with `author="githana-bot"` therefore cannot be verified. `via="api"` creates
-the commit through the Git Data API instead:
+A local `git commit` as the bot therefore cannot be verified. The App bot channel creates the commit
+through the Git Data API instead:
 
 - the token issuer defaults to the public service; the client authenticates with the signed-in
   GitHub user token, and the issuer checks push permission on the target repository before issuing
@@ -149,11 +150,11 @@ the commit through the Git Data API instead:
 - the local branch must already equal the remote tip, otherwise the call is refused to avoid forking;
 - changes are read from the working tree (`paths` given) or from the index (no `paths`), uploaded as
   blobs, and committed with no custom author; the author is always the bot and the user appears only
-  through `coAuthors`;
+  through the settings page's credit set;
 - after the commit, the local branch is fast-forwarded (fetch + `merge --ff-only`).
 
-`amend` and `allowEmpty` are not supported with `via="api"`. The response reports whether GitHub
-marked the commit Verified (`details.verified`).
+`amend` and `allowEmpty` are not supported on the App bot channel. The response reports whether
+GitHub marked the commit Verified (`details.verified`).
 
 ### githana_repo (repositories)
 

@@ -39,6 +39,10 @@ import "@hana/app-sdk/components.css";
 import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
 
+/** 共同作者的固定顺序与展示名（与 tools/actions/git/commit.js 的 CREDIT_KEYS 一致）。 */
+const CO_AUTHOR_KEYS = ["user", "hanaagent", "githana-bot"];
+const CO_AUTHOR_LABELS = { user: "用户", hanaagent: "HanaAgent", "githana-bot": "App bot" };
+
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
 function apiBase() {
   const m = /^(\/api\/apps\/[^/]+\/)ui(?:\/|$)/.exec(window.location.pathname || "");
@@ -325,9 +329,6 @@ function GitHanaSettings() {
   const [envOpen, setEnvOpen] = useState(false);
 
   const botReady = Boolean(issuer.data && issuer.data.url);
-  const botSource = issuer.data && issuer.data.url
-    ? (issuer.data.isDefault ? "公共签发服务 · " : "自定义服务 · ") + issuer.data.url
-    : "未配置";
 
   const refresh = useCallback(async () => {
     try {
@@ -371,6 +372,66 @@ function GitHanaSettings() {
       setIssuerMsg(String((e && e.message) || e));
     }
   }, [issuerUrl, loadIssuer]);
+
+  const resetIssuer = useCallback(async () => {
+    const fallback = (issuer.data && issuer.data.defaultUrl) || "";
+    if (!fallback) return;
+    setIssuerUrl(fallback);
+    setIssuerMsg(null);
+    try {
+      await postJson("actions/token-issuer", { url: fallback });
+      setIssuerMsg("已恢复默认签发服务。");
+      await loadIssuer();
+    } catch (e) {
+      setIssuerMsg(String((e && e.message) || e));
+    }
+  }, [issuer.data, loadIssuer]);
+
+  // 提交署名偏好（非机密）：工具没显式传 via / coAuthors 时的默认值。
+  const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
+  const [prefsMsg, setPrefsMsg] = useState(null);
+
+  const loadPrefs = useCallback(async () => {
+    try {
+      const data = await getJson("settings/prefs");
+      setPrefs({ loading: false, data: (data && data.commit) || null, error: null });
+    } catch (e) {
+      setPrefs({ loading: false, data: null, error: String((e && e.message) || e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPrefs();
+  }, [loadPrefs]);
+
+  const commitPref = prefs.data || {
+    defaultVia: "local",
+    coAuthors: { local: ["hanaagent"], api: ["user", "hanaagent"] },
+  };
+
+  const saveCommitPrefs = useCallback(
+    async (patch) => {
+      setPrefsMsg(null);
+      try {
+        const r = await postJson("settings/prefs", { commit: patch });
+        setPrefs({ loading: false, data: (r && r.commit) || commitPref, error: null });
+        setPrefsMsg("已保存。");
+      } catch (e) {
+        setPrefsMsg(String((e && e.message) || e));
+      }
+    },
+    [commitPref],
+  );
+
+  const toggleCoAuthor = useCallback(
+    (key) => {
+      const via = commitPref.defaultVia;
+      const current = commitPref.coAuthors[via] || [];
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      saveCommitPrefs({ coAuthors: { [via]: next } });
+    },
+    [commitPref, saveCommitPrefs],
+  );
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -985,32 +1046,87 @@ function GitHanaSettings() {
 
       <SettingsSection
         title="App 身份（bot）"
-        description="以 githana-app[bot] 提交或评论。把 GitHub App 安装到目标仓库、并拥有该仓库写权限即可，私钥在签发服务上。"
+        description="GitHana 绑定的就是这个 GitHub App（githana-app）。bot 身份由它的 installation token 签发，私钥只在签发服务上。"
       >
         <SettingRow
           label="状态"
           control={issuer.loading ? <MonoText>读取中…</MonoText> : <StatusText ok={botReady} on="已配置" off="未配置" />}
-          hint={issuer.error || (botReady ? "签发来源：" + botSource : "还没有配置签发服务。")}
+          hint={
+            issuer.error ||
+            (botReady
+              ? "App 需安装到目标仓库并有写权限；签发服务会先校验你的 push 权限。"
+              : "还没有配置签发服务，bot 提交与评论不可用。")
+          }
         />
         <SettingRow
           label="服务地址"
           control={
-            <input
-              className="gh-input"
-              value={issuerUrl}
-              onChange={(e) => setIssuerUrl(e.target.value)}
-              placeholder="https://githana-token.example.com"
-              spellCheck={false}
-            />
+            <Inline gap="sm" align="center" wrap>
+              <input
+                className="gh-input"
+                value={issuerUrl}
+                onChange={(e) => setIssuerUrl(e.target.value)}
+                placeholder="https://githana-token.example.com"
+                spellCheck={false}
+              />
+              <Button variant="primary" onClick={saveIssuer}>
+                保存
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={resetIssuer}
+                disabled={Boolean(issuer.data && issuer.data.isDefault)}
+              >
+                恢复默认
+              </Button>
+            </Inline>
           }
-          hint="默认使用公共签发服务；self-host 时填自己的地址。客户端用自己的 GitHub 登录身份认证。使用公共实例时，那张 GitHub 令牌会发送到该服务做身份与 push 权限校验，它据此可以代你调用 GitHub。"
+          hint="默认公共实例 https://githana.nyase.ru（GitHana 官方）。它校验你的 GitHub 令牌与 push 权限后签发 installation token。"
         />
-        <Inline gap="sm" align="center" wrap>
-          <Button variant="primary" onClick={saveIssuer}>
-            保存
-          </Button>
-        </Inline>
         {issuerMsg ? <pre className="gh-out">{issuerMsg}</pre> : null}
+      </SettingsSection>
+
+      <SettingsSection
+        title="提交署名"
+        description="这里的设定决定每次提交的作者与共同署名，工具调用不能覆盖。"
+      >
+        <SettingRow
+          label="默认提交方式"
+          control={
+            <Inline gap="sm" align="center" wrap>
+              <Button
+                variant={commitPref.defaultVia === "local" ? "primary" : "secondary"}
+                onClick={() => saveCommitPrefs({ defaultVia: "local" })}
+              >
+                本地提交
+              </Button>
+              <Button
+                variant={commitPref.defaultVia === "api" ? "primary" : "secondary"}
+                onClick={() => saveCommitPrefs({ defaultVia: "api" })}
+              >
+                App bot
+              </Button>
+            </Inline>
+          }
+          hint="本地提交由你签名；App bot 通过 GitHub API 生成提交，由 GitHub 代签（Verified）。"
+        />
+        <SettingRow
+          label="默认共同作者"
+          control={
+            <Inline gap="sm" align="center" wrap>
+              {CO_AUTHOR_KEYS.map((key) => {
+                const on = (commitPref.coAuthors[commitPref.defaultVia] || []).includes(key);
+                return (
+                  <Button key={key} variant={on ? "primary" : "secondary"} onClick={() => toggleCoAuthor(key)}>
+                    {CO_AUTHOR_LABELS[key]}
+                  </Button>
+                );
+              })}
+            </Inline>
+          }
+          hint={"按「" + (commitPref.defaultVia === "local" ? "本地提交" : "App bot") + "」保存；作者本身不会重复署名。"}
+        />
+        {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>
 
       <SettingsSection

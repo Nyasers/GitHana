@@ -713,14 +713,15 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 ### 提交人与共同署名
 
-`githana_git(action="commit")` 的署名分两层：
+`githana_git(action="commit")` 的署名分两层，都在设置页的「提交署名」里配：
 
-- 作者由 `via` 决定：`local`（默认）是隔离 gitconfig 里的用户，提交带 OpenPGP 签名；`api` 是
+- 提交通道：本地提交的作者是隔离 gitconfig 里的用户，提交带 OpenPGP 签名；App bot 的作者是
   `githana-app[bot]`，由 GitHub 生成提交并代签（Verified）。
-- `coAuthors`：`Co-authored-by` 的组合，值可取 `user` / `hanaagent` / `githana-bot`，任意组合；
-  缺省在本地提交时是 `["hanaagent"]`，在 `via="api"` 时是 `["user","hanaagent"]`；`[]` 表示不写
-  trailer。与作者相同的项会被去掉（不自署）。已有的 trailer 由工具接管：抹掉后按所选组合重写，
+- 默认共同署名：`Co-authored-by` 的组合，可取 `user` / `hanaagent` / `githana-bot`，按当前
+  通道分别保存；与作者相同的项会被去掉（不自署）。已有的 trailer 由工具接管：抹掉后按设定重写，
   被丢弃的行以 warning 回传。
+
+工具调用不接受 `via` / `coAuthors`：传了会直接报参数错误，署名一律跟随设置。
 
 两个固定实体的身份与用户身份不同源：
 
@@ -737,8 +738,8 @@ PR 作者只能是已登录用户：GitHub 的 PR 作者由发请求的令牌决
 ### API 提交（Verified 的 bot 提交）
 
 本地提交的 bot 作者无法 Verified：bot 账号不能挂签名公钥，用用户密钥签又只会是 Unverified。
-GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名时代签，所以
-`githana_git(action="commit", via="api")` 改走 Git Data API：
+GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名时代签，所以在设置页选 App bot
+后，commit 改走 Git Data API：
 
 - 私钥只放在公共签发服务上：客户端默认用 `https://githana.nyase.ru`，不需要配置；服务端用用户的
   GitHub 令牌验明身份、校验他对目标仓库有 push 权限，再签发 installation token。每个用户只需把

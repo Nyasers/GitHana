@@ -72,6 +72,12 @@ case_("未知键（例如 amend）拒，不静默当普通提交", () => {
   assert.match(r.error, /unsupported field/);
 });
 
+case_("coAuthors 由设置页决定，服务面不接受", () => {
+  const r = normalizeCommitPayload({ cwd: "/r", coAuthors: ["user"] });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /settings page/);
+});
+
 console.log("[check-services] commitOutcome");
 
 case_("结构化回执（details 里就有事实）→ 直接用，不去解文本", () => {

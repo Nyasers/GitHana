@@ -38,6 +38,7 @@ import * as params from "../../lib/params.js";
 import { getToolDataDir } from "../../lib/context.js";
 import { runApiCommit } from "./api-commit.js";
 import { getBotIdentity } from "../../../lib/app-auth.js";
+import { readCommitPrefs } from "../../../lib/prefs.js";
 
 export const command = "commit";
 export const summary = "Commit (automatic CoA + signing)";
@@ -64,26 +65,14 @@ export const schema = {
     .boolean()
     .optional()
     .describe("Optional: allow an empty commit (--allow-empty); default false — with no paths and nothing staged it does not create an empty commit but returns guidance"),
-  coAuthors: z
-    .array(z.enum(["user", "hanaagent", "githana-bot"]))
-    .optional()
-    .describe(
-      'Optional: co-authors credited in the Co-authored-by trailers. Values: "user" (the repository git identity), "hanaagent" (HanaAgent) and "githana-bot" (the GitHana App bot account githana-app[bot]); any combination works. Default: ["hanaagent"] for a local commit, ["user","hanaagent"] for via="api". Pass [] for no trailer. An entry equal to the author is dropped.',
-    ),
-  via: z
-    .enum(["local", "api"])
-    .optional()
-    .describe(
-      'Optional: how the commit is created. "local" (default) runs git commit in the working tree. "api" creates the commit through the Git Data API as githana-app[bot]; GitHub signs it automatically (Verified). "api" requires a configured App identity (local private key or token issuer) and a local branch that already matches the remote tip, and does not support amend/allowEmpty.',
-    ),
   repo: z
     .string()
     .optional()
-    .describe('Optional (via="api"): owner/name or a github.com URL; defaults to the origin remote of cwd'),
+    .describe('Optional when the commit channel is the App bot: owner/name or a github.com URL; defaults to the origin remote of cwd'),
   branch: z
     .string()
     .optional()
-    .describe('Optional (via="api"): target branch; defaults to the current branch'),
+    .describe('Optional when the commit channel is the App bot: target branch; defaults to the current branch'),
 };
 
 export const sideEffect = {
@@ -99,14 +88,10 @@ export const sideEffect = {
 const CREDITS = {
   hanaagent: { name: "HanaAgent", email: "313794804+HanaAgent@users.noreply.github.com" },
 };
-/** 全部可选 key 的固定顺序（固定顺序让 trailer 不随参数顺序抖动）。 */
-const CREDIT_KEYS = ["user", "hanaagent", "githana-bot"];
 /** 输出里的作者说明。 */
 const AUTHOR_LABEL = "user (isolated gitconfig identity)";
 /** API 通道的作者说明：签名由 GitHub 代做。 */
 const AUTHOR_LABEL_API = "githana-app[bot] (GitHana App bot, signed by GitHub)";
-/** 缺省组合：本地提交只署 HanaAgent；API 提交把用户一并署上，不把用户挤出署名。 */
-const DEFAULT_CO_AUTHORS = { local: ["hanaagent"], api: ["user", "hanaagent"] };
 
 
 /** 行首无缩进的 Co-authored-by：git 只把这种当 trailer，缩进的是正文。
@@ -228,38 +213,25 @@ export async function run(input, ctx, { label }) {
   const allowEmpty = input?.allowEmpty === true;
   const userMessage = toLf(input?.message ?? "").trimEnd();
 
-  // 提交通道：local（git commit）/ api（GitHub Git Data API，GitHub 代签）。
-  // API 通道的提交人恒为 bot（GitHub 代签的前提是不传自定义 author），也不支持 amend / allowEmpty。
-  const via = input?.via === "api" ? "api" : "local";
+  // 提交通道与署名组合都按设置页的设定，不接受工具参数覆盖。
+  if (input?.via !== undefined || input?.coAuthors !== undefined) {
+    return (
+      label +
+      ' argument error: the commit channel (local / App bot) and the Co-authored-by set come from the GitHana settings page; do not pass "via" or "coAuthors" here.'
+    );
+  }
+  const commitPrefs = readCommitPrefs(getToolDataDir());
+  const via = commitPrefs.defaultVia;
   if (via === "api") {
-    if (amend) return label + ' argument error: amend is not supported with via="api" (an API commit is built on the remote tip). Use via="local".';
-    if (allowEmpty) return label + ' argument error: allowEmpty is not supported with via="api". Use via="local".';
+    if (amend) return label + ' argument error: the settings page selects App-bot commits, which do not support amend (an API commit is built on the remote tip). Switch the channel in the GitHana settings page to commit locally.';
+    if (allowEmpty) return label + ' argument error: the settings page selects App-bot commits, which do not support allowEmpty. Switch the channel in the GitHana settings page to commit locally.';
   }
 
   // 本地通道的作者恒为用户；bot 作者只存在于 API 通道。
   const author = via === "api" ? "githana-bot" : "user";
 
-  // coAuthors：去重并按固定顺序排好（trailer 顺序不随参数顺序抖动）。
-  let coAuthors = DEFAULT_CO_AUTHORS[via];
-  if (input?.coAuthors !== undefined && input?.coAuthors !== null) {
-    if (!Array.isArray(input.coAuthors)) {
-      return label + ' argument error: coAuthors must be an array containing "user", "hanaagent" and/or "githana-bot".';
-    }
-    const picked = new Set();
-    for (const raw of input.coAuthors) {
-      const key = String(raw ?? "").trim().toLowerCase();
-      if (!CREDIT_KEYS.includes(key)) {
-        return (
-          label + ' argument error: coAuthors does not accept "' + String(raw) +
-          '"; allowed values are "user", "hanaagent" and "githana-bot".'
-        );
-      }
-      picked.add(key);
-    }
-    coAuthors = CREDIT_KEYS.filter((k) => picked.has(k));
-  }
-  // 作者既是 commit author，再以同一身份写 Co-authored-by 只是自署：按同一规则去掉。
-  coAuthors = coAuthors.filter((k) => k !== author);
+  // 署名组合来自设置页；作者本身不重复署名。
+  const coAuthors = commitPrefs.coAuthors[via].filter((k) => k !== author);
 
   // paths："字符串数组"由 schema 保证；这里只做逐项的语义规则（空项、必须相对 cwd）。
   let paths = [];
