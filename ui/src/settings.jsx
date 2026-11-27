@@ -995,13 +995,6 @@ function GitHanaSettings() {
             {secret.expiresAt ? (
               <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} />
             ) : null}
-            {secret.refreshExpiresAt ? (
-              <SettingRow
-                label="续期凭证到期"
-                control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>}
-                hint="到期后需重新登录"
-              />
-            ) : null}
             <SettingRow
               label="凭据保护方式"
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
