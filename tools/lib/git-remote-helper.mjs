@@ -109,7 +109,6 @@ const GITHUB_HTTPS_PREFIX = "https://github.com/";
 const DATA_DIR_ENV = "GITHANA_DATA_DIR";
 
 /** 凭据文件（lib/secret.js 的落点）与它记录的加密算法标识。 */
-const SECRET_FILE = "credential.json";
 const DPAPI_ALG = "dpapi-current-user";
 
 /** 请求 GitHub 时的 User-Agent（GitHub 要求非空）。 */
@@ -238,16 +237,7 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  let rec = getCredential(dataDir);
-  if (!rec) {
-    // 兼容尚未迁移的旧文件（迁移由 lib/db.js 在首次读取时完成）。
-    const legacy = path.join(dataDir, SECRET_FILE);
-    try {
-      rec = JSON.parse(fs.readFileSync(legacy, "utf8"));
-    } catch {
-      rec = null;
-    }
-  }
+  const rec = getCredential(dataDir);
   if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
     fail(
       "the local data has no usable OAuth ciphertext (data.db → secret/credential).\n" +
