@@ -99,7 +99,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { dpapiUnprotect } from "../../lib/dpapi.js";
-import { getCredential } from "../../lib/db.js";
+import { getRecord } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
 const GITHUB_HOST = "github.com";
@@ -237,7 +237,7 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  const rec = getCredential(dataDir);
+  const rec = getRecord(dataDir, "credential");
   if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
     fail(
       "the local data has no usable OAuth ciphertext (data.db → secret/credential).\n" +

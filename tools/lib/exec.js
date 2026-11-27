@@ -272,6 +272,9 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {})
       // 结果统一附带 bin 解析信息（可观察性：bundled 还是 system）
       resolve({
         ...value,
+        // 原始字节（不做 CRLF 归一与 utf8 解码）：API 提交上传的 blob 要用它，
+        // 二进制文件与 symlink 的链接目标都得原样保留。
+        stdoutBytes: stdoutCol.bytes(),
         binSource: resolved.source,
         binLabel: resolved.binLabel || null,
       });
@@ -423,6 +426,9 @@ function makeCollector(limit) {
     },
     text() {
       return Buffer.concat(parts).toString("utf8");
+    },
+    bytes() {
+      return Buffer.concat(parts);
     },
   };
 }
