@@ -99,6 +99,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { dpapiUnprotect } from "../../lib/dpapi.js";
+import { getRecord } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
 const GITHUB_HOST = "github.com";
@@ -224,7 +225,7 @@ function msgOf(e) {
 // ───────────────────────────── 凭据 ─────────────────────────────
 
 /**
- * 从 `<dataDir>/credential.json` 解出明文令牌。
+ * 从 data.db 的 secret/credential 记录解出明文令牌。
  *
  * 解不开的每一种情况都给可读原因并退非零——不静默失败、不回落系统凭据（本进程根本不在
  * git 的凭据子系统里）。
@@ -237,19 +238,19 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  const file = path.join(dataDir, SECRET_FILE);
-  let rec = null;
-  try {
-    rec = JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (e) {
-    fail(
-      "failed to read the credential file (" + file + "): " + msgOf(e) + "\n" +
-        "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
-    );
+  let rec = getRecord(dataDir, "secret", "credential");
+  if (!rec) {
+    // 兼容尚未迁移的旧文件（迁移由 lib/db.js 在首次读取时完成）。
+    const legacy = path.join(dataDir, SECRET_FILE);
+    try {
+      rec = JSON.parse(fs.readFileSync(legacy, "utf8"));
+    } catch {
+      rec = null;
+    }
   }
   if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
     fail(
-      "the credential file has no usable OAuth ciphertext (" + file + ").\n" +
+      "the local data has no usable OAuth ciphertext (data.db → secret/credential).\n" +
         "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
