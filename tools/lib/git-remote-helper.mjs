@@ -99,7 +99,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { dpapiUnprotect } from "../../lib/dpapi.js";
-import { getRecord } from "../../lib/db.js";
+import { getCredential } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
 const GITHUB_HOST = "github.com";
@@ -238,7 +238,7 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  let rec = getRecord(dataDir, "secret", "credential");
+  let rec = getCredential(dataDir);
   if (!rec) {
     // 兼容尚未迁移的旧文件（迁移由 lib/db.js 在首次读取时完成）。
     const legacy = path.join(dataDir, SECRET_FILE);
