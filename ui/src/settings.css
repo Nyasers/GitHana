@@ -127,9 +127,11 @@ body {
   word-break: break-all;
 }
 
-/* 单行配置输入框（签发服务地址）。 */
+/* 单行配置输入框（签发服务地址）。和按钮同行时由 flex 吃掉剩余宽度。 */
 .gh-input {
+  flex: 1 1 260px;
   width: 100%;
+  min-width: 220px;
   max-width: 360px;
   box-sizing: border-box;
   padding: 7px 10px;
