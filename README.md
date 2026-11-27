@@ -717,9 +717,9 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 - 提交通道：本地提交的作者是隔离 gitconfig 里的用户，提交带 OpenPGP 签名；App bot 的作者是
   `githana-app[bot]`，由 GitHub 生成提交并代签（Verified）。
-- 默认共同署名：`Co-authored-by` 的组合，可取 `user` / `hanaagent` / `githana-bot`，按当前
-  通道分别保存；与作者相同的项会被去掉（不自署）。已有的 trailer 由工具接管：抹掉后按设定重写，
-  被丢弃的行以 warning 回传。
+- 默认共同署名：`Co-authored-by` 的组合，可取 `user` / `hanaagent` / `githana-bot`，只有一套，
+  两种通道共用；与作者相同的项会被去掉（不自署，所以本地提交时「用户」那项自动略过）。已有的
+  trailer 由工具接管：抹掉后按设定重写，被丢弃的行以 warning 回传。
 
 工具调用不接受 `via` / `coAuthors`：传了会直接报参数错误，署名一律跟随设置。
 
