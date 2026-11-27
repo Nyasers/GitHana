@@ -72,7 +72,8 @@ curl -sS http://127.0.0.1:8787/health
 | Path | 留空 |
 | Service | `HTTP` → `127.0.0.1:8787` |
 
-保存后 `https://githana-token.<domain>` 就是签发地址。GitHana 设置页只需要填这个地址。
+保存后 `https://githana-token.<domain>` 就是签发地址。GitHana 客户端把地址写在
+`lib/app-auth.js` 的 `ISSUER_URL`；自建时改这一处并重新打包。
 
 ## 接口
 
