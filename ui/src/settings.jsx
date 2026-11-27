@@ -29,11 +29,13 @@ import {
   Collapse,
   ErrorState,
   Inline,
+  Select,
   SettingRow,
   SettingsPage,
   SettingsSection,
   SettingsStack,
   Tooltip,
+  Toggle,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
 import { hana } from "@hana/app-sdk/ui";
@@ -1093,20 +1095,15 @@ function GitHanaSettings() {
         <SettingRow
           label="默认提交方式"
           control={
-            <Inline gap="sm" align="center" wrap>
-              <Button
-                variant={commitPref.defaultVia === "local" ? "primary" : "secondary"}
-                onClick={() => saveCommitPrefs({ defaultVia: "local" })}
-              >
-                本地提交
-              </Button>
-              <Button
-                variant={commitPref.defaultVia === "api" ? "primary" : "secondary"}
-                onClick={() => saveCommitPrefs({ defaultVia: "api" })}
-              >
-                App bot
-              </Button>
-            </Inline>
+            <Select
+              ariaLabel="默认提交方式"
+              value={commitPref.defaultVia}
+              options={[
+                { value: "local", label: "本地提交（我签名）" },
+                { value: "api", label: "App bot（GitHub 代签）" },
+              ]}
+              onChange={(value) => saveCommitPrefs({ defaultVia: value })}
+            />
           }
           hint="本地提交由你签名；App bot 通过 GitHub API 生成提交，由 GitHub 代签（Verified）。"
         />
@@ -1117,9 +1114,10 @@ function GitHanaSettings() {
               {CO_AUTHOR_KEYS.map((key) => {
                 const on = (commitPref.coAuthors[commitPref.defaultVia] || []).includes(key);
                 return (
-                  <Button key={key} variant={on ? "primary" : "secondary"} onClick={() => toggleCoAuthor(key)}>
-                    {CO_AUTHOR_LABELS[key]}
-                  </Button>
+                  <Inline key={key} gap="sm" align="center">
+                    <Toggle ariaLabel={CO_AUTHOR_LABELS[key]} checked={on} onChange={() => toggleCoAuthor(key)} />
+                    <span className="gh-val">{CO_AUTHOR_LABELS[key]}</span>
+                  </Inline>
                 );
               })}
             </Inline>
