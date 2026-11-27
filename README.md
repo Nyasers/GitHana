@@ -234,12 +234,12 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 它由 App 自己的加密后端写进数据目录的 `data.db`（单表 `store`，`key = credential`）：
 
 ```
-store(key TEXT PRIMARY KEY, value BLOB /* jsonb */, updated_at INTEGER)
+store(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at INTEGER)
   credential  → { schemaVersion, kind, cipher, alg, meta: { login, name, … }, updatedAt }
   commit      → { defaultVia, coAuthors: ["user", "hanaagent"] }
 ```
 
-`value` 是 SQLite 的 jsonb（二进制 JSON，写入 `jsonb(?)`、读出 `json(value)`）。
+`value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。
 gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径直读。
 
 - **令牌保活**：剩余有效期不足 5 分钟时，工具/路由调用前自动用 `refresh_token` 换新
