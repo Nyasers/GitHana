@@ -752,8 +752,9 @@ GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名�
   完全避开这个信任假设；签发地址只接受 https（回环地址除外）。
 - App 需已安装到目标仓库且有 `Contents: write`；
 - 本地分支必须与远端 tip 一致，否则拒绝（避免把远端历史改成分叉）；
-- 变更取自工作树（传 `paths`）或 index（不传），上传 blob 后以 App 身份建 tree / commit，
-  不传 author / committer，GitHub 自动代签；
+- 变更取自 index（传 `paths` 时先 `git add`，不传就用已暂存内容），上传 blob 后以 App 身份建
+  tree / commit，不传 author / committer，GitHub 自动代签；内容一律经 git 读取，不直读文件
+  系统（宿主权限模型只给 App 自己的目录读写权，用户仓库不一定在里面）；
 - 完成后本地分支快进（fetch + merge --ff-only）；`details.verified` 回报 GitHub 的验证结果。
 
 `amend` / `allowEmpty` 在 API 通道不支持。代签链路在 `lib/app-auth.js`（向签发服务换 installation token，进程内缓存）；签发服务在 `deploy/githana-token-server.mjs`。客户端不需要额外共享密钥。
