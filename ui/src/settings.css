@@ -107,24 +107,11 @@ body {
   user-select: all;
 }
 
-/* 公钥正文：完整展开，不滚动。
-
-   它是给人复制的材料：能一眼看到结尾的 -END- 行才算“完整的公钥”，
-   滚动框会让它看起来像被截断了一截。整段高度固定（65 行以内），
-   不会因为内容多少而跳动。 */
-.gh-pubkey {
-  margin: 0;
-  padding: 9px 11px;
+/* 公钥正文：交给 SDK 的 TextArea（滚动与外观跟宿主一致），这里只保证等宽。 */
+.gh-pubkey-input {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
   line-height: 1.5;
-  color: var(--text-muted, #6b6158);
-  background: var(--bg, #f5efe4);
-  border: 1px solid var(--border, #d8cfbe);
-  border-radius: 8px;
-  /* 长行宁可换行也不横滚：armored 文本本身 64 列，窄窗口下要能看全。 */
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 /* 单行配置输入框（签发服务地址）。和按钮同行时由 flex 吃掉剩余宽度。 */
@@ -146,12 +133,11 @@ body {
   color: var(--text-muted, #6b6158);
 }
 
-/* 手动档的输出块（工具原文，保留换行与等宽） */
+/* 手动档的输出块（工具原文，保留换行与等宽）。内容不长，不设滚动：滚动交给宿主的
+   页面容器，避免在卡片里再套一层自己的滚动条。 */
 .gh-out {
   margin: 10px 0 0;
   padding: 9px 11px;
-  max-height: 220px;
-  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
