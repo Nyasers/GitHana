@@ -34,6 +34,9 @@
  *
  * shim 是独立进程，不知道 dataDir。密钥文件路径经 env 传给它（与 REST worker 的令牌
  * 经 stdin 传同理：都不走宿主 IPC、不落磁盘明文）。
+ *
+ * 同理还要传 `GITHANA_KEYRING_WORKER`：私钥是信封格式，解它要读系统钥匙环，而钥匙环只能经
+ * worker 子进程访问（见 lib/envelope.js）。shim 是打包后的单文件，用 env 传 worker 绝对路径最稳。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -47,6 +50,17 @@ export function shimPath() {
 /** 密钥文件（dataDir 下，由 lib/openpgp-key.js 写入）。 */
 export function keyFilePath(dataDir) {
   return path.join(dataDir || "", "gpg.key.bin");
+}
+
+/**
+ * 钥匙环 worker 的位置（交付树 bin/ 下，与 gpg.shim.mjs 同层）。
+ *
+ * 签名 shim 解私钥要用钥匙环里的 KEK，而钥匙环只能经 worker 子进程访问。shim 是打包后的单文件，
+ * 靠 import.meta.url 猜路径不可靠，所以由 bin.js 把它经 GITHANA_KEYRING_WORKER 环境变量传下来——
+ * 与 GITHANA_KEY_FILE 同一手法（shim 是独立进程，不知道 dataDir / 安装位）。
+ */
+export function keyringWorkerPath() {
+  return path.join(pluginRoot(), "bin", "keyring.worker.mjs");
 }
 
 /**

@@ -165,7 +165,7 @@ function collectFsGrants(list) {
  *   Content-Length）；`toFile` 是**二进制响应体**（本地绝对路径，worker 流式写它，不按 UTF-8
  *   解码）。两者与 json / form / body 互斥，且会触发对相应目录的 spawn 放行（见 collectFsGrants）。
  * @param {{ token?: string, timeoutSec?: number }} [options]
- *   token 缺省取进程内缓存（DPAPI 解密结果）；显式传 "" 表示不带凭据（OAuth 端点的占位值
+ *   token 缺省取进程内缓存（钥匙环信封解密结果）；显式传 "" 表示不带凭据（OAuth 端点的占位值
  *   由调用方传固定常量，不走这里）。
  * @returns {Promise<{ ok: boolean, results: Array<object>, message: string|null }>}
  *   ok=false 时 message 是可读的基础设施错误（worker 缺失/启动失败/超时/输出非法）；

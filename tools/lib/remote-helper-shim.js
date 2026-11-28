@@ -67,7 +67,7 @@
  *   3. 把包装目录前置进 PATH——git 才找得到那两个 `git-remote-*`。
  *
  * 另把 dataDir 经 `GITHANA_DATA_DIR` 递给 helper（路径不是机密，令牌才是；helper 自己读
- * `<dataDir>/credential.json` 解 DPAPI，令牌因此不进任何子进程的 env）。
+ * data.db 的 credential 行解 v2 信封（经钥匙环），令牌因此不进任何子进程的 env）。
  *
  * ### 注入的两组配置（按子命令二选一）
  *
@@ -499,6 +499,9 @@ export function applyRemoteHelper(env, subcommand) {
 
   // helper 是独立进程，不知道 dataDir：路径经 env 传它（路径不是机密，令牌才是）。
   env[DATA_DIR_ENV] = dataDir;
+  // 凭据是 v2 信封格式，解它要系统钥匙环的 KEK；钥匙环只能经 worker 子进程访问（见 lib/envelope.js）。
+  // helper 由 git 拉起，靠 env 拿到 worker 的绝对路径最稳（与 GITHANA_DATA_DIR 同一手法）。
+  env.GITHANA_KEYRING_WORKER = path.join(pluginRoot(), "bin", "keyring.worker.mjs");
   return true;
 }
 

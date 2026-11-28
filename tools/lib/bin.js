@@ -49,7 +49,7 @@
  * （tools/lib/remote-helper-shim.js）——NODE_OPTIONS 追加 `--allow-net`、注入**本次子命令那一侧**
  * 的 URL 重写（取侧 `url.githana::.insteadOf`；push 侧 `url.githana-push::.insteadOf` +
  * `::.pushInsteadOf`，两组二选一，理由见该文件头注）、把 helper 包装目录前置进 PATH，
- * 三件事同进同退。令牌因此不经 git 子进程的 env（helper 自己从 dataDir 解 DPAPI 密文）。
+ * 三件事同进同退。令牌因此不经 git 子进程的 env（helper 自己从 data.db 解 v2 信封密文，经钥匙环）。
  *
  * 没有 GNUPGHOME 这一层：签名由随包纯 JS shim 完成，不需要那套隔离机制（gpgconf.ctl、
  * agent 收尾）。gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
@@ -59,7 +59,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
-import { ensureWrapper, ensureTmpDir, keyFilePath } from "./sign-shim.js";
+import { ensureWrapper, ensureTmpDir, keyFilePath, keyringWorkerPath } from "./sign-shim.js";
 import { applyRemoteHelper, remoteHelperSubcommand } from "./remote-helper-shim.js";
 
 /**
@@ -387,6 +387,9 @@ export function buildBinEnv(baseEnv, resolved, call) {
       env[`GIT_CONFIG_VALUE_${n}`] = wrapper;
       // shim 是独立进程，不知道 dataDir：密钥路径经 env 传它（与 REST worker 的令牌经 stdin 同理）。
       env.GITHANA_KEY_FILE = keyFilePath(dataDir);
+      // 私钥是信封格式，解它要读系统钥匙环；钥匙环只能经 worker 子进程访问。worker 的绝对路径
+      // 也经 env 传（shim 是打包单文件，env 比让 shim 猜路径稳），见 lib/envelope.js。
+      env.GITHANA_KEYRING_WORKER = keyringWorkerPath();
     }
   }
   // 远端传输接线**不依赖 dataDir 的隔离配置是否就绪**，但依赖这次调用确实是 git 的取远端动作

@@ -262,6 +262,93 @@ function main() {
     log(`vendor/bin/ 不存在：本平台（${hostKey}）声明里没有可校验的内嵌组件（二进制走宿主 / 系统 PATH）`);
   }
 
+  // 2c) 钥匙环 worker + @napi-rs/keyring 原生模块随包。
+  //     钥匙环读写只能在子进程里做（AppHost 主进程权限模型下 require 原生 addon 失败，实测
+  //     "Cannot find native binding"），所以 lib/keyring.worker.mjs 原样投到 bin/（不打包：它只
+  //     依赖 node 内置 + 一个原生包，打包器反而会把原生 require 卷进来），@napi-rs/keyring 包与
+  //     平台二进制投到 bin/node_modules/，让 worker 的 createRequire 从 bin/ 起就解析到它们。
+  //     与 openpgp.min.mjs 的投影同形（源在 node_modules，产物落在 bin/）。
+  {
+    const workerSrc = join(ROOT, "lib", "keyring.worker.mjs");
+    if (!existsSync(workerSrc)) {
+      console.error("[build-app] 缺 lib/keyring.worker.mjs（钥匙环 worker 源）");
+      process.exit(1);
+    }
+    copyInto(workerSrc, join(DIST, "bin", "keyring.worker.mjs"));
+    total += 1;
+
+    // 在 node_modules 里定位一个包目录：兼容 pnpm（.pnpm/<name>@ver/node_modules/<name>）与扁平
+    // （node_modules/<name>）两种布局。pnpm 里平台包不 hoist 到顶层 @napi-rs/，只能从 .pnpm 找。
+    const findPackageDir = (pkgName) => {
+      const nm = join(ROOT, "node_modules");
+      const flat = join(nm, ...pkgName.split("/"));
+      if (existsSync(join(flat, "package.json"))) return flat;
+      const pnpm = join(nm, ".pnpm");
+      const enc = pkgName.startsWith("@") ? pkgName.replace("/", "+") : pkgName;
+      if (existsSync(pnpm)) {
+        for (const entry of readdirSync(pnpm)) {
+          if (entry === enc || entry.startsWith(enc + "@")) {
+            const cand = join(pnpm, entry, "node_modules", ...pkgName.split("/"));
+            if (existsSync(join(cand, "package.json"))) return cand;
+          }
+        }
+      }
+      return null;
+    };
+
+    // 宿主平台 → @napi-rs 平台包名（当前只处理 win32-x64；其余平台见报告里的缺口清单）。
+    const KEYRING_PLATFORM_PKG = {
+      "win32-x64": "keyring-win32-x64-msvc",
+      "win32-arm64": "keyring-win32-arm64-msvc",
+      "win32-ia32": "keyring-win32-ia32-msvc",
+      "darwin-x64": "keyring-darwin-x64",
+      "darwin-arm64": "keyring-darwin-arm64",
+      "linux-x64": "keyring-linux-x64-gnu",
+      "linux-arm64": "keyring-linux-arm64-gnu",
+    };
+    const keyringCore = findPackageDir("@napi-rs/keyring");
+    if (!keyringCore) {
+      console.error("[build-app] 缺 @napi-rs/keyring（跑 pnpm install）；钥匙环加密不能少了它");
+      process.exit(1);
+    }
+    const platformPkgName = KEYRING_PLATFORM_PKG[hostKey];
+    const platformPkg = platformPkgName ? findPackageDir("@napi-rs/" + platformPkgName) : null;
+    if (platformPkgName && !platformPkg) {
+      console.error(
+        "[build-app] 缺 @napi-rs/" + platformPkgName + "（本机 " + hostKey + " 的钥匙环平台二进制）；" +
+          "跑 pnpm install 或确认 optionalDependencies 已装上",
+      );
+      process.exit(1);
+    }
+    const destNmDir = join(DIST, "bin", "node_modules", "@napi-rs");
+    mkdirSync(destNmDir, { recursive: true });
+    cpSync(keyringCore, join(destNmDir, "keyring"), { recursive: true, dereference: true });
+    let nodeBinary = null;
+    if (platformPkg) {
+      cpSync(platformPkg, join(destNmDir, platformPkgName), { recursive: true, dereference: true });
+      // 断言：平台包里确实有 .node 二进制（缺了 worker 会在运行期才报 Cannot find native binding）。
+      const files = readdirSync(join(destNmDir, platformPkgName));
+      nodeBinary = files.find((n) => n.endsWith(".node")) || null;
+      if (!nodeBinary) {
+        console.error("[build-app] @napi-rs/" + platformPkgName + " 里没有 .node 二进制");
+        process.exit(1);
+      }
+      total += 1;
+    }
+    total += 1; // @napi-rs/keyring 包本身
+
+    // 跨平台缺口报告：列出 @napi-rs/keyring 声明、但本机 node_modules 里没有的平台包。
+    const declared = Object.keys(
+      JSON.parse(readFileSync(join(keyringCore, "package.json"), "utf8")).optionalDependencies || {},
+    );
+    const missingPlatforms = declared.filter((p) => !findPackageDir(p));
+    log(
+      "bin/node_modules 就位：@napi-rs/keyring + " + (platformPkgName || "(无平台包)") +
+        "（" + (nodeBinary || "n/a") + "）" +
+        (missingPlatforms.length ? "；跨平台缺：" + missingPlatforms.join(", ") : ""),
+    );
+  }
+
   // 3) ui/：只放壳页与构建产物，**不放源码**（ui/src/ 是源，不属于交付面）。
   //    产物由 build-ui 直接写 dist/ui/（平铺）；这里只拷壳页与做断言。
   const uiSrcHtml = join(ROOT, "ui", "settings.html");

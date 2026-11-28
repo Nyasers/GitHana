@@ -80,8 +80,9 @@
  *
  * ## 凭据从哪来
  *
- * `<dataDir>/credential.json`（lib/secret.js 写的 DPAPI 密文），用 lib/dpapi.js 解开拿
- * `accessToken`。dataDir 经 `GITHANA_DATA_DIR` 递给本进程——**路径不是机密，令牌才是**。
+ * data.db 的 credential 单行表（lib/secret.js 写的 v2 信封密文），用 lib/envelope.js 的 open
+ * 解开拿 accessToken；解它要系统钥匙环里的 KEK，经 `GITHANA_KEYRING_WORKER` 指定的 worker 子进程访问。
+ * dataDir 经 `GITHANA_DATA_DIR` 递给本进程——**路径不是机密，令牌才是**。
  * 认证按 GitHub 的口径发 `Authorization: Basic base64("x-access-token:<token>")`，GET 与 POST
  * 都带。令牌只在本进程内存里，不进日志、不进返回值、不进任何文件。
  *
@@ -98,7 +99,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { dpapiUnprotect } from "../../lib/dpapi.js";
+import { openSelfContained } from "../../lib/envelope.js";
 import { readCredentialRow } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
@@ -108,8 +109,8 @@ const GITHUB_HTTPS_PREFIX = "https://github.com/";
 /** dataDir 经 env 递给本进程（与签名 shim 的 GITHANA_KEY_FILE 同一手法）。 */
 const DATA_DIR_ENV = "GITHANA_DATA_DIR";
 
-/** 凭据文件（lib/secret.js 的落点）与它记录的加密算法标识。 */
-const DPAPI_ALG = "dpapi-current-user";
+/** 凭据记录（data.db 的 credential 行）期望的加密算法标识（v2 信封，与 lib/secret.js 同口径）。 */
+const ENVELOPE_ALG = "keyring-envelope-v2";
 
 /** 请求 GitHub 时的 User-Agent（GitHub 要求非空）。 */
 const USER_AGENT = "githana-git-remote-helper";
@@ -229,7 +230,7 @@ function msgOf(e) {
  * 解不开的每一种情况都给可读原因并退非零——不静默失败、不回落系统凭据（本进程根本不在
  * git 的凭据子系统里）。
  */
-function loadToken() {
+async function loadToken() {
   const dataDir = readEnv(DATA_DIR_ENV);
   if (!dataDir) {
     fail(
@@ -244,18 +245,18 @@ function loadToken() {
         "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
-  if (rec.alg && rec.alg !== DPAPI_ALG) {
+  if (rec.alg && rec.alg !== ENVELOPE_ALG) {
     fail(
-      "the ciphertext is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).\n" +
-        "Click \"Sign in with GitHub\" again on this machine.",
+      "the ciphertext is protected by " + rec.alg + " while this build expects " + ENVELOPE_ALG + ": cannot decrypt.\n" +
+        "Open the GitHana settings page once (the App migrates legacy DPAPI records on first read), then retry.",
     );
   }
   let payload = null;
   try {
-    payload = JSON.parse(dpapiUnprotect(rec.cipher.toString("base64")));
+    payload = JSON.parse((await openSelfContained(rec.cipher)).toString("utf8"));
   } catch (e) {
     fail(
-      "failed to decrypt the credential: " + msgOf(e) + " (did you switch machine or user?).\n" +
+      "failed to decrypt the credential: " + msgOf(e) + " (the OS keyring KEK is missing/locked, or the key was moved to another machine or user).\n" +
         "Go to the GitHana settings page and click \"Sign in with GitHub\" again.",
     );
   }
@@ -850,8 +851,8 @@ async function main() {
   const remote = parseRemote(remoteUrl);
   // 凭据只在真正要连远端时解（capabilities 不需要），解不开的引导即时报出。
   let token = null;
-  const tokenOnce = () => {
-    if (token === null) token = loadToken();
+  const tokenOnce = async () => {
+    if (token === null) token = await loadToken();
     return token;
   };
   const pushMode = mode === MODE_PUSH;
@@ -878,7 +879,7 @@ async function main() {
         }
         // 空行 = 连接已建立；此后这根 stdin/stdout 就是 git 与远端服务之间的原生协议管道。
         writeOut(Buffer.from("\n", "utf8"));
-        await relayPush(remote, tokenOnce());
+        await relayPush(remote, await tokenOnce());
         // 会话结束就**显式退出**：peek 可能留了一次底层 fs.read 在飞，而 git 那边未必会关掉
         // 管道——不退出的话事件循环会一直等那个读，helper 就挂在那里不结束。
         process.exit(0);
@@ -890,7 +891,7 @@ async function main() {
       }
       // 空行 = 连接已建立。
       writeOut(Buffer.from("\n", "utf8"));
-      await relayFetch(remote, tokenOnce());
+      await relayFetch(remote, await tokenOnce());
       process.exit(0);
     }
 
