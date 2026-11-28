@@ -47,8 +47,10 @@ jobs:
 
   package:
     needs: create-release
-    # create-release 只在 tag 场景跑；dispatch 时它被 skip（非 failure），这里显式放行。
-    if: ${{ needs.create-release.result != 'failure' }}
+    # create-release 只在 tag 场景跑。dispatch 时它被 skip，而“needs 被 skip”会传染给依赖它的 job
+    # （实测：没有 always() 时 package 也跟着 skipped，run 整体 conclusion=skipped），
+    # 所以先用 always() 拦断这条传染，再单独判一次「不是 failure」。
+    if: ${{ always() && needs.create-release.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
