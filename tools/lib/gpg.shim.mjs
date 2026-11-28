@@ -41,7 +41,6 @@ import * as openpgp from "openpgp";
 import { dpapiUnprotect } from "../../lib/dpapi.js";
 
 /** 密钥文件里记录的加密算法标识（与 lib/secret.js 的后端 alg 同口径）。 */
-const DPAPI_ALG = "dpapi-current-user";
 
 function die(msg, code = 2) {
   process.stderr.write("[githana-gpg-shim] " + msg + "\n");
@@ -128,24 +127,21 @@ function readEnv(name) {
   }
 }
 
-/** 读并解密 armored 私钥。 */
+/** 读并解密 armored 私钥（密文是单独的二进制文件）。 */
 function loadPrivateKeyArmored() {
   const keyFile = readEnv("GITHANA_KEY_FILE");
   if (!keyFile) die("GITHANA_KEY_FILE not provided: cannot locate the signing key.");
-  let rec;
+  let buf;
   try {
-    rec = JSON.parse(fs.readFileSync(keyFile, "utf8"));
+    buf = fs.readFileSync(keyFile);
   } catch (e) {
     die("failed to read the key file (" + keyFile + "): " + String((e && e.message) || e));
   }
-  if (!rec || typeof rec.cipher !== "string" || !rec.cipher) {
-    die("the key file contains no ciphertext: go to the settings page and generate the key again.");
-  }
-  if (rec.alg && rec.alg !== DPAPI_ALG) {
-    die("the key is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).");
+  if (!buf || buf.length === 0) {
+    die("the key file is empty: go to the settings page and generate the key again.");
   }
   try {
-    return dpapiUnprotect(rec.cipher);
+    return dpapiUnprotect(buf.toString("base64"));
   } catch (e) {
     die("failed to decrypt the private key: " + String((e && e.message) || e) + " (did you switch machine or user?)");
   }
