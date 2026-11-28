@@ -851,7 +851,9 @@ function GitHanaSettings() {
             starting
               ? "正在向 GitHub 要一个验证码；连不上会在这里直接说原因，也可以点「取消」。"
               : authorized
-                ? "令牌到期前会自动续期，无需手动操作。"
+                ? secret.expiresAt
+                  ? "令牌到期：" + formatTime(secret.expiresAt) + "，到期前会自动续期。"
+                  : "令牌到期前会自动续期，无需手动操作。"
                 : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
           }
         />
@@ -1008,9 +1010,6 @@ function GitHanaSettings() {
             ) : null}
             {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
 
-            {secret.expiresAt ? (
-              <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} />
-            ) : null}
             <SettingRow
               label="凭据保护方式"
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
@@ -1026,10 +1025,10 @@ function GitHanaSettings() {
         description="这里的设定决定每次提交的作者与共同署名，工具调用不能覆盖。"
       >
         <SettingRow
-          label="默认提交方式"
+          label="提交方式"
           control={
             <Select
-              ariaLabel="默认提交方式"
+              ariaLabel="提交方式"
               value={shownVia}
               options={[
                 { value: "local", label: "本地提交（我签名）" },
@@ -1050,7 +1049,7 @@ function GitHanaSettings() {
           }
         />
         <SettingRow
-          label="默认共同作者"
+          label="共同作者"
           control={
             <Inline gap="sm" align="center" wrap>
               {CO_AUTHOR_KEYS.map((key) => {
