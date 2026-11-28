@@ -1106,6 +1106,7 @@ function GitHanaSettings() {
           control={
             <SaveButton
               status={saveStatus}
+              disabled={saveStatus === "saving"}
               labels={{ idle: "保存", saving: "保存中…", saved: "已保存" }}
               onSavedFeedbackEnd={() => setSaveStatus("idle")}
               onClick={saveAuthor}

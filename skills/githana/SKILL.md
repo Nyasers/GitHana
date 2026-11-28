@@ -179,10 +179,9 @@ the former, to change code use the latter.
 
 ### githana_pr (Pull Requests)
 
-PR **authors cannot be chosen**: a PR is always created by the signed-in user's token. The bot
-identity is available only where GitHub accepts an App token for that object: `comment` posts as
-the identity configured in the GitHana settings page (App bot by default), which makes the
-comment author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`.
+Authorship is configured rather than chosen per call: `commit`, `comment` and `pr` each pick an
+identity in the GitHana settings page. A PR created with the App identity uses an installation
+token, so its author is `githana-app[bot]`; the same applies to `githana_issue(action="comment")`.
 
 | action | When to use | Key parameters |
 |---|---|---|

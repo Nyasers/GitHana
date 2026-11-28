@@ -174,6 +174,16 @@ async function collectChanges(cwd, paths) {
     : ["diff", "--cached", "--name-status", "-z"];
   const r = await runCli("git", args, { cwd });
   if (!r.ok) throw new Error("reading local changes failed (git " + args.join(" ") + "):\n" + (r.message || ""));
+  // 捕获有上限：截断的输出只是前缀，拿它当变更集会漏文件、甚至报出半个路径。
+  if (r.stdoutTruncated) {
+    throw new Error(
+      "the change list is too large to read safely (git " +
+        args.join(" ") +
+        " output exceeded the " +
+        Math.round(MAX_CAPTURE_BYTES / 1024) +
+        " KB capture limit); commit in smaller batches.",
+    );
+  }
 
   const changes = parseNameStatus(r.stdout);
 
@@ -181,6 +191,7 @@ async function collectChanges(cwd, paths) {
     // paths 模式允许未跟踪文件（git commit <path> 也会收它们），diff HEAD 看不到。
     const u = await runCli("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", ...paths.map(literalPath)], { cwd });
     if (!u.ok) throw new Error("reading untracked files failed: " + (u.message || ""));
+    if (u.stdoutTruncated) throw new Error("too many untracked files to read safely; commit in smaller batches.");
     for (const p of String(u.stdout || "").split("\0")) {
       if (p && !changes.some((c) => c.path === p)) changes.push({ status: "A", path: p });
     }
@@ -389,12 +400,27 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   } else {
     const fetchR = await runCli("git", ["fetch", "origin", targetBranch], { cwd, timeoutSec: 120 });
     if (fetchR.ok) {
-      const mergeR = await runCli("git", ["merge", "--ff-only", "FETCH_HEAD"], { cwd });
-      synced = mergeR.ok;
-      if (!mergeR.ok) {
+      // 快进只能移动「当前 checkout 的分支」；在 main 上提交到 feature 时 merge 会把 main 带走。
+      const cur = await runCli("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
+      const onTarget = cur.ok && String(cur.stdout || "").trim() === targetBranch;
+      if (!onTarget) {
+        synced = false;
         syncNote =
-          "fetched, but the local fast-forward failed: " +
-          String(mergeR.stderr || mergeR.message || "").split("\n")[0];
+          "the commit is on " +
+          repoLabel +
+          "@" +
+          targetBranch +
+          ", but the checked-out branch is " +
+          (cur.ok ? String(cur.stdout || "").trim() : "unknown") +
+          "; fetched without moving any local branch.";
+      } else {
+        const mergeR = await runCli("git", ["merge", "--ff-only", "FETCH_HEAD"], { cwd });
+        synced = mergeR.ok;
+        if (!mergeR.ok) {
+          syncNote =
+            "fetched, but the local fast-forward failed: " +
+            String(mergeR.stderr || mergeR.message || "").split("\n")[0];
+        }
       }
     } else {
       syncNote =
