@@ -2,14 +2,14 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/gpg.shim.mjs — 顶替 gpg 可执行文件的签名/验签程序（独立入口，随包）。
+ * tools/lib/gpg.shim.mjs — 充当 gpg.program 的签名/验签程序（独立入口，随包）。
  *
  * ## 为什么存在
  *
  * git 通过 `gpg.program` 调一个**外部程序**来完成签名与验签。它不要求那个程序是 gpg，
- * 只要求它符合下面这套契约（本文件实现的就是这套契约）。于是我们可以用纯 JS 的
- * OpenPGP.js 顶替 GnuPG 二进制：包体只留一份 395 KB 的库文件（原先随包的 GnuPG 压缩后 5.45 MB），
- * 三平台同一实现，且不再需要 GNUPGHOME 隔离与 gpg-agent 收尾。
+ * 只要求它符合下面这套契约（本文件实现的就是这套契约）。于是我们用纯 JS 的 OpenPGP.js
+ * 充当这个程序：包体只需一份约 395 KB 的库文件（随包 GnuPG 压缩后约 5.45 MB），三平台同一实现，
+ * 也不需要 GNUPGHOME 隔离与 gpg-agent 收尾。
  *
  * ## git 的契约（均为实测）
  *
@@ -24,7 +24,7 @@
  *
  * ## 密钥从哪来
  *
- * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.json（DPAPI 加密的 armored 私钥）。
+ * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.bin（DPAPI 加密的 armored 私钥密文）。
  * 本进程在 AppHost 的权限模型下运行（`--permission` 经 NODE_OPTIONS 传染），能读 dataDir
  * 是因为宿主的 AppHost 命令行带了 `--allow-fs-read=<dataDir>`（实测）。
  *

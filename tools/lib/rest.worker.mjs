@@ -9,9 +9,9 @@
  * App 的 apply() 跑在宿主给的 AppHost 子进程里，那个进程开了 Node Permission Model，
  * 且**没有** `--allow-net`（宿主按清单能力只给 `--allow-child-process`）。权限模型下进程内
  * 的 `fetch` 会被运行时拒掉（实测 DNS 报 `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。
- * 而 `app/process.spawn` 授权下起的外部进程不继承该模型——gh CLI 以前就是这么联网的。
+ * 而 `app/process.spawn` 授权下起的外部进程不继承该模型（gh CLI 就是靠这一点联网的）。
  *
- * 换成我们自己写的 node 脚本后，spawn 时要**显式**补 `--allow-net`：Node 26 的
+ * 我们自己写的 node 脚本在 spawn 时要**显式**补 `--allow-net`：Node 26 的
  * `--permission` 会经 `NODE_OPTIONS` 传染给子进程（子进程继承权限模型），而放行项不会跟着走。
  * 这不是新增清单能力，是 node 运行时层面的旗标（见 tools/lib/rest.js 的 spawnRestWorker）。
  *

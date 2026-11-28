@@ -9,7 +9,7 @@
  *
  * ## 一份 zod 定义长出两样产出（见 spec tool-surface D5）
  *
- *   · 模型面 `parameters`：由 `z.toJSONSchema(flat, { io: "input" })` 生成，不再手写；
+ *   · 模型面 `parameters`：由 `z.toJSONSchema(flat, { io: "input" })` 生成，不手写；
  *   · 运行期校验：`z.discriminatedUnion("action", branches).safeParse(input)`，失败返回**全部**
  *     issues（英文原文，含 path / code / message）加一行中文引导。
  *
@@ -36,7 +36,7 @@
  *   · `createSurface`——**动词数 ≥ 2** 的工具：`action` 是分发键，模型面声明它，`required` 为
  *     `["action"]`，走错动词时按动词索引指名正确的工具；
  *   · `createSingleSurface`——**单动词**工具（`githana_api`）：没有分发可做，`action` 不声明
- *     （值域为单数时它只是占位），`required` 换成该工具自己的必填项。
+ *     （值域为单数时它只是占位），`required` 取该工具自己的必填项。
  *
  * 跨工具的错投靠 `verbs` 索引判：每个名词工具声明自己之外**还有哪些工具在收哪些动词**，
  * 报错因此能具体指名（「commit 属于 githana_git」），而不是一句空泛的「它属于另一个面」。
@@ -129,7 +129,7 @@ function assemble(name, actions, modelFields) {
  * 各 action 的模型面一句话摘要（进 action 字段的 description）。
  *
  * 除了摘要，还把该 action **自己的必填项**列在后面：模型面是一张平表，`required` 只能写
- * `["action"]`（各 action 的必填项并在一起后无法区分谁必填），于是以前的模型只能看到
+ * `["action"]`（各 action 的必填项并在一起后无法区分谁必填），于是模型只能看到
  * 「有哪些字段」，看不到「这个 action 要哪些」——只能去翻散文手册或者猜。
  * 猜错的代价是真实的（pr create 把 base 猜成 head / base_branch 各错一次），而这里
  * 本来就知道答案：每个 action 的 schema 里标了 .isOptional() 的就是必填。
@@ -276,10 +276,10 @@ export function createSurface({
  * 装配一个**单动词**工具模块（`githana_api`）。
  *
  * 没有分发可做，所以：不声明 `action`；模型面直接把该 action 的字段铺在顶层，`required` 取
- * 该 action 自己声明的必填项（`spec.required`，如 api 的 `["path"]`——那是真必填，而收敛前
- * 它只写在 run() 里，模型面看不见）；未知 action 按动词索引指名正确工具。
+ * 该 action 自己声明的必填项（`spec.required`，如 api 的 `["path"]`——那是真必填，单动词面
+ * 据此把它标成必填，而不是只写在 run() 里）；未知 action 按动词索引指名正确工具。
  *
- * `spec.module` 的形状与多动词表里的条目一致（command / summary / schema / run），只是不再需要
+ * `spec.module` 的形状与多动词表里的条目一致（command / summary / schema / run），只是不需要
  * `action` 出现在输入里：`command` 仍用于报错文案与 label。
  *
  * @param {object} spec

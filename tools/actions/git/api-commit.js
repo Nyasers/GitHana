@@ -154,7 +154,7 @@ export async function readStagedFile(cwd, rel, dataDir) {
   if (/^0+$/.test(sha)) return null; // intent-to-add：内容还没进 index
 
   // 内容先落临时文件：blob 可能远超捕获上限，直接读进内存既不安全也读不全。
-  // 用已有的 .runtime-tmp（与 gpg shim、remote helper 同一落点），不再另开目录。
+  // 用已有的 .runtime-tmp（与 gpg shim、remote helper 同一落点），不另开目录。
   const tmpDir = path.join(dataDir || cwd, ".runtime-tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const tmpFile = path.join(tmpDir, "blob-" + Date.now() + "-" + Math.random().toString(16).slice(2) + ".bin");
