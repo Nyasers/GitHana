@@ -236,6 +236,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 ```
 settings(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at TEXT)
   author → { commit, coa: [...], comment, pr }
+  gpg    → { alg, fingerprint, keyId, uid, email, createdAt, published }
 
 credential（单行表，id = 1）
   kind | alg | cipher(BLOB) | login | name | expires_at | refresh_expires_at | needs_reauth | updated_at
@@ -299,7 +300,7 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
 - **生成 = 生成 + 上传（一个动作）**：先快照密钥文件与签名接线，再生成并接线，最后上传；
   上传不成就把本地**整体退回生成前状态**。轮换时这个回滚同样成立：新钥传不上去就继续用旧钥，
   而不是把旧的先删掉。
-- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg.key.json`、`.pub.asc` 与隔离
+- **移除 = 远端删除 + 本地同步清除**：远端删成功后同步清掉 `gpg.key.bin`、`.pub.asc` 与隔离
   gitconfig 里的 `user.signingkey` / `commit.gpgsign`（`user.email` / `user.name` 保留）——
   本地不该留一把账号上已经没了的密钥，那会让之后每次提交都签名失败。
 - **先加后删**：轮换时先 `POST /user/gpg_keys` 传新公钥，再删旧的。GitHub 允许账号上并存多把
@@ -307,7 +308,7 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
 - **删除前核对归属**：先 `GET /user/gpg_keys`，要求 **keyId 相等且远端 key_id 等于记录指纹
   末 16 位**，两条都成立才删。只看 keyId 不够：记录可能来自另一个账号（用户换了登录），
   那里的同号 keyId 是别人的钥匙。指纹对不上一律不动它。
-- **只删自己那把**：发布状态记在密钥记录 `gpg.key.json` 的 `published` 字段（`{ keyId, fingerprint,
+- **只删自己那把**：发布状态记在 settings 表的 `gpg` 记录里（`{ keyId, fingerprint,
   uploadedAt, login, gpgKeyId, name, stale[] }`）；`stale[]` 存本次上传成功但旧钥没删掉的残留，
   下次发布或移除时逐条核对指纹后再试。
 - **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
@@ -768,7 +769,7 @@ PR 作者不能选（永远是用已登录用户令牌创建的）。
 
 ## 签名隔离机制
 
-私钥只落 `app-data/githana/gpg.key.json`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
+私钥只落 `app-data/githana/gpg.key.bin`（DPAPI 加密），签名/验签不碰用户个人 GPG 环，也不依赖
 任何 gpg 二进制：
 
 1. **keygen 侧**：`lib/gpg-keygen.js` 用 OpenPGP.js 现生成 ed25519 密钥，armored 私钥经 DPAPI 后端
