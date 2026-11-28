@@ -74,8 +74,12 @@ import { Readable, Transform } from "node:stream";
  * `uploads.github.com` 是发布资产的上传端点：它**不在** api.github.com 上（GitHub 把上传
  * 单独摆了一个域），所以只列 api / github 会让上传在起请求前就被拒。凭据与 api 同一枚
  * （同一个 Bearer 头），这里只放行域，不改凭据形态。
+ *
+ * `githana.nyase.ru` 是签发 installation token 的固定公共服务（`ISSUER_URL`，见
+ * lib/app-auth.js）：App 身份换 token 与取 bot 身份都打这个域，与 GitHub 域同走这条 REST
+ * 通道，不经任何外部二进制。自建签发服务时改 `ISSUER_URL` 的同时要把那台主机也加进这里。
  */
-const ALLOWED_HOSTS = new Set(["api.github.com", "github.com", "uploads.github.com"]);
+const ALLOWED_HOSTS = new Set(["api.github.com", "github.com", "uploads.github.com", "githana.nyase.ru"]);
 
 /**
  * 允许**重定向落到**的主机（精确 host）。
