@@ -80,6 +80,10 @@ jobs:
             node scripts/fetch-vendor.mjs --platform "$p"
           done
 
+      # 派生物校验（pack 内会跑 derive --check）要读上游权限表：缓存不入库，每次现拉一份。
+      - name: Fetch upstream permission table
+        run: node scripts/derive/fetch-permission-table.mjs
+
       - name: Self check (universal)
         run: node scripts/selfcheck.mjs --platform universal
 
