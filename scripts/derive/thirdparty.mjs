@@ -33,8 +33,8 @@
 // （MIT(Meta) 与 react 的 LICENSE、LGPL 与 OpenPGP.js 的 LICENSE 均逐字节相同）也已核对过。
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { at } from "../shared/root.mjs";
+import { readTarGz } from "../lib/archive.mjs";
 
 /** 法条正文原文目录（仓库持有，不随包）。 */
 const LICENSE_SRC = at("scripts", "derive", "licenses");
@@ -79,29 +79,24 @@ function schedulerVersion() {
  * 从 SDK 自己的 `dist/THIRD_PARTY_NOTICES.txt` 取（那是它打包器写下的记录，不是我们猜的）。
  * 这些包不在本仓 `node_modules` 里（是 SDK 内联进来的），所以版本只能从该声明读。
  * 缺声明即拒：宁可构建失败，也不产出一份漏了组件的合规文件。
+ *
+ * tgz 用 `scripts/lib/archive.mjs` 的 `readTarGz` 在内存里解（node:zlib），不再解到临时目录、
+ * 也不依赖系统的 tar 命令——这样在任一平台/机器上读包的行为一致。
  */
 function sdkInlinedVersions(wanted) {
-  const tmp = at(".tmp", "sdk-notices");
-  fs.rmSync(tmp, { recursive: true, force: true });
-  fs.mkdirSync(tmp, { recursive: true });
-  try {
-    execFileSync("tar", ["-xzf", SDK_TGZ, "-C", tmp], { stdio: "pipe" });
-    const p = path.join(tmp, "package", "dist", "THIRD_PARTY_NOTICES.txt");
-    if (!fs.existsSync(p)) {
-      throw new Error("SDK tgz 里找不到 dist/THIRD_PARTY_NOTICES.txt（无法确认它的内联依赖）");
-    }
-    const text = fs.readFileSync(p, "utf8");
-    const out = {};
-    for (const line of text.split("\n")) {
-      const m = /^(@?[A-Za-z0-9._/-]+)@([0-9][^\s]*)$/.exec(line.trim());
-      if (m && wanted.includes(m[1]) && !(m[1] in out)) out[m[1]] = m[2];
-    }
-    const missing = wanted.filter((w) => !(w in out));
-    if (missing.length) throw new Error(`SDK 声明里找不到这些内联包：${missing.join(", ")}`);
-    return out;
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+  const entries = readTarGz(SDK_TGZ);
+  const text = entries.get("package/dist/THIRD_PARTY_NOTICES.txt");
+  if (text === undefined) {
+    throw new Error("SDK tgz 里找不到 dist/THIRD_PARTY_NOTICES.txt（无法确认它的内联依赖）");
   }
+  const out = {};
+  for (const line of text.toString("utf8").split("\n")) {
+    const m = /^(@?[A-Za-z0-9._/-]+)@([0-9][^\s]*)$/.exec(line.trim());
+    if (m && wanted.includes(m[1]) && !(m[1] in out)) out[m[1]] = m[2];
+  }
+  const missing = wanted.filter((w) => !(w in out));
+  if (missing.length) throw new Error(`SDK 声明里找不到这些内联包：${missing.join(", ")}`);
+  return out;
 }
 
 /** 各包对应的许可正文文件（同名正文只落一份，多个组件共享同一段）。 */
