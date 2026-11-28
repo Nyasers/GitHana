@@ -17,7 +17,7 @@
  * 不传 author / committer：这是 bot 获得自动签名的前提。用户只以 Co-authored-by trailer
  * 的形式出现在 message 里。
  */
-import { runCli } from "../../lib/exec.js";
+import { runCli, MAX_OUTPUT_BYTES as MAX_CAPTURE_BYTES } from "../../lib/exec.js";
 import { callRest } from "../../lib/rest.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
 
@@ -105,7 +105,8 @@ function parseNameStatus(raw) {
       const from = parts[i + 1];
       const to = parts[i + 2];
       i += 3;
-      if (from) out.push({ status: "D", path: from });
+      // 只有 rename 会让源文件消失；copy 两边都在，多推一个 D 会把源文件删掉。
+      if (from && code === "R") out.push({ status: "D", path: from });
       if (to) out.push({ status: to === from ? "M" : "A", path: to });
       continue;
     }
@@ -124,8 +125,13 @@ function parseNameStatus(raw) {
  * index 取——调用前先 `git add` 过 paths，index 就是待提交的内容。
  * 符号链接在 index 里是 mode 120000，blob 内容就是链接目标，不会跟随到仓库外。
  */
+/** pathspec 一律按字面量解释：文件名里的 * [ ] 不能被 git 当成通配符。 */
+function literalPath(p) {
+  return ":(literal)" + p;
+}
+
 export async function readStagedFile(cwd, rel) {
-  const ls = await runCli("git", ["ls-files", "-s", "-z", "--", rel], { cwd });
+  const ls = await runCli("git", ["ls-files", "-s", "-z", "--", literalPath(rel)], { cwd });
   if (!ls.ok) throw new Error("reading the index failed for " + rel + ": " + (ls.message || ""));
   const first = String(ls.stdout || "").split("\0").find((x) => x);
   if (!first) return null;
@@ -143,6 +149,12 @@ export async function readStagedFile(cwd, rel) {
   if (!blob.ok) {
     throw new Error("reading blob " + sha.slice(0, 7) + " for " + rel + " failed: " + (blob.message || ""));
   }
+  // 输出捕获有 200KB 上限：截断时拿到的只是前缀，绝不能当完整内容传上去。
+  if (blob.stdoutTruncated) {
+    throw new Error(
+      "file too large for an API commit: " + rel + " (the blob exceeds the " + Math.round(MAX_CAPTURE_BYTES / 1024) + " KB capture limit).",
+    );
+  }
   const content = blob.stdoutBytes && blob.stdoutBytes.length ? blob.stdoutBytes : Buffer.from(blob.stdout || "", "utf8");
   if (content.length > MAX_FILE_BYTES) {
     throw new Error("file too large for an API commit: " + rel + " (" + content.length + " bytes; limit " + MAX_FILE_BYTES + ").");
@@ -153,7 +165,7 @@ export async function readStagedFile(cwd, rel) {
 /** 变更集：paths 给定则按工作区相对 HEAD，否则按 index（已暂存）。 */
 async function collectChanges(cwd, paths) {
   const args = paths.length
-    ? ["diff", "HEAD", "--name-status", "-z", "--", ...paths]
+    ? ["diff", "HEAD", "--name-status", "-z", "--", ...paths.map(literalPath)]
     : ["diff", "--cached", "--name-status", "-z"];
   const r = await runCli("git", args, { cwd });
   if (!r.ok) throw new Error("reading local changes failed (git " + args.join(" ") + "):\n" + (r.message || ""));
@@ -162,7 +174,7 @@ async function collectChanges(cwd, paths) {
 
   if (paths.length) {
     // paths 模式允许未跟踪文件（git commit <path> 也会收它们），diff HEAD 看不到。
-    const u = await runCli("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", ...paths], { cwd });
+    const u = await runCli("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", ...paths.map(literalPath)], { cwd });
     if (!u.ok) throw new Error("reading untracked files failed: " + (u.message || ""));
     for (const p of String(u.stdout || "").split("\0")) {
       if (p && !changes.some((c) => c.path === p)) changes.push({ status: "A", path: p });
@@ -237,7 +249,7 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
 
   // paths 模式先入 index：内容从 index 取（见 readStagedFile），不读文件系统。
   if (paths.length) {
-    const addR = await runCli("git", ["add", "--", ...paths], { cwd });
+    const addR = await runCli("git", ["add", "--", ...paths.map(literalPath)], { cwd });
     if (!addR.ok) {
       throw new Error("staging the given paths failed (git add):\n" + ((addR.stderr || "") + "\n" + (addR.stdout || "")).trim());
     }
@@ -252,7 +264,7 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   if (paths.length === 0) {
     for (const c of changes) {
       if (c.status === "D") continue;
-      const dirty = await runCli("git", ["diff", "--name-only", "-z", "--", c.path], { cwd });
+      const dirty = await runCli("git", ["diff", "--name-only", "-z", "--", literalPath(c.path)], { cwd });
       if (dirty.ok && String(dirty.stdout || "").trim() !== "") {
         throw new Error(
           "the staged content of " + c.path + " differs from the working tree. " +

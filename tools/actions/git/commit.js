@@ -224,7 +224,10 @@ export async function run(input, ctx, { label }) {
     );
   }
   const commitPrefs = readCommitPrefs(getToolDataDir());
-  const via = commitPrefs.author === "app" ? "api" : "local";
+  // 服务面（跨 App 调用）只能做本地提交：它没有 Approval 闸门，绝不能借设置里的 App 通道
+  // 去动远端分支。
+  const forcedLocal = input?.__forceLocal === true;
+  const via = forcedLocal ? "local" : commitPrefs.author === "app" ? "api" : "local";
   if (via === "api") {
     if (amend) return label + ' argument error: the settings page selects App-bot commits, which do not support amend (an API commit is built on the remote tip). Switch the channel in the GitHana settings page to commit locally.';
     if (allowEmpty) return label + ' argument error: the settings page selects App-bot commits, which do not support allowEmpty. Switch the channel in the GitHana settings page to commit locally.';

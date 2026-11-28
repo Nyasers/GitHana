@@ -173,15 +173,16 @@ function collectFsGrants(list) {
  */
 export async function callRest(requests, opts = {}) {
   const first = await callRestOnce(requests, opts);
+  const list = Array.isArray(requests) ? requests : [];
+  const failed = [];
+  if (first && Array.isArray(first.results)) {
+    first.results.forEach((r, i) => {
+      if (r && r.status === 401) failed.push(i);
+    });
+  }
   // 401 且用的是本进程的用户令牌：先强制刷新一次再重放。本地过期判定可能因为时钟偏差/
   // 服务端撤销而不准，以服务端为准才是准的。显式传 token（例如 installation token）不重试。
-  const auth401 =
-    opts.token === undefined &&
-    !opts.authRetried &&
-    first &&
-    Array.isArray(first.results) &&
-    first.results.some((r) => r && r.status === 401);
-  if (!auth401) return first;
+  if (opts.token !== undefined || opts.authRetried || failed.length === 0) return first;
   try {
     const { ensureFresh } = await import("../../lib/oauth.js");
     const r = await ensureFresh({ force: true });
@@ -189,7 +190,18 @@ export async function callRest(requests, opts = {}) {
   } catch {
     return first;
   }
-  return callRestOnce(requests, { ...opts, authRetried: true });
+  // 只重放 401 的那几条：批量里已经成功的请求再发一遍会造成重复副作用
+  // （典型是 issue close 这种先评论、再改状态的组合）。
+  const retry = await callRestOnce(
+    failed.map((i) => list[i]),
+    { ...opts, authRetried: true },
+  );
+  if (!retry || !Array.isArray(retry.results)) return first;
+  const merged = first.results.slice();
+  failed.forEach((idx, k) => {
+    if (retry.results[k]) merged[idx] = retry.results[k];
+  });
+  return { ok: first.ok && retry.ok !== false, results: merged, message: first.message || retry.message || null };
 }
 
 async function callRestOnce(requests, { token, timeoutSec } = {}) {
