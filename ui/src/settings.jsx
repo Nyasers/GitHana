@@ -1000,7 +1000,6 @@ function GitHanaSettings() {
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
               hint={secret.location ? `存放：${secret.location}` : null}
             />
-            <SettingRow label="Client ID" control={<MonoText>{state.clientId || "—"}</MonoText>} hint="不开放修改" />
             </SettingsStack>
           </div>
         </Collapse>
@@ -1016,14 +1015,9 @@ function GitHanaSettings() {
           hint={
             issuer.error ||
             (botReady
-              ? "App 需安装到目标仓库并有写权限；签发服务会先校验你的 push 权限。"
-              : "还没有配置签发服务，bot 提交与评论不可用。")
+              ? "签发服务：" + (issuer.data.url || "") + "。App 需安装到目标仓库并有写权限。"
+              : "bot 提交与评论不可用。")
           }
-        />
-        <SettingRow
-          label="签发服务"
-          control={<MonoText>{issuer.data && issuer.data.url ? issuer.data.url : "—"}</MonoText>}
-          hint="地址固定在客户端里；自建服务需要改 lib/app-auth.js 的 ISSUER_URL 并重新打包。"
         />
       </SettingsSection>
 
