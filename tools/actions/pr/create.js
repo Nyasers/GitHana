@@ -17,6 +17,9 @@ import { runCli } from "../../lib/exec.js";
 import * as params from "../../lib/params.js";
 import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../../lib/pr.js";
+import { getToolDataDir } from "../../lib/context.js";
+import { getInstallationToken } from "../../../lib/app-auth.js";
+import { readAuthorPrefs } from "../../../lib/prefs.js";
 
 export const command = "create";
 export const summary = "Create a PR";
@@ -39,9 +42,21 @@ export const sideEffect = {
 };
 
 export async function run(input, ctx, { label }) {
-  const c = await resolveContext(input, label);
+  // PR 作者同样由设置页决定：用 installation token 建出来的 PR 作者是 App bot。
+  const asBot = readAuthorPrefs(getToolDataDir()).pr === "app";
+  const c = await resolveContext(input, label, { skipAuth: asBot });
   if (c.error) return c.error;
   const { repo, repoLabel, cwd, timeoutSec } = c;
+
+  let token;
+  if (asBot) {
+    const [owner, name] = repo.split("/");
+    try {
+      token = (await getInstallationToken({ dataDir: getToolDataDir(), owner, repo: name })).token;
+    } catch (e) {
+      return label + " cannot create the PR as githana-app[bot]: " + String((e && e.message) || e);
+    }
+  }
 
   let title = input?.title !== undefined && input?.title !== null ? String(input.title).trim() : "";
   if (!title) {
@@ -93,7 +108,7 @@ export async function run(input, ctx, { label }) {
 
   const r = await callRest(
     [{ method: "POST", url: apiUrl(repo, "/pulls"), json: payload, timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
-    { timeoutSec },
+    { timeoutSec, token },
   );
   if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];
@@ -123,7 +138,7 @@ export async function run(input, ctx, { label }) {
   if (pr.number !== undefined && pr.number !== null) {
     const ar = await callRest(
       [{ url: apiUrl(repo, "/issues/" + String(pr.number)), timeoutMs: (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000 }],
-      { timeoutSec },
+      { timeoutSec, token },
     );
     const ares = ar.ok ? ar.results[0] : null;
     if (ares && ares.ok && ares.json) {

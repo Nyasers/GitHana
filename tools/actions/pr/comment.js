@@ -14,6 +14,9 @@ import { z } from "zod";
 import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../lib/rest.js";
 import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
+import { getToolDataDir } from "../../lib/context.js";
+import { getInstallationToken } from "../../../lib/app-auth.js";
+import { readAuthorPrefs } from "../../../lib/prefs.js";
 
 export const command = "comment";
 export const summary = "Add a comment to a PR";
@@ -34,11 +37,23 @@ export const sideEffect = {
 };
 
 export async function run(input, ctx, { label }) {
-  const c = await resolveContext(input, label);
+  // 评论身份由设置页决定（默认 App）：工具发的评论是对外可见的陈述，不挂用户的名义。
+  const as = readAuthorPrefs(getToolDataDir()).comment === "app" ? "githana-bot" : "user";
+  const c = await resolveContext(input, label, { skipAuth: as === "githana-bot" });
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
 
-  const numRes = await resolvePrNumber(input, label, c);
+  let token;
+  if (as === "githana-bot") {
+    const [owner, name] = repo.split("/");
+    try {
+      token = (await getInstallationToken({ dataDir: getToolDataDir(), owner, repo: name })).token;
+    } catch (e) {
+      return label + " cannot post as githana-app[bot]: " + String((e && e.message) || e);
+    }
+  }
+
+  const numRes = await resolvePrNumber(input, label, c, token);
   if (numRes.error) return numRes.error;
   const numStr = numRes.prNumber;
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
@@ -48,7 +63,7 @@ export async function run(input, ctx, { label }) {
 
   const r = await callRest(
     [{ method: "POST", url: apiUrl(repo, "/issues/" + numStr + "/comments"), json: { body }, timeoutMs }],
-    { timeoutSec },
+    { timeoutSec, token },
   );
   if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];

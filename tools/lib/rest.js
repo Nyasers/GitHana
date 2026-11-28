@@ -23,9 +23,9 @@
  * `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。清掉 NODE_OPTIONS 无效——父进程里
  * `--permission` 已生效，旗标随环境传下去是运行时行为。
  *
- * gh CLI 之所以能联网，是因为它是外部二进制、不在 Node 权限模型的账本上。换成我们自己的
- * node 脚本，就必须在 spawn 参数里显式开 `--allow-net`。这不是新增清单能力（清单仍只有
- * `app/process.spawn`），是运行时层面的旗标。
+ * 外部二进制不在 Node 权限模型的账本上，所以能直接联网；我们自己的 node 脚本则必须在
+ * spawn 参数里显式开 `--allow-net`。这不是新增清单能力（清单仍只有 `app/process.spawn`），
+ * 是运行时层面的旗标。
  *
  * 收窄出站主机在 worker 内做（`--allow-net=<host>` 的语法在 v26.8.1 不生效，实测
  * `--allow-net=api.github.com` 下请求 example.com 仍成功），见 rest.worker.mjs。
@@ -165,13 +165,50 @@ function collectFsGrants(list) {
  *   Content-Length）；`toFile` 是**二进制响应体**（本地绝对路径，worker 流式写它，不按 UTF-8
  *   解码）。两者与 json / form / body 互斥，且会触发对相应目录的 spawn 放行（见 collectFsGrants）。
  * @param {{ token?: string, timeoutSec?: number }} [options]
- *   token 缺省取进程内缓存（DPAPI 解密结果）；显式传 "" 表示不带凭据（OAuth 端点的占位值
+ *   token 缺省取进程内缓存（钥匙环信封解密结果）；显式传 "" 表示不带凭据（OAuth 端点的占位值
  *   由调用方传固定常量，不走这里）。
  * @returns {Promise<{ ok: boolean, results: Array<object>, message: string|null }>}
  *   ok=false 时 message 是可读的基础设施错误（worker 缺失/启动失败/超时/输出非法）；
  *   单条请求的失败体现在 results[i].ok / .status / .error，不影响 ok。
  */
-export async function callRest(requests, { token, timeoutSec } = {}) {
+export async function callRest(requests, opts = {}) {
+  const first = await callRestOnce(requests, opts);
+  const list = Array.isArray(requests) ? requests : [];
+  const failed = [];
+  if (first && Array.isArray(first.results)) {
+    first.results.forEach((r, i) => {
+      if (r && r.status === 401) failed.push(i);
+    });
+  }
+  // 401 且用的是本进程的用户令牌：先强制刷新一次再重放。本地过期判定可能因为时钟偏差/
+  // 服务端撤销而不准，以服务端为准才是准的。显式传 token（例如 installation token）不重试。
+  if (opts.token !== undefined || opts.authRetried || failed.length === 0) return first;
+  try {
+    const { ensureFresh } = await import("../../lib/oauth.js");
+    const r = await ensureFresh({ force: true });
+    if (!r || r.refreshed !== true) return first;
+  } catch {
+    return first;
+  }
+  // 只重放 401 的那几条：批量里已经成功的请求再发一遍会造成重复副作用
+  // （典型是 issue close 这种先评论、再改状态的组合）。
+  const retry = await callRestOnce(
+    failed.map((i) => list[i]),
+    { ...opts, authRetried: true },
+  );
+  if (!retry || !Array.isArray(retry.results)) return first;
+  const merged = first.results.slice();
+  failed.forEach((idx, k) => {
+    const got = retry.results[k];
+    if (!got) return;
+    // 重试批里的 id 是批次内位置，这里要还原成调用方那条请求的 id，调用方才能对上号。
+    const wanted = list[idx] && list[idx].id !== undefined ? list[idx].id : idx;
+    merged[idx] = { ...got, id: wanted };
+  });
+  return { ok: first.ok && retry.ok !== false, results: merged, message: first.message || retry.message || null };
+}
+
+async function callRestOnce(requests, { token, timeoutSec } = {}) {
   const list = Array.isArray(requests) ? requests : [];
   if (list.length === 0) return { ok: true, results: [], message: null };
 

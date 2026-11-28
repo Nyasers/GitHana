@@ -110,12 +110,54 @@ parameter list). Parameter shapes are whatever the tool's own `parameters` say.
 | action | When to use | Key parameters |
 |---|---|---|
 | `exec` | Passthrough for any git subcommand: local operations the common verbs do not cover (`pull` / `stash` / `checkout -b` / `show` / `log --stat`). **It appends no signature**, pure passthrough | `cwd` required; `args` required (array, no shell interpolation) |
-| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Automatic CoA + OpenPGP signing | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` |
+| `commit` | Whenever a commit is to be produced, **always go through it** (`exec` appends no Co-authored-by). Author and Co-authored-by come from the settings page; automatic signing | `cwd` required; `message` required (via stdin, multi-line/Chinese text preserved losslessly); `paths` / `amend` / `allowEmpty` / `repo` / `branch` |
 | `push` | When local commits are to be sent to the remote. Authenticates with the App token when logged in (see "Remote credentials" below) | `cwd` required; `branch` / `remote` / `setUpstream` / `force` / `dryRun` |
 
 The dividing line between `commit` and `exec` is **signature governance**: to get CoA and signing use
 `commit`, to get git's raw behaviour use `exec`. Read-only details such as `git diff` also go through
 `exec` (`commit` carries no diff output).
+
+**Author and credits come from the settings page.** The commit channel and the `Co-authored-by`
+set are configured in GitHana's 「身份」 section and apply to every commit. The tool does not accept
+`via` or `coAuthors`; passing either is an argument error.
+
+| channel | author | signature |
+|---|---|---|
+| 本地提交 (local) | the isolated gitconfig identity | OpenPGP, this App's signing key |
+| App bot | `githana-app[bot]` | created through the GitHub API, signed by GitHub (Verified) |
+
+The credit set is an array, so every combination is expressible:
+
+| value | entity credited in `Co-authored-by` |
+|---|---|
+| `user` | the isolated gitconfig identity (name/email read at commit time) |
+| `agent` | `HanaAgent <313794804+HanaAgent@users.noreply.github.com>` — the HanaAgent collaboration account (no GitHub identity; appears only in `Co-authored-by`) |
+| `app` | `githana-app[bot] <340878445+githana-app[bot]@users.noreply.github.com>` — the GitHana App bot |
+
+An entry equal to the author is dropped (an author is not its own co-author). Trailers are written
+in a fixed order (`user`, `app`, `agent`, regardless of the order they were selected), and any
+`Co-authored-by` line already present in `message` is replaced by the selection (the discarded lines
+are returned as a warning).
+
+**Bot commit with a Verified signature (App bot channel).** GitHub signs a commit automatically only
+when the request is authenticated as the App and carries no custom author, committer or signature.
+A local `git commit` as the bot therefore cannot be verified. The App bot channel creates the commit
+through the Git Data API instead:
+
+- the token issuer is the fixed public service (`ISSUER_URL` in `lib/app-auth.js`); the client
+  authenticates with the signed-in GitHub user token, and the issuer checks push permission on the
+  target repository before issuing a token. The App key lives only on the issuer
+  (`deploy/githana-token-server.mjs`);
+- the App must be installed on the repository with `Contents: write`;
+- the local branch must already equal the remote tip, otherwise the call is refused to avoid forking;
+- changes are read from the index (the `paths` are `git add`ed first; without `paths` the staged
+  content — which must match the working tree — is used), uploaded as blobs, and committed with no
+  custom author; the author is always the bot and the user appears only through the settings page's
+  credit set;
+- after the commit, the local branch is fast-forwarded (fetch + `merge --ff-only`).
+
+`amend` and `allowEmpty` are not supported on the App bot channel. The response reports whether
+GitHub marked the commit Verified (`details.verified`).
 
 ### githana_repo (repositories)
 
@@ -139,6 +181,10 @@ the former, to change code use the latter.
 
 ### githana_pr (Pull Requests)
 
+Authorship is configured rather than chosen per call: `commit`, `comment` and `pr` each pick an
+identity in the GitHana settings page. A PR created with the App identity uses an installation
+token, so its author is `githana-app[bot]`; the same applies to `githana_issue(action="comment")`.
+
 | action | When to use | Key parameters |
 |---|---|---|
 | `view` | **Look at** one PR's details (including reviews): when you need the body, review state, merge state | `prNumber` (default = the PR associated with the current branch, in which case `cwd` is needed) |
@@ -151,7 +197,7 @@ the former, to change code use the latter.
 | `ready` | The **state-bit toggle** between draft PR ↔ ready for review (`undo=true` flips it back to a draft). Changing the title/body is not it | `prNumber`; `undo` |
 | `merge` | Merge (**irreversible**). To abandon the changes use `close` | `prNumber` required; `method` (`merge` / `squash` / `rebase`); `deleteBranch` |
 | `review` | Submit a **review verdict** (approve / request changes / leave comments), optionally with inline comments | `event` required; `body` (required for `request-changes`); `comments[]` |
-| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required |
+| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required; the author identity comes from the settings page |
 | `close` | Close a PR (restorable with `reopen`). **Deletes neither the branch nor history** | `prNumber` may be omitted |
 | `reopen` | Reopen a closed PR | `prNumber` may be omitted |
 | `edit` | Change a PR's **metadata**: title / body / base branch / state bit | `title` / `body` / `base` / `state` — give at least one |
@@ -175,7 +221,7 @@ whole check-run set on the PR head (GitHub App checks such as CodeRabbit include
 | `status` | Issue status at a glance (reports state only, does not fetch the body or comments) | `issueNumber` required |
 | `create` | Create a new issue | `title` required; `body` / `labels` / `assignees` |
 | `edit` | Change title / body / labels / assignees / milestone | `issueNumber` required; `labels` (whole replacement) is mutually exclusive with `addLabels` / `removeLabels` |
-| `comment` | Add a comment to an issue | `body` required |
+| `comment` | Add a comment to an issue | `body` required; the author identity comes from the settings page |
 | `close` / `reopen` | Close / reopen (optionally with one explanatory comment attached; comments first, then changes the state) | `issueNumber`; `comment` |
 | `delete` | Delete an issue (**irreversible**, requires `confirm=true`) | `issueNumber` required; `confirm` |
 | `develop` | **Create a linked development branch** from the issue (branch name defaults to `<number>-<title-in-hyphenated-form>`) | `issueNumber` required; `name` / `base` |
@@ -498,9 +544,9 @@ down here rather than disguised as nonexistence.
 | `browse` | opening a browser is the UI slot's business |
 | `skill` | the Hana side has its own skill system |
 
-### 4. Binary channel: **available** (the former "cannot fetch bytes" is gone)
+### 4. Binary channel: **available**
 
-Release asset upload / download and run download really do move bytes now. They are **no longer**
+Release asset upload / download and run download move bytes through the worker. They are **not**
 capability gaps — they are registered here to make clear **how this channel is used and where its
 boundaries are**, because its shape differs from other verbs (it needs local paths, writes to disk,
 and has a hard per-file limit).
@@ -562,9 +608,8 @@ by the three verbs above.
 `createSurface`'s `reserved` channel is still kept (`tools/lib/surface.js`), for the next time a verb
 appears that is "recognizable, but whose parameter contract is not settled yet": putting such a value
 into the candidates only gives the model a trial-and-error entry point, since it neither explains how
-to use it nor returns anything but `not implemented`. The `ci_status` / `ci_watch` reserved slots on
-the old `githana_read` / `githana` entry points were removed together with those two tools — CI is now
-the three real verb groups `githana_run` / `githana_workflow` / `githana_cache`.
+to use it nor returns anything but `not implemented`. CI is handled by the three real verb groups
+`githana_run` / `githana_workflow` / `githana_cache`.
 
 ### Reference table: the authorized permissions (the five tiers above are checked against it)
 
@@ -646,7 +691,7 @@ Git actions that access github.com (`push` / `fetch` / `pull` / `clone` / `ls-re
 - Tokens and private keys **do not enter** tool return values, logs or settings-page echoes. GitHub
   requests are sent directly in a subprocess by the bundled REST worker, with the token passed to the
   worker over stdin; on the git side the token is read by the remote helper itself from
-  `<dataDir>/credential.json` and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
+  the `credential` table in `data.db`, stored there as a v2 envelope and unwrapped with the OS keyring KEK (the keyring holds only the KEK that wraps each object's DEK) — **it is not in the git subprocess's env** (nor in
   the command line or config files either). **Upload / download URLs contain no token either** —
   credentials go in the `Authorization` header.
 - **The binary channel's reads and writes are done on the App's behalf by the worker**: at spawn time

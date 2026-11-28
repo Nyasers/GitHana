@@ -2,14 +2,14 @@
 // Copyright (c) 2026 Nyasers
 
 /**
- * tools/lib/gpg.shim.mjs — 顶替 gpg 可执行文件的签名/验签程序（独立入口，随包）。
+ * tools/lib/gpg.shim.mjs — 充当 gpg.program 的签名/验签程序（独立入口，随包）。
  *
  * ## 为什么存在
  *
  * git 通过 `gpg.program` 调一个**外部程序**来完成签名与验签。它不要求那个程序是 gpg，
- * 只要求它符合下面这套契约（本文件实现的就是这套契约）。于是我们可以用纯 JS 的
- * OpenPGP.js 顶替 GnuPG 二进制：包体只留一份 395 KB 的库文件（原先随包的 GnuPG 压缩后 5.45 MB），
- * 三平台同一实现，且不再需要 GNUPGHOME 隔离与 gpg-agent 收尾。
+ * 只要求它符合下面这套契约（本文件实现的就是这套契约）。于是我们用纯 JS 的 OpenPGP.js
+ * 充当这个程序：包体只需一份约 395 KB 的库文件（随包 GnuPG 压缩后约 5.45 MB），三平台同一实现，
+ * 也不需要 GNUPGHOME 隔离与 gpg-agent 收尾。
  *
  * ## git 的契约（均为实测）
  *
@@ -22,11 +22,17 @@
  *         **只退 0 不够**，缺 TRUST_* 时 `%G?` 会落到 U 而不是 G。可读文本走 stderr，
  *         git 原样转发给 `--show-signature` 的显示。
  *
- * ## 密钥从哪来
+ * ## 密钥从哪来（只靠「文件 + 钥匙环」，不读数据库）
  *
- * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.json（DPAPI 加密的 armored 私钥）。
- * 本进程在 AppHost 的权限模型下运行（`--permission` 经 NODE_OPTIONS 传染），能读 dataDir
- * 是因为宿主的 AppHost 命令行带了 `--allow-fs-read=<dataDir>`（实测）。
+ * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.bin——一份 v2 自包含信封
+ * （wrapNonce | wrappedDEK | dataNonce | ciphertext | tag，见 lib/envelope.js）。wrapped DEK
+ * 就封在该文件自己里面，解开它要的是钥匙环 hana-githana/kek 里的 KEK。所以本 shim 只依赖
+ * 「一个文件 + 系统钥匙环」，**不读 data.db**——这是刻意保持的边界：shim 由 git 直接拉起，
+ * 不经过 App 进程，也不该为了信封结构把数据库依赖拉回来。
+ *
+ * 钥匙环经 lib/envelope.js → lib/keyring.worker.mjs 子进程访问；worker 的绝对路径由
+ * `GITHANA_KEYRING_WORKER` 环境变量传入（bin.js 注入，避免打包后的单文件猜路径）。
+ * shim 由 process.execPath 拉起，不在 AppHost 的权限模型下，worker 里 require 原生 addon 正常。
  *
  * ## stdout 只走协议
  *
@@ -38,10 +44,7 @@
  */
 import fs from "node:fs";
 import * as openpgp from "openpgp";
-import { dpapiUnprotect } from "../../lib/dpapi.js";
-
-/** 密钥文件里记录的加密算法标识（与 lib/secret.js 的后端 alg 同口径）。 */
-const DPAPI_ALG = "dpapi-current-user";
+import { openSelfContained } from "../../lib/envelope.js";
 
 function die(msg, code = 2) {
   process.stderr.write("[githana-gpg-shim] " + msg + "\n");
@@ -128,26 +131,27 @@ function readEnv(name) {
   }
 }
 
-/** 读并解密 armored 私钥。 */
-function loadPrivateKeyArmored() {
+/** 读并解密 armored 私钥（文件是 v2 自包含信封；解开只需钥匙环里的 KEK）。 */
+async function loadPrivateKeyArmored() {
   const keyFile = readEnv("GITHANA_KEY_FILE");
   if (!keyFile) die("GITHANA_KEY_FILE not provided: cannot locate the signing key.");
-  let rec;
+  let buf;
   try {
-    rec = JSON.parse(fs.readFileSync(keyFile, "utf8"));
+    buf = fs.readFileSync(keyFile);
   } catch (e) {
     die("failed to read the key file (" + keyFile + "): " + String((e && e.message) || e));
   }
-  if (!rec || typeof rec.cipher !== "string" || !rec.cipher) {
-    die("the key file contains no ciphertext: go to the settings page and generate the key again.");
-  }
-  if (rec.alg && rec.alg !== DPAPI_ALG) {
-    die("the key is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).");
+  if (!buf || buf.length === 0) {
+    die("the key file is empty: go to the settings page and generate the key again.");
   }
   try {
-    return dpapiUnprotect(rec.cipher);
+    return (await openSelfContained(buf)).toString("utf8");
   } catch (e) {
-    die("failed to decrypt the private key: " + String((e && e.message) || e) + " (did you switch machine or user?)");
+    die(
+      "failed to decrypt the private key: " +
+        String((e && e.message) || e) +
+        " (the OS keyring KEK is missing/locked, or the key was moved to another machine/user)",
+    );
   }
 }
 
@@ -156,7 +160,7 @@ async function main() {
   const status = makeStatus(parseStatusFd(argv));
   const isVerify = argv.includes("--verify");
 
-  const armored = loadPrivateKeyArmored();
+  const armored = await loadPrivateKeyArmored();
   let priv;
   try {
     priv = await openpgp.readKey({ armoredKey: armored });

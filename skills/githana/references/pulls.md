@@ -1,6 +1,6 @@
 # `githana_api` — pulls
 
-35 endpoints reachable with this App's permission set.
+36 endpoints reachable with this App's permission set.
 Any endpoint outside this list needs a permission this App does not declare, so `api` gets a 403.
 
 | Endpoint | Permission | Action | Notes |
@@ -13,6 +13,7 @@ Any endpoint outside this list needs a permission this App does not declare, so 
 | `POST /repos/{owner}/{repo}/pulls/{pull_number}/comments` | pull_requests | write | prefer `githana_pr` |
 | `POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies` | pull_requests | write | prefer `githana_pr` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` | pull_requests | read | prefer `githana_pr` |
+| `POST /repos/{owner}/{repo}/pulls/{pull_number}/copilot-code-review` | pull_requests | write | prefer `githana_pr` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/files` | pull_requests | read | prefer `githana_pr` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/merge` | pull_requests | read | prefer `githana_pr` |
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` | contents | write | prefer `githana_pr` |

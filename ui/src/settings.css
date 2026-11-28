@@ -11,6 +11,19 @@
  * 不复制桌面样式，不覆盖宿主组件的内部类名。
  */
 
+/* 指纹末 16 位就是 GitHub 上的 key ID：同一串里把那段点亮，不用自己数位数。 */
+.gh-fpr-tail {
+  color: var(--accent, #9a4a22);
+  font-weight: 600;
+}
+
+/* 滚动条统一用宿主的细条口径，不出现浏览器默认的宽槽。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-muted, #6b6158) 30%, transparent) transparent;
+}
+
 html,
 body {
   height: 100%;
@@ -110,8 +123,7 @@ body {
 /* 公钥正文：完整展开，不滚动。
 
    它是给人复制的材料：能一眼看到结尾的 -END- 行才算“完整的公钥”，
-   滚动框会让它看起来像被截断了一截。整段高度固定（65 行以内），
-   不会因为内容多少而跳动。 */
+   滚动框会让它看起来像被截断了一截，而且原生滚动条与宿主的样式不一致。 */
 .gh-pubkey {
   margin: 0;
   padding: 9px 11px;
@@ -127,12 +139,30 @@ body {
   word-break: break-all;
 }
 
-/* 手动档的输出块（工具原文，保留换行与等宽） */
+/* 单行配置输入框（签发服务地址）。和按钮同行时由 flex 吃掉剩余宽度。 */
+.gh-input {
+  flex: 1 1 260px;
+  width: 100%;
+  min-width: 220px;
+  max-width: 360px;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-light, #4a433c);
+  background: var(--bg, #f5efe4);
+  border: 1px solid var(--border, #d8cfbe);
+  border-radius: 8px;
+}
+.gh-input::placeholder {
+  color: var(--text-muted, #6b6158);
+}
+
+/* 手动档的输出块（工具原文，保留换行与等宽）。内容不长，不设滚动：滚动交给宿主的
+   页面容器，避免在卡片里再套一层自己的滚动条。 */
 .gh-out {
   margin: 10px 0 0;
   padding: 9px 11px;
-  max-height: 220px;
-  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
