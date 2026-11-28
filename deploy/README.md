@@ -46,6 +46,13 @@ chmod 600 /root/githana/issuer.env
 
 ## 构建与运行
 
+私钥对容器用户必须可读：镜像以 `node`（UID 1000）运行，root 属主的 `0600` 文件挂进去是读不到的。
+
+```sh
+chown 1000:1000 /root/githana/privkey.pem
+chmod 0400 /root/githana/privkey.pem
+```
+
 ```sh
 cd /root/githana/deploy
 podman build -t localhost/githana-token:local -f Containerfile .
