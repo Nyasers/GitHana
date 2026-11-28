@@ -516,27 +516,26 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
 `node_modules/openpgp/dist/node/openpgp.min.mjs` 逐字节相同——“原样未修改”因此是可验证的事实，
 不是声明。具体条款映射（§4(a)～§4(e)）写在 `THIRD_PARTY_NOTICES.md` 的 LGPL 段。
 
-## 运行时依赖（git 与 curl）
+## 运行时依赖（git）
 
-本包不内嵌任何二进制。外部可执行文件有两个：git（本地 git 操作，宿主提供）与 curl（向签发服务换取 installation token 时用，走系统 PATH）：
+本包不内嵌任何二进制。唯一的外部可执行文件是 git，由宿主提供：
 
-| 可执行文件 | Windows | macOS / Linux | 来源 |
-|--------|---------|---------------|------|
-| git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 |
-| curl | 系统 PATH | 系统 PATH | 系统（仅 App 身份换 installation token 时用） |
+| 平台 | git 来源 | 用户要做什么 |
+|------|---------|--------------|
+| Windows | 宿主自带 `<HANA_ROOT>/resources/git`，已进 PATH | 无 |
+| macOS / Linux | 系统 PATH 里的 git | 无 |
 
-签名与 GitHub REST 请求都不需要外部二进制：前者由随包的纯 JS shim（`bin/gpg.shim.mjs`）完成，
-后者由随包的 `bin/rest.worker.mjs` 直发。所以 `vendor/sources.json` 的组件表为空，
-`vendor/bin/` 不存在也是合法状态（不是“少抓了”）。
+签名、GitHub REST 请求、App 身份换 installation token 都不需要外部二进制：签名由随包的纯 JS shim
+（`bin/gpg.shim.mjs`）完成，GitHub 域与签发服务都由随包的 `bin/rest.worker.mjs` 直发（AppHost 的
+Node Permission Model 会拒掉进程内 fetch 的 DNS，所以联网走补了 `--allow-net` 的 worker 子进程）。
+所以 `vendor/sources.json` 的组件表为空，`vendor/bin/` 不存在也是合法状态（不是“少抓了”）。
 
-**git 与 GitHub 域都不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在
-宿主安装目录里，不由本包再带一份；GitHub 请求由随包的 `bin/rest.worker.mjs` 直发，不需要任何外部二进制。
+git 的 `LICENSE.txt` 在宿主安装目录里，不由本包再带一份。构建脚本解压 tgz / zip 走
+`scripts/lib/archive.mjs`（`node:zlib`），不依赖系统的 tar / unzip。
 
 **每个组件目录只留运行时需要的文件**：落盘把上游 `remove/*` 的内容平铺到组件根，最终形态是
-`vendor/bin/<平台>/<组件>/<exe>`。上游产物里那此 `share/`（man 手册）、`LICENSE`、卸载器、
+`vendor/bin/<平台>/<组件>/<exe>`。上游产物里那些 `share/`（man 手册）、`LICENSE`、卸载器、
 `include/` 都裁掉，不靠随包拷贝转运许可文本（许可面统一走 `THIRD_PARTY_NOTICES.md`）。
-**git 不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在宿主
-安装目录里，不由本包再带一份。
 
 **许可面不在打包期改动**：`THIRD_PARTY_NOTICES.md` 由 `derive` 生成并入库，随交付树进入暂存；
 仓库里那份就是包里那份。只有当「包内容随 target 变」时，才需要 pack 现渲染 + 按组件裁剪 `licenses/`；
@@ -572,7 +571,7 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
     → 系统 PATH（git）
 ```
 
-签名与 GitHub REST 都不依赖外部可执行文件（纯 JS shim + REST worker）；App 身份换 installation token 那一步走 curl（系统 PATH）。除此之外没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
+签名、GitHub REST 与 App 身份换 installation token 都不依赖外部可执行文件（纯 JS shim + REST worker）；唯一的外部依赖是 git。除此之外没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
 
 （**仅指可执行依赖这一层**：凭据与私钥的加密后端目前只有 `win32` 的 DPAPI 落地，`darwin`/`linux`
 是占位（`lib/secret.js` 的 `pickBackend`）——那两个平台上签名链路本身能跑，但还缺密钥与令牌的
