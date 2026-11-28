@@ -35,7 +35,6 @@ import {
   SettingsPage,
   SettingsSection,
   SettingsStack,
-  TextArea,
   Tooltip,
   Toggle,
 } from "@hana/app-sdk/components";
@@ -1091,9 +1090,11 @@ function GitHanaSettings() {
           label="状态"
           control={
             <Inline gap="sm" align="center" wrap>
-              <StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />
-              {pk.present && published.published ? <StatusText ok on="已发布到 GitHub" off="未发布" /> : null}
-              {pk.present && !published.published ? <StatusText ok={false} on="已发布" off="未发布到 GitHub" /> : null}
+              {pk.present ? (
+                <StatusText ok={Boolean(published.published)} on="已发布到 GitHub" off="未发布" />
+              ) : (
+                <span className="gh-val">未生成</span>
+              )}
               {kgConfirm ? (
                 <>
                   <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
@@ -1152,7 +1153,12 @@ function GitHanaSettings() {
               <SettingRow
                 label="指纹"
                 truncateText
-                control={<MonoText title={pk.fpr}>{pk.fpr}</MonoText>}
+                control={
+            <MonoText title={pk.fpr}>
+              {String(pk.fpr).slice(0, -16)}
+              <strong className="gh-fpr-tail">{String(pk.fpr).slice(-16)}</strong>
+            </MonoText>
+          }
                 hint="GitHub 页面上的 key ID 就是它的末 16 位"
               />
             ) : null}
@@ -1221,13 +1227,7 @@ function GitHanaSettings() {
                 />
                 {/* 公钥正文：不放在 SettingRow 里（没有 label），也不加左边距，
                     与这一组其他行的左边线对齐。 */}
-                <TextArea
-                  className="gh-pubkey-input"
-                  readOnly
-                  rows={18}
-                  value={keyText || "读取中…"}
-                  aria-label="完整公钥"
-                />
+                <pre className="gh-pubkey">{keyText || "读取中…"}</pre>
               </>
             ) : null}
             {/* 提示放在展开块之外：移除公钥成功后面板里的内容没了，
