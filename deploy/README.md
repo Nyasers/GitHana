@@ -85,7 +85,8 @@ curl -sS http://127.0.0.1:8787/health
 ## 接口
 
 ```
-GET  /health
+GET  /health   -> { "ok": true }
+GET  /identity -> { "login", "name", "email", "app_id" }   // bot 身份（公开信息，客户端写 CoA 用）
 POST /token
 Authorization: Bearer <GitHub user token>
 Content-Type: application/json
@@ -96,8 +97,9 @@ Content-Type: application/json
      "permissions": { ... }, "repository_selection": "selected" }
 ```
 
-触发方式：GitHana 走 `commit via="api"` 或 `comment as="githana-bot"` 时自动调用，用户不需要
-手动操作。`Authorization` 用的是 GitHana 已经登录的 GitHana App OAuth 令牌。
+触发方式：设置页把「提交」「评论」或「拉取请求」身份选为 App bot 时，GitHana 会自动调本服务；
+工具参数不参与决定（没有 `via` / `as` 这类参数），用户不需要手动操作。`Authorization` 用的是
+GitHana 已经登录的 GitHana App OAuth 令牌。
 
 错误：401（用户令牌无效）、403（无仓库写权限 / 白名单拒绝）、404（App 未安装或仓库不可见）、
 429（限流）、502（GitHub 侧失败）。
