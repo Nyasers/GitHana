@@ -391,6 +391,17 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
     if (fetchR.ok) {
       const mergeR = await runCli("git", ["merge", "--ff-only", "FETCH_HEAD"], { cwd });
       synced = mergeR.ok;
+      if (!mergeR.ok) {
+        syncNote =
+          "fetched, but the local fast-forward failed: " +
+          String(mergeR.stderr || mergeR.message || "").split("\n")[0];
+      }
+    } else {
+      syncNote =
+        "git fetch origin " +
+        targetBranch +
+        " failed: " +
+        String(fetchR.stderr || fetchR.message || "").split("\n")[0];
     }
   }
 
