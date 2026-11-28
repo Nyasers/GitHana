@@ -851,7 +851,7 @@ function GitHanaSettings() {
                 ? secret.refreshExpiresAt
                   ? "有效期至 " + formatTime(secret.refreshExpiresAt)
                   : "令牌在后台自动续期；续期凭证的到期时间尚未记录。"
-                : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
+                : "登录后才能生成签名密钥。"
           }
         />
         {needsReauth ? (
@@ -897,7 +897,6 @@ function GitHanaSettings() {
           <SettingRow
             label="正在连接"
             control={<Busy label="向 GitHub 要验证码…" />}
-            hint="这个屏就在等它；连不上会直接说原因，也可以点「取消」。"
           />
         ) : null}
         {noticeMsg ? <SettingRow label="状态" control={<span className="gh-msg">{noticeMsg}</span>} /> : null}
@@ -942,8 +941,8 @@ function GitHanaSettings() {
               control={<MonoText>{formatCountdown(remaining)}</MonoText>}
               hint={
                 expired
-                  ? "验证码已过期。点「重新登录」拿一枚新的；旧流程作废不影响新的。"
-                  : `每 ${oauth.interval} 秒自动查一次结果，批准后本行会自动变成「登录成功」。`
+                  ? "验证码已过期，点「重新登录」。"
+                  : `每 ${oauth.interval} 秒查询一次。`
               }
             />
           </>
@@ -1010,7 +1009,6 @@ function GitHanaSettings() {
             <SettingRow
               label="凭据保护方式"
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
-              hint={secret.location ? `存放：${secret.location}` : null}
             />
             </SettingsStack>
           </div>
@@ -1040,7 +1038,7 @@ function GitHanaSettings() {
           hint={
             shownAuthor === "app"
               ? botReady
-                ? "GitHub 代签，提交页显示 Verified。需把 App 装到目标仓库。"
+                ? "GitHub 代签；需把 App 装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
               : "由你签名（OpenPGP）。"
           }
@@ -1116,15 +1114,11 @@ function GitHanaSettings() {
             </Inline>
           }
           hint={
-            // 徽标已经说了「已发布 / 未发布」，这里不再复述那个状态，
-            // 只说徽标没说清的那件事：提交会不会显示 Verified。
             !authorized
-              ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
+              ? "先登录 GitHub 账号。"
               : pk.present
-                ? published.published
-                  ? "GitHub 上显示为 Verified。"
-                  : "公钥还没传上去；在那之前提交不会显示为 Verified。"
-                : "生成后会直接发布到账号，两边始终一致。"
+                ? null
+                : "生成后会直接发布到账号。"
           }
         />
         {pk.present && pk.uid ? (
@@ -1159,15 +1153,11 @@ function GitHanaSettings() {
               <strong className="gh-fpr-tail">{String(pk.fpr).slice(-16)}</strong>
             </MonoText>
           }
-                hint="GitHub 页面上的 key ID 就是它的末 16 位"
+                hint="末 16 位即 key ID"
               />
             ) : null}
             {published.keyId ? (
-              <SettingRow
-                label="账号内编号"
-                control={<MonoText>{published.keyId}</MonoText>}
-                hint="GitHub 用来定位这把钥匙的数字 id，不是指纹"
-              />
+              <SettingRow label="账号内编号" control={<MonoText>{published.keyId}</MonoText>} />
             ) : null}
             {published.uploadedAt ? (
               <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} />
@@ -1186,7 +1176,6 @@ function GitHanaSettings() {
             {!published.published && pk.present ? (
               <SettingRow
                 label="公钥未在账号上"
-                hint="补传之前，提交不会显示为 Verified。"
                 control={
                   <Button variant="secondary" disabled={pubBusy} onClick={publishPubkey}>
                     {pubBusy ? "处理中…" : "上传公钥"}
