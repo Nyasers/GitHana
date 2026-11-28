@@ -366,7 +366,12 @@ function GitHanaSettings() {
   const loadPrefs = useCallback(async () => {
     try {
       const data = await getJson("settings/prefs");
-      setPrefs({ loading: false, data: (data && data.commit) || null, error: null });
+      const commit = (data && data.commit) || null;
+      setPrefs({ loading: false, data: commit, error: null });
+      if (commit) {
+        setDraftAuthor(commit.author);
+        setDraftCredits(commit.coAuthors);
+      }
     } catch (e) {
       setPrefs({ loading: false, data: null, error: String((e && e.message) || e) });
     }
@@ -376,12 +381,8 @@ function GitHanaSettings() {
     loadPrefs();
   }, [loadPrefs]);
 
-  // 读到偏好后填草稿；之后用户的改动只进草稿，点保存才落库。
-  useEffect(() => {
-    if (!prefs.data) return;
-    setDraftAuthor(prefs.data.author);
-    setDraftCredits(prefs.data.coAuthors);
-  }, [prefs.data]);
+  // 读到偏好后填草稿（在 loadPrefs 里做）；这里不再跟随 prefs.data 重置，
+  // 否则保存响应回来会盖掉等待期间用户刚改的草稿。
 
   const commitPref = prefs.data || {
     author: "user",
@@ -400,6 +401,7 @@ function GitHanaSettings() {
   );
 
   const saveCommitDraft = useCallback(async () => {
+    const submitted = { author: draftAuthor, coAuthors: draftCredits };
     setSaveStatus("saving");
     setPrefsMsg(null);
     try {
@@ -407,7 +409,13 @@ function GitHanaSettings() {
       if (draftAuthor) patch.author = draftAuthor;
       if (draftCredits) patch.coAuthors = draftCredits;
       const r = await postJson("settings/prefs", { commit: patch });
-      setPrefs({ loading: false, data: (r && r.commit) || commitPref, error: null });
+      const saved = (r && r.commit) || commitPref;
+      setPrefs({ loading: false, data: saved, error: null });
+      // 只有草稿没在等待期间被改过才跟随服务端值，否则保留用户刚改的。
+      setDraftAuthor((cur) => (cur === submitted.author ? saved.author : cur));
+      setDraftCredits((cur) =>
+        JSON.stringify(cur) === JSON.stringify(submitted.coAuthors) ? saved.coAuthors : cur,
+      );
       setSaveStatus("saved");
     } catch (e) {
       setPrefsMsg(String((e && e.message) || e));
@@ -1070,6 +1078,7 @@ function GitHanaSettings() {
             />
           }
         />
+        {prefs.error ? <pre className="gh-out">{"读取提交设置失败：" + prefs.error}</pre> : null}
         {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>
 
