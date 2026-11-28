@@ -218,7 +218,9 @@ export async function run(input, ctx, { label }) {
       target: target.path,
       run: makeRestTransfer({
         id: "artifact-" + String(a.id),
-        url: apiUrl(repo, "/actions/runs/" + encodeURIComponent(num) + "/artifacts/" + encodeURIComponent(String(a.id)) + "/zip"),
+        // 下载端点在仓库下，不在 run 下：`/repos/{owner}/{repo}/actions/artifacts/{id}/zip`。
+        // 写成 `/actions/runs/{run}/artifacts/{id}/zip` 会得到 404（GitHub 没有这个路径）。
+        url: apiUrl(repo, "/actions/artifacts/" + encodeURIComponent(String(a.id)) + "/zip"),
         target: target.path,
         overwrite,
         timeoutSec,
