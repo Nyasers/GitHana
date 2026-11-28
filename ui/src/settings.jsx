@@ -1006,22 +1006,6 @@ function GitHanaSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="App 身份（bot）"
-        description="GitHana 绑定的就是这个 GitHub App（githana-app）。bot 身份由它的 installation token 签发，私钥只在签发服务上。"
-      >
-        <SettingRow
-          label="状态"
-          control={issuer.loading ? <MonoText>读取中…</MonoText> : <StatusText ok={botReady} on="已配置" off="未配置" />}
-          hint={
-            issuer.error ||
-            (botReady
-              ? "签发服务：" + (issuer.data.url || "") + "。App 需安装到目标仓库并有写权限。"
-              : "bot 提交与评论不可用。")
-          }
-        />
-      </SettingsSection>
-
-      <SettingsSection
         title="提交署名"
         description="这里的设定决定每次提交的作者与共同署名，工具调用不能覆盖。"
       >
@@ -1038,7 +1022,13 @@ function GitHanaSettings() {
               onChange={(value) => saveCommitPrefs({ defaultVia: value })}
             />
           }
-          hint="本地提交由你签名；App bot 通过 GitHub API 生成提交，由 GitHub 代签（Verified）。"
+          hint={
+            commitPref.defaultVia === "api"
+              ? botReady
+                ? "由 GitHub 生成提交并代签（Verified）；App 需已安装到目标仓库。"
+                : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
+              : "本地提交由你签名（OpenPGP），不依赖 App 安装。"
+          }
         />
         <SettingRow
           label="默认共同作者"
