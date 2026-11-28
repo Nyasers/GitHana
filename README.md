@@ -61,8 +61,8 @@
 ### 工具名的形态
 
 工具名是名词、`action` 是动词，两者都不带 `git_` / `gh_` 前缀——工具名已经把域分开了，
-再带域前缀是重复标注。收敛前的「读写两面 + 一张平表 action」形态已作废：那时 `method` 与
-`body` 在平表里同键不同义（`params.js` 自陈），名词分家后每个工具一张自己的参数表，碰撞消失。
+再带域前缀是重复标注。每个工具一张自己的参数表：读写两面共用同一张表时，`method` 与
+`body` 会在同键上撞车（`params.js` 自陈），分词后每个工具各自一个命名空间，碰撞消失。
 
 `githana_git` **不是** gh 的组：gh 从不管本地 commit，那张表来自 GitHana 自己。
 
@@ -89,8 +89,8 @@ skills/githana/SKILL.md # 随包手册（逐 action 参数 + 什么时候用 + �
 （失败返回全部 issues 的英文原文 + 一行中文引导），以及模型面的 `parameters`
 （`z.toJSONSchema` 投影成平表；顶层 `oneOf` 会让宿主的参数摘要变空，所以模型面用平表）。
 
-> 收敛是**重构不是改语义**：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
-> `pr create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，全部逐条保真。
+> 名词化的工具面不改语义：commit 的 CoA 与 OpenPGP 签名、push 的 `--force-with-lease`、
+> `pr create` 缺 base 取默认分支、api 的 body / headers 透传、令牌边界，都与既有行为逐条一致。
 
 ### 远端凭据（git 传输层）
 
@@ -125,7 +125,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   （报 `git: 'remote-githana' is not a git command`），所以由 git for Windows 自带的 msys sh
   解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
 - 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
-  **不进** git 子进程的 env：helper 自己读 `data.db` 的 `secret/credential` 记录解 DPAPI（`lib/dpapi.js`）。
+  **不进** git 子进程的 env：helper 自己读 `data.db` 的 `credential` 表密文解 DPAPI（`lib/dpapi.js`）。
 - 不改主机文件：上面那些前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
   `git remote -v` 看到的仍是原 URL。
 - 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
@@ -135,20 +135,17 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   系统凭据。
 - 带 `.github/workflows/*` 改动的推送需要 `workflows: write`（已在授权集里，见 D7）。
 
-### 已从工具面退役的名字
+### 工具面之外：GPG 与 REST 逃生门
 
 `gpg_keygen` / `gpg_pubkey` 不在工具面：GPG 的密钥生成与公钥查看都只在设置页（生成不可逆，
 要用户点按钮确认）。实现在 `lib/gpg-keygen.js`（只由设置页动作调 `execute`）；公钥读取在
-`lib/routes/pubkey.js`，原来的 `tools/gpg-pubkey.js` 已删。
+`lib/routes/pubkey.js`。
 
-`gh_exec` 已由 `githana_api` 取代：前者透传 gh 的**子命令**（`gh release create` 这类高层动词），
-后者透传 **REST 端点**。多数高层动词都能由端点组合出来，但组合工作从 CLI 移到了调用方——
-这是能力面的真实变化，不是等价换皮。
+`githana_api` 透传 **REST 端点**，不提供 gh 那种**子命令**（`gh release create` 这类高层动词）的直通：
+多数高层动词都能由端点组合出来，但组合工作落在调用方——这是能力面的真实形状。
 
-`githana` / `githana_read` 两个旧入口、以及它们那张平表上的 action 名（`ci_status` / `ci_watch` /
-`pr_create` / `pr_list` / `pr_view` / `pr_merge` …）都不再注册：CI 现在是
-`githana_run` / `githana_workflow` / `githana_cache` 三组真实动词，`githana_run(action="watch")`
-就是其中的「等 CI 到终态」。
+CI 的三类对象各有自己的工具：`githana_run` / `githana_workflow` / `githana_cache`，
+`githana_run(action="watch")` 就是其中的「等 CI 到终态」。
 
 两个 `watch` 分工**不重叠**：`githana_run(action="watch")` 盯一条 Actions run（`GET /actions/runs/{id}`）；
 `githana_pr(action="watch")` 盯 PR head 上**全部 check-runs**（`GET /commits/{sha}/check-runs`），
@@ -161,13 +158,13 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 |------|------------------------------------------|------------------|
 | 工具注册 | 宿主扫描 `tools/*.js` 自动注册 | `apply(ctx)` 内逐个 `ctx.tools.register`（无前缀，名字全局唯一） |
 | 设置 | `contributes.configuration`（明文进 preferences.json） | `contributes.settings.ui` 自定义页 + App 自持存储（DPAPI 加密，不进宿主设置表） |
-| 凭据来源 | 手动粘贴 PAT | **GitHub App device flow 授权**（`ghu_` 令牌，PAT 通道已删除） |
+| 凭据来源 | 手动粘贴 PAT | **GitHub App device flow 授权**（`ghu_` 令牌；无 PAT 通道） |
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
 | 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | GitHub 域 | gh CLI（外部二进制） | 随包 REST worker（Node 内置 fetch，见「GitHub 通道」） |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
-| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`data.db` 的 `secret/credential`，`kind: "oauth"`），不进宿主设置表 |
+| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 DPAPI 加密（`data.db` 的 `credential` 单行表，`kind: "oauth"`），不进宿主设置表 |
 
 `tools/actions/` 与 `tools/lib/` 的实现基本原样复用：`app.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给各 action 的 `run(input, ctx, options)`，因此实现代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
@@ -224,25 +221,27 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   并回 504。两者提示不同：`timeout` 说明连不上 GitHub、建议检查代理/VPN 后重试；
   `transport_error` 说明连接中断，可以稍后重试。配置类错误（`device_flow_disabled` /
   `incorrect_client_credentials`）直接说重试无用，并把 App 设置页地址摆出来。
-- **等待中可中断、可重来**：发起请求带 `AbortController`，「取消」立刻停；验证码过期后按钮从
-  「等待浏览器…」变成「重新登录」，不再让用户白等满 15 分钟。
+- **等待中可中断、可重来**：发起请求带 `AbortController`，「取消」立刻停；验证码过期时按钮显示
+  「重新登录」，用户不必等满 15 分钟。
 - **交接失败给退路**：剪贴板与开浏览器各自成败、各自回报；验证页地址始终在页面上，另配
   「重新打开」「复制地址」两个按钮。轮询遇到传输层故障会重试 3 次再判失败（授权流程本身仍在服务端
   活着，重新发起会拿到新的 flow，旧的不影响新的）。
 
 令牌**不进** `contributes.settings`，因此不会以明文出现在 `user/preferences.json`。
-它由 App 自己的加密后端写进数据目录的 `data.db`（单表 `store`，`key = credential`）：
+它由 App 自己的加密后端写进数据目录的 `data.db`（两张表：`settings` 键值表 + `credential` 单行表）：
 
 ```
 settings(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at TEXT)
-  author → { commit, coa: [...], comment, pr }
-  gpg    → { alg, fingerprint, keyId, uid, email, createdAt, published }
+  account       → { login, name, email }（登录身份的唯一来源）
+  author        → { commit, coa: [...], comment, pr }
+  gpg           → { alg, fingerprint }（UID 与邮箱从公钥本身解析，不另存）
+  gpg-published → { id, fingerprint, stale[] }（GitHub 侧发布状态，密钥记录之外单独一行）
 
 credential（单行表，id = 1）
-  kind | alg | cipher(BLOB) | login | name | expires_at | refresh_expires_at | needs_reauth | updated_at
+  kind | alg | cipher(BLOB) | expires_at | refresh_expires_at | needs_reauth | updated_at
 ```
 
-`value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。
+`value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。建表在 `lib/sql/schema.sql`，各条增删改查语句在 `lib/sql/queries/`。
 gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径直读。
 
 - **令牌保活**：剩余有效期不足 5 分钟时，工具/路由调用前自动用 `refresh_token` 换新
@@ -251,26 +250,24 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
   失败 → 记 `meta.needsReauth` 并清掉进程内令牌，设置页显示「需重新授权」。
   **不降级到其它凭据**（也没有其它凭据）：失败就是失败，后续调用如实报未授权。
 - **后端可插拔**：`win32` = DPAPI（CurrentUser，密钥由登录身份派生，无需另管密钥）；
-  `darwin` = Keychain、`linux` = libsecret 已留后端位与降级策略（`lib/secret.js` 的 `pickBackend`）。
+  `darwin` = Keychain、`linux` = libsecret 目前只有占位后端、尚未接入（`lib/secret.js` 的 `pickBackend`）。
 - **绝不回落明文**：没有可用后端时保存直接报错，不写明文。
 - **跨平台换机行为明确**：文件里的 `alg` 用来判定密文是不是本机后端写的；不匹配时设置页
   会显示「需重新授权」，而不是静默当未配置。
-- **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退。这是 v2 首个构建起的
-  形态；宿主侧那格即使留有历史记录也只是空串，App 既不读也不写它。
+- **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退；宿主设置表里的对应项与 App 无关，App 既不读也不写它。
 - **Client ID 是常量**：本 App 注册的那一个，权限与发布链路都绑在它上面，不开放覆盖；
   设置页只在「高级」里展示当前值。
 
-#### PAT 通道已删除
+#### 只支持 GitHub App OAuth（没有 PAT 通道）
 
-个人访问令牌通道**已下线删除**（不保留为备用）：设置页没有 PAT 输入框与保存按钮，
-`POST /settings/token` 端点（含路由注册）已移除。旧 `schemaVersion: 1` 记录**读但不采用**——
+凭据只有一种来源：GitHub App device flow 签发的 user access token。设置页没有 PAT 输入框与保存按钮，也没有 `POST /settings/token` 端点。若数据目录里存在非 OAuth 形态的旧记录（没有 `kind: "oauth"`），它**读但不采用**——
 不报错、不动文件、不参与任何调用；设置页据此提示「旧版记录」并提供显式清除入口
 （`POST /routes/settings/legacy-pat/clear`）。
 
-删 PAT 不丢能力：`gh` 认证与身份推导由 OAuth 完全替代；git push 的 https 认证走 App 自写的
+没有 PAT 通道也不丢能力：`gh` 认证与身份推导由 OAuth 承担；git push 的 https 认证走 App 自写的
 **git remote helper**（见「远端凭据（git 传输层）」）——github.com 的远端**不回落系统凭据**，
 未登录时 helper 直接给「去设置页登录」的引导；只有非 github.com 的远端才走 git 原生路径与系统凭据。
-而 GPG 公钥上传是 PAT 本来就没有的权限，只有 OAuth 的 `gpg_keys: write` 能做。
+而 GPG 公钥上传需要账号级 `gpg_keys: write`，只有本 App 的 OAuth 授权能提供。
 
 ### 手动档（用户自助）
 
@@ -284,8 +281,8 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
 | 查询登录结果（页面自轮询） | `GET /routes/actions/oauth/poll?id=<flowId>` | `lib/oauth.js` 的 `pollDeviceFlow` |
 | 退出登录 | `POST /routes/actions/oauth/revoke` | `lib/oauth.js` 的 `revokeOAuth` |
 | GitHub 账号信息 | `GET /routes/actions/identity` | `GET /user`（REST worker）+ `tools/lib/identity.js` 的纯函数 |
-| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `lib/gpg-keygen.js` 的 `execute`（**不再是 Agent 工具**） |
-| 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**不再是 Agent 工具**） |
+| 生成 / 轮换密钥（带二次确认） | `POST /routes/actions/keygen` | `lib/gpg-keygen.js` 的 `execute`（**Agent 工具面不提供**） |
+| 查看 / 复制公钥 | `GET /routes/actions/pubkey` | `lib/routes/pubkey.js`（**Agent 工具面不提供**） |
 | 补传公钥（本地有、账号没有时） | `POST /routes/actions/gpg/publish` | `lib/gpg-publish.js` |
 | 从 GitHub 移除（本机密钥一并清除） | `POST /routes/actions/gpg/unpublish` | `lib/gpg-publish.js` |
 | 发布状态 | `GET /routes/actions/gpg/status` | `lib/gpg-publish.js` 的 `publishedInfo` |
@@ -308,8 +305,8 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
 - **删除前核对归属**：先 `GET /user/gpg_keys`，要求 **keyId 相等且远端 key_id 等于记录指纹
   末 16 位**，两条都成立才删。只看 keyId 不够：记录可能来自另一个账号（用户换了登录），
   那里的同号 keyId 是别人的钥匙。指纹对不上一律不动它。
-- **只删自己那把**：发布状态记在 settings 表的 `gpg` 记录里（`{ keyId, fingerprint,
-  uploadedAt, login, gpgKeyId, name, stale[] }`）；`stale[]` 存本次上传成功但旧钥没删掉的残留，
+- **只删自己那把**：发布状态记在 settings 表的 **`gpg-published` 行**（`{ id, fingerprint,
+  stale[] }`，`uploadedAt` 取该行的 `updated_at`）；`stale[]` 存本次上传成功但旧钥没删掉的残留，
   下次发布或移除时逐条核对指纹后再试。
 - **绝不**枚举账号 GPG 密钥后按名字/指纹模糊匹配批量删除——账号上有用户个人正主密钥，
   误删是事故。上传时用的 `name`（`<账号 id>+<login>@GitHana`，如 `61904116+ProjectNyaser@GitHana`）
@@ -359,18 +356,19 @@ pnpm run build:server # 只构建服务端单入口：app.js → dist/bin/app.mj
 ```
 dist/
   manifest.json  NOTICE  THIRD_PARTY_NOTICES.md
-  bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不再随包 package.json）
+  bin/app.mjs             ← 服务端单入口（`.mjs` 自带 ESM 语义，不附 package.json）
   bin/rest.worker.mjs     ← GitHub REST 执行体（零依赖，仅用 node 全局）
   bin/gpg.shim.mjs        ← 签名 shim（OpenPGP.js 为运行期相对 import）
   bin/openpgp.min.mjs     ← OpenPGP.js 库文件（上游 dist 原样，两个入口共享）
   bin/zod.min.mjs         ← zod 库文件（build-entries 打成单文件，app.mjs 运行期共享）
   assets/
-  ui/                     ← settings.html + 设置页产物（平铺，不再套 dist/）
+  ui/                     ← settings.html + 设置页产物（平铺）
 ```
 
-**为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。此前服务端
-以源码形态随包（`index.js` + `lib/` + `tools/` 共 22 个文件），代价是交付面里混着源码、
-还要为了解析规则随带一个 `package.json`（没有它 Node 把 `.js` 当 CJS，入口 import 直接报错）。
+**为什么打成单入口**：交付面是「装到机器上要跑的东西」，而不是「源码树的形状」。把 `index.js` +
+`lib/` + `tools/` 几十个源文件原样随包，代价是交付面里混着源码、还要为了解析规则随带一个
+`package.json`（没有它 Node 把 `.js` 当 CJS，入口 import 直接报错）。单入口把服务端收成一个文件，
+这两样都不必再带。
 
 **为什么叫 app 而不是 index**：单入口的名字应该回答「这是什么」——它是 App 主体，不是一份
 目录下的默认页。DSHana 的入口叫 `bin/index.mjs`，但那是它**两份东西**（主体 + 受管 runtime）
@@ -383,9 +381,8 @@ dist/
 > 保留运行时语义。这个坑在源码树里跑不出来（那时路径恰好是真的），只有装机后才暴露——
 > 所以「产物形态的改动必须真机验收」不是口号。
 
-**为什么是白名单而不是排除表**：源码树里多出什么，黑名单就漏什么——本地规划文档（`SPECS.md` /
-`specs/`）与设置页源码（`ui/src/`）就是这么进过包的。改成逐个点名后，要进包必须在名单里，
-源码树里多出什么都不影响包。
+**为什么是白名单而不是排除表**：源码树里多出什么，黑名单就漏什么（本地规划文档、设置页源码都很容易被
+顺带打进包）。逐个点名后，要进包必须在名单里，源码树里多出什么都不影响包。
 
 **产物目录是构建中间产物**（见 `.gitignore`）：
 
@@ -410,7 +407,7 @@ scripts/
   hana-app-tools/  官方作者工具的原样拷贝（收录判定见其 README）
 ```
 
-**为什么有 shared**：仓库根定位、直跑判定、参数读取这几件事，之前每支脚本各自写一遍且已漂
+**为什么有 shared**：仓库根定位、直跑判定、参数读取这几件事若各写各的很容易漂
 （有的数 `..` 层数、有的只认 `--x v` 不认 `--x=v`）。收敛成一处，新增脚本只 import。
 
 **`derive` 的口径**：凡「能推导 + 被抄了多份 + 抄漏会坏」的事实都进那张表（当前两项：主清单版本
@@ -471,11 +468,11 @@ tgz 换内容而重算锁文件），再 `pnpm run derive` 刷新 `THIRD_PARTY_N
 **以及如何取得副本**」——不是「把副本随包带上」。这两件事由 `NOTICE` 的头两句履行（声明受 MPL
 约束 + 给出 `https://mozilla.org/MPL/2.0/`）。仓库里那份 `LICENSE` 服务的是源码形式。
 
-**一份 TPN 讲完第三方**：组件清单与各自的法条正文同处一文件（不再有 `licenses/` 目录）。
-旧形态是「一份汇总 + 一目录散装」，同一件事两个落点，读的人得在两处对照。
+**一份 TPN 讲完第三方**：组件清单与各自的法条正文同处一文件，没有散装的 `licenses/` 目录。
+「一份汇总 + 一目录散装」会把同一件事拆成两个落点，读的人得在两处对照。
 
-**它入库，由 `derive` 生成**：与 DSHana 同形。旧的「不入库、由 pack 现渲染」是为「包内容随 target 变」
-服务的；当前无内嵌二进制、各 target 交付内容相同，那个前提不成立。
+**它入库，由 `derive` 生成**：与 DSHana 同形。「不入库、由 pack 现渲染」只适用于「包内容随 target 变」的情形；
+当前无内嵌二进制、各 target 交付内容相同，因此直接入库、随交付树进包。
 
 ```bash
 pnpm run derive            # 全部写回（含重生成 THIRD_PARTY_NOTICES.md）
@@ -490,8 +487,8 @@ pnpm run derive:check      # CI 门禁：拦住「改了版本/组件却忘了�
 
 这里有个容易踩的坑：**`@hana/app-sdk` 自带一份 91 KB 的 `THIRD_PARTY_NOTICES.txt`（82 个包）**，
 它描述的是 SDK 的 `app-ui.js` 产物（antd 生态全家桶）。本 App 只内联它的 `components` / `ui` 入口，
-antd 一个字节都没进包——整份搬运就是陈述不成立的事实。所以那份文件现在只作**构建期数据源**
-（取 SDK 内联的那两个包的版本），不随包、不再当通知发。
+antd 一个字节都没进包——整份搬运就是陈述不成立的事实。所以那份文件只作**构建期数据源**
+（取 SDK 内联的那两个包的版本），不随包、也不当通知发。
 
 ### 法条正文的来源
 
@@ -519,17 +516,18 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
 `node_modules/openpgp/dist/node/openpgp.min.mjs` 逐字节相同——“原样未修改”因此是可验证的事实，
 不是声明。具体条款映射（§4(a)～§4(e)）写在 `THIRD_PARTY_NOTICES.md` 的 LGPL 段。
 
-## 运行时依赖（只剩 git，靠宿主）
+## 运行时依赖（git 与 curl）
 
-本包不内嵌任何二进制。唯一的外部可执行文件是 git，而它由宿主提供：
+本包不内嵌任何二进制。外部可执行文件有两个：git（本地 git 操作，宿主提供）与 curl（向签发服务换取 installation token 时用，走系统 PATH）：
 
 | 可执行文件 | Windows | macOS / Linux | 来源 |
 |--------|---------|---------------|------|
 | git | **宿主已捆绑**（`<HANA_ROOT>/resources/git`），不随包分发 | 系统 PATH | 宿主 或 系统 |
+| curl | 系统 PATH | 系统 PATH | 系统（仅 App 身份换 installation token 时用） |
 
-签名与 GitHub 请求都不再需要外部二进制：前者由随包的纯 JS shim（`bin/gpg.shim.mjs`）完成，
+签名与 GitHub REST 请求都不需要外部二进制：前者由随包的纯 JS shim（`bin/gpg.shim.mjs`）完成，
 后者由随包的 `bin/rest.worker.mjs` 直发。所以 `vendor/sources.json` 的组件表为空，
-`vendor/bin/` 不存在也是合法状态（不再是“少抓了”）。
+`vendor/bin/` 不存在也是合法状态（不是“少抓了”）。
 
 **git 与 GitHub 域都不随包**：宿主始终随带 `<HANA_ROOT>/resources/git`，其自带的 `LICENSE.txt` 就在
 宿主安装目录里，不由本包再带一份；GitHub 请求由随包的 `bin/rest.worker.mjs` 直发，不需要任何外部二进制。
@@ -541,8 +539,8 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
 安装目录里，不由本包再带一份。
 
 **许可面不在打包期改动**：`THIRD_PARTY_NOTICES.md` 由 `derive` 生成并入库，随交付树进入暂存；
-仓库里那份就是包里那份。旧形态（pack 现渲染 + 按组件裁剪 `licenses/`）是为「包内容随 target 变」
-服务的，那个前提已不成立。
+仓库里那份就是包里那份。只有当「包内容随 target 变」时，才需要 pack 现渲染 + 按组件裁剪 `licenses/`；
+当前各 target 交付内容相同，所以走「入库随包」这条路。
 
 布局与解析：
 
@@ -574,8 +572,7 @@ OpenPGP.js 是包里唯一的 LGPL 组件，以**一份独立、可替换的库�
     → 系统 PATH（git）
 ```
 
-签名与 GitHub 请求都不依赖外部可执行文件（纯 JS shim + REST worker），所以“可执行依赖三平台一致”
-现在是结构上就成立的：没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
+签名与 GitHub REST 都不依赖外部可执行文件（纯 JS shim + REST worker）；App 身份换 installation token 那一步走 curl（系统 PATH）。除此之外没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
 
 （**仅指可执行依赖这一层**：凭据与私钥的加密后端目前只有 `win32` 的 DPAPI 落地，`darwin`/`linux`
 是占位（`lib/secret.js` 的 `pickBackend`）——那两个平台上签名链路本身能跑，但还缺密钥与令牌的
@@ -624,13 +621,19 @@ pnpm run pack --target universal   # → releases/githana-v<版本>-universal.zi
 manifest.json            # manifestVersion 2 + capabilities + settings（title + ui，无 schema）；entry 指向产物 bin/app.mjs
 app.js                   # apply(ctx)：注册 10 个名词工具 + 3 组路由；disposer 收尾（源码，bundle 后进 bin/app.mjs）
 tools/                   # 10 个名词工具入口（githana-git/-repo/-pr/-issue/-release/-run/-workflow/-cache/-label/-api）
-                         #   + actions/（一个 action 一个文件，按组分子目录）+ gpg-keygen.js（仅设置页动作）
+                         #   + actions/（一个 action 一个文件，按组分子目录）
                          #   + lib/（surface / verbs / params / gh / pr / issue / repo / ci / release / label
                          #     / exec / rest / rest.worker / context / bin / remote-helper-shim
                          #     / git-remote-helper / identity / github / sign-shim）
 skills/githana/SKILL.md  # 随包手册：逐 action 参数 + 什么时候用 + 能力边界与逃生门（工具描述只留路由信息）
+lib/db.js                # 本地 data.db（settings 键值表 + credential 单行表）；建表在 lib/sql/
+lib/prefs.js             # 署名偏好（author 行：commit / coa / comment / pr）
 lib/secret.js            # 凭据加密存储（OAuth only；DPAPI 等后端可插拔）；Client ID 常量
+lib/dpapi.js             # Windows DPAPI（CurrentUser）加解密后端
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
+lib/app-auth.js          # 向签发服务换 installation token（App 身份调用 GitHub API）
+lib/gpg-keygen.js        # 隔离签名身份：生成/轮换密钥 + 写隔离 gitconfig（仅设置页动作）
+lib/openpgp-key.js       # OpenPGP.js 密钥生成/存取（私钥密文 gpg.key.bin + 公钥 gpg.key.pub.asc）
 lib/gpg-publish.js       # GPG 公钥发布/轮换（先加后删；删除前核对指纹，只动自己那把）
 lib/routes/status.js     # 环境状态端点（账号状态 / 二进制版本 / REST 通道 / 公钥 / 发布状态）
 lib/routes/settings.js   # 设置页数据端点（state / legacy-pat/clear）
@@ -648,12 +651,12 @@ scripts/                 # 分域：build（组装/出包）/ derive（派生同
 
 ## GitHub 通道（自写 REST，无外部二进制）
 
-GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子进程里用 Node 内置 `fetch` 直发。
+GitHub 域的请求不经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子进程里用 Node 内置 `fetch` 直发。
 
 - **为什么必须是子进程**：App 的 `apply()` 跑在 AppHost 子进程里，那个进程开了 Node Permission Model
   且没有 `--allow-net`（宿主按清单能力只给 `--allow-child-process`），进程内的 `fetch` 会被运行时拒在
   DNS 那一步（实测 `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。`app/process.spawn` 授权下起的
-  外部进程不继承该模型——gh CLI 以前就是这么联网的。
+  外部进程不继承该模型，因此能绕开该模型联网。
 - **为什么 spawn 时要显式补 `--allow-net`**：Node 26 的 `--permission` 会经 **NODE_OPTIONS 传染给
   子进程**（子进程继承权限模型），而放行项不会跟着走。清 NODE_OPTIONS 无效（父进程里已生效）。
   所以 `tools/lib/rest.js` 在自己 spawn 的 argv 里显式开这扇门——它不是新增清单能力，是运行时层面
@@ -665,7 +668,7 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
   其余一律在发请求前拒。
 - **重定向逐跳校验**：不用 `fetch(..., { redirect: "follow" })`——那等于把起始 URL 的白名单作废，
   任意一个 302 都能把请求引到别处（`/repos/{o}/{r}/tarball/x` 就 302 到 `codeload.github.com`）。
-  改为 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`、
+  用 `redirect: "manual"` 手工跟，**每一跳**都过白名单（另含 `codeload.github.com`、
   `release-assets.githubusercontent.com`、`objects.githubusercontent.com`，以及
   `*.blob.core.windows.net` 这条**后缀**——Azure 存储账号在子域位，精确匹配列不全），跳数上限 5；
   离开 `api.github.com` 后不带走 `Authorization`（内容域不需要凭据）。
@@ -683,7 +686,7 @@ GitHub 域的请求不再经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子�
   返回结果数组（`githana_pr(action="view")` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
 - **令牌边界不变**：REST 侧仍只在 App 进程内存与 worker 之间流转（经 stdin 传，更不进宿主 IPC）。
-  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `data.db` 的 `secret/credential` 解 DPAPI，
+  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `data.db` 的 `credential` 表密文解 DPAPI，
   见「远端凭据（git 传输层）」）：两条都不落磁盘明文、不进宿主设置表。
   OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
 
@@ -718,14 +721,17 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 ### 提交人与共同署名
 
-`githana_git(action="commit")` 的署名分两层，都在设置页的「提交署名」里配：
+设置页的「身份」区块按用途决定「谁来做这件事」，落在 settings 表的 `author` 行
+（`{ commit, coa[], comment, pr }`）：
 
-- 提交身份：`user`（隔离 gitconfig 里的用户，提交带 OpenPGP 签名）或 `app`（`githana-app[bot]`，
+- 提交（`commit`）：`user`（隔离 gitconfig 里的用户，提交带 OpenPGP 签名）或 `app`（`githana-app[bot]`，
   由 GitHub 生成提交并代签，Verified）。
-- 共同署名：`Co-authored-by` 的组合，可取 `user` / `app` / `agent`，与作者相同的项不显示在
-  设置页，也不会重复署名。已有的 trailer 由工具接管：抹掉后按设定重写，被丢弃的行以 warning 回传。
-- 评论身份：`user` 或 `app`，决定 `githana_pr` / `githana_issue` 的 comment 以谁的名义发出，
+- 共同作者（`coa`）：`Co-authored-by` 的组合，可取 `user` / `app` / `agent`，与作者相同的项不会重复署名。
+  已有的 trailer 由工具接管：抹掉后按设定重写，被丢弃的行以 warning 回传。默认 `user` + `agent`。
+- 评论（`comment`）：`user` 或 `app`，决定 `githana_pr` / `githana_issue` 的 comment 以谁的名义发出，
   默认 `app`。
+- 拉取请求（`pr`）：`user` 或 `app`，决定 PR 以谁的名义创建；选 `app` 时用 installation token，
+  作者显示为 `githana-app[bot]`。默认 `user`。
 
 工具调用不接受 `via` / `coAuthors`：传了会直接报参数错误，署名与身份一律跟随设置。
 
@@ -739,7 +745,7 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 bot 的 email 是 GitHub App 的 noreply 格式 `{bot user id}+{login}@users.noreply.github.com`；
 App id 5271075、slug `githana-app`，bot user id 340878445 取自 `GET /users/githana-app[bot]`。
 
-PR 作者只能是已登录用户：GitHub 的 PR 作者由发请求的令牌决定，本 App 没有把 PR 创建切到 App 身份的入口。
+PR 作者的归属由设置页的「拉取请求」身份决定：选 `user` 时是已登录用户（用户令牌创建），选 `app` 时用 installation token、作者为 `githana-app[bot]`。GitHub 的 PR 作者由发请求的令牌决定。
 
 ### API 提交（Verified 的 bot 提交）
 
@@ -763,9 +769,9 @@ GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名�
 
 `amend` / `allowEmpty` 在 API 通道不支持。代签链路在 `lib/app-auth.js`（向签发服务换 installation token，进程内缓存）；签发服务在 `deploy/githana-token-server.mjs`。客户端不需要额外共享密钥。
 
-同一份 installation token 也用于评论：`githana_pr(action="comment")` 与
-`githana_issue(action="comment")` 按设置页的「评论身份」发言，默认 `githana-app[bot]`。
-PR 作者不能选（永远是用已登录用户令牌创建的）。
+同一份 installation token 也用于评论与 App 身份的 PR：`githana_pr(action="comment")` 与
+`githana_issue(action="comment")` 按设置页的「评论」身份发言，默认 `githana-app[bot]`；
+`githana_pr(action="create")` 在「拉取请求」身份选 `app` 时同样用 installation token，作者为 `githana-app[bot]`。
 
 ## 签名隔离机制
 
@@ -789,4 +795,4 @@ shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
 GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧由 remote helper 自读
-`data.db` 的 `secret/credential` 解 DPAPI，见「远端凭据（git 传输层）」）。
+`data.db` 的 `credential` 表密文解 DPAPI，见「远端凭据（git 传输层）」）。

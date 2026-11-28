@@ -118,7 +118,7 @@ The dividing line between `commit` and `exec` is **signature governance**: to ge
 `exec` (`commit` carries no diff output).
 
 **Author and credits come from the settings page.** The commit channel and the `Co-authored-by`
-set are configured in GitHana's 「提交署名」 section and apply to every commit. The tool does not accept
+set are configured in GitHana's 「身份」 section and apply to every commit. The tool does not accept
 `via` or `coAuthors`; passing either is an argument error.
 
 | channel | author | signature |
@@ -131,12 +131,13 @@ The credit set is an array, so every combination is expressible:
 | value | entity credited in `Co-authored-by` |
 |---|---|
 | `user` | the isolated gitconfig identity (name/email read at commit time) |
-| `hanaagent` | `HanaAgent <313794804+HanaAgent@users.noreply.github.com>` — the official collaboration account |
-| `githana-bot` | `githana-app[bot] <340878445+githana-app[bot]@users.noreply.github.com>` — the GitHana App bot |
+| `agent` | `HanaAgent <313794804+HanaAgent@users.noreply.github.com>` — the HanaAgent collaboration account (no GitHub identity; appears only in `Co-authored-by`) |
+| `app` | `githana-app[bot] <340878445+githana-app[bot]@users.noreply.github.com>` — the GitHana App bot |
 
 An entry equal to the author is dropped (an author is not its own co-author). Trailers are written
-in the table order, and any `Co-authored-by` line already present in `message` is replaced by the
-selection (the discarded lines are returned as a warning).
+in a fixed order (`user`, `app`, `agent`, regardless of the order they were selected), and any
+`Co-authored-by` line already present in `message` is replaced by the selection (the discarded lines
+are returned as a warning).
 
 **Bot commit with a Verified signature (App bot channel).** GitHub signs a commit automatically only
 when the request is authenticated as the App and carries no custom author, committer or signature.
@@ -149,9 +150,10 @@ through the Git Data API instead:
   (`deploy/githana-token-server.mjs`);
 - the App must be installed on the repository with `Contents: write`;
 - the local branch must already equal the remote tip, otherwise the call is refused to avoid forking;
-- changes are read from the working tree (`paths` given) or from the index (no `paths`), uploaded as
-  blobs, and committed with no custom author; the author is always the bot and the user appears only
-  through the settings page's credit set;
+- changes are read from the index (the `paths` are `git add`ed first; without `paths` the staged
+  content — which must match the working tree — is used), uploaded as blobs, and committed with no
+  custom author; the author is always the bot and the user appears only through the settings page's
+  credit set;
 - after the commit, the local branch is fast-forwarded (fetch + `merge --ff-only`).
 
 `amend` and `allowEmpty` are not supported on the App bot channel. The response reports whether
@@ -542,9 +544,9 @@ down here rather than disguised as nonexistence.
 | `browse` | opening a browser is the UI slot's business |
 | `skill` | the Hana side has its own skill system |
 
-### 4. Binary channel: **available** (the former "cannot fetch bytes" is gone)
+### 4. Binary channel: **available**
 
-Release asset upload / download and run download really do move bytes now. They are **no longer**
+Release asset upload / download and run download move bytes through the worker. They are **not**
 capability gaps — they are registered here to make clear **how this channel is used and where its
 boundaries are**, because its shape differs from other verbs (it needs local paths, writes to disk,
 and has a hard per-file limit).
@@ -606,9 +608,8 @@ by the three verbs above.
 `createSurface`'s `reserved` channel is still kept (`tools/lib/surface.js`), for the next time a verb
 appears that is "recognizable, but whose parameter contract is not settled yet": putting such a value
 into the candidates only gives the model a trial-and-error entry point, since it neither explains how
-to use it nor returns anything but `not implemented`. The `ci_status` / `ci_watch` reserved slots on
-the old `githana_read` / `githana` entry points were removed together with those two tools — CI is now
-the three real verb groups `githana_run` / `githana_workflow` / `githana_cache`.
+to use it nor returns anything but `not implemented`. CI is handled by the three real verb groups
+`githana_run` / `githana_workflow` / `githana_cache`.
 
 ### Reference table: the authorized permissions (the five tiers above are checked against it)
 
@@ -690,7 +691,7 @@ Git actions that access github.com (`push` / `fetch` / `pull` / `clone` / `ls-re
 - Tokens and private keys **do not enter** tool return values, logs or settings-page echoes. GitHub
   requests are sent directly in a subprocess by the bundled REST worker, with the token passed to the
   worker over stdin; on the git side the token is read by the remote helper itself from
-  `data.db` (`secret/credential`) and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
+  the `credential` table in `data.db` and DPAPI-decrypted — **it is not in the git subprocess's env** (nor in
   the command line or config files either). **Upload / download URLs contain no token either** —
   credentials go in the `Authorization` header.
 - **The binary channel's reads and writes are done on the App's behalf by the worker**: at spawn time
