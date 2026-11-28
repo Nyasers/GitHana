@@ -1077,6 +1077,8 @@ function GitHanaSettings() {
         {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>
 
+      {/* 签名密钥只在本地提交时用到：App bot 由 GitHub 代签，本机密钥不参与。 */}
+      {shownVia === "local" ? (
       <SettingsSection
         title="签名密钥"
         description="密钥只存在 GitHana 目录，不动系统上的 GPG。"
@@ -1237,6 +1239,7 @@ function GitHanaSettings() {
           </div>
         </Collapse>
       </SettingsSection>
+      ) : null}
 
       {/* 运行环境：保留一个可收起的区，因为它只在排查安装问题时才需要看。 */}
       <SettingsSection
