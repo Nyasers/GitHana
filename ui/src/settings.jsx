@@ -361,6 +361,7 @@ function GitHanaSettings() {
   const [prefsMsg, setPrefsMsg] = useState(null);
   const [draftAuthor, setDraftAuthor] = useState(null);
   const [draftCredits, setDraftCredits] = useState(null);
+  const [draftCommentAuthor, setDraftCommentAuthor] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
 
   const loadPrefs = useCallback(async () => {
@@ -371,6 +372,7 @@ function GitHanaSettings() {
       if (commit) {
         setDraftAuthor(commit.author);
         setDraftCredits(commit.coAuthors);
+        setDraftCommentAuthor(commit.commentAuthor);
       }
     } catch (e) {
       setPrefs({ loading: false, data: null, error: String((e && e.message) || e) });
@@ -387,9 +389,11 @@ function GitHanaSettings() {
   const commitPref = prefs.data || {
     author: "user",
     coAuthors: ["user", "agent"],
+    commentAuthor: "app",
   };
   const shownAuthor = draftAuthor || commitPref.author;
   const shownCredits = draftCredits || commitPref.coAuthors || [];
+  const shownCommentAuthor = draftCommentAuthor || commitPref.commentAuthor || "app";
 
   const toggleCoAuthor = useCallback(
     (key) => {
@@ -401,13 +405,14 @@ function GitHanaSettings() {
   );
 
   const saveCommitDraft = useCallback(async () => {
-    const submitted = { author: draftAuthor, coAuthors: draftCredits };
+    const submitted = { author: draftAuthor, coAuthors: draftCredits, commentAuthor: draftCommentAuthor };
     setSaveStatus("saving");
     setPrefsMsg(null);
     try {
       const patch = {};
       if (draftAuthor) patch.author = draftAuthor;
       if (draftCredits) patch.coAuthors = draftCredits;
+      if (draftCommentAuthor) patch.commentAuthor = draftCommentAuthor;
       const r = await postJson("settings/prefs", { commit: patch });
       const saved = (r && r.commit) || commitPref;
       setPrefs({ loading: false, data: saved, error: null });
@@ -428,12 +433,19 @@ function GitHanaSettings() {
         }
         return saved.coAuthors;
       });
+      setDraftCommentAuthor((cur) => {
+        if (cur !== submitted.commentAuthor) {
+          changedDuring = true;
+          return cur;
+        }
+        return saved.commentAuthor || "app";
+      });
       setSaveStatus(changedDuring ? "idle" : "saved");
     } catch (e) {
       setPrefsMsg(String((e && e.message) || e));
       setSaveStatus("idle");
     }
-  }, [draftAuthor, draftCredits, commitPref]);
+  }, [draftAuthor, draftCredits, draftCommentAuthor, commitPref]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -1078,6 +1090,24 @@ function GitHanaSettings() {
               })}
             </Inline>
           }
+        />
+        <SettingRow
+          label="评论身份"
+          control={
+            <Select
+              ariaLabel="评论身份"
+              value={shownCommentAuthor}
+              options={[
+                { value: "app", label: "App" },
+                { value: "user", label: "用户" },
+              ]}
+              onChange={(value) => {
+                setDraftCommentAuthor(value);
+                setSaveStatus("idle");
+              }}
+            />
+          }
+          hint="评论、回复与 resolve 用这个身份。"
         />
         <SettingRow
           label="保存"

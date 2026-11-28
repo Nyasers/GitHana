@@ -717,13 +717,14 @@ GitHub 的 App 角标读 `performed_via_github_app`。实测：**只有走 REST 
 
 `githana_git(action="commit")` 的署名分两层，都在设置页的「提交署名」里配：
 
-- 提交通道：本地提交的作者是隔离 gitconfig 里的用户，提交带 OpenPGP 签名；App bot 的作者是
-  `githana-app[bot]`，由 GitHub 生成提交并代签（Verified）。
-- 默认共同署名：`Co-authored-by` 的组合，可取 `user` / `hanaagent` / `githana-bot`，只有一套，
-  两种通道共用；与作者相同的项会被去掉（不自署，所以本地提交时「用户」那项自动略过）。已有的
-  trailer 由工具接管：抹掉后按设定重写，被丢弃的行以 warning 回传。
+- 提交身份：`user`（隔离 gitconfig 里的用户，提交带 OpenPGP 签名）或 `app`（`githana-app[bot]`，
+  由 GitHub 生成提交并代签，Verified）。
+- 共同署名：`Co-authored-by` 的组合，可取 `user` / `app` / `agent`，与作者相同的项不显示在
+  设置页，也不会重复署名。已有的 trailer 由工具接管：抹掉后按设定重写，被丢弃的行以 warning 回传。
+- 评论身份：`user` 或 `app`，决定 `githana_pr` / `githana_issue` 的 comment 以谁的名义发出，
+  默认 `app`。
 
-工具调用不接受 `via` / `coAuthors`：传了会直接报参数错误，署名一律跟随设置。
+工具调用不接受 `via` / `coAuthors`：传了会直接报参数错误，署名与身份一律跟随设置。
 
 两个固定实体的身份与用户身份不同源：
 
@@ -760,7 +761,7 @@ GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名�
 `amend` / `allowEmpty` 在 API 通道不支持。代签链路在 `lib/app-auth.js`（向签发服务换 installation token，进程内缓存）；签发服务在 `deploy/githana-token-server.mjs`。客户端不需要额外共享密钥。
 
 同一份 installation token 也用于评论：`githana_pr(action="comment")` 与
-`githana_issue(action="comment")` 的 `as="githana-bot"` 会以 `githana-app[bot]` 发言。
+`githana_issue(action="comment")` 按设置页的「评论身份」发言，默认 `githana-app[bot]`。
 PR 作者不能选（永远是用已登录用户令牌创建的）。
 
 ## 签名隔离机制
