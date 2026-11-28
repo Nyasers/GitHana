@@ -17,7 +17,9 @@
  * 不传 author / committer：这是 bot 获得自动签名的前提。用户只以 Co-authored-by trailer
  * 的形式出现在 message 里。
  */
-import { runCli, MAX_OUTPUT_BYTES as MAX_CAPTURE_BYTES } from "../../lib/exec.js";
+import fs from "node:fs";
+import path from "node:path";
+import { runCli, runCliToFile, MAX_OUTPUT_BYTES as MAX_CAPTURE_BYTES } from "../../lib/exec.js";
 import { callRest } from "../../lib/rest.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
 
@@ -135,7 +137,7 @@ function rootPath(p) {
   return ":(top,literal)" + p;
 }
 
-export async function readStagedFile(cwd, rel) {
+export async function readStagedFile(cwd, rel, dataDir) {
   const ls = await runCli("git", ["ls-files", "-s", "-z", "--", rootPath(rel)], { cwd });
   if (!ls.ok) throw new Error("reading the index failed for " + rel + ": " + (ls.message || ""));
   const first = String(ls.stdout || "").split("\0").find((x) => x);
@@ -150,21 +152,31 @@ export async function readStagedFile(cwd, rel) {
     );
   }
   if (/^0+$/.test(sha)) return null; // intent-to-add：内容还没进 index
-  const blob = await runCli("git", ["cat-file", "blob", sha], { cwd });
-  if (!blob.ok) {
-    throw new Error("reading blob " + sha.slice(0, 7) + " for " + rel + " failed: " + (blob.message || ""));
+
+  // 内容先落临时文件：blob 可能远超捕获上限，直接读进内存既不安全也读不全。
+  const tmpDir = path.join(dataDir || cwd, ".githana-tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpFile = path.join(tmpDir, "blob-" + Date.now() + "-" + Math.random().toString(16).slice(2) + ".bin");
+  try {
+    const blob = await runCliToFile("git", ["cat-file", "blob", sha], { cwd, file: tmpFile });
+    if (!blob.ok) {
+      throw new Error(
+        "reading blob " + sha.slice(0, 7) + " for " + rel + " failed: " + (blob.message || blob.stderr || ""),
+      );
+    }
+    if (blob.bytes > MAX_FILE_BYTES) {
+      throw new Error(
+        "file too large for an API commit: " + rel + " (" + blob.bytes + " bytes; limit " + MAX_FILE_BYTES + ").",
+      );
+    }
+    return { content: fs.readFileSync(tmpFile), mode };
+  } finally {
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {
+      /* 已经不在了 */
+    }
   }
-  // 输出捕获有 200KB 上限：截断时拿到的只是前缀，绝不能当完整内容传上去。
-  if (blob.stdoutTruncated) {
-    throw new Error(
-      "file too large for an API commit: " + rel + " (the blob exceeds the " + Math.round(MAX_CAPTURE_BYTES / 1024) + " KB capture limit).",
-    );
-  }
-  const content = blob.stdoutBytes && blob.stdoutBytes.length ? blob.stdoutBytes : Buffer.from(blob.stdout || "", "utf8");
-  if (content.length > MAX_FILE_BYTES) {
-    throw new Error("file too large for an API commit: " + rel + " (" + content.length + " bytes; limit " + MAX_FILE_BYTES + ").");
-  }
-  return { content, mode };
 }
 
 /** 变更集：paths 给定则按工作区相对 HEAD，否则按 index（已暂存）。 */
@@ -307,7 +319,7 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   const uploadable = [];
   for (const c of changes) {
     if (c.status === "D") continue;
-    const file = await readStagedFile(cwd, c.path);
+    const file = await readStagedFile(cwd, c.path, dataDir);
     if (!file) {
       throw new Error("cannot read " + c.path + " from the index (deleted after the change set was computed?).");
     }
