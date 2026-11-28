@@ -327,6 +327,17 @@ function main() {
     process.exit(1);
   }
 
+  const target = arg("--target") || `${process.platform}-${process.arch}`;
+
+  // 钥匙环的平台二进制：交付树里放哪些，由本次 target 决定（不再由构建机决定）。
+  //
+  // 原生模块让「产物与平台无关」不再成立：@napi-rs/keyring 每个平台一个包，只装构建机那个的话，
+  // 在 ubuntu runner 上出的包移植到 Windows 就报 Cannot find native binding。这里按 target 点名，
+  // build-app 再从 node_modules 里把对应平台包投进 dist/bin/node_modules（pnpm.supportedArchitectures
+  // 已声明多平台，所以它们的二进制就在本机，不必在目标系统上构建）。
+  const KEYRING_PLATFORMS = ["win32-x64", "win32-arm64", "darwin-x64", "darwin-arm64", "linux-x64", "linux-arm64"];
+  const keyringPlatforms = target === "universal" ? KEYRING_PLATFORMS : [target];
+
   // 0) 先组装交付树 dist/（白名单：先构建设置页产物，再点名拷贝交付件）。
   //    dist/ 不入库，是构建产出；在这里无条件重建，而不是依赖调用方先手动构建：
   //    出包是唯一必须保证产物新鲜的时刻，把「记得先构建」变成机器兜底。
@@ -338,7 +349,11 @@ function main() {
     }
     console.log("[pack] 组装交付树 dist/（白名单）…");
     try {
-      execFileSync(process.execPath, [buildApp], { cwd: ROOT, stdio: "pipe" });
+      execFileSync(process.execPath, [buildApp], {
+        cwd: ROOT,
+        stdio: "pipe",
+        env: { ...process.env, GITHANA_KEYRING_PLATFORMS: keyringPlatforms.join(",") },
+      });
     } catch (e) {
       const out = [e.stdout, e.stderr].map((b) => String(b || "")).join("\n").trim();
       console.error("[pack] 交付树组装失败：\n" + out.split("\n").slice(-12).join("\n"));
@@ -350,7 +365,6 @@ function main() {
     }
   }
 
-  const target = arg("--target") || `${process.platform}-${process.arch}`;
   const outDir = resolve(arg("--out") || join(ROOT, "..", "..", "build", manifest.id, "releases"));
   mkdirSync(outDir, { recursive: true });
 
