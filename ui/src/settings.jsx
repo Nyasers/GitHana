@@ -137,17 +137,15 @@ function protectionLabel(protection) {
   }
 }
 
-/** 时间戳 → 本地可读（解析失败原样返回）。 */
+/** 时间戳 → 本地可读（到分钟，不带秒；解析失败原样返回）。 */
 function formatTime(value) {
   const s = String(value || "").trim();
   if (!s) return "—";
   const t = Date.parse(s);
   if (!Number.isFinite(t)) return s;
-  try {
-    return new Date(t).toLocaleString();
-  } catch {
-    return s;
-  }
+  const d = new Date(t);
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 
 /** 剩余秒数 → mm:ss。 */
@@ -801,7 +799,7 @@ function GitHanaSettings() {
     <SettingsPage>
       <SettingsSection
         title="GitHub 账号"
-        description="连接后，提交会用你的账号署名，签名公钥也直接发布到账号。"
+        description="提交用你的账号署名，公钥也发布到账号。"
         context={
           <Button variant="secondary" onClick={() => setAccountDetailOpen((v) => !v)}>
             {accountDetailOpen ? "收起明细" : "明细"}
@@ -852,7 +850,7 @@ function GitHanaSettings() {
               ? "正在向 GitHub 要一个验证码；连不上会在这里直接说原因，也可以点「取消」。"
               : authorized
                 ? secret.refreshExpiresAt
-                  ? "登录有效期至 " + formatTime(secret.refreshExpiresAt) + "，到期后需要重新登录。"
+                  ? "有效期至 " + formatTime(secret.refreshExpiresAt)
                   : "令牌在后台自动续期；续期凭证的到期时间尚未记录。"
                 : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
           }
@@ -1022,7 +1020,7 @@ function GitHanaSettings() {
 
       <SettingsSection
         title="提交署名"
-        description="这里的设定决定每次提交的作者与共同署名，工具调用不能覆盖。"
+        description="决定每次提交的作者与共同署名。"
       >
         <SettingRow
           label="提交方式"
@@ -1063,7 +1061,7 @@ function GitHanaSettings() {
               })}
             </Inline>
           }
-          hint="作者本身不会重复署名：本地提交时作者就是你，「用户」那一项会自动略过。"
+          hint="与作者相同的项自动略过。"
         />
         <SettingRow
           label="保存"
@@ -1081,7 +1079,7 @@ function GitHanaSettings() {
 
       <SettingsSection
         title="签名密钥"
-        description="给提交签名。密钥只保存在 GitHana 自己的目录里，不动系统上的其它 GPG 密钥。"
+        description="密钥只存在 GitHana 目录，不动系统上的 GPG。"
         context={
           <Button variant="secondary" onClick={toggleKeyDetail}>
             {keyDetailOpen ? "收起明细" : "明细"}
@@ -1122,7 +1120,7 @@ function GitHanaSettings() {
               ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
               : pk.present
                 ? published.published
-                  ? "提交会自动签名，GitHub 上显示为 Verified。"
+                  ? "GitHub 上显示为 Verified。"
                   : "公钥还没传上去；在那之前提交不会显示为 Verified。"
                 : "生成后会直接发布到账号，两边始终一致。"
           }
