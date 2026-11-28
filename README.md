@@ -583,8 +583,11 @@ Linux 需要 Secret Service（或 keyutils）可用；不可用时明确报错�
 - 原生模块让“产物与构建机无关”不再自动成立，所以平台集由 `--target` 决定而不由构建机决定：
   `package.json` 的 `pnpm.supportedArchitectures` 声明三 os × 两 cpu，在 ubuntu runner 上就能把六份
   二进制装齐，`build-app` 再按 target 点名投进 `dist/bin/node_modules/@napi-rs/`，缺一个直接拒包。
-- `node scripts/pack.mjs --target <platform>` 是点名才用的单平台构建（只留该平台 vendor 与钥匙环二进制），
-  不进 CI、不进市场。
+- release 一次出七份：六个平台包（各 1.2–2.3 MiB，只带本平台的钥匙环二进制）与一个 universal
+  （5.5 MiB，六份全带）。市场条目只指 universal——`index.v2.json` 的条目只有 `archive.url`
+  一个地址，没有平台维度，宿主无法按机器选包；平台包作为 release 资产存在，供按机器取件、
+  自建分发或手动安装的人。
+- `node scripts/pack.mjs --target <platform>` 单独出一条时只留该平台的 vendor 与钥匙环二进制。
 - 包体大小不在包内解决：六份钥匙环二进制未压缩共约 11 MB，universal 包 zip 后 5.5 MiB。
   宿主侧的包限制偏紧时，抬限制比裁包合理。
 
