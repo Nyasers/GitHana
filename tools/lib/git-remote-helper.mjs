@@ -99,7 +99,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { dpapiUnprotect } from "../../lib/dpapi.js";
-import { getRecord } from "../../lib/db.js";
+import { readCredentialRow } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
 const GITHUB_HOST = "github.com";
@@ -237,10 +237,10 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  const rec = getRecord(dataDir, "credential");
-  if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
+  const rec = readCredentialRow(dataDir);
+  if (!rec || rec.kind !== "oauth" || !rec.cipher || !rec.cipher.length) {
     fail(
-      "the local data has no usable OAuth ciphertext (data.db → secret/credential).\n" +
+      "the local data has no usable OAuth ciphertext (data.db → credential).\n" +
         "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
@@ -252,7 +252,7 @@ function loadToken() {
   }
   let payload = null;
   try {
-    payload = JSON.parse(dpapiUnprotect(rec.cipher));
+    payload = JSON.parse(dpapiUnprotect(rec.cipher.toString("base64")));
   } catch (e) {
     fail(
       "failed to decrypt the credential: " + msgOf(e) + " (did you switch machine or user?).\n" +

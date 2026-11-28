@@ -234,9 +234,11 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 它由 App 自己的加密后端写进数据目录的 `data.db`（单表 `store`，`key = credential`）：
 
 ```
-store(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at INTEGER)
-  credential  → { kind, cipher, alg, meta: { login, name, expiresAt } }
-  author      → { commit, coa: [...], comment, pr }
+settings(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at TEXT)
+  author → { commit, coa: [...], comment, pr }
+
+credential（单行表，id = 1）
+  kind | alg | cipher(BLOB) | login | name | expires_at | refresh_expires_at | needs_reauth | updated_at
 ```
 
 `value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。
