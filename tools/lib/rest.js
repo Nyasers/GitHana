@@ -23,9 +23,9 @@
  * `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。清掉 NODE_OPTIONS 无效——父进程里
  * `--permission` 已生效，旗标随环境传下去是运行时行为。
  *
- * gh CLI 之所以能联网，是因为它是外部二进制、不在 Node 权限模型的账本上。换成我们自己的
- * node 脚本，就必须在 spawn 参数里显式开 `--allow-net`。这不是新增清单能力（清单仍只有
- * `app/process.spawn`），是运行时层面的旗标。
+ * 外部二进制不在 Node 权限模型的账本上，所以能直接联网；我们自己的 node 脚本则必须在
+ * spawn 参数里显式开 `--allow-net`。这不是新增清单能力（清单仍只有 `app/process.spawn`），
+ * 是运行时层面的旗标。
  *
  * 收窄出站主机在 worker 内做（`--allow-net=<host>` 的语法在 v26.8.1 不生效，实测
  * `--allow-net=api.github.com` 下请求 example.com 仍成功），见 rest.worker.mjs。
@@ -201,7 +201,7 @@ export async function callRest(requests, opts = {}) {
   failed.forEach((idx, k) => {
     const got = retry.results[k];
     if (!got) return;
-    // 重试批里的 id 是批次内位置，换回原来那条请求的 id，调用方才能对上号。
+    // 重试批里的 id 是批次内位置，这里要还原成调用方那条请求的 id，调用方才能对上号。
     const wanted = list[idx] && list[idx].id !== undefined ? list[idx].id : idx;
     merged[idx] = { ...got, id: wanted };
   });

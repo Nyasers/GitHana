@@ -33,7 +33,7 @@
  *
  * via="api" 时不走本地 git：交给 tools/actions/git/api-commit.js 通过 Git Data API 生成
  * 提交，GitHub 用 web-flow 代签（Verified）；author 固定 bot，本地分支在其后快进。
- * 本地通道不再提供“bot 作者”选项：那样只能得到无签名 / Unverified 的提交，与 API 通道重复。
+ * 本地通道不提供“bot 作者”选项：那样只能得到无签名 / Unverified 的提交，与 API 通道重复。
  */
 import { z } from "zod";
 import { runCli, checkCwd } from "../../lib/exec.js";
@@ -144,11 +144,11 @@ function commitGuidance(stderr, stdout) {
 /**
  * 组装最终 message：拿掉所有 trailer 形式的 Co-authored-by，按所选组合重写规范行。
  *
- * 以前的去重是 `/^Co-authored-by\s*:/im` 一命中就跳过。它只看前缀、不看内容，
- * 于是手写一行格式合法但地址错的 trailer 会把自动追加顶掉：错地址进永久历史，
- * GitHub 按 email 归属协作者，直接在仓库页上多一个陌生的灰头像 contributor。
+ * 为什么必须重写而不只是去重：只按前缀 `/^Co-authored-by\s*:/im` 判重、命中就跳过的做法
+ * 只看前缀、不看内容——手写一行格式合法但地址错的 trailer 会把自动追加顶掉，错地址进永久
+ * 历史，GitHub 按 email 归属协作者，直接在仓库页上多一个陌生的灰头像 contributor。
  *
- * 现在的规矩：Co-authored-by 归工具写。message 里所有这类行（不管地址对不对、
+ * 所以规矩是：Co-authored-by 归工具写。message 里所有这类行（不管地址对不对、
  * 谁写的）一律抹掉，末尾按 coAuthors 补上规范行；coAuthors 为空则一行不留。
  *
  * 抹掉但不静默：与所选组合不一致的行原样回传，调用方以 warning 形式展示。
