@@ -22,11 +22,17 @@
  *         **只退 0 不够**，缺 TRUST_* 时 `%G?` 会落到 U 而不是 G。可读文本走 stderr，
  *         git 原样转发给 `--show-signature` 的显示。
  *
- * ## 密钥从哪来
+ * ## 密钥从哪来（只靠「文件 + 钥匙环」，不读数据库）
  *
- * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.bin（DPAPI 加密的 armored 私钥密文）。
- * 本进程在 AppHost 的权限模型下运行（`--permission` 经 NODE_OPTIONS 传染），能读 dataDir
- * 是因为宿主的 AppHost 命令行带了 `--allow-fs-read=<dataDir>`（实测）。
+ * 环境变量 `GITHANA_KEY_FILE` 指向 dataDir 下的 gpg.key.bin——一份 v2 自包含信封
+ * （wrapNonce | wrappedDEK | dataNonce | ciphertext | tag，见 lib/envelope.js）。wrapped DEK
+ * 就封在该文件自己里面，解开它要的是钥匙环 hana-githana/kek 里的 KEK。所以本 shim 只依赖
+ * 「一个文件 + 系统钥匙环」，**不读 data.db**——这是刻意保持的边界：shim 由 git 直接拉起，
+ * 不经过 App 进程，也不该为了信封结构把数据库依赖拉回来。
+ *
+ * 钥匙环经 lib/envelope.js → lib/keyring.worker.mjs 子进程访问；worker 的绝对路径由
+ * `GITHANA_KEYRING_WORKER` 环境变量传入（bin.js 注入，避免打包后的单文件猜路径）。
+ * shim 由 process.execPath 拉起，不在 AppHost 的权限模型下，worker 里 require 原生 addon 正常。
  *
  * ## stdout 只走协议
  *
@@ -38,9 +44,7 @@
  */
 import fs from "node:fs";
 import * as openpgp from "openpgp";
-import { dpapiUnprotect } from "../../lib/dpapi.js";
-
-/** 密钥文件里记录的加密算法标识（与 lib/secret.js 的后端 alg 同口径）。 */
+import { openSelfContained } from "../../lib/envelope.js";
 
 function die(msg, code = 2) {
   process.stderr.write("[githana-gpg-shim] " + msg + "\n");
@@ -127,8 +131,8 @@ function readEnv(name) {
   }
 }
 
-/** 读并解密 armored 私钥（密文是单独的二进制文件）。 */
-function loadPrivateKeyArmored() {
+/** 读并解密 armored 私钥（文件是 v2 自包含信封；解开只需钥匙环里的 KEK）。 */
+async function loadPrivateKeyArmored() {
   const keyFile = readEnv("GITHANA_KEY_FILE");
   if (!keyFile) die("GITHANA_KEY_FILE not provided: cannot locate the signing key.");
   let buf;
@@ -141,9 +145,14 @@ function loadPrivateKeyArmored() {
     die("the key file is empty: go to the settings page and generate the key again.");
   }
   try {
-    return dpapiUnprotect(buf.toString("base64"));
+    return (await openSelfContained(buf)).toString("utf8");
   } catch (e) {
-    die("failed to decrypt the private key: " + String((e && e.message) || e) + " (did you switch machine or user?)");
+    die(
+      "failed to decrypt the private key: " +
+        String((e && e.message) || e) +
+        " (the OS keyring KEK is missing/locked; the key was moved to another machine/user; " +
+        "or it has not been migrated from the old DPAPI format yet — open the GitHana settings page once to migrate it)",
+    );
   }
 }
 
@@ -152,7 +161,7 @@ async function main() {
   const status = makeStatus(parseStatusFd(argv));
   const isVerify = argv.includes("--verify");
 
-  const armored = loadPrivateKeyArmored();
+  const armored = await loadPrivateKeyArmored();
   let priv;
   try {
     priv = await openpgp.readKey({ armoredKey: armored });

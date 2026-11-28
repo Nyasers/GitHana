@@ -17,7 +17,7 @@
  *
  * 凭据：clone 是取远端动作，与 push 走同一条路——GitHub App 令牌由**本 App 自写的
  * remote helper** 使用（tools/lib/remote-helper-shim.js 在 spawn git 时注入 insteadOf 与 PATH）。
- * helper 自己从 dataDir 解 DPAPI 密文、自己发 HTTPS，所以令牌不进命令行、不进远端 URL、
+ * helper 自己从 data.db 解信封密文、自己发 HTTPS，所以令牌不进命令行、不进远端 URL、
  * 不进 gitconfig、**不进 git 子进程的 env**，也不会出现在返回值里。
  *
  * ## 为什么它返回句柄

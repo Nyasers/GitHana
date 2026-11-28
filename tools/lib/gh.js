@@ -157,7 +157,7 @@ export async function resolveContext(input, label, { skipAuth = false } = {}) {
     repoLabel = repo;
   }
 
-  // 凭据前置检查：令牌由 rest.js 从进程缓存取（DPAPI 解密结果）。这里先判一次，
+  // 凭据前置检查：令牌由 rest.js 从进程缓存取（钥匙环信封解密结果）。这里先判一次，
   // 好给出比 HTTP 401 更直接的引导——只有 OAuth 一条路，没有 keyring 兜底。
   // skipAuth 给 App 身份通道：bot 请求用 installation token，不依赖用户登录。
   if (!skipAuth) {
