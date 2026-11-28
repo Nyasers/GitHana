@@ -199,7 +199,11 @@ export async function callRest(requests, opts = {}) {
   if (!retry || !Array.isArray(retry.results)) return first;
   const merged = first.results.slice();
   failed.forEach((idx, k) => {
-    if (retry.results[k]) merged[idx] = retry.results[k];
+    const got = retry.results[k];
+    if (!got) return;
+    // 重试批里的 id 是批次内位置，换回原来那条请求的 id，调用方才能对上号。
+    const wanted = list[idx] && list[idx].id !== undefined ? list[idx].id : idx;
+    merged[idx] = { ...got, id: wanted };
   });
   return { ok: first.ok && retry.ok !== false, results: merged, message: first.message || retry.message || null };
 }

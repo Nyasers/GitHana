@@ -411,12 +411,24 @@ function GitHanaSettings() {
       const r = await postJson("settings/prefs", { commit: patch });
       const saved = (r && r.commit) || commitPref;
       setPrefs({ loading: false, data: saved, error: null });
-      // 只有草稿没在等待期间被改过才跟随服务端值，否则保留用户刚改的。
-      setDraftAuthor((cur) => (cur === submitted.author ? saved.author : cur));
-      setDraftCredits((cur) =>
-        JSON.stringify(cur) === JSON.stringify(submitted.coAuthors) ? saved.coAuthors : cur,
-      );
-      setSaveStatus("saved");
+      // 只有草稿没在等待期间被改过才跟随服务端值；改过就保留，且不能把未保存的状态
+      // 说成「已保存」。
+      let changedDuring = false;
+      setDraftAuthor((cur) => {
+        if (cur !== submitted.author) {
+          changedDuring = true;
+          return cur;
+        }
+        return saved.author;
+      });
+      setDraftCredits((cur) => {
+        if (JSON.stringify(cur) !== JSON.stringify(submitted.coAuthors)) {
+          changedDuring = true;
+          return cur;
+        }
+        return saved.coAuthors;
+      });
+      setSaveStatus(changedDuring ? "idle" : "saved");
     } catch (e) {
       setPrefsMsg(String((e && e.message) || e));
       setSaveStatus("idle");

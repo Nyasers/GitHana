@@ -125,13 +125,18 @@ function parseNameStatus(raw) {
  * index 取——调用前先 `git add` 过 paths，index 就是待提交的内容。
  * 符号链接在 index 里是 mode 120000，blob 内容就是链接目标，不会跟随到仓库外。
  */
-/** pathspec 一律按字面量解释：文件名里的 * [ ] 不能被 git 当成通配符。 */
+/** pathspec 按字面量解释（相对 cwd）：用户传进来的路径与 git add 用这个。 */
 function literalPath(p) {
   return ":(literal)" + p;
 }
 
+/** git 输出的路径总是相对仓库根：读 index、比对工作区用这个。 */
+function rootPath(p) {
+  return ":(top,literal)" + p;
+}
+
 export async function readStagedFile(cwd, rel) {
-  const ls = await runCli("git", ["ls-files", "-s", "-z", "--", literalPath(rel)], { cwd });
+  const ls = await runCli("git", ["ls-files", "-s", "-z", "--", rootPath(rel)], { cwd });
   if (!ls.ok) throw new Error("reading the index failed for " + rel + ": " + (ls.message || ""));
   const first = String(ls.stdout || "").split("\0").find((x) => x);
   if (!first) return null;
@@ -203,6 +208,16 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   const { owner, repo: name } = await resolveRepo(cwd, repo);
   const repoLabel = owner + "/" + name;
 
+  // 本地快进只能快进到本 clone 的 origin：显式指定了另一个仓库（例如 fork）时，
+  // fetch origin 取到的是上游，跟这次提交无关。
+  let sameAsOrigin = true;
+  try {
+    const o = await resolveRepo(cwd, undefined);
+    sameAsOrigin = String(o.owner + "/" + o.name).toLowerCase() === repoLabel.toLowerCase();
+  } catch {
+    sameAsOrigin = false;
+  }
+
   const headR = await runCli("git", ["rev-parse", "HEAD"], { cwd });
   if (!headR.ok) {
     throw new Error("an API commit needs an existing HEAD commit (the repository has no commits yet): create the first commit locally and push it.");
@@ -264,7 +279,7 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   if (paths.length === 0) {
     for (const c of changes) {
       if (c.status === "D") continue;
-      const dirty = await runCli("git", ["diff", "--name-only", "-z", "--", literalPath(c.path)], { cwd });
+      const dirty = await runCli("git", ["diff", "--name-only", "-z", "--", rootPath(c.path)], { cwd });
       if (dirty.ok && String(dirty.stdout || "").trim() !== "") {
         throw new Error(
           "the staged content of " + c.path + " differs from the working tree. " +
@@ -361,11 +376,19 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   }
 
   // 5) 本地快进到新提交；内容与工作树一致，正常不会碰工作区文件。
-  const fetchR = await runCli("git", ["fetch", "origin", targetBranch], { cwd, timeoutSec: 120 });
   let synced = false;
-  if (fetchR.ok) {
-    const mergeR = await runCli("git", ["merge", "--ff-only", "FETCH_HEAD"], { cwd });
-    synced = mergeR.ok;
+  let syncNote = null;
+  if (!sameAsOrigin) {
+    syncNote =
+      "the commit went to " +
+      repoLabel +
+      ", which is not this clone's origin, so the local branch was not fast-forwarded.";
+  } else {
+    const fetchR = await runCli("git", ["fetch", "origin", targetBranch], { cwd, timeoutSec: 120 });
+    if (fetchR.ok) {
+      const mergeR = await runCli("git", ["merge", "--ff-only", "FETCH_HEAD"], { cwd });
+      synced = mergeR.ok;
+    }
   }
 
   // 6) 读回验证状态（Verified 是这条路的目的，必须确认而不是假定）。
@@ -402,5 +425,6 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
     files: changes.map((c) => (c.status === "D" ? "- " + c.path : c.path)),
     verified,
     synced,
+    syncNote,
   };
 }
