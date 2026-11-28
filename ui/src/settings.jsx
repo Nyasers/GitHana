@@ -1050,7 +1050,7 @@ function GitHanaSettings() {
           label="共同作者"
           control={
             <Inline gap="sm" align="center" wrap>
-              {CO_AUTHOR_KEYS.map((key) => {
+              {CO_AUTHOR_KEYS.filter((key) => key !== shownAuthor).map((key) => {
                 const on = shownCredits.includes(key);
                 return (
                   <Inline key={key} gap="sm" align="center">
@@ -1061,7 +1061,6 @@ function GitHanaSettings() {
               })}
             </Inline>
           }
-          hint="与作者相同的项自动略过。"
         />
         <SettingRow
           label="保存"
