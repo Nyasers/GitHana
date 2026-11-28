@@ -340,7 +340,11 @@ export async function run(input, ctx, { label }) {
     const out = [
       "commit created (API, " + authorLabel + "): " + (result.hash ? result.hash.slice(0, 7) : "?") + (subject ? "  " + subject : ""),
       "branch: " + result.branch + " @ " + result.owner + "/" + result.repo +
-        (result.synced ? " (local branch fast-forwarded)" : " (local branch NOT synced: run git fetch and git merge --ff-only manually)"),
+        (result.synced
+        ? " (local branch fast-forwarded)"
+        : " (local branch NOT synced: " +
+          (result.syncNote || "run git fetch and git merge --ff-only manually") +
+          ")"),
       "files: " + result.files.length + (result.files.length ? "\n  " + result.files.map((f) => "· " + f).join("\n  ") : ""),
       assembled.note,
       result.verified === true
