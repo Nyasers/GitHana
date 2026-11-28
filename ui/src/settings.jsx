@@ -1023,14 +1023,14 @@ function GitHanaSettings() {
         description="决定每次提交的作者与共同署名。"
       >
         <SettingRow
-          label="提交方式"
+          label="提交身份"
           control={
             <Select
-              ariaLabel="提交方式"
+              ariaLabel="提交身份"
               value={shownVia}
               options={[
-                { value: "local", label: "本地提交（我签名）" },
-                { value: "api", label: "App bot（GitHub 代签）" },
+                { value: "local", label: "用户" },
+                { value: "api", label: "App" },
               ]}
               onChange={(value) => {
                 setDraftVia(value);
@@ -1041,9 +1041,9 @@ function GitHanaSettings() {
           hint={
             shownVia === "api"
               ? botReady
-                ? "由 GitHub 生成提交并代签（Verified）；App 需已安装到目标仓库。"
+                ? "GitHub 代签（Verified）；App 需已安装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
-              : "本地提交由你签名（OpenPGP），不依赖 App 安装。"
+              : "由你签名（OpenPGP）。"
           }
         />
         <SettingRow
