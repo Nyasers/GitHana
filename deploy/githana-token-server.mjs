@@ -179,7 +179,12 @@ async function issueToken(owner, repo) {
   const tok = await github("/app/installations/" + installationId + "/access_tokens", {
     method: "POST",
     token: jwt,
-    json: { repositories: [repo] },
+    // 只申请这个服务真正用到的权限：不限的话 GitHub 会把 App 被授予的全部权限
+    // 都放进这张 token，评论用的 token 就顺带能改 workflows 之类的文件。
+    json: {
+      repositories: [repo],
+      permissions: { contents: "write", issues: "write", pull_requests: "write" },
+    },
   });
   if (!tok.ok || !tok.body || !tok.body.token) {
     const err = new Error(
@@ -201,7 +206,22 @@ async function issueToken(owner, repo) {
   return { ...record, expiresAt };
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((e) => {
+    // 请求处理里的漏网异常不能带崩进程：签发服务挂了，所有客户端的 bot 提交跟着挂。
+    if (!res.headersSent) json(res, 500, { error: "internal error" });
+    else {
+      try {
+        res.destroy();
+      } catch {
+        /* 已经断开 */
+      }
+    }
+    console.error("token issuer: unhandled request failure: " + String((e && e.message) || e));
+  });
+});
+
+async function handleRequest(req, res) {
   if (req.method === "GET" && (req.url === "/health" || req.url === "/healthz")) {
     return json(res, 200, { ok: true });
   }
@@ -266,6 +286,9 @@ const server = http.createServer(async (req, res) => {
     return json(res, 400, { error: "invalid json" });
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(res, 400, { error: "owner and repo are required" });
+  }
   const owner = String(body.owner || "").trim();
   const repo = String(body.repo || "").trim();
   if (!/^[A-Za-z0-9_.-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) {
@@ -300,7 +323,7 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     return json(res, e.status || 502, { error: String((e && e.message) || e) });
   }
-});
+}
 
 server.listen(PORT, BIND_HOST, () => {
   console.log(
