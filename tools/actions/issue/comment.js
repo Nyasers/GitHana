@@ -16,7 +16,7 @@ import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
 import { getToolDataDir } from "../../lib/context.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
-import { readIdentity } from "../../../lib/prefs.js";
+import { readAuthorPrefs } from "../../../lib/prefs.js";
 
 export const command = "comment";
 export const summary = "Add a comment to an issue";
@@ -38,7 +38,7 @@ export const sideEffect = {
 
 export async function run(input, ctx, { label }) {
   // 评论身份由设置页决定（默认 App）。
-  const as = readIdentity(getToolDataDir()).commentAuthor === "app" ? "githana-bot" : "user";
+  const as = readAuthorPrefs(getToolDataDir()).comment === "app" ? "githana-bot" : "user";
   const c = await resolveContext(input, label, { skipAuth: as === "githana-bot" });
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;

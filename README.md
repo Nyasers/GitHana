@@ -236,7 +236,10 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 ```
 store(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at INTEGER)
   credential  → { kind, cipher, alg, meta: { login, name, expiresAt } }
-  commit      → { author: "user" | "app", coAuthors: ["user" | "app" | "agent"] }
+
+author 表（主键就是身份，用途摊在各列）：
+  author | commit_author | coa | comment | pr
+  user / app / agent 三行；commit_author / comment / pr 是单选列，整列恰好一行 = 1
 ```
 
 `value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。
