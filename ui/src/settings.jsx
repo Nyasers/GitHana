@@ -29,11 +29,13 @@ import {
   Collapse,
   ErrorState,
   Inline,
+  SaveButton,
   Select,
   SettingRow,
   SettingsPage,
   SettingsSection,
   SettingsStack,
+  TextArea,
   Tooltip,
   Toggle,
 } from "@hana/app-sdk/components";
@@ -357,9 +359,12 @@ function GitHanaSettings() {
     loadIssuer();
   }, [loadIssuer]);
 
-  // 提交署名偏好（非机密）：工具没显式传 via / coAuthors 时的默认值。
+  // 提交署名偏好（非机密）：设置页里先改草稿，再点保存；工具执行时读的是已保存的值。
   const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
   const [prefsMsg, setPrefsMsg] = useState(null);
+  const [draftVia, setDraftVia] = useState(null);
+  const [draftCredits, setDraftCredits] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
 
   const loadPrefs = useCallback(async () => {
     try {
@@ -374,33 +379,44 @@ function GitHanaSettings() {
     loadPrefs();
   }, [loadPrefs]);
 
+  // 读到偏好后填草稿；之后用户的改动只进草稿，点保存才落库。
+  useEffect(() => {
+    if (!prefs.data) return;
+    setDraftVia(prefs.data.defaultVia);
+    setDraftCredits(prefs.data.coAuthors);
+  }, [prefs.data]);
+
   const commitPref = prefs.data || {
     defaultVia: "local",
     coAuthors: ["user", "hanaagent"],
   };
-
-  const saveCommitPrefs = useCallback(
-    async (patch) => {
-      setPrefsMsg(null);
-      try {
-        const r = await postJson("settings/prefs", { commit: patch });
-        setPrefs({ loading: false, data: (r && r.commit) || commitPref, error: null });
-        setPrefsMsg("已保存。");
-      } catch (e) {
-        setPrefsMsg(String((e && e.message) || e));
-      }
-    },
-    [commitPref],
-  );
+  const shownVia = draftVia || commitPref.defaultVia;
+  const shownCredits = draftCredits || commitPref.coAuthors || [];
 
   const toggleCoAuthor = useCallback(
     (key) => {
-      const current = commitPref.coAuthors || [];
-      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
-      saveCommitPrefs({ coAuthors: next });
+      const current = draftCredits || commitPref.coAuthors || [];
+      setDraftCredits(current.includes(key) ? current.filter((k) => k !== key) : [...current, key]);
+      setSaveStatus("idle");
     },
-    [commitPref, saveCommitPrefs],
+    [draftCredits, commitPref],
   );
+
+  const saveCommitDraft = useCallback(async () => {
+    setSaveStatus("saving");
+    setPrefsMsg(null);
+    try {
+      const patch = {};
+      if (draftVia) patch.defaultVia = draftVia;
+      if (draftCredits) patch.coAuthors = draftCredits;
+      const r = await postJson("settings/prefs", { commit: patch });
+      setPrefs({ loading: false, data: (r && r.commit) || commitPref, error: null });
+      setSaveStatus("saved");
+    } catch (e) {
+      setPrefsMsg(String((e && e.message) || e));
+      setSaveStatus("idle");
+    }
+  }, [draftVia, draftCredits, commitPref]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -1014,16 +1030,19 @@ function GitHanaSettings() {
           control={
             <Select
               ariaLabel="默认提交方式"
-              value={commitPref.defaultVia}
+              value={shownVia}
               options={[
                 { value: "local", label: "本地提交（我签名）" },
                 { value: "api", label: "App bot（GitHub 代签）" },
               ]}
-              onChange={(value) => saveCommitPrefs({ defaultVia: value })}
+              onChange={(value) => {
+                setDraftVia(value);
+                setSaveStatus("idle");
+              }}
             />
           }
           hint={
-            commitPref.defaultVia === "api"
+            shownVia === "api"
               ? botReady
                 ? "由 GitHub 生成提交并代签（Verified）；App 需已安装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
@@ -1035,7 +1054,7 @@ function GitHanaSettings() {
           control={
             <Inline gap="sm" align="center" wrap>
               {CO_AUTHOR_KEYS.map((key) => {
-                const on = (commitPref.coAuthors || []).includes(key);
+                const on = shownCredits.includes(key);
                 return (
                   <Inline key={key} gap="sm" align="center">
                     <Toggle ariaLabel={CO_AUTHOR_LABELS[key]} checked={on} onChange={() => toggleCoAuthor(key)} />
@@ -1046,6 +1065,17 @@ function GitHanaSettings() {
             </Inline>
           }
           hint="作者本身不会重复署名：本地提交时作者就是你，「用户」那一项会自动略过。"
+        />
+        <SettingRow
+          label="保存"
+          control={
+            <SaveButton
+              status={saveStatus}
+              labels={{ idle: "保存", saving: "保存中…", saved: "已保存" }}
+              onSavedFeedbackEnd={() => setSaveStatus("idle")}
+              onClick={saveCommitDraft}
+            />
+          }
         />
         {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>
@@ -1193,7 +1223,13 @@ function GitHanaSettings() {
                 />
                 {/* 公钥正文：不放在 SettingRow 里（没有 label），也不加左边距，
                     与这一组其他行的左边线对齐。 */}
-                <pre className="gh-pubkey">{keyText || "读取中…"}</pre>
+                <TextArea
+                  className="gh-pubkey-input"
+                  readOnly
+                  rows={18}
+                  value={keyText || "读取中…"}
+                  aria-label="完整公钥"
+                />
               </>
             ) : null}
             {/* 提示放在展开块之外：移除公钥成功后面板里的内容没了，
