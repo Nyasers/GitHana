@@ -174,6 +174,8 @@ for (const rel of [
   ["tools/lib/git-remote-helper.mjs", "git remote helper 源（构建时打包为 bin/git-remote-helper.mjs，运行期由包装脚本拉起）"],
   ["node_modules/openpgp/dist/node/openpgp.min.mjs", "OpenPGP.js 库文件源（构建时原样投影到 bin/openpgp.min.mjs）"],
   ["node_modules/zod/index.js", "zod 库文件源（构建时由 build-entries 打成 bin/zod.min.mjs，app.mjs 运行期外置）"],
+  ["lib/keyring.worker.mjs", "钥匙环 worker 源（构建时原样投到 bin/keyring.worker.mjs，spawn 出去读系统钥匙环）"],
+  ["node_modules/@napi-rs/keyring/package.json", "钥匙环原生包源（构建时投到 bin/node_modules/@napi-rs/keyring，worker 运行期 require）"],
 ]) {
   if (!existsSync(join(ROOT, ...rel[0].split("/")))) {
     fail(`缺 ${rel[0]}（${rel[1]}）`);

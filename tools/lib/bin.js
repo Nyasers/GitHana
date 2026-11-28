@@ -4,8 +4,8 @@
 /**
  * tools/lib/bin.js — git 可执行文件解析（平台通用）。
  *
- * gpg / gpgconf 不在此列：签名已改由随包的纯 JS shim 完成（tools/lib/gpg.shim.mjs），
- * 包内不再内嵌任何二进制。GitHub 域也不走外部二进制（REST worker 在子进程里直发）。
+ * gpg / gpgconf 不在此列：签名由随包的纯 JS shim 完成（tools/lib/gpg.shim.mjs），
+ * 包内不内嵌任何二进制。GitHub 域也不走外部二进制（REST worker 在子进程里直发）。
  *
  * ## 目录布局（布局是数据，查找是代码）
  *
@@ -30,8 +30,8 @@
  * 第 1 条为什么不能用 fs：AppHost 开了 Node Permission Model，宿主 resources 在许可根之外，
  * `fs.statSync/existsSync` 一律抛 ERR_ACCESS_DENIED（实测）。但 `app/process.spawn` 开的是
  * **子进程，外部命令不继承该模型**——所以正确的探活方式是"跑一次 --version，能起来就算存在"。
- * 这也是本次修正的核心：上一版只认 HANA_DESKTOP_RESOURCES_PATH，而 AppHost 根本不传它，
- * 于是宿主那份 git 永远找不到，白白随包扛着 90MB 的 MinGit。
+ * 宿主 resources 根也不能只认一个环境变量（HANA_DESKTOP_RESOURCES_PATH 只是候选之一，
+ * AppHost 不一定传），所以按多个候选逐个 spawn 探活，找不到宿主那份才回退随包/系统 PATH。
  *
  * 不是每个平台都 vendor 每样东西：macOS/Linux 自带 git，硬塞 MinGit/Git for Windows 不合理。
  * `vendor/sources.json` 没声明的组件就是"本平台不内嵌、走系统 PATH"，与"声明了但没就绪"是两种状态。
@@ -49,17 +49,17 @@
  * （tools/lib/remote-helper-shim.js）——NODE_OPTIONS 追加 `--allow-net`、注入**本次子命令那一侧**
  * 的 URL 重写（取侧 `url.githana::.insteadOf`；push 侧 `url.githana-push::.insteadOf` +
  * `::.pushInsteadOf`，两组二选一，理由见该文件头注）、把 helper 包装目录前置进 PATH，
- * 三件事同进同退。令牌因此不经 git 子进程的 env（helper 自己从 dataDir 解 DPAPI 密文）。
+ * 三件事同进同退。令牌因此不经 git 子进程的 env（helper 自己从 data.db 解 v2 信封密文，经钥匙环）。
  *
- * 不再有 GNUPGHOME：gpg 二进制不在包里了，那套隔离机制（gpgconf.ctl、agent 收尾）随之消失。
- * gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
+ * 没有 GNUPGHOME 这一层：签名由随包纯 JS shim 完成，不需要那套隔离机制（gpgconf.ctl、
+ * agent 收尾）。gpg.program 的路径每次 spawn 现算，不会被安装位绑死。
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getToolDataDir } from "./context.js";
-import { ensureWrapper, ensureTmpDir, keyFilePath } from "./sign-shim.js";
+import { ensureWrapper, ensureTmpDir, keyFilePath, keyringWorkerPath } from "./sign-shim.js";
 import { applyRemoteHelper, remoteHelperSubcommand } from "./remote-helper-shim.js";
 
 /**
@@ -70,7 +70,7 @@ import { applyRemoteHelper, remoteHelperSubcommand } from "./remote-helper-shim.
  *   · 源码树：入口是 <repo>/app.js（与 manifest.json 同级）→ 一级不找即命中；
  *   · 交付产物：入口是 <install>/bin/app.mjs → `bin/` 里没有，上一步命中 <install>。
  *
- * 为什么不靠 `ctx.pluginDir`（曾经试过）：它给的是**源码树路径**而不是安装目录
+ * 为什么不靠 `ctx.pluginDir`：它给的是**源码树路径**而不是安装目录
  * （真机实测：装到 <HANA_HOME>/apps/githana 后，该字段仍报开发仓库的绝对路径），
  * 按它算 `bin/<平台>/` 会永远探空、静默回落系统 PATH——"装好了却用着系统那份"。
  *
@@ -109,7 +109,7 @@ export function pluginRoot() {
   return entryDir;
 }
 
-/** 宿主注入的 resources 根环境变量（v1 时代有；v2 AppHost 不传，仅作候选之一） */
+/** 宿主注入的 resources 根环境变量（v2 AppHost 不传，仅作候选之一） */
 const HOST_RESOURCES_ENV = "HANA_DESKTOP_RESOURCES_PATH";
 
 const PLATFORM = process.platform; // win32 | darwin | linux
@@ -120,11 +120,11 @@ export const VENDOR_PLATFORM_KEY = `${process.platform}-${process.arch}`;
 /**
  * 每个工具在各平台的可执行路径与 PATH 附加目录（只写"树内形态"）。
  *
- * 路径形态是 `bin/<平台>-<架构>/<exe>`：产物里二进制平铺，不再有组件那一层。
+ * 路径形态是 `bin/<平台>-<架构>/<exe>`：产物里二进制平铺，没有组件那一层。
  * 编排参考：构建期 build-app 把仓库的 vendor/bin/<平台>/<组件>/ 投影到这里。
  *
- * **当前表里只有 git**：gpg / gpgconf 已不再需要（签名由随包的纯 JS shim 完成，
- * 见 tools/lib/gpg.shim.mjs），包里不再内嵌任何二进制。
+ * **当前表里只有 git**：gpg / gpgconf 不需要（签名由随包的纯 JS shim 完成，
+ * 见 tools/lib/gpg.shim.mjs），包里不内嵌任何二进制。
  *
  * git 条目**不描述随包内容**：MinGit 从不随包（sources.json 里也不声明 git），App 始终用宿主
  * 那份 `<HANA_ROOT>/resources/git`。这里的 git 条目服务的是**宿主 git 的树内形态**——
@@ -146,7 +146,7 @@ export const VENDOR_LAYOUT = {
 /**
  * 工具名（resolveBin 的 bin）→ vendor 组件目录名（vendor/sources.json 的 components 键）。
  * 同义不同名时在这里建映射；当前无映射（git 组件名与工具名相同）。
- * 历史上 gpg 与 gpgconf 两个可执行文件同出 gnupg 一份组件目录，那条映射随内嵌二进制一起移除。
+ * 当前包里没有内嵌的 gpg / gpgconf，故没有需要登记的映射。
  */
 export const VENDOR_COMPONENT = {};
 
@@ -372,8 +372,8 @@ export function buildBinEnv(baseEnv, resolved, call) {
       env.TEMP = tmpDir;
     }
     // 签名接线：gpg.program 指向**签名 shim**（纯 JS，见 tools/lib/gpg.shim.mjs）。
-    // 不再有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——gpg 二进制已经不在包里，
-    // 那套隔离机制存在的唯一理由（让 gpg 认隔离环）随之消失。
+    // 没有 GNUPGHOME、vendor gnupg 的 PATH 前置、gpgconf.ctl 处理——签名由随包纯 JS shim 完成，
+    // 那套隔离机制（让 gpg 认隔离环）用不上。
     //
     // 包装脚本每次现算（node 路径与安装位都可能变），落在运行期临时目录里（它本身就是
     // 现写现用的产物，不跟密钥、凭据那些长期文件混在一起）；见 tools/lib/sign-shim.js。
@@ -387,6 +387,9 @@ export function buildBinEnv(baseEnv, resolved, call) {
       env[`GIT_CONFIG_VALUE_${n}`] = wrapper;
       // shim 是独立进程，不知道 dataDir：密钥路径经 env 传它（与 REST worker 的令牌经 stdin 同理）。
       env.GITHANA_KEY_FILE = keyFilePath(dataDir);
+      // 私钥是信封格式，解它要读系统钥匙环；钥匙环只能经 worker 子进程访问。worker 的绝对路径
+      // 也经 env 传（shim 是打包单文件，env 比让 shim 猜路径稳），见 lib/envelope.js。
+      env.GITHANA_KEYRING_WORKER = keyringWorkerPath();
     }
   }
   // 远端传输接线**不依赖 dataDir 的隔离配置是否就绪**，但依赖这次调用确实是 git 的取远端动作

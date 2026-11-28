@@ -272,6 +272,9 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {})
       // 结果统一附带 bin 解析信息（可观察性：bundled 还是 system）
       resolve({
         ...value,
+        // 原始字节（不做 CRLF 归一与 utf8 解码）：API 提交上传的 blob 要用它，
+        // 二进制文件与 symlink 的链接目标都得原样保留。
+        stdoutBytes: stdoutCol.bytes(),
         binSource: resolved.source,
         binLabel: resolved.binLabel || null,
       });
@@ -401,6 +404,89 @@ export async function runCli(bin, args, { cwd, timeoutSec, input, signal } = {})
 }
 
 /**
+ * 把子进程的 stdout 直接写进文件，不经过内存收集器。
+ *
+ * 用途：仓库里的 blob 可能远超 MAX_OUTPUT_BYTES，读进内存既不安全也没必要。
+ * stderr 仍按上限截断收集（诊断用）。返回写出的字节数，由调用方决定要不要接受。
+ */
+export async function runCliToFile(bin, args, { cwd, file, timeoutSec } = {}) {
+  const cwdErr = checkCwd(cwd);
+  if (cwdErr) return { ok: false, exitCode: null, bytes: 0, stderr: "", message: cwdErr };
+  if (!file) {
+    return { ok: false, exitCode: null, bytes: 0, stderr: "", message: "runCliToFile needs a destination file." };
+  }
+
+  const resolved = await resolveBinExec(bin);
+  const argList = Array.isArray(args) ? args.map((a) => String(a)) : [];
+  const sec = normalizeTimeoutSec(timeoutSec);
+  const stderrCol = makeCollector(64 * 1024);
+
+  return new Promise((resolve) => {
+    let child = null;
+    let settled = false;
+    let bytes = 0;
+    let timedOut = false;
+    const out = fs.createWriteStream(file);
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child) terminateTree(child);
+    }, sec * 1000);
+
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      out.end(() => resolve({ ...value, bytes, stderr: normalizeNewlines(stderrCol.text()), timedOut }));
+    };
+
+    try {
+      child = spawn(resolved.cmd, argList, {
+        cwd: cwd !== undefined && cwd !== null && String(cwd).trim() !== "" ? String(cwd).trim() : undefined,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        env: buildBinEnv(process.env, resolved, { bin, args: argList }),
+      });
+      liveChildren.add(child);
+      installExitHook();
+      child.on("close", () => {
+        liveChildren.delete(child);
+      });
+    } catch (err) {
+      done({
+        ok: false,
+        exitCode: null,
+        message: spawnErrorMessage(bin, err && err.code, resolved),
+      });
+      return;
+    }
+
+    child.stdout.on("data", (d) => {
+      bytes += d.length;
+      out.write(d);
+    });
+    child.stderr.on("data", (d) => stderrCol.push(d));
+
+    child.on("error", (err) => {
+      done({ ok: false, exitCode: null, message: spawnErrorMessage(bin, err && err.code, resolved) });
+    });
+
+    child.on("close", (code) => {
+      const ok = code === 0;
+      done({
+        ok,
+        exitCode: code,
+        message: ok
+          ? null
+          : timedOut
+            ? bin + " command timed out (" + sec + "s): the process was terminated."
+            : buildExitDiagnosis(bin, code, "", stderrCol.text()),
+      });
+    });
+  });
+}
+
+/**
  * 分通道有界收集器：超限即截断（保留开头，防单次巨块撑爆内存），内存上界 ≈ limit。
  */
 function makeCollector(limit) {
@@ -423,6 +509,9 @@ function makeCollector(limit) {
     },
     text() {
       return Buffer.concat(parts).toString("utf8");
+    },
+    bytes() {
+      return Buffer.concat(parts);
     },
   };
 }

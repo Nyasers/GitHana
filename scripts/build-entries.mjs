@@ -119,6 +119,8 @@ function configFor(outName, entryFile, isLibrary = false) {
     // 一条 import 的空壳。
     externals: { openpgp: "module ./openpgp.min.mjs" },
     module: {
+      // .sql 当作文本内联：bin 侧（git-remote-helper）也会用到 db.js。
+      rules: [{ test: /\.sql$/, type: "asset/source" }],
       parser: {
         javascript: {
           // 与 build-server 同口径：不把 import.meta.url 固化成构建机路径。

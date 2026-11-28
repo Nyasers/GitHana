@@ -59,7 +59,7 @@ const pollers = new Map();
  * 恢复前的准备回调（app.js 登记，指向 tools/lib/context.js 的 initToolContext）。
  *
  * 为什么需要它：恢复发生在 apply 阶段，那时**还没有任何工具调用**，而 GitHub 令牌是
- * initToolContext 首次调用时才解进进程缓存的（DPAPI 解密是异步的）。不先跑这一步，
+ * initToolContext 首次调用时才解进进程缓存的（钥匙环解密是异步的）。不先跑这一步，
  * 恢复出来的轮询器第一跳就是「无令牌 → 401」。
  */
 let preparer = null;
@@ -273,7 +273,7 @@ export async function resumePendingTasks() {
     taskLog("info", "host task surface unavailable (app/tasks.manage not granted): skipping recovery of unfinished background tasks");
     return { resumed: 0 };
   }
-  // 先把凭据解进进程缓存（首次会跑 DPAPI 解密）：恢复出来的轮询器第一跳就要发请求。
+  // 先把凭据解进进程缓存（首次会跑钥匙环解密）：恢复出来的轮询器第一跳就要发请求。
   // 失败不拦——真无凭据时各跳会照常报未授权，任务会走到窗口末尾结算（如实回报，不静默）。
   if (preparer) {
     try {
