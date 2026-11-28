@@ -16,8 +16,8 @@
  *
  * 权限：external_side_effect——本工具里 create / merge / comment / close / reopen / review /
  * edit / ready / lock / unlock / update-branch / revert / checkout 都会改状态，整体只能按写面声明。
- * （只读的 view / status / diff / checks / list 因此也要过审；读免审那条路在收敛前由独立的
- * 只读面承担，名词分家后按 gh 的组走。）
+ * （只读的 view / status / diff / checks / list 因此也要过审；按 gh 的分组，各名词工具的
+ * 只读动词归在各自的写面工具里，没有单独的免审只读面。）
  *
  * ## `watch` 是任务型动词（返回句柄，不返回结论）
  *

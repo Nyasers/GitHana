@@ -22,13 +22,18 @@ import { describeFailure } from "./gh.js";
 /**
  * 取 issue 本体；顺带判出它其实是 PR 的情况。
  *
+ * @param {string} repo owner/name
+ * @param {string} repoLabel 给人看的仓库名
+ * @param {string|number} numStr issue 编号
+ * @param {string} [timeoutSec]
+ * @param {string} [token] 可选的调用令牌（bot 评论用 installation token；缺省用进程内的用户令牌）
  * @returns {{ error: string } | { issue: object, isPullRequest: boolean, numStr: string }}
  */
-export async function fetchIssue(repo, repoLabel, numStr, timeoutSec) {
+export async function fetchIssue(repo, repoLabel, numStr, timeoutSec, token) {
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
   const r = await callRest(
     [{ id: "issue", url: apiUrl(repo, "/issues/" + numStr), timeoutMs }],
-    { timeoutSec },
+    { timeoutSec, token },
   );
   if (!r.ok) return { error: " failed: " + r.message };
   const res = r.results[0];

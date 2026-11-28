@@ -9,9 +9,9 @@
  * App 的 apply() 跑在宿主给的 AppHost 子进程里，那个进程开了 Node Permission Model，
  * 且**没有** `--allow-net`（宿主按清单能力只给 `--allow-child-process`）。权限模型下进程内
  * 的 `fetch` 会被运行时拒掉（实测 DNS 报 `getaddrinfo ERR_ACCESS_DENIED api.github.com`）。
- * 而 `app/process.spawn` 授权下起的外部进程不继承该模型——gh CLI 以前就是这么联网的。
+ * 而 `app/process.spawn` 授权下起的外部进程不继承该模型（gh CLI 就是靠这一点联网的）。
  *
- * 换成我们自己写的 node 脚本后，spawn 时要**显式**补 `--allow-net`：Node 26 的
+ * 我们自己写的 node 脚本在 spawn 时要**显式**补 `--allow-net`：Node 26 的
  * `--permission` 会经 `NODE_OPTIONS` 传染给子进程（子进程继承权限模型），而放行项不会跟着走。
  * 这不是新增清单能力，是 node 运行时层面的旗标（见 tools/lib/rest.js 的 spawnRestWorker）。
  *
@@ -74,8 +74,12 @@ import { Readable, Transform } from "node:stream";
  * `uploads.github.com` 是发布资产的上传端点：它**不在** api.github.com 上（GitHub 把上传
  * 单独摆了一个域），所以只列 api / github 会让上传在起请求前就被拒。凭据与 api 同一枚
  * （同一个 Bearer 头），这里只放行域，不改凭据形态。
+ *
+ * `githana.nyase.ru` 是签发 installation token 的固定公共服务（`ISSUER_URL`，见
+ * lib/app-auth.js）：App 身份换 token 与取 bot 身份都打这个域，与 GitHub 域同走这条 REST
+ * 通道，不经任何外部二进制。自建签发服务时改 `ISSUER_URL` 的同时要把那台主机也加进这里。
  */
-const ALLOWED_HOSTS = new Set(["api.github.com", "github.com", "uploads.github.com"]);
+const ALLOWED_HOSTS = new Set(["api.github.com", "github.com", "uploads.github.com", "githana.nyase.ru"]);
 
 /**
  * 允许**重定向落到**的主机（精确 host）。

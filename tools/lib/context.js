@@ -14,9 +14,10 @@
  * lib/exec.js（runCli 隔离 env 组装）与各工具同步读单例，避免处处 async 化。
  * 单例为进程级：同一插件实例内共享（插件单实例，dataDir 稳定，dsh 同款 getSingleton 模式）。
  *
- * secretToken：GitHub OAuth 令牌（`ghu_`）经 DPAPI 加密后落 App 自己的数据目录（lib/secret.js）。
- * 解密是异步的，而工具调用需要在发请求前同步知道“有没有令牌”，所以解密结果写进本单例，
- * 工具只同步读。凭据只有 OAuth 一种：无凭据就报未授权，不做任何降级。
+ * secretToken：GitHub OAuth 令牌（`ghu_`）经「钥匙环 KEK + v2 信封」加密后落 App 自己的数据目录
+ * （lib/secret.js / lib/envelope.js）。解密是异步的（要起钥匙环 worker 子进程），而工具调用需要在
+ * 发请求前同步知道“有没有令牌”，所以解密结果写进本单例，工具只同步读。凭据只有 OAuth 一种：
+ * 无凭据就报未授权，不做任何降级。
  *
  * oauthMeta：凭据记录里那份**非机密** meta（login / expiresAt / needsReauth…）。挂在单例上
  * 是为了让刷新逻辑（lib/oauth.js）不必反复解密就能判断「要不要刷新」。
@@ -30,7 +31,7 @@ let state = { dataDir: "", pluginDir: "", secretToken: "", oauthMeta: null };
 /**
  * 秘密加载器（由 app.js 注册，指向 lib/secret.js），以及「是否已加载」的一次性闩。
  *
- * 为什么挂在这里而不是 apply 里：解密要跑 powershell（DPAPI），而工具调用需要在发请求前
+ * 为什么挂在这里而不是 apply 里：解密要起钥匙环 worker 子进程，而工具调用需要在发请求前
  * 同步知道“有没有令牌”；所以推迟到首次工具/路由调用（initToolContext）时才跑，且只跑一次。
  */
 let secretLoader = null;
@@ -53,7 +54,7 @@ export function setFreshChecker(fn) {
 /**
  * 只登记运行上下文（dataDir / pluginDir），**不触发**任何加载动作（不解密凭据、不跑保活）。
  * 给 apply 阶段用：dispose 阶段要同步读 dataDir，而 initToolContext 是异步的、还会拉起
- * DPAPI 解密——那里不合适。此处只写两个字符串，纯同步。
+ * 钥匙环解密——那里不合适。此处只写两个字符串，纯同步。
  */
 export function primeToolContext(ctx) {
   if (ctx && ctx.dataDir !== undefined && ctx.dataDir !== null) {
@@ -78,7 +79,7 @@ export async function initToolContext(ctx) {
     state.pluginDir = String(ctx.pluginDir);
   }
 
-  // 首次调用时把凭据解进进程缓存（DPAPI）。只跑一次。
+  // 首次调用时把凭据解进进程缓存（钥匙环信封）。只跑一次。
   if (secretLoader && !secretLoaded) {
     secretLoaded = true;
     try {
@@ -111,7 +112,7 @@ export function getToolPluginDir() {
 }
 
 /**
- * 当前进程内缓存的明文令牌（来自 DPAPI 解密）。未设置返回 ""。
+ * 当前进程内缓存的明文令牌（来自钥匙环信封解密）。未设置返回 ""。
  * 仅供 buildBinEnv 同步读取；不提供给工具返回/回显。
  */
 export function getToolSecretToken() {

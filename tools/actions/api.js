@@ -10,8 +10,8 @@
  * ## 它是单动词工具，所以没有 action
  *
  * `action` 是分发键，只在动词数 ≥ 2 的工具上声明（D3）；单数时它只是占位（填了等于没填），
- * 删掉。`required` 随之从平表的 `["action"]` 换成真正必填的 `path`——收敛前 `path` 只在
- * run() 里校验，模型面看不见它必填（AC2）。装配走 surface.js 的 createSingleSurface。
+ * 这里不声明。`required` 即真正必填的 `path`——`path` 在 run() 里校验，单动词面据此把它标成
+ * 必填（AC2）。装配走 surface.js 的 createSingleSurface。
  *
  * ## 路径形态
  *
@@ -46,11 +46,10 @@ export const schema = {
       "Path after api.github.com (with a leading slash), e.g. \"/user\", \"/repos/{owner}/{repo}/issues\", \"/repos/o/r/pulls?state=open\"",
     ),
   // 取值域写成 enum：本工具只有一个面，没有「另一个面收别的值」这件事要表达，
-  // 非法值由参数校验当场拒（不必像收敛前那样留给 run() 好指向另一个面）。
+  // 非法值由参数校验当场拒。
   //
-  // 但归一化必须在**进 enum 之前**完成：收敛前 method 由 run() 里的 `String(x).toUpperCase()`
-  // 归一，小写 `"post"` 是能用的；直接挂 enum 会把它当成非法值拒掉，这是一处行为回归。
-  // `z.preprocess` 正是「先归一、再校验」的形状（它编译成 pipe(input: transform, output: enum)），
+  // 但归一化必须在**进 enum 之前**完成：小写 `"post"` 是能用的，直接挂 enum 会把它当成
+  // 非法值拒掉。`z.preprocess` 正是「先归一、再校验」的形状（它编译成 pipe(input: transform, output: enum)），
   // 于是 `"post"` → `"POST"` 被接受，而 `"TRACE"` / 数字 / null 归一后仍不在 enum 里，
   // 照样被拒——归一化不会放过非法值。
   //
@@ -60,8 +59,8 @@ export const schema = {
   // 所以模型面仍看得见 enum 与这段描述；换那种写法会把取值域投影成一个光秃秃的 string。
   method: z
     .preprocess(
-      // 只归一字符串（大小写），不做 trim / 不做类型强转：`" POST "` 这种在收敛前也过不了
-      // fetch，别在这里悄悄把语义放宽。
+      // 只归一字符串（大小写），不做 trim / 不做类型强转：`" POST "` 这种带空格的值在
+      // fetch 层也过不了，别在这里悄悄把语义放宽。
       (v) => (typeof v === "string" ? v.toUpperCase() : v),
       z.enum(["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"]),
     )

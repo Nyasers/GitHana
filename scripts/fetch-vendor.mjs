@@ -19,7 +19,8 @@
  *   4) `--check` 只校验现状，不下载；CI 用它把"声明了却没就绪"变成硬失败。
  *
  * **当前 sources.json 里没有任何组件**（无内嵌二进制：签名走纯 JS、git 用宿主那份），
- * 所以本脚本在正常仓态下是空操作。解压分支（targz / zip）保留供将来需要内嵌二进制时复用。
+ * 所以本脚本在正常仓态下是空操作。解压分支（targz / zip）保留供将来需要内嵌二进制时复用；
+ * 解包由 `scripts/lib/archive.mjs` 用 node:zlib 完成，不依赖系统的 tar / unzip。
  *
  * 用法：
  *   node scripts/fetch-vendor.mjs                      # 当前平台全量
@@ -29,10 +30,10 @@
  */
 
 import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, renameSync, statSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { dirname, join, relative } from "node:path";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readTarGz, readZip } from "./lib/archive.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCES = join(ROOT, "vendor", "sources.json");
@@ -114,21 +115,35 @@ function flattenIfNested(destRoot, exeRel) {
   return existsSync(join(destRoot, exeRel));
 }
 
-/** 解压（按 extract 类型分派）。targz / zip 为当前保留的两种；NSIS（7z-bin）已随 gnupg 一起移除。 */
-async function extract(spec, cacheFile, destRoot) {
+/**
+ * 解压（按 extract 类型分派）。targz / zip 为当前保留的两种；NSIS（7z-bin）已随 gnupg 一起移除。
+ *
+ * 解包走 `scripts/lib/archive.mjs`（node:zlib），不再 spawn tar/unzip：外部命令在 Linux CI 上未必有
+ * （unzip），且 Windows 的 bsdtar 与 Linux 的 GNU tar 参数方言不同——原生实现让两种包在任一平台一致。
+ * 保留条目相对包根的路径层级；不还原权限位/符号链接（现有消费方都不依赖）。
+ */
+export async function extract(spec, cacheFile, destRoot) {
   rmSync(destRoot, { recursive: true, force: true });
   mkdirSync(destRoot, { recursive: true });
 
+  let entries;
   if (spec.extract === "targz") {
-    execFileSync("tar", ["-xzf", cacheFile, "-C", destRoot], { stdio: "inherit" });
-    return;
+    entries = readTarGz(cacheFile);
+  } else if (spec.extract === "zip") {
+    entries = readZip(cacheFile);
+  } else {
+    throw new Error(`未知的 extract 类型：${spec.extract}（支持 targz / zip）`);
   }
 
-  // zip：Windows/macOS 的 tar 是 bsdtar（认 zip）；Linux 的 GNU tar 不认 → unzip
-  if (process.platform === "linux") {
-    execFileSync("unzip", ["-q", "-o", cacheFile, "-d", destRoot], { stdio: "inherit" });
-  } else {
-    execFileSync("tar", ["-xf", cacheFile, "-C", destRoot], { stdio: "inherit" });
+  // 防路径穿越：条目必须落在 destRoot 之内（拒绝绝对路径与 ".." 越界）。
+  const rootResolved = resolve(destRoot);
+  for (const [name, data] of entries) {
+    const dest = resolve(destRoot, ...name.split("/"));
+    if (dest !== rootResolved && !dest.startsWith(rootResolved + sep)) {
+      throw new Error(`条目路径越界（拒绝解压）：${name}`);
+    }
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, data);
   }
 }
 
