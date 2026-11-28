@@ -125,7 +125,7 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
   （报 `git: 'remote-githana' is not a git command`），所以由 git for Windows 自带的 msys sh
   解析 shebang。这与 `gpg.program` 那条路不同：后者由 git 直接 spawn 绝对路径，可以用 `.cmd`。
 - 令牌**不进**命令行、**不进** `git remote -v` 可见的配置、**不进**隔离 gitconfig、
-  **不进** git 子进程的 env：helper 自己读 `data.db` 的 `credential` 表密文，用钥匙环里的 KEK 拆开信封（`lib/envelope.js`）。
+  **不进** git 子进程的 env：helper 自己读 `data.db` 的 `credential` 表密文，用系统钥匙环的 KEK 拆开信封（`lib/envelope.js`）——它只读这一张表和钥匙环，不读库外任何东西。
 - 不改主机文件：上面那些前缀改写都走 `GIT_CONFIG_*` 机制（与 `gpg.program` 同一套注入口），
   `git remote -v` 看到的仍是原 URL。
 - 注入范围是上面那五条子命令，且命令行不带 `-c` / `--config-env` / `--exec-path` / `ext::`
@@ -157,14 +157,14 @@ CI 的三类对象各有自己的工具：`githana_run` / `githana_workflow` / `
 | 维度 | v1 插件（`plugins/github-hanako`，已装） | 本项目（App v2） |
 |------|------------------------------------------|------------------|
 | 工具注册 | 宿主扫描 `tools/*.js` 自动注册 | `apply(ctx)` 内逐个 `ctx.tools.register`（无前缀，名字全局唯一） |
-| 设置 | `contributes.configuration`（明文进 preferences.json） | `contributes.settings.ui` 自定义页 + App 自持存储（钥匙环 KEK + 信封加密，不进宿主设置表） |
+| 设置 | `contributes.configuration`（明文进 preferences.json） | `contributes.settings.ui` 自定义页 + App 自持存储（系统钥匙环 KEK + v2 信封加密，不进宿主设置表） |
 | 凭据来源 | 手动粘贴 PAT | **GitHub App device flow 授权**（`ghu_` 令牌；无 PAT 通道） |
 | 后端路由 | `pluginRoutes`（`/api/plugins/<id>/`） | `ctx.routes.register`（`/api/apps/<id>/routes/`） |
 | 会话流卡 | 动态 route 返回整页 HTML（公钥复制卡） | **不出流内卡**：公钥的查看/复制只有设置页一处（`ui/settings.html`） |
 | 外部命令 | 插件进程直接 spawn | 清单申请 `app/process.spawn` → 子进程开 `--allow-child-process` |
 | GitHub 域 | gh CLI（外部二进制） | 随包 REST worker（Node 内置 fetch，见「GitHub 通道」） |
 | 文件边界 | 无限制 | Node Permission Model：安装目录只读、`app-data/githana` 可写 |
-| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内信封加密（KEK 在系统钥匙环；`data.db` 的 `credential` 单行表，`kind: "oauth"`），不进宿主设置表 |
+| 令牌存放 | `plugin-data/<id>/config.json` 明文 | 数据目录内 v2 信封加密（`credential` 单行表以 BLOB 存密文，DEK 封在信封里、KEK 在系统钥匙环；`kind: "oauth"`），不进宿主设置表 |
 
 `tools/actions/` 与 `tools/lib/` 的实现基本原样复用：`app.js` 把 App 运行上下文（`dataDir` / 安装目录）当作**第二个参数**喂给各 action 的 `run(input, ctx, options)`，因此实现代码零改动。
 唯一的适配点：`tools/lib/exec.js` 的 `checkCwd` 对 `ERR_ACCESS_DENIED` 显式放行（隔离进程许可根之外不能 `fs.stat`，把校验交给 git 子进程）。
@@ -249,11 +249,12 @@ gitconfig 与两个 GPG 文件仍是文件，因为 git 与 gpg shim 按路径�
   device flow 签发的令牌刷新**不需要 client_secret**）。刷新单飞（并发调用共享同一个 Promise），
   失败 → 记 `meta.needsReauth` 并清掉进程内令牌，设置页显示「需重新授权」。
   **不降级到其它凭据**（也没有其它凭据）：失败就是失败，后续调用如实报未授权。
-- **三平台同一套后端**：系统钥匙环（Windows 凭据管理器 / macOS Keychain / Linux Secret Service）持有 32 字节 KEK，数据用信封加密（`lib/envelope.js`），`alg = keyring-envelope-v2`。
+- **三平台同一套后端**：系统钥匙环（`@napi-rs/keyring`；Windows 凭据管理器 / macOS Keychain / Linux Secret Service）里只存一条 `hana-githana`/`kek` 的 32 字节 KEK，只用来包 DEK；每个受保护对象自带 DEK，wrapped DEK 与密文封在同一块 v2 信封里（定长头 73 字节，`lib/envelope.js`），`alg = keyring-envelope-v2`。
   钥匙环访问走 `lib/keyring.worker.mjs` 子进程（主进程在 Node 权限模型下不能加载原生 addon）。
+- **不匹配就报错**：`alg` 不对时按「不是本机写的」如实报错，不当成未登录，也不自动重建密钥。
 - **绝不回落明文**：没有可用后端时保存直接报错，不写明文。
-- **跨平台换机行为明确**：文件里的 `alg` 用来判定密文是不是本机后端写的；不匹配时设置页
-  会显示「需重新授权」，而不是静默当未配置。
+- **跨平台换机行为明确**：`alg` 与钥匙环条目一起界定「这密文是本机（同一用户、同一个钥匙环）写的」；
+  换平台或换用户后钥匙环不同、解不开，设置页显示「需重新授权」，而不是静默当未配置。
 - **不进宿主设置表**：令牌与其它配置全由 App 自己持有，也没有明文回退；宿主设置表里的对应项与 App 无关，App 既不读也不写它。
 - **Client ID 是常量**：本 App 注册的那一个，权限与发布链路都绑在它上面，不开放覆盖；
   设置页只在「高级」里展示当前值。
@@ -573,8 +574,8 @@ git 的 `LICENSE.txt` 在宿主安装目录里，不由本包再带一份。构�
 
 签名、GitHub REST 与 App 身份换 installation token 都不依赖外部可执行文件（纯 JS shim + REST worker）；唯一的外部依赖是 git。除此之外没有平台分支、没有平台二进制、没有“macOS 上还差个 gpg”这类运气面。
 
-（**仅指可执行依赖这一层**：凭据与私钥的保护在三平台上走同一条路——系统钥匙环 KEK + 信封加密。
-Linux 需要 Secret Service（或 keyutils）在跑；不可用时明确报错，不降级。）
+（**仅指可执行依赖这一层**：凭据与私钥的保护在三平台上走同一条路——`@napi-rs/keyring` 系统钥匙环里的 KEK + v2 信封加密。
+Linux 需要 Secret Service（或 keyutils）可用；不可用时明确报错，不降级。）
 
 - CI 的 release 流水线**只出一个 `universal` 包**：它把 `vendor/sources.json` 声明的每个平台的
   随包组件都打进去（**当前组件表为空**，所以它与单平台包目前没有区别），
@@ -626,10 +627,9 @@ tools/                   # 10 个名词工具入口（githana-git/-repo/-pr/-iss
 skills/githana/SKILL.md  # 随包手册：逐 action 参数 + 什么时候用 + 能力边界与逃生门（工具描述只留路由信息）
 lib/db.js                # 本地 data.db（settings 键值表 + credential 单行表）；建表在 lib/sql/
 lib/prefs.js             # 署名偏好（author 行：commit / coa / comment / pr）
-lib/secret.js            # 凭据加密存储（OAuth only；系统钥匙环 KEK + 信封）
+lib/secret.js            # 凭据加密存储（OAuth only；系统钥匙环 KEK + v2 信封）
 lib/envelope.js          # 信封加密：KEK 包 DEK，密文自包含（v2）
-lib/keyring.worker.mjs   # 钥匙环子进程（主进程加载不了原生 addon）
-lib/dpapi.js             # 仅迁移期：读旧 DPAPI 密文，无写入路径
+lib/keyring.worker.mjs   # 钥匙环子进程（主进程加载不了原生 addon；随包投到 bin/keyring.worker.mjs）
 lib/oauth.js             # GitHub App device flow 授权 + 令牌保活（刷新单飞）
 lib/app-auth.js          # 向签发服务换 installation token（App 身份调用 GitHub API）
 lib/gpg-keygen.js        # 隔离签名身份：生成/轮换密钥 + 写隔离 gitconfig（仅设置页动作）
@@ -686,7 +686,7 @@ GitHub 域的请求不经 gh CLI：由随包的 `bin/rest.worker.mjs` 在子进�
   返回结果数组（`githana_pr(action="view")` 的「PR 详情 + reviews」正好一批）。不做长驻进程：它没有需要保留的状态，
   而长驻要背生命周期收尾。
 - **令牌边界不变**：REST 侧仍只在 App 进程内存与 worker 之间流转（经 stdin 传，更不进宿主 IPC）。
-  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `data.db` 的 `credential` 表密文，用钥匙环 KEK 拆信封，
+  git 侧的凭据走另一条路（自写的 git remote helper 自己读 `data.db` 的 `credential` 表密文，用系统钥匙环的 KEK 拆开信封，
   见「远端凭据（git 传输层）」）：两条都不落磁盘明文、不进宿主设置表。
   OAuth 的两个端点在 `github.com` 且不校验 Authorization，给它固定占位值即可（真令牌不出这道门）。
 
@@ -787,7 +787,7 @@ GitHub 只在请求认证为 App 且不带自定义 author / committer / 签名�
    现写，不跟密钥、凭据那些长期文件混在一起），内含现算的宿主 node 路径与
    `bin/gpg.shim.mjs`（见 `tools/lib/sign-shim.js`），因为 git 的 `gpg.program` 不接受带参的命令行。
 
-shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、用 OpenPGP.js 签/验，
+shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥文件、按 v2 信封解开（wrapped DEK + 系统钥匙环 KEK；只读这份文件与钥匙环，不读数据库）、用 OpenPGP.js 签/验，
 按 git 的接口契约把状态写到 `--status-fd`。签名前它会核对 git 传来的签名者选择
 （`-bsau` 的 selector，即 `user.signingkey`）是否指向本机这把密钥（指纹 / 长短 keyID / uid / 邮箱
 任一写法均可），对不上就报 `FAILURE sign` 并退 2——不让“指定的身份”与“实际签名者”不一致。
@@ -795,4 +795,4 @@ shim 是纯 JS 的独立进程：它从 `GITHANA_KEY_FILE` 读密钥、解密、
 
 运行时注入的 `gpg.program` 不落文件（文件里的绝对路径会被安装位绑死，换布局即失效）；
 GitHub 域的令牌也不落文件（REST 侧经 stdin 传给 worker；git 侧由 remote helper 自读
-`data.db` 的 `credential` 表密文，用钥匙环 KEK 拆信封，见「远端凭据（git 传输层）」）。
+`data.db` 的 `credential` 表密文，用系统钥匙环的 KEK 拆开信封，见「远端凭据（git 传输层）」）。

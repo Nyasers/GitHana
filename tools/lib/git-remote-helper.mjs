@@ -248,7 +248,7 @@ async function loadToken() {
   if (rec.alg && rec.alg !== ENVELOPE_ALG) {
     fail(
       "the ciphertext is protected by " + rec.alg + " while this build expects " + ENVELOPE_ALG + ": cannot decrypt.\n" +
-        "Open the GitHana settings page once (the App migrates legacy DPAPI records on first read), then retry.",
+        "Go to the GitHana settings page and click \"Sign in with GitHub\" again.",
     );
   }
   let payload = null;
