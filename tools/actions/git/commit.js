@@ -8,7 +8,10 @@
  * - message 用 stdin 传（git commit -F -），多行/中文无损；
  * - 本地提交的作者固定是隔离 gitconfig 里的用户；bot 作者只出现在 via="api"（GitHub API
  *   生成提交，GitHub 代签）；
- * - coAuthors 控制**共同作者**："user" / "hanaagent" / "githana-bot"，可任意组合，[] 表示不写 trailer。
+ * - 署名来自设置页（作者 + 共同作者）。设置页用对外的名字：作者 "user" / "app"，
+ *   共同作者 "user" / "app" / "agent"；这里映射回内部实体 key：
+ *     "user" → 用户 gitconfig 身份，"app" → githana-bot，"agent" → hanaagent。
+ *   可任意组合，[] 表示不写 trailer。
  *   各实体的 name/email 固定写死（对齐「直接写死」决策，无配置键）：
  *     Co-authored-by: HanaAgent <313794804+HanaAgent@users.noreply.github.com>（liliMozi 注册的官方账号，
  *       仅作协作署名实体，不承担登录/认证）
@@ -221,7 +224,7 @@ export async function run(input, ctx, { label }) {
     );
   }
   const commitPrefs = readCommitPrefs(getToolDataDir());
-  const via = commitPrefs.defaultVia;
+  const via = commitPrefs.author === "app" ? "api" : "local";
   if (via === "api") {
     if (amend) return label + ' argument error: the settings page selects App-bot commits, which do not support amend (an API commit is built on the remote tip). Switch the channel in the GitHana settings page to commit locally.';
     if (allowEmpty) return label + ' argument error: the settings page selects App-bot commits, which do not support allowEmpty. Switch the channel in the GitHana settings page to commit locally.';
@@ -230,8 +233,11 @@ export async function run(input, ctx, { label }) {
   // 本地通道的作者恒为用户；bot 作者只存在于 API 通道。
   const author = via === "api" ? "githana-bot" : "user";
 
-  // 署名组合来自设置页；作者本身不重复署名。
-  const coAuthors = commitPrefs.coAuthors.filter((k) => k !== author);
+  // 设置页用对外的名字（app / agent）存署名，这里映射回内部实体 key。
+  const CREDIT_IDENTITY = { user: "user", app: "githana-bot", agent: "hanaagent" };
+  const coAuthors = commitPrefs.coAuthors
+    .map((k) => CREDIT_IDENTITY[k] || k)
+    .filter((k) => k !== author);
 
   // paths："字符串数组"由 schema 保证；这里只做逐项的语义规则（空项、必须相对 cwd）。
   let paths = [];

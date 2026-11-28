@@ -235,8 +235,8 @@ helper 自己解令牌、自己发 HTTPS。**git 全程不接触令牌**，也**
 
 ```
 store(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at INTEGER)
-  credential  → { schemaVersion, kind, cipher, alg, meta: { login, name, … }, updatedAt }
-  commit      → { defaultVia, coAuthors: ["user", "hanaagent"] }
+  credential  → { kind, cipher, alg, meta: { login, name, expiresAt } }
+  commit      → { author: "user" | "app", coAuthors: ["user" | "app" | "agent"] }
 ```
 
 `value` 是 JSON 文本，读写频率很低，文本在 SQLiteStudio 里直接能看、能 diff、能手改。
