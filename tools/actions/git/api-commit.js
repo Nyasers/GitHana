@@ -209,13 +209,16 @@ export async function runApiCommit({ cwd, message, paths, repo, branch, dataDir 
   const repoLabel = owner + "/" + name;
 
   // 本地快进只能快进到本 clone 的 origin：显式指定了另一个仓库（例如 fork）时，
-  // fetch origin 取到的是上游，跟这次提交无关。
+  // fetch origin 取到的是上游，跟这次提交无关。只有能明确解析出 origin 且与目标不同
+  // 才判定为「另一个仓库」；解析不出（自定义 remote helper）就照常尝试。
   let sameAsOrigin = true;
   try {
     const o = await resolveRepo(cwd, undefined);
-    sameAsOrigin = String(o.owner + "/" + o.name).toLowerCase() === repoLabel.toLowerCase();
+    if (o && o.owner && o.name) {
+      sameAsOrigin = String(o.owner + "/" + o.name).toLowerCase() === repoLabel.toLowerCase();
+    }
   } catch {
-    sameAsOrigin = false;
+    sameAsOrigin = true;
   }
 
   const headR = await runCli("git", ["rev-parse", "HEAD"], { cwd });
