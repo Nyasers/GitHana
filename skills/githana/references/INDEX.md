@@ -24,10 +24,10 @@ Read one category file when you need it — each is small enough to read in one 
 | `markdown` | 1 | [`markdown.md`](markdown.md) |
 | `metrics` | 6 | [`metrics.md`](metrics.md) |
 | `migrations` | 8 | [`migrations.md`](migrations.md) |
-| `pulls` | 36 | [`pulls.md`](pulls.md) |
+| `pulls` | 35 | [`pulls.md`](pulls.md) |
 | `reactions` | 12 | [`reactions.md`](reactions.md) |
 | `releases` | 12 | [`releases.md`](releases.md) |
-| `repos` | 28 | [`repos.md`](repos.md) |
+| `repos` | 27 | [`repos.md`](repos.md) |
 | `search` | 1 | [`search.md`](search.md) |
 | `secret-scanning` | 1 | [`secret-scanning.md`](secret-scanning.md) |
 | `users` | 4 | [`users.md`](users.md) |
