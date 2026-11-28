@@ -245,7 +245,7 @@ async function reopenVerification(verificationUri) {
 const POLL_TRANSIENT_RETRIES = 3;
 
 /** 需要去 GitHub App 设置页才能解决的问题，直接给出地址而不是叫用户自己找。 */
-const APP_SETTINGS_HINT = "https://github.com/organizations/Nyasers/settings/apps/githana-app";
+const APP_SETTINGS_HINT = "https://github.com/apps/githana-app";
 
 /** 把验证页地址送进剪贴板（自动开浏览器失败时的手动退路）。 */
 async function copyLink(url) {
