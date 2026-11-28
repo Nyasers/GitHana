@@ -150,8 +150,7 @@ async function loadPrivateKeyArmored() {
     die(
       "failed to decrypt the private key: " +
         String((e && e.message) || e) +
-        " (the OS keyring KEK is missing/locked; the key was moved to another machine/user; " +
-        "or it has not been migrated from the old DPAPI format yet — open the GitHana settings page once to migrate it)",
+        " (the OS keyring KEK is missing/locked, or the key was moved to another machine/user)",
     );
   }
 }
