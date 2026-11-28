@@ -14,6 +14,9 @@ import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../l
 import * as params from "../../lib/params.js";
 import { resolveContext, describeFailure } from "../../lib/gh.js";
 import { fetchIssue, notAnIssueMessage } from "../../lib/issue.js";
+import { getToolDataDir } from "../../lib/context.js";
+import { getInstallationToken } from "../../../lib/app-auth.js";
+import { readAuthorPrefs } from "../../../lib/prefs.js";
 
 export const command = "comment";
 export const summary = "Add a comment to an issue";
@@ -34,7 +37,9 @@ export const sideEffect = {
 };
 
 export async function run(input, ctx, { label }) {
-  const c = await resolveContext(input, label);
+  // 评论身份由设置页决定（默认 App）。
+  const as = readAuthorPrefs(getToolDataDir()).comment === "app" ? "githana-bot" : "user";
+  const c = await resolveContext(input, label, { skipAuth: as === "githana-bot" });
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
 
@@ -43,9 +48,19 @@ export async function run(input, ctx, { label }) {
   const body = input?.body !== undefined && input?.body !== null ? String(input.body) : "";
   if (!body.trim()) return label + " argument error: body is required (the comment body cannot be empty).";
 
+  let token;
+  if (as === "githana-bot") {
+    const [owner, name] = repo.split("/");
+    try {
+      token = (await getInstallationToken({ dataDir: getToolDataDir(), owner, repo: name })).token;
+    } catch (e) {
+      return label + " cannot post as githana-app[bot]: " + String((e && e.message) || e);
+    }
+  }
+
   // 先核对这个编号是 issue 而不是 PR：评论本身两边端点相同（都是 issue 评论），但工具面的
   // 归属不同——对 PR 评论该走 githana_pr(action="comment")，这里如实指向它，不代劳。
-  const cur = await fetchIssue(repo, repoLabel, numStr, timeoutSec);
+  const cur = await fetchIssue(repo, repoLabel, numStr, timeoutSec, token);
   if (cur.error) return label + cur.error;
   if (cur.isPullRequest) {
     return notAnIssueMessage(
@@ -59,7 +74,7 @@ export async function run(input, ctx, { label }) {
 
   const r = await callRest(
     [{ method: "POST", url: apiUrl(repo, "/issues/" + numStr + "/comments"), json: { body }, timeoutMs }],
-    { timeoutSec },
+    { timeoutSec, token },
   );
   if (!r.ok) return label + " execution failed: " + r.message;
   const res = r.results[0];

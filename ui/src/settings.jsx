@@ -29,15 +29,22 @@ import {
   Collapse,
   ErrorState,
   Inline,
+  SaveButton,
+  Select,
   SettingRow,
   SettingsPage,
   SettingsSection,
   SettingsStack,
   Tooltip,
+  Toggle,
 } from "@hana/app-sdk/components";
 import "@hana/app-sdk/components.css";
 import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
+
+/** 共同作者的固定顺序与展示名（与 tools/actions/git/commit.js 的 CREDIT_KEYS 一致）。 */
+const IDENTITY_KEYS = ["user", "app", "agent"];
+const IDENTITY_LABELS = { user: "用户", app: "App", agent: "Agent" };
 
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
 function apiBase() {
@@ -129,17 +136,15 @@ function protectionLabel(protection) {
   }
 }
 
-/** 时间戳 → 本地可读（解析失败原样返回）。 */
+/** 时间戳 → 本地可读（到分钟，不带秒；解析失败原样返回）。 */
 function formatTime(value) {
   const s = String(value || "").trim();
   if (!s) return "—";
   const t = Date.parse(s);
   if (!Number.isFinite(t)) return s;
-  try {
-    return new Date(t).toLocaleString();
-  } catch {
-    return s;
-  }
+  const d = new Date(t);
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 
 /** 剩余秒数 → mm:ss。 */
@@ -153,6 +158,21 @@ function formatCountdown(seconds) {
 /** 状态短语：已配置 / 未配置。 */
 function StatusText({ ok, on, off }) {
   return <span className={ok ? "gh-val gh-ok" : "gh-val gh-off"}>{ok ? on : off}</span>;
+}
+
+/** 两选一的身份下拉：提交 / 评论 / PR 共用。 */
+function IdentitySelect({ ariaLabel, value, onChange }) {
+  return (
+    <Select
+      ariaLabel={ariaLabel}
+      value={value}
+      options={[
+        { value: "user", label: IDENTITY_LABELS.user },
+        { value: "app", label: IDENTITY_LABELS.app },
+      ]}
+      onChange={onChange}
+    />
+  );
 }
 
 /** 等宽的值文本（版本号、路径、密钥 ID）。 */
@@ -225,7 +245,7 @@ async function reopenVerification(verificationUri) {
 const POLL_TRANSIENT_RETRIES = 3;
 
 /** 需要去 GitHub App 设置页才能解决的问题，直接给出地址而不是叫用户自己找。 */
-const APP_SETTINGS_HINT = "https://github.com/organizations/Nyasers/settings/apps/githana-app";
+const APP_SETTINGS_HINT = "https://github.com/apps/githana-app";
 
 /** 把验证页地址送进剪贴板（自动开浏览器失败时的手动退路）。 */
 async function copyLink(url) {
@@ -314,10 +334,15 @@ function GitHanaSettings() {
   const [legacyBusy, setLegacyBusy] = useState(false);
   const [legacyMsg, setLegacyMsg] = useState(null);
 
+  // 令牌签发服务（私钥只在服务器上）
+  const [issuer, setIssuer] = useState({ loading: true, data: null, error: null });
+
   // 高级与诊断区：默认折叠，只展示用户要操心的两条主线。
   const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [keyDetailOpen, setKeyDetailOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
+
+  const botReady = Boolean(issuer.data && issuer.data.url);
 
   const refresh = useCallback(async () => {
     try {
@@ -332,6 +357,89 @@ function GitHanaSettings() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const loadIssuer = useCallback(async () => {
+    try {
+      const data = await getJson("actions/token-issuer");
+      setIssuer({ loading: false, data, error: null });
+    } catch (e) {
+      setIssuer({ loading: false, data: null, error: String((e && e.message) || e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIssuer();
+  }, [loadIssuer]);
+
+  // 署名偏好（非机密）：author 下按用途铺开；页面改草稿，点保存才落库。
+  const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
+  const [prefsMsg, setPrefsMsg] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
+
+  const loadPrefs = useCallback(async () => {
+    try {
+      const data = await getJson("settings/prefs");
+      const author = (data && data.author) || null;
+      setPrefs({ loading: false, data: author, error: null });
+      if (author) setDraft(author);
+    } catch (e) {
+      setPrefs({ loading: false, data: null, error: String((e && e.message) || e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPrefs();
+  }, [loadPrefs]);
+
+  // 与 lib/prefs.js 的内置默认保持一致。
+  const FALLBACK_AUTHOR = {
+    commit: "user",
+    coa: ["user", "agent"],
+    comment: "app",
+    pr: "user",
+  };
+  const shown = draft || prefs.data || FALLBACK_AUTHOR;
+
+  /** 改一个二选一的用途（commit / comment / pr）。 */
+  const setChoice = useCallback(
+    (key, value) => {
+      setDraft((cur) => ({ ...(cur || prefs.data || FALLBACK_AUTHOR), [key]: value }));
+      setSaveStatus("idle");
+    },
+    [prefs.data],
+  );
+
+  /** 切换一个共同作者。 */
+  const toggleCoa = useCallback(
+    (who) => {
+      setDraft((cur) => {
+        const base = cur || prefs.data || FALLBACK_AUTHOR;
+        const list = Array.isArray(base.coa) ? base.coa : [];
+        const next = list.includes(who) ? list.filter((k) => k !== who) : [...list, who];
+        return { ...base, coa: next };
+      });
+      setSaveStatus("idle");
+    },
+    [prefs.data],
+  );
+
+  const saveAuthor = useCallback(async () => {
+    const submitted = shown;
+    setSaveStatus("saving");
+    setPrefsMsg(null);
+    try {
+      const r = await postJson("settings/prefs", { author: submitted });
+      const saved = (r && r.author) || submitted;
+      setPrefs({ loading: false, data: saved, error: null });
+      // 草稿没在等待期间被改过就跟随服务端（服务端会归一化顺序与非法值）。
+      setDraft((cur) => (JSON.stringify(cur) === JSON.stringify(submitted) ? saved : cur));
+      setSaveStatus("idle");
+    } catch (e) {
+      setPrefsMsg(String((e && e.message) || e));
+      setSaveStatus("idle");
+    }
+  }, [shown]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -716,7 +824,7 @@ function GitHanaSettings() {
     <SettingsPage>
       <SettingsSection
         title="GitHub 账号"
-        description="连接后，提交会用你的账号署名，签名公钥也直接发布到账号。"
+        description="提交用你的账号署名，公钥也发布到账号。"
         context={
           <Button variant="secondary" onClick={() => setAccountDetailOpen((v) => !v)}>
             {accountDetailOpen ? "收起明细" : "明细"}
@@ -766,8 +874,10 @@ function GitHanaSettings() {
             starting
               ? "正在向 GitHub 要一个验证码；连不上会在这里直接说原因，也可以点「取消」。"
               : authorized
-                ? "令牌到期前会自动续期，无需手动操作。"
-                : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
+                ? secret.refreshExpiresAt
+                  ? "有效期至 " + formatTime(secret.refreshExpiresAt)
+                  : "令牌在后台自动续期；续期凭证的到期时间尚未记录。"
+                : "登录后才能生成签名密钥。"
           }
         />
         {needsReauth ? (
@@ -813,7 +923,6 @@ function GitHanaSettings() {
           <SettingRow
             label="正在连接"
             control={<Busy label="向 GitHub 要验证码…" />}
-            hint="这个屏就在等它；连不上会直接说原因，也可以点「取消」。"
           />
         ) : null}
         {noticeMsg ? <SettingRow label="状态" control={<span className="gh-msg">{noticeMsg}</span>} /> : null}
@@ -858,8 +967,8 @@ function GitHanaSettings() {
               control={<MonoText>{formatCountdown(remaining)}</MonoText>}
               hint={
                 expired
-                  ? "验证码已过期。点「重新登录」拿一枚新的；旧流程作废不影响新的。"
-                  : `每 ${oauth.interval} 秒自动查一次结果，批准后本行会自动变成「登录成功」。`
+                  ? "验证码已过期，点「重新登录」。"
+                  : `每 ${oauth.interval} 秒查询一次。`
               }
             />
           </>
@@ -923,30 +1032,96 @@ function GitHanaSettings() {
             ) : null}
             {identity.text ? <pre className="gh-out">{identity.text}</pre> : null}
 
-            {secret.expiresAt ? (
-              <SettingRow label="登录到期" control={<MonoText>{formatTime(secret.expiresAt)}</MonoText>} />
-            ) : null}
-            {secret.refreshExpiresAt ? (
-              <SettingRow
-                label="续期凭证到期"
-                control={<MonoText>{formatTime(secret.refreshExpiresAt)}</MonoText>}
-                hint="到期后需重新登录"
-              />
-            ) : null}
             <SettingRow
               label="凭据保护方式"
               control={<MonoText>{protectionLabel(secret.protection)}</MonoText>}
-              hint={secret.location ? `存放：${secret.location}` : null}
             />
-            <SettingRow label="Client ID" control={<MonoText>{state.clientId || "—"}</MonoText>} hint="不开放修改" />
             </SettingsStack>
           </div>
         </Collapse>
       </SettingsSection>
 
       <SettingsSection
+        title="身份"
+        description="每件事由谁来做。"
+      >
+        <SettingRow
+          label="提交"
+          control={
+            <IdentitySelect
+              ariaLabel="提交身份"
+              value={shown.commit === "app" ? "app" : "user"}
+              onChange={(value) => setChoice("commit", value)}
+            />
+          }
+          hint={
+            shown.commit === "app"
+              ? botReady
+                ? "GitHub 代签；需把 App 装到目标仓库。"
+                : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
+              : "由你签名（OpenPGP）。"
+          }
+        />
+        <SettingRow
+          label="共同作者"
+          control={
+            <Inline gap="sm" align="center" wrap>
+              {IDENTITY_KEYS.map((who) => (
+                <Inline key={who} gap="sm" align="center">
+                  <Toggle
+                    ariaLabel={IDENTITY_LABELS[who]}
+                    checked={(shown.coa || []).includes(who)}
+                    onChange={() => toggleCoa(who)}
+                  />
+                  <span className="gh-val">{IDENTITY_LABELS[who]}</span>
+                </Inline>
+              ))}
+            </Inline>
+          }
+        />
+        <SettingRow
+          label="评论"
+          control={
+            <IdentitySelect
+              ariaLabel="评论身份"
+              value={shown.comment === "app" ? "app" : "user"}
+              onChange={(value) => setChoice("comment", value)}
+            />
+          }
+          hint="评论、回复与 resolve 用这个身份。"
+        />
+        <SettingRow
+          label="拉取请求"
+          control={
+            <IdentitySelect
+              ariaLabel="PR 身份"
+              value={shown.pr === "app" ? "app" : "user"}
+              onChange={(value) => setChoice("pr", value)}
+            />
+          }
+          hint={shown.pr === "app" ? "用 App 令牌创建，作者显示为 bot。" : "用你的账号创建。"}
+        />
+        <SettingRow
+          label="保存"
+          control={
+            <SaveButton
+              status={saveStatus}
+              disabled={saveStatus === "saving"}
+              labels={{ idle: "保存", saving: "保存中…", saved: "已保存" }}
+              onSavedFeedbackEnd={() => setSaveStatus("idle")}
+              onClick={saveAuthor}
+            />
+          }
+        />
+        {prefs.error ? <pre className="gh-out">{"读取身份设置失败：" + prefs.error}</pre> : null}
+        {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
+      </SettingsSection>
+
+      {/* 签名密钥只在本地提交时用到：App bot 由 GitHub 代签，本机密钥不参与。 */}
+      {shown.commit === "app" ? null : (
+      <SettingsSection
         title="签名密钥"
-        description="给提交签名。密钥只保存在 GitHana 自己的目录里，不动系统上的其它 GPG 密钥。"
+        description="密钥只存在 GitHana 目录，不动系统上的 GPG。"
         context={
           <Button variant="secondary" onClick={toggleKeyDetail}>
             {keyDetailOpen ? "收起明细" : "明细"}
@@ -957,9 +1132,11 @@ function GitHanaSettings() {
           label="状态"
           control={
             <Inline gap="sm" align="center" wrap>
-              <StatusText ok={Boolean(pk.present)} on="已生成" off="未生成" />
-              {pk.present && published.published ? <StatusText ok on="已发布到 GitHub" off="未发布" /> : null}
-              {pk.present && !published.published ? <StatusText ok={false} on="已发布" off="未发布到 GitHub" /> : null}
+              {pk.present ? (
+                <StatusText ok={Boolean(published.published)} on="已发布到 GitHub" off="未发布" />
+              ) : (
+                <span className="gh-val">未生成</span>
+              )}
               {kgConfirm ? (
                 <>
                   <Button variant="danger" disabled={kgBusy} onClick={runKeygen}>
@@ -981,15 +1158,11 @@ function GitHanaSettings() {
             </Inline>
           }
           hint={
-            // 徽标已经说了「已发布 / 未发布」，这里不再复述那个状态，
-            // 只说徽标没说清的那件事：提交会不会显示 Verified。
             !authorized
-              ? "先在上方登录 GitHub 账号；密钥的署名身份从那个账号推导。"
+              ? "先登录 GitHub 账号。"
               : pk.present
-                ? published.published
-                  ? "提交会自动签名，GitHub 上显示为 Verified。"
-                  : "公钥还没传上去；在那之前提交不会显示为 Verified。"
-                : "生成后会直接发布到账号，两边始终一致。"
+                ? null
+                : "生成后会直接发布到账号。"
           }
         />
         {pk.present && pk.uid ? (
@@ -1018,16 +1191,17 @@ function GitHanaSettings() {
               <SettingRow
                 label="指纹"
                 truncateText
-                control={<MonoText title={pk.fpr}>{pk.fpr}</MonoText>}
-                hint="GitHub 页面上的 key ID 就是它的末 16 位"
+                control={
+            <MonoText title={pk.fpr}>
+              {String(pk.fpr).slice(0, -16)}
+              <strong className="gh-fpr-tail">{String(pk.fpr).slice(-16)}</strong>
+            </MonoText>
+          }
+                hint="末 16 位即 key ID"
               />
             ) : null}
-            {published.keyId ? (
-              <SettingRow
-                label="账号内编号"
-                control={<MonoText>{published.keyId}</MonoText>}
-                hint="GitHub 用来定位这把钥匙的数字 id，不是指纹"
-              />
+            {published.id ? (
+              <SettingRow label="账号内编号" control={<MonoText>{published.id}</MonoText>} />
             ) : null}
             {published.uploadedAt ? (
               <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} />
@@ -1046,7 +1220,6 @@ function GitHanaSettings() {
             {!published.published && pk.present ? (
               <SettingRow
                 label="公钥未在账号上"
-                hint="补传之前，提交不会显示为 Verified。"
                 control={
                   <Button variant="secondary" disabled={pubBusy} onClick={publishPubkey}>
                     {pubBusy ? "处理中…" : "上传公钥"}
@@ -1098,6 +1271,7 @@ function GitHanaSettings() {
           </div>
         </Collapse>
       </SettingsSection>
+      )}
 
       {/* 运行环境：保留一个可收起的区，因为它只在排查安装问题时才需要看。 */}
       <SettingsSection

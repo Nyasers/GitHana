@@ -16,7 +16,7 @@
  * 凭据：GitHub App 令牌由**本 App 自写的 git remote helper** 使用（tools/lib/remote-helper-shim.js
  * 在 spawn git 时注入 `githana-push::` 前缀改写与 PATH——push 只注入 push 侧那一组，取侧的
  * `githana::.insteadOf` 在 push 时故意缺席，否则显式 `pushurl` 会被它抢走）。helper 自己从
- * dataDir 解 DPAPI 密文、自己发 HTTPS，所以令牌不进命令行、不进远端 URL、不进 gitconfig、
+ * data.db 解信封密文、自己发 HTTPS，所以令牌不进命令行、不进远端 URL、不进 gitconfig、
  * **不进 git 子进程的 env**——
  * `git remote -v` 里看不到它，git 的 stderr 里也不会回显。github.com 的远端不回落系统凭据：
  * 未登录时 helper 会给可读引导，不静默失败。

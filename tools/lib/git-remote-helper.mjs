@@ -67,21 +67,22 @@
  * 广告与响应都**原样写 stdout**（Buffer 直写，不经过 UTF-8 字符串）。响应可能很大
  * （实测 12MB 的 PACK），所以按块流式写、绝不截断。
  *
- * ## 请求体怎么定界（不再靠静默窗口）
+ * ## 请求体怎么定界（结构定界，不靠静默窗口）
  *
- * 两个 service 都改成**结构定界**，没有任何「连续 N 秒无字节就算写完」的启发式：
+ * 两个 service 都用**结构定界**，没有任何「连续 N 秒无字节就算写完」的启发式：
  *
  *   · 取侧：按 pkt-line 结构读到 flush-pkt（`0000`）为止；
  *   · push 侧：读到 **EOF**。实测 push 的请求体形态是
  *     `198B（命令 pkt-line + flush-pkt）→ 23448B（PACK…）→ 20B → stdin EOF`，
  *     三种 push 形态（建分支带 pack / 删分支无 pack / 重复删除）**全部 EOF 可靠到达**，
- *     块间最大间隔仅 141ms。原先按「连续 15s 无字节」定界会在 git 生成 packfile 停顿超
- *     15s 时把请求体截断成半个 pack，远端报 unpack 失败。
+ *     块间最大间隔仅 141ms。按「连续 15s 无字节」这类静默窗口定界则不行：git 生成 packfile
+ *     停顿超过 15s 时会把请求体截断成半个 pack，远端报 unpack 失败。
  *
  * ## 凭据从哪来
  *
- * `<dataDir>/credential.json`（lib/secret.js 写的 DPAPI 密文），用 lib/dpapi.js 解开拿
- * `accessToken`。dataDir 经 `GITHANA_DATA_DIR` 递给本进程——**路径不是机密，令牌才是**。
+ * data.db 的 credential 单行表（lib/secret.js 写的 v2 信封密文），用 lib/envelope.js 的 open
+ * 解开拿 accessToken；解它要系统钥匙环里的 KEK，经 `GITHANA_KEYRING_WORKER` 指定的 worker 子进程访问。
+ * dataDir 经 `GITHANA_DATA_DIR` 递给本进程——**路径不是机密，令牌才是**。
  * 认证按 GitHub 的口径发 `Authorization: Basic base64("x-access-token:<token>")`，GET 与 POST
  * 都带。令牌只在本进程内存里，不进日志、不进返回值、不进任何文件。
  *
@@ -98,7 +99,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { dpapiUnprotect } from "../../lib/dpapi.js";
+import { openSelfContained } from "../../lib/envelope.js";
+import { readCredentialRow } from "../../lib/db.js";
 
 /** 远端主机与地址前缀：本 helper 只服务 github.com 的 https。 */
 const GITHUB_HOST = "github.com";
@@ -107,9 +109,8 @@ const GITHUB_HTTPS_PREFIX = "https://github.com/";
 /** dataDir 经 env 递给本进程（与签名 shim 的 GITHANA_KEY_FILE 同一手法）。 */
 const DATA_DIR_ENV = "GITHANA_DATA_DIR";
 
-/** 凭据文件（lib/secret.js 的落点）与它记录的加密算法标识。 */
-const SECRET_FILE = "credential.json";
-const DPAPI_ALG = "dpapi-current-user";
+/** 凭据记录（data.db 的 credential 行）期望的加密算法标识（v2 信封，与 lib/secret.js 同口径）。 */
+const ENVELOPE_ALG = "keyring-envelope-v2";
 
 /** 请求 GitHub 时的 User-Agent（GitHub 要求非空）。 */
 const USER_AGENT = "githana-git-remote-helper";
@@ -224,12 +225,12 @@ function msgOf(e) {
 // ───────────────────────────── 凭据 ─────────────────────────────
 
 /**
- * 从 `<dataDir>/credential.json` 解出明文令牌。
+ * 从 data.db 的 credential 单行表解出明文令牌。
  *
  * 解不开的每一种情况都给可读原因并退非零——不静默失败、不回落系统凭据（本进程根本不在
  * git 的凭据子系统里）。
  */
-function loadToken() {
+async function loadToken() {
   const dataDir = readEnv(DATA_DIR_ENV);
   if (!dataDir) {
     fail(
@@ -237,34 +238,25 @@ function loadToken() {
         "Start the operation from GitHana's tool surface (this helper is launched by git, and the App injects dataDir).",
     );
   }
-  const file = path.join(dataDir, SECRET_FILE);
-  let rec = null;
-  try {
-    rec = JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (e) {
+  const rec = readCredentialRow(dataDir);
+  if (!rec || rec.kind !== "oauth" || !rec.cipher || !rec.cipher.length) {
     fail(
-      "failed to read the credential file (" + file + "): " + msgOf(e) + "\n" +
+      "the local data has no usable OAuth ciphertext (data.db → credential).\n" +
         "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
     );
   }
-  if (!rec || typeof rec !== "object" || rec.kind !== "oauth" || typeof rec.cipher !== "string" || !rec.cipher) {
+  if (rec.alg && rec.alg !== ENVELOPE_ALG) {
     fail(
-      "the credential file has no usable OAuth ciphertext (" + file + ").\n" +
-        "Go to the GitHana settings page, click \"Sign in with GitHub\" to complete authorization, then retry.",
-    );
-  }
-  if (rec.alg && rec.alg !== DPAPI_ALG) {
-    fail(
-      "the ciphertext is protected by " + rec.alg + " while this machine's backend is " + DPAPI_ALG + ": cannot decrypt (did you switch machine or user?).\n" +
-        "Click \"Sign in with GitHub\" again on this machine.",
+      "the ciphertext is protected by " + rec.alg + " while this build expects " + ENVELOPE_ALG + ": cannot decrypt.\n" +
+        "Go to the GitHana settings page and click \"Sign in with GitHub\" again.",
     );
   }
   let payload = null;
   try {
-    payload = JSON.parse(dpapiUnprotect(rec.cipher));
+    payload = JSON.parse((await openSelfContained(rec.cipher)).toString("utf8"));
   } catch (e) {
     fail(
-      "failed to decrypt the credential: " + msgOf(e) + " (did you switch machine or user?).\n" +
+      "failed to decrypt the credential: " + msgOf(e) + " (the OS keyring KEK is missing/locked, or the key was moved to another machine or user).\n" +
         "Go to the GitHana settings page and click \"Sign in with GitHub\" again.",
     );
   }
@@ -712,8 +704,8 @@ class StdinReader {
  *
  * `stateless-connect` 就是 git 为无状态传输设计的形态（git 自带的 `git-remote-http` 走的就是
  * 它）：git 知道每一轮都要**自足**，所以它每轮发的是一个完整的请求（v2 的 ls-refs / fetch
- * 各自带全自己的参数），而不是 `connect` 那种「服务端记得上一轮」的增量——第二轮只发一个
- * `done` 的形态不再出现。实测：分叉场景下 `ls-refs` 2 轮 + `fetch` 命令 8 次跳 5 个 POST、
+ * 各自带全自己的参数），而不是 `connect` 那种「服务端记得上一轮」的增量——每轮都自足，
+ * 不存在「第二轮只发一个 `done`」的形态。实测：分叉场景下 `ls-refs` 2 轮 + `fetch` 命令 8 次跳 5 个 POST、
  * `have` 124 次，exit=0，FETCH_HEAD 正确。
  *
  * 广告在会话开头发一次，之后每轮一个请求对一个 POST。
@@ -859,8 +851,8 @@ async function main() {
   const remote = parseRemote(remoteUrl);
   // 凭据只在真正要连远端时解（capabilities 不需要），解不开的引导即时报出。
   let token = null;
-  const tokenOnce = () => {
-    if (token === null) token = loadToken();
+  const tokenOnce = async () => {
+    if (token === null) token = await loadToken();
     return token;
   };
   const pushMode = mode === MODE_PUSH;
@@ -887,7 +879,7 @@ async function main() {
         }
         // 空行 = 连接已建立；此后这根 stdin/stdout 就是 git 与远端服务之间的原生协议管道。
         writeOut(Buffer.from("\n", "utf8"));
-        await relayPush(remote, tokenOnce());
+        await relayPush(remote, await tokenOnce());
         // 会话结束就**显式退出**：peek 可能留了一次底层 fs.read 在飞，而 git 那边未必会关掉
         // 管道——不退出的话事件循环会一直等那个读，helper 就挂在那里不结束。
         process.exit(0);
@@ -899,7 +891,7 @@ async function main() {
       }
       // 空行 = 连接已建立。
       writeOut(Buffer.from("\n", "utf8"));
-      await relayFetch(remote, tokenOnce());
+      await relayFetch(remote, await tokenOnce());
       process.exit(0);
     }
 

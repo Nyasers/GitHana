@@ -178,11 +178,11 @@ export function summarizeCheckRuns(json) {
  * 解析要操作的 PR 编号（prNumber 缺省 = 当前分支关联 PR）。
  *
  * REST 没有「当前分支关联 PR」的语义，所以缺省时先取当前分支、再按 head 过滤；这正是
- * `pr_view` 原本就地做的那件事，其余动词按同一口径共用它。
+ * `pr_view` 就地做的那件事，其余动词按同一口径共用它。
  *
  * @returns {{ error: string } | { num: number, prNumber: string, branch: string }}
  */
-export async function resolvePrNumber(input, label, c = {}) {
+export async function resolvePrNumber(input, label, c = {}, token) {
   const { repo, repoLabel, cwd, timeoutSec } = c;
   const timeoutMs = (timeoutSec || DEFAULT_REST_TIMEOUT_SEC) * 1000;
 
@@ -203,7 +203,7 @@ export async function resolvePrNumber(input, label, c = {}) {
   const listUrl =
     apiUrl(repo, "/pulls") +
     "?state=open&head=" + encodeURIComponent(repo.split("/")[0] + ":" + cur.branch) + "&per_page=1";
-  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec });
+  const lr = await callRest([{ url: listUrl, timeoutMs }], { timeoutSec, token });
   if (!lr.ok) return { error: label + " failed: " + lr.message };
   const lres = lr.results[0];
   if (!lres || !lres.ok) return { error: label + " failed: " + describeFailure(lres, repoLabel) };

@@ -6,8 +6,8 @@
  *
  * `gh api` 的对应物（gh 自己也留着它）：类型化动词覆盖不到的长尾能力从这里走。它是**单动词**
  * 工具，所以按 spec gh-cli-parity D3 / D4 不声明 `action`——单数时 `action` 只是占位（填了等于
- * 没填），删掉；`required` 随之换成真正必填的 `path`（收敛前 `path` 只在 run() 里校验，模型面
- * 看不见它必填）。装配走 tools/lib/surface.js 的 createSingleSurface，不经 dispatch。
+ * 没填）；`required` 即真正必填的 `path`（`path` 在 run() 里校验，单动词面据此把它标成必填）。
+ * 装配走 tools/lib/surface.js 的 createSingleSurface，不经 dispatch。
  *
  * 权限：external_side_effect——它收全量 HTTP 方法（GET / POST / PATCH / PUT / DELETE），
  * 其中写方法会改 GitHub 远端状态，整体只能按写面声明。只读的长尾查询也因此要过审：这是单动词

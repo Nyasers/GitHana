@@ -15,7 +15,7 @@
  * 包装生成到 **运行期临时目录**（<dataDir>/.runtime-tmp，可写；安装目录只读）。它是每次
  * spawn 现写的产物，不是持久状态——所以不跟密钥、凭据那些长期文件摆在一起。内含的 node 与
  * shim 路径**每次现算**：宿主升级会换 node 路径，安装目录也可能变，写死就会指向不存在的位置
- * （旧实现踩过这个坑：把 vendor gpg 绝对路径存进 gitconfig，包一换布局就报 cannot spawn）。
+ * （把绝对路径存进 gitconfig 正是这个坑：包一换布局就报 cannot spawn）。
  * 临时目录不可用时退回 dataDir 根，宁可位置不理想也不让签名接线断掉。
  *
  * ## 落点只在这里定义一次
@@ -34,6 +34,9 @@
  *
  * shim 是独立进程，不知道 dataDir。密钥文件路径经 env 传给它（与 REST worker 的令牌
  * 经 stdin 传同理：都不走宿主 IPC、不落磁盘明文）。
+ *
+ * 同理还要传 `GITHANA_KEYRING_WORKER`：私钥是信封格式，解它要读系统钥匙环，而钥匙环只能经
+ * worker 子进程访问（见 lib/envelope.js）。shim 是打包后的单文件，用 env 传 worker 绝对路径最稳。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -46,7 +49,18 @@ export function shimPath() {
 
 /** 密钥文件（dataDir 下，由 lib/openpgp-key.js 写入）。 */
 export function keyFilePath(dataDir) {
-  return path.join(dataDir || "", "gpg.key.json");
+  return path.join(dataDir || "", "gpg.key.bin");
+}
+
+/**
+ * 钥匙环 worker 的位置（交付树 bin/ 下，与 gpg.shim.mjs 同层）。
+ *
+ * 签名 shim 解私钥要用钥匙环里的 KEK，而钥匙环只能经 worker 子进程访问。shim 是打包后的单文件，
+ * 靠 import.meta.url 猜路径不可靠，所以由 bin.js 把它经 GITHANA_KEYRING_WORKER 环境变量传下来——
+ * 与 GITHANA_KEY_FILE 同一手法（shim 是独立进程，不知道 dataDir / 安装位）。
+ */
+export function keyringWorkerPath() {
+  return path.join(pluginRoot(), "bin", "keyring.worker.mjs");
 }
 
 /**

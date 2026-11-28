@@ -25,7 +25,7 @@ export const name = "githana_git";
 
 export const description = [
   "GitHana local git: run git operations inside a specified repository.",
-  "action=exec (pass through an arbitrary git subcommand) / commit (commit, with automatic Co-authored-by + OpenPGP signature)",
+  "action=exec (pass through an arbitrary git subcommand) / commit (commit with the author and Co-authored-by set configured in Settings; the App-bot channel produces a GitHub-signed Verified commit)",
   "/ push (push, with force mapped to --force-with-lease).",
   "GitHub remote operations are in githana_repo / githana_pr / githana_issue / githana_release / githana_run /",
   "githana_workflow / githana_cache / githana_label, and other endpoints go through githana_api.",

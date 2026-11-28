@@ -10,16 +10,14 @@
  * 工具面按 gh 的组分成名词工具：githana_git（本地 git）/ githana_repo（仓库）/ githana_pr
  * （Pull Request）/ githana_issue（Issue）/ githana_release（发布）/ githana_run（Actions run）/
  * githana_workflow（工作流）/ githana_cache（构建缓存）/ githana_label（标签）/ githana_api
- * （任意 REST 与 GraphQL 端点）。收敛前是「读写两面 + 一张平表 action」——`method` 与 `body`
- * 在平表里同键不同义；按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity
+ * （任意 REST 与 GraphQL 端点）。按名词分家而不是「一张平表 action」：平表里 `method` 与 `body`
+ * 会同键不同义，按名词分家后每个工具一张自己的参数表，碰撞消失（见 spec gh-cli-parity
  * D1 / D2 与 tools/lib/surface.js 的装配路径）。
  *
- * 与 v1「full-access 插件」的差别（本次重制的核心）：
- *   - v1：manifest 无 contributes.tools，宿主自动扫描 tools/*.js 注册；entry 只挂卡路由。
- *   - v2：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局唯一（无前缀）。
- *   因此本文件把 tools/ 下的入口模块装配成注册表，execute 统一转成 v2 的「单参数调用」，
- *   并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给既有的 v1 工具实现，
- *   让 tools/ 与 lib/ 的代码基本零改动复用（见 tools/lib/context.js 的契约）。
+ * 注册形态（v2 App）：没有目录扫描，entry 必须在 apply 里逐个 ctx.tools.register；工具名全局
+ * 唯一（无前缀）。因此本文件把 tools/ 下的入口模块装配成注册表，execute 统一转成 v2 的
+ * 「单参数调用」，并把 App 运行上下文（dataDir / 安装目录）以第二个参数喂给各工具实现，
+ * 让 tools/ 与 lib/ 的代码零改动复用（见 tools/lib/context.js 的契约）。
  *
  * v2 隔离进程的硬约束（APPS.md「执行模型与文件边界」）：
  *   - Node Permission Model：安装目录只读、{HANA_HOME}/app-data/githana 可写；
@@ -61,6 +59,7 @@ import { registerSettingsRoutes } from "./lib/routes/settings.js";
 import { registerActionRoutes } from "./lib/routes/actions.js";
 import { registerServices, readStatus } from "./lib/services.js";
 import { setSecretLoader, setFreshChecker, primeToolContext, initToolContext } from "./tools/lib/context.js";
+import { closeDatabases } from "./lib/db.js";
 import { primeTaskSurface, setTaskPreparer, resumePendingTasks, stopAllPollers } from "./tools/lib/tasks.js";
 import { killLiveChildren } from "./tools/lib/exec.js";
 import { runCli } from "./tools/lib/exec.js";
@@ -94,7 +93,7 @@ const TOOLS = [
 ];
 
 /**
- * 把 v1 形态的 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
+ * 把 sessionPermission 收敛成跨 RPC 边界可传的纯数据字段。
  * 跨进程只认 kind / auto / description / sideEffect 这些纯数据，函数字段过不来；
  * 这里主动剥掉 describeSideEffect 等函数，避免宿主把整条声明当非法降级。
  */
@@ -108,15 +107,15 @@ function plainPermission(perm) {
 }
 
 /**
- * 把 v1 形态的工具返回值归一到 v2 的 { content, details } 形状。
+ * 把工具返回值归一到 v2 的 { content, details } 形状。
  *
- * v1 工具的 execute 返回纯字符串（成功报告或可读错误都走同一个字符串通道）；
+ * 各工具的 execute 返回纯字符串（成功报告或可读错误都走同一个字符串通道）；
  * v2 宿主的 ui-actions 与模型循环都把返回值当普通对象，只取 .content / .details——
  * 字符串会被当成空对象吞成 `{}`。所以在这里统一升格：
  *   - 已经是带 content 的对象（如 { content: [{ type: "text", … }], details: {…} }）→ 原样透传；
  *   - 字符串 → { content: [{ type: "text", text }] }；
  *   - 其他可序列化值 → JSON 文本；null/undefined → 空文本。
- * 这样 tools/ 与 lib/ 的实现可以保持 v1 时的零改动。
+ * 这样 tools/ 与 lib/ 的实现可以保持零改动。
  */
 function toToolResult(value) {
   if (value && typeof value === "object" && !Array.isArray(value) && "content" in value) {
@@ -237,6 +236,7 @@ export function apply(ctx) {
     // 留着定时器只会往一个已经换代的任务面上写。**宿主任务记录不动**——它是恢复的事实源，
     // 下一个实例会在 apply 里用 ctx.tasks.list() 把未终结的记录接回去（见 tools/lib/tasks.js）。
     try { stopAllPollers(); } catch { /* 忽略 */ }
+    try { closeDatabases(); } catch { /* 忽略 */ }
     // 再尝试收掉本实例起的子进程。Windows 不会因为父进程退出就杀掉子进程，漏了这一步
     // 它们会成孤儿继续写磁盘，而任务记录已被推成终态——“任务已终止、活儿还在跑”。
     //
@@ -255,8 +255,8 @@ export function apply(ctx) {
       try { if (typeof d === "function") d(); } catch { /* 忽略 */ }
     }
     try { if (typeof unregisterRoutes === "function") unregisterRoutes(); } catch { /* 忽略 */ }
-    // 不再有 gpg daemon 要收尾：签名由随包的纯 JS shim 完成，没有 gpg-agent / scdaemon
-    // 会被拉起，也就没有“daemon 持有二进制句柄、卸载删不掉目录”这回事。
+    // 没有 gpg daemon 要收尾：签名由随包的纯 JS shim 完成，不会拉起 gpg-agent / scdaemon，
+    // 也就没有“daemon 持有二进制句柄、卸载删不掉目录”这回事。
   };
 }
 

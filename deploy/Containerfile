@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Nyasers
+#
+# 构建：podman build -t localhost/githana-token:local -f Containerfile .
+# 运行：见 deploy/README.md；私钥以只读方式挂到 /key/privkey.pem，监听地址由 BIND_HOST 控制。
+# 容器内必须绑 0.0.0.0，端口才能被 -p 发布；宿主侧用 -p 127.0.0.1:8787:8787 收回回环。
+
+FROM docker.io/library/node:24-alpine
+
+WORKDIR /app
+COPY githana-token-server.mjs /app/server.mjs
+
+# 不用 root 跑：镜像自带 uid 1000 的 node 用户。
+USER node
+
+EXPOSE 8787
+ENV BIND_HOST=0.0.0.0
+ENTRYPOINT ["node", "/app/server.mjs"]

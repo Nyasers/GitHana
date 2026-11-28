@@ -67,7 +67,7 @@
  *   3. 把包装目录前置进 PATH——git 才找得到那两个 `git-remote-*`。
  *
  * 另把 dataDir 经 `GITHANA_DATA_DIR` 递给 helper（路径不是机密，令牌才是；helper 自己读
- * `<dataDir>/credential.json` 解 DPAPI，令牌因此不进任何子进程的 env）。
+ * data.db 的 credential 行解 v2 信封（经钥匙环），令牌因此不进任何子进程的 env）。
  *
  * ### 注入的两组配置（按子命令二选一）
  *
@@ -254,7 +254,7 @@ function shQuote(p) {
  * 别的进程还持有句柄时写入会失败，函数于是返回 null，**静默回落到原生传输**，现象是「有时候
  * 推送走了系统凭据」这种极难查的表现。
  *
- * 所以改成两步：
+ * 所以这里分两步：
  *   1. 先读现有内容，**一样就不写**（稳态下几乎从不写盘）；
  *   2. 不一样时写**同目录的临时文件**，再 `renameSync` 到目标——同目录内的 rename 在两平台
  *      都是原子的（POSIX 保证；Windows 的 MoveFileEx 也保证同卷替换是原子的），读者要么看到
@@ -499,6 +499,9 @@ export function applyRemoteHelper(env, subcommand) {
 
   // helper 是独立进程，不知道 dataDir：路径经 env 传它（路径不是机密，令牌才是）。
   env[DATA_DIR_ENV] = dataDir;
+  // 凭据是 v2 信封格式，解它要系统钥匙环的 KEK；钥匙环只能经 worker 子进程访问（见 lib/envelope.js）。
+  // helper 由 git 拉起，靠 env 拿到 worker 的绝对路径最稳（与 GITHANA_DATA_DIR 同一手法）。
+  env.GITHANA_KEYRING_WORKER = path.join(pluginRoot(), "bin", "keyring.worker.mjs");
   return true;
 }
 
