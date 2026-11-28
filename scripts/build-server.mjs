@@ -82,6 +82,8 @@ const config = {
   // zod 同理（与 bin/zod.min.mjs 共一份）：它是构建期依赖，运行期由工具参数校验使用。
   externals: { openpgp: "module ./openpgp.min.mjs", zod: "module ./zod.min.mjs" },
   module: {
+    // .sql 当作文本内联进 bundle：打包后没有单独的文件要跟着拷贝。
+    rules: [{ test: /\.sql$/, type: "asset/source" }],
     parser: {
       javascript: {
         // **不要把 `import.meta.url` 在构建期固化成构建机的绝对路径。**
