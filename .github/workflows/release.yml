@@ -2,9 +2,11 @@
 #
 # 触发：push tag v*（发版）／ workflow_dispatch（手动，只出 artifact 不建 release）
 #
-# 为什么只有一个包、不做平台矩阵：App 是 Web 应用，跨平台靠运行时解析
-# （宿主 git → 本平台 vendor → 系统 PATH）。本仓库没有原生模块，不需要逐平台发版；
-# 一个 universal 包把所有平台的官方运行时都打进去，任意平台装上就近解析。
+# 为什么只有一个包、不做平台矩阵：交付面是 JS 加一个原生模块（@napi-rs/keyring）。
+# 平台差异只在那一个模块的预编译二进制上：universal 包按目标平台集把六份都打进去
+# （win32 / darwin / linux × x64 / arm64），运行时就近解析自己那份。
+# package.json 的 pnpm.supportedArchitectures 让这些二进制在 ubuntu runner 上就能装齐，
+# 所以出包不依赖目标系统的 runner；矩阵里的 macOS 缺失不会影响发版。
 # 进市场的也只有这一个包。
 #
 # 三段式：

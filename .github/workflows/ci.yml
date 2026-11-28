@@ -2,8 +2,10 @@
 #
 # 设计原则：CI 只是执行者，链在本仓库里（scripts/*.mjs），本地同一条命令：
 #   pnpm install --ignore-scripts && pnpm run check
-# vendor/ 不入 git；当前 sources.json 组件表为空（签名与 GitHub 请求都走随包纯 JS，无内嵌二进制），
-# 所以三个平台完全同构，CI 不需要按平台拉取运行时。
+# vendor/ 不入 git；当前 sources.json 组件表为空（签名与 GitHub 请求都走随包纯 JS，无内嵌二进制）。
+# 唯一的原生模块是 @napi-rs/keyring，平台二进制靠 package.json 的 pnpm.supportedArchitectures
+# 在任意 runner 上装齐，所以三个平台仍然同构。这层矩阵验的是「代码在各平台跑得通」，
+# 不是出包的必要条件（出包与平台集见 release.yml / pack.mjs 的 --target）。
 #
 # 诚实边界：官方 creator（validate_app / pack_app）不在本仓库。没配仓库变量
 # HANA_APP_TOOLS_ROOT 时，release.yml 会明确说明"没有官方校验"，而不是静默成功。
