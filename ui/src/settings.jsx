@@ -1200,8 +1200,8 @@ function GitHanaSettings() {
                 hint="末 16 位即 key ID"
               />
             ) : null}
-            {published.keyId ? (
-              <SettingRow label="账号内编号" control={<MonoText>{published.keyId}</MonoText>} />
+            {published.id ? (
+              <SettingRow label="账号内编号" control={<MonoText>{published.id}</MonoText>} />
             ) : null}
             {published.uploadedAt ? (
               <SettingRow label="上传时间" control={<MonoText>{formatTime(published.uploadedAt)}</MonoText>} />
