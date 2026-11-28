@@ -1041,7 +1041,7 @@ function GitHanaSettings() {
           hint={
             shownVia === "api"
               ? botReady
-                ? "GitHub 代签（Verified）；App 需已安装到目标仓库。"
+                ? "GitHub 代签，提交页显示 Verified。需把 App 装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
               : "由你签名（OpenPGP）。"
           }
