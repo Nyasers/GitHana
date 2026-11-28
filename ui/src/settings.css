@@ -11,6 +11,19 @@
  * 不复制桌面样式，不覆盖宿主组件的内部类名。
  */
 
+/* 指纹末 16 位就是 GitHub 上的 key ID：同一串里把那段点亮，不用自己数位数。 */
+.gh-fpr-tail {
+  color: var(--accent, #9a4a22);
+  font-weight: 600;
+}
+
+/* 滚动条统一用宿主的细条口径，不出现浏览器默认的宽槽。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-muted, #6b6158) 30%, transparent) transparent;
+}
+
 html,
 body {
   height: 100%;
@@ -107,11 +120,23 @@ body {
   user-select: all;
 }
 
-/* 公钥正文：交给 SDK 的 TextArea（滚动与外观跟宿主一致），这里只保证等宽。 */
-.gh-pubkey-input {
+/* 公钥正文：完整展开，不滚动。
+
+   它是给人复制的材料：能一眼看到结尾的 -END- 行才算“完整的公钥”，
+   滚动框会让它看起来像被截断了一截，而且原生滚动条与宿主的样式不一致。 */
+.gh-pubkey {
+  margin: 0;
+  padding: 9px 11px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
   line-height: 1.5;
+  color: var(--text-muted, #6b6158);
+  background: var(--bg, #f5efe4);
+  border: 1px solid var(--border, #d8cfbe);
+  border-radius: 8px;
+  /* 长行宁可换行也不横滚：armored 文本本身 64 列，窄窗口下要能看全。 */
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 单行配置输入框（签发服务地址）。和按钮同行时由 flex 吃掉剩余宽度。 */
