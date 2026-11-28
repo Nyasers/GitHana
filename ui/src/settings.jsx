@@ -43,8 +43,8 @@ import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
 
 /** 共同作者的固定顺序与展示名（与 tools/actions/git/commit.js 的 CREDIT_KEYS 一致）。 */
-const CO_AUTHOR_KEYS = ["user", "app", "agent"];
-const CO_AUTHOR_LABELS = { user: "用户", app: "App", agent: "Agent" };
+const IDENTITY_KEYS = ["user", "app", "agent"];
+const IDENTITY_LABELS = { user: "用户", app: "App", agent: "Agent" };
 
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
 function apiBase() {
@@ -158,6 +158,21 @@ function formatCountdown(seconds) {
 /** 状态短语：已配置 / 未配置。 */
 function StatusText({ ok, on, off }) {
   return <span className={ok ? "gh-val gh-ok" : "gh-val gh-off"}>{ok ? on : off}</span>;
+}
+
+/** 两选一的身份下拉：提交 / 评论 / PR 共用。 */
+function IdentitySelect({ ariaLabel, value, onChange }) {
+  return (
+    <Select
+      ariaLabel={ariaLabel}
+      value={value}
+      options={[
+        { value: "user", label: IDENTITY_LABELS.user },
+        { value: "app", label: IDENTITY_LABELS.app },
+      ]}
+      onChange={onChange}
+    />
+  );
 }
 
 /** 等宽的值文本（版本号、路径、密钥 ID）。 */
@@ -356,24 +371,18 @@ function GitHanaSettings() {
     loadIssuer();
   }, [loadIssuer]);
 
-  // 提交署名偏好（非机密）：设置页里先改草稿，再点保存；工具执行时读的是已保存的值。
+  // 身份偏好（非机密）：身份为键、用途铺开；页面改草稿，点保存才落库。
   const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
   const [prefsMsg, setPrefsMsg] = useState(null);
-  const [draftAuthor, setDraftAuthor] = useState(null);
-  const [draftCredits, setDraftCredits] = useState(null);
-  const [draftCommentAuthor, setDraftCommentAuthor] = useState(null);
+  const [draft, setDraft] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
 
   const loadPrefs = useCallback(async () => {
     try {
       const data = await getJson("settings/prefs");
-      const commit = (data && data.commit) || null;
-      setPrefs({ loading: false, data: commit, error: null });
-      if (commit) {
-        setDraftAuthor(commit.author);
-        setDraftCredits(commit.coAuthors);
-        setDraftCommentAuthor(commit.commentAuthor);
-      }
+      const matrix = (data && data.identity) || null;
+      setPrefs({ loading: false, data: matrix, error: null });
+      if (matrix) setDraft(matrix);
     } catch (e) {
       setPrefs({ loading: false, data: null, error: String((e && e.message) || e) });
     }
@@ -383,69 +392,53 @@ function GitHanaSettings() {
     loadPrefs();
   }, [loadPrefs]);
 
-  // 读到偏好后填草稿（在 loadPrefs 里做）；这里不再跟随 prefs.data 重置，
-  // 否则保存响应回来会盖掉等待期间用户刚改的草稿。
-
-  const commitPref = prefs.data || {
-    author: "user",
-    coAuthors: ["user", "agent"],
-    commentAuthor: "app",
+  // 与 lib/prefs.js 的内置默认保持一致。
+  const FALLBACK_IDENTITY = {
+    user: { commit: true, coAuthor: true, comment: false, pullRequest: true },
+    app: { commit: false, coAuthor: true, comment: true, pullRequest: false },
+    agent: { coAuthor: true },
   };
-  const shownAuthor = draftAuthor || commitPref.author;
-  const shownCredits = draftCredits || commitPref.coAuthors || [];
-  const shownCommentAuthor = draftCommentAuthor || commitPref.commentAuthor || "app";
+  const shown = draft || prefs.data || FALLBACK_IDENTITY;
 
-  const toggleCoAuthor = useCallback(
-    (key) => {
-      const current = draftCredits || commitPref.coAuthors || [];
-      setDraftCredits(current.includes(key) ? current.filter((k) => k !== key) : [...current, key]);
+  /** 互斥场景：选中一个身份，另一个自动让位；coAuthor 是开关。 */
+  const setScene = useCallback(
+    (scene, who) => {
+      setDraft((cur) => {
+        const base = cur || prefs.data || FALLBACK_IDENTITY;
+        const next = {
+          user: { ...base.user },
+          app: { ...base.app },
+          agent: { ...base.agent },
+        };
+        if (scene === "coAuthor") next[who].coAuthor = !base[who].coAuthor;
+        else {
+          next.user[scene] = who === "user";
+          next.app[scene] = who === "app";
+        }
+        return next;
+      });
       setSaveStatus("idle");
     },
-    [draftCredits, commitPref],
+    [prefs.data],
   );
 
-  const saveCommitDraft = useCallback(async () => {
-    const submitted = { author: draftAuthor, coAuthors: draftCredits, commentAuthor: draftCommentAuthor };
+  const saveIdentity = useCallback(async () => {
+    const submitted = shown;
     setSaveStatus("saving");
     setPrefsMsg(null);
     try {
-      const patch = {};
-      if (draftAuthor) patch.author = draftAuthor;
-      if (draftCredits) patch.coAuthors = draftCredits;
-      if (draftCommentAuthor) patch.commentAuthor = draftCommentAuthor;
-      const r = await postJson("settings/prefs", { commit: patch });
-      const saved = (r && r.commit) || commitPref;
+      const r = await postJson("settings/prefs", { identity: submitted });
+      const saved = (r && r.identity) || submitted;
       setPrefs({ loading: false, data: saved, error: null });
-      // 只有草稿没在等待期间被改过才跟随服务端值；改过就保留，且不能把未保存的状态
-      // 说成「已保存」。
-      let changedDuring = false;
-      setDraftAuthor((cur) => {
-        if (cur !== submitted.author) {
-          changedDuring = true;
-          return cur;
-        }
-        return saved.author;
-      });
-      setDraftCredits((cur) => {
-        if (JSON.stringify(cur) !== JSON.stringify(submitted.coAuthors)) {
-          changedDuring = true;
-          return cur;
-        }
-        return saved.coAuthors;
-      });
-      setDraftCommentAuthor((cur) => {
-        if (cur !== submitted.commentAuthor) {
-          changedDuring = true;
-          return cur;
-        }
-        return saved.commentAuthor || "app";
-      });
-      setSaveStatus(changedDuring ? "idle" : "saved");
+      // 草稿没在等待期间被改过就跟随服务端（服务端会做互斥归一化）。
+      setDraft((cur) => (JSON.stringify(cur) === JSON.stringify(submitted) ? saved : cur));
+      setSaveStatus("idle");
+      return saved;
     } catch (e) {
       setPrefsMsg(String((e && e.message) || e));
       setSaveStatus("idle");
     }
-  }, [draftAuthor, draftCredits, draftCommentAuthor, commitPref]);
+  }, [shown]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -1048,27 +1041,20 @@ function GitHanaSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="提交署名"
-        description="决定每次提交的作者与共同署名。"
+        title="身份"
+        description="每件事由谁来做。"
       >
         <SettingRow
-          label="提交身份"
+          label="提交"
           control={
-            <Select
+            <IdentitySelect
               ariaLabel="提交身份"
-              value={shownAuthor}
-              options={[
-                { value: "user", label: "用户" },
-                { value: "app", label: "App" },
-              ]}
-              onChange={(value) => {
-                setDraftAuthor(value);
-                setSaveStatus("idle");
-              }}
+              value={shown.app.commit ? "app" : "user"}
+              onChange={(value) => setScene("commit", value)}
             />
           }
           hint={
-            shownAuthor === "app"
+            shown.app.commit
               ? botReady
                 ? "GitHub 代签；需把 App 装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
@@ -1079,35 +1065,40 @@ function GitHanaSettings() {
           label="共同作者"
           control={
             <Inline gap="sm" align="center" wrap>
-              {CO_AUTHOR_KEYS.filter((key) => key !== shownAuthor).map((key) => {
-                const on = shownCredits.includes(key);
-                return (
-                  <Inline key={key} gap="sm" align="center">
-                    <Toggle ariaLabel={CO_AUTHOR_LABELS[key]} checked={on} onChange={() => toggleCoAuthor(key)} />
-                    <span className="gh-val">{CO_AUTHOR_LABELS[key]}</span>
-                  </Inline>
-                );
-              })}
+              {IDENTITY_KEYS.map((who) => (
+                <Inline key={who} gap="sm" align="center">
+                  <Toggle
+                    ariaLabel={IDENTITY_LABELS[who]}
+                    checked={Boolean(shown[who] && shown[who].coAuthor)}
+                    onChange={() => setScene("coAuthor", who)}
+                  />
+                  <span className="gh-val">{IDENTITY_LABELS[who]}</span>
+                </Inline>
+              ))}
             </Inline>
           }
         />
         <SettingRow
-          label="评论身份"
+          label="评论"
           control={
-            <Select
+            <IdentitySelect
               ariaLabel="评论身份"
-              value={shownCommentAuthor}
-              options={[
-                { value: "app", label: "App" },
-                { value: "user", label: "用户" },
-              ]}
-              onChange={(value) => {
-                setDraftCommentAuthor(value);
-                setSaveStatus("idle");
-              }}
+              value={shown.app.comment ? "app" : "user"}
+              onChange={(value) => setScene("comment", value)}
             />
           }
           hint="评论、回复与 resolve 用这个身份。"
+        />
+        <SettingRow
+          label="拉取请求"
+          control={
+            <IdentitySelect
+              ariaLabel="PR 身份"
+              value={shown.app.pullRequest ? "app" : "user"}
+              onChange={(value) => setScene("pullRequest", value)}
+            />
+          }
+          hint={shown.app.pullRequest ? "用 App 令牌创建，作者显示为 bot。" : "用你的账号创建。"}
         />
         <SettingRow
           label="保存"
@@ -1116,16 +1107,16 @@ function GitHanaSettings() {
               status={saveStatus}
               labels={{ idle: "保存", saving: "保存中…", saved: "已保存" }}
               onSavedFeedbackEnd={() => setSaveStatus("idle")}
-              onClick={saveCommitDraft}
+              onClick={saveIdentity}
             />
           }
         />
-        {prefs.error ? <pre className="gh-out">{"读取提交设置失败：" + prefs.error}</pre> : null}
+        {prefs.error ? <pre className="gh-out">{"读取身份设置失败：" + prefs.error}</pre> : null}
         {prefsMsg ? <pre className="gh-out">{prefsMsg}</pre> : null}
       </SettingsSection>
 
       {/* 签名密钥只在本地提交时用到：App bot 由 GitHub 代签，本机密钥不参与。 */}
-      {shownAuthor === "user" ? (
+      {shown.app.commit ? null : (
       <SettingsSection
         title="签名密钥"
         description="密钥只存在 GitHana 目录，不动系统上的 GPG。"
@@ -1278,7 +1269,7 @@ function GitHanaSettings() {
           </div>
         </Collapse>
       </SettingsSection>
-      ) : null}
+      )}
 
       {/* 运行环境：保留一个可收起的区，因为它只在排查安装问题时才需要看。 */}
       <SettingsSection

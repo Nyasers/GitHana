@@ -41,7 +41,7 @@ import * as params from "../../lib/params.js";
 import { getToolDataDir } from "../../lib/context.js";
 import { runApiCommit } from "./api-commit.js";
 import { getBotIdentity } from "../../../lib/app-auth.js";
-import { readCommitPrefs } from "../../../lib/prefs.js";
+import { readIdentity } from "../../../lib/prefs.js";
 
 export const command = "commit";
 export const summary = "Commit (automatic CoA + signing)";
@@ -223,11 +223,11 @@ export async function run(input, ctx, { label }) {
       ' argument error: the commit channel (local / App bot) and the Co-authored-by set come from the GitHana settings page; do not pass "via" or "coAuthors" here.'
     );
   }
-  const commitPrefs = readCommitPrefs(getToolDataDir());
+  const identity = readIdentity(getToolDataDir());
   // 服务面（跨 App 调用）只能做本地提交：它没有 Approval 闸门，绝不能借设置里的 App 通道
   // 去动远端分支。
   const forcedLocal = input?.__forceLocal === true;
-  const via = forcedLocal ? "local" : commitPrefs.author === "app" ? "api" : "local";
+  const via = forcedLocal ? "local" : identity.commitAuthor === "app" ? "api" : "local";
   if (via === "api") {
     if (amend) return label + ' argument error: the settings page selects App-bot commits, which do not support amend (an API commit is built on the remote tip). Switch the channel in the GitHana settings page to commit locally.';
     if (allowEmpty) return label + ' argument error: the settings page selects App-bot commits, which do not support allowEmpty. Switch the channel in the GitHana settings page to commit locally.';
@@ -236,9 +236,9 @@ export async function run(input, ctx, { label }) {
   // 本地通道的作者恒为用户；bot 作者只存在于 API 通道。
   const author = via === "api" ? "githana-bot" : "user";
 
-  // 设置页用对外的名字（app / agent）存署名，这里映射回内部实体 key。
+  // 设置页按身份存署名，这里映射回内部实体 key。
   const CREDIT_IDENTITY = { user: "user", app: "githana-bot", agent: "hanaagent" };
-  const coAuthors = commitPrefs.coAuthors
+  const coAuthors = identity.coAuthors
     .map((k) => CREDIT_IDENTITY[k] || k)
     .filter((k) => k !== author);
 
