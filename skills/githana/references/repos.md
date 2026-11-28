@@ -1,6 +1,6 @@
 # `githana_api` — repos
 
-28 endpoints reachable with this App's permission set.
+27 endpoints reachable with this App's permission set.
 Any endpoint outside this list needs a permission this App does not declare, so `api` gets a 403.
 
 | Endpoint | Permission | Action | Notes |
@@ -18,7 +18,6 @@ Any endpoint outside this list needs a permission this App does not declare, so 
 | `GET /repos/{owner}/{repo}/hash-algorithm` | metadata | read |  |
 | `GET /repos/{owner}/{repo}/issue-types` | metadata | read |  |
 | `GET /repos/{owner}/{repo}/languages` | metadata | read |  |
-| `GET /repos/{owner}/{repo}/planning-statuses` | issues | read |  |
 | `GET /repos/{owner}/{repo}/private-vulnerability-reporting` | metadata | read |  |
 | `GET /repos/{owner}/{repo}/properties/values` | metadata | read |  |
 | `GET /repos/{owner}/{repo}/readme` | contents | read |  |
