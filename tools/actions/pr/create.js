@@ -19,7 +19,7 @@ import { callRest, apiUrl, errorDetail, DEFAULT_REST_TIMEOUT_SEC } from "../../l
 import { resolveContext, describeFailure, defaultBranch, currentBranch } from "../../lib/pr.js";
 import { getToolDataDir } from "../../lib/context.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
-import { readIdentity } from "../../../lib/prefs.js";
+import { readAuthorPrefs } from "../../../lib/prefs.js";
 
 export const command = "create";
 export const summary = "Create a PR";
@@ -43,8 +43,7 @@ export const sideEffect = {
 
 export async function run(input, ctx, { label }) {
   // PR 作者同样由设置页决定：用 installation token 建出来的 PR 作者是 App bot。
-  const identity = readIdentity(getToolDataDir());
-  const asBot = identity.pullRequestAuthor === "app";
+  const asBot = readAuthorPrefs(getToolDataDir()).pr === "app";
   const c = await resolveContext(input, label, { skipAuth: asBot });
   if (c.error) return c.error;
   const { repo, repoLabel, cwd, timeoutSec } = c;
