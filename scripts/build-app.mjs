@@ -311,41 +311,55 @@ function main() {
       console.error("[build-app] 缺 @napi-rs/keyring（跑 pnpm install）；钥匙环加密不能少了它");
       process.exit(1);
     }
-    const platformPkgName = KEYRING_PLATFORM_PKG[hostKey];
-    const platformPkg = platformPkgName ? findPackageDir("@napi-rs/" + platformPkgName) : null;
-    if (platformPkgName && !platformPkg) {
-      console.error(
-        "[build-app] 缺 @napi-rs/" + platformPkgName + "（本机 " + hostKey + " 的钥匙环平台二进制）；" +
-          "跑 pnpm install 或确认 optionalDependencies 已装上",
-      );
-      process.exit(1);
-    }
     const destNmDir = join(DIST, "bin", "node_modules", "@napi-rs");
     mkdirSync(destNmDir, { recursive: true });
     cpSync(keyringCore, join(destNmDir, "keyring"), { recursive: true, dereference: true });
-    let nodeBinary = null;
-    if (platformPkg) {
-      cpSync(platformPkg, join(destNmDir, platformPkgName), { recursive: true, dereference: true });
-      // 断言：平台包里确实有 .node 二进制（缺了 worker 会在运行期才报 Cannot find native binding）。
-      const files = readdirSync(join(destNmDir, platformPkgName));
-      nodeBinary = files.find((n) => n.endsWith(".node")) || null;
-      if (!nodeBinary) {
-        console.error("[build-app] @napi-rs/" + platformPkgName + " 里没有 .node 二进制");
-        process.exit(1);
-      }
-      total += 1;
-    }
     total += 1; // @napi-rs/keyring 包本身
 
-    // 跨平台缺口报告：列出 @napi-rs/keyring 声明、但本机 node_modules 里没有的平台包。
+    // 要随包的平台集：`GITHANA_KEYRING_PLATFORMS`（逗号分隔）决定，缺省只装构建机自己那个。
+    // pack --target universal 时会点名全部目标平台——各平台的 .node 都能在同一个 runner 上装齐
+    // （package.json 的 pnpm.supportedArchitectures 已声明），产物因此不再与构建机绑定。
+    const requested = (process.env.GITHANA_KEYRING_PLATFORMS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const platforms = requested.length ? [...new Set(requested)] : [hostKey];
+
+    const placed = [];
+    for (const platform of platforms) {
+      const pkgName = KEYRING_PLATFORM_PKG[platform];
+      if (!pkgName) {
+        console.error("[build-app] 未知的钥匙环平台 " + platform + "（可选：" + Object.keys(KEYRING_PLATFORM_PKG).join(", ") + "）");
+        process.exit(1);
+      }
+      const dir = findPackageDir("@napi-rs/" + pkgName);
+      if (!dir) {
+        console.error(
+          "[build-app] 缺 @napi-rs/" + pkgName + "（钥匙环的 " + platform + " 二进制）；" +
+            "跑 pnpm install（supportedArchitectures 已声明多平台）",
+        );
+        process.exit(1);
+      }
+      cpSync(dir, join(destNmDir, pkgName), { recursive: true, dereference: true });
+      // 断言：平台包里确实有 .node 二进制（缺了 worker 会在运行期才报 Cannot find native binding）。
+      const nodeFile = readdirSync(join(destNmDir, pkgName)).find((n) => n.endsWith(".node")) || null;
+      if (!nodeFile) {
+        console.error("[build-app] @napi-rs/" + pkgName + " 里没有 .node 二进制");
+        process.exit(1);
+      }
+      placed.push(pkgName + "（" + nodeFile + "）");
+      total += 1;
+    }
+
+    // 跨平台缺口报告：列出 @napi-rs/keyring 声明、但没放进本次产物的平台包。
     const declared = Object.keys(
       JSON.parse(readFileSync(join(keyringCore, "package.json"), "utf8")).optionalDependencies || {},
     );
-    const missingPlatforms = declared.filter((p) => !findPackageDir(p));
+    const wantedPkgs = new Set(platforms.map((p) => KEYRING_PLATFORM_PKG[p]).filter(Boolean));
+    const missingPlatforms = declared.filter((p) => !wantedPkgs.has(p.replace("@napi-rs/", "")));
     log(
-      "bin/node_modules 就位：@napi-rs/keyring + " + (platformPkgName || "(无平台包)") +
-        "（" + (nodeBinary || "n/a") + "）" +
-        (missingPlatforms.length ? "；跨平台缺：" + missingPlatforms.join(", ") : ""),
+      "bin/node_modules 就位：@napi-rs/keyring + " + placed.join("、") +
+        (missingPlatforms.length ? "；本次未随包：" + missingPlatforms.join(", ") : ""),
     );
   }
 
