@@ -851,9 +851,9 @@ function GitHanaSettings() {
             starting
               ? "正在向 GitHub 要一个验证码；连不上会在这里直接说原因，也可以点「取消」。"
               : authorized
-                ? secret.expiresAt
-                  ? "令牌到期：" + formatTime(secret.expiresAt) + "，到期前会自动续期。"
-                  : "令牌到期前会自动续期，无需手动操作。"
+                ? secret.refreshExpiresAt
+                  ? "登录有效期至 " + formatTime(secret.refreshExpiresAt) + "，到期后需要重新登录。"
+                  : "令牌在后台自动续期；续期凭证的到期时间尚未记录。"
                 : "登录后才能生成签名密钥。点「登录」，浏览器会打开验证页。"
           }
         />
