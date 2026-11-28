@@ -2,15 +2,20 @@
 #
 # 触发：push tag v*（发版）／ workflow_dispatch（手动，只出 artifact 不建 release）
 #
-# 为什么只有一个包、不做平台矩阵：App 是 Web 应用，跨平台靠运行时解析
-# （宿主 git → 本平台 vendor → 系统 PATH）。本仓库没有原生模块，不需要逐平台发版；
-# 一个 universal 包把所有平台的官方运行时都打进去，任意平台装上就近解析。
+# 为什么只有一个包、不做平台矩阵：交付面是 JS 加一个原生模块（@napi-rs/keyring）。
+# 平台差异只在那一个模块的预编译二进制上：universal 包按目标平台集把六份都打进去
+# （win32 / darwin / linux × x64 / arm64），运行时就近解析自己那份。
+# package.json 的 pnpm.supportedArchitectures 让这些二进制在 ubuntu runner 上就能装齐，
+# 所以出包不依赖目标系统的 runner；矩阵里的 macOS 缺失不会影响发版。
 # 进市场的也只有这一个包。
 #
 # 三段式：
-#   create-release：先建 draft pre-release（已存在则跳过）——保证后续上传目标必然存在
-#   package：单包。构建 UI → 自检 → 出包（ZIP + .sha256 + .entry.json）→ 拼 index.v2.json
-#   publish：单点上传（--clobber）→ 硬校验必需资产（缺一即 fail，release 留 draft）→ 去 draft
+#   create-release：先建 draft pre-release（仅 tag；已存在则跳过）——保证后续上传目标必然存在
+#   package：逐平台出包 + universal。每个包自包含（只带该平台的钥匙环二进制），
+#            universal 带全部六份并作为市场条目指向的对象。tag 场景额外拼 index.v2.json
+#            （它里面写的是 release 下载地址）；workflow_dispatch 场景只出包与 artifact，
+#            供人工拉下来真机验证。
+#   publish：单点上传（--clobber）→ 硬校验必需资产（缺一即 fail，release 留 draft）→ 去 draft（仅 tag）
 name: Release
 
 on:
@@ -43,8 +48,10 @@ jobs:
 
   package:
     needs: create-release
-    # create-release 只在 tag 场景跑；dispatch 时它被 skip（非 failure），这里显式放行。
-    if: ${{ needs.create-release.result != 'failure' }}
+    # create-release 只在 tag 场景跑。dispatch 时它被 skip，而“needs 被 skip”会传染给依赖它的 job
+    # （实测：没有 always() 时 package 也跟着 skipped，run 整体 conclusion=skipped），
+    # 所以先用 always() 拦断这条传染，再单独判一次「不是 failure」。
+    if: ${{ always() && needs.create-release.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,6 +81,10 @@ jobs:
             node scripts/fetch-vendor.mjs --platform "$p"
           done
 
+      # 派生物校验（pack 内会跑 derive --check）要读上游权限表：缓存不入库，每次现拉一份。
+      - name: Fetch upstream permission table
+        run: node scripts/derive/fetch-permission-table.mjs
+
       - name: Self check (universal)
         run: node scripts/selfcheck.mjs --platform universal
 
@@ -81,11 +92,24 @@ jobs:
       # pack.mjs 会先跑 build-app.mjs 白名单组装 dist/（含设置页产物），再从 dist/ 出包；
       # 两个产物目录都不入库，所以包里那份必然等于当前源码的产物。
       # （官方校验器在本 runner 上没有时会在输出里标 unverified，不假装通过）
-      - name: Package (universal)
-        run: node scripts/pack.mjs --target universal --publisher "${{ github.repository_owner }}" --out releases
+      #
+      # 先逐平台出包，再出 universal：平台包只带本平台的钥匙环二进制（约 1.7 MiB），
+      # universal 带六份（约 5.5 MiB）。市场条目只指 universal——index.v2.json 没有平台维度；
+      # 平台包作为 release 资产存在，供自己构建或用脚本按机器取件的人。
+      - name: Package (per platform, then universal)
+        run: |
+          set -e
+          for t in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
+            echo "=== $t ==="
+            node scripts/pack.mjs --target "$t" --publisher "${{ github.repository_owner }}" --out releases
+          done
+          echo "=== universal ==="
+          node scripts/pack.mjs --target universal --publisher "${{ github.repository_owner }}" --out releases
 
-      # 市场清单：归档地址指向本次 tag 的 release 下载路径
+      # 市场清单：归档地址指向本次 tag 的 release 下载路径。只在 tag 场景生成——
+      # dispatch 时 ref_name 是分支名，拼出来的地址背后没有 release，宁可不产这份清单。
       - name: Build market index
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -e
           node scripts/build-index.mjs \
@@ -107,7 +131,6 @@ jobs:
             releases/*.entry.json
             releases/index.v2.json
           if-no-files-found: error
-
   publish:
     needs: package
     if: startsWith(github.ref, 'refs/tags/v')
@@ -151,12 +174,18 @@ jobs:
           for f in "${ID}-v${VER}-universal.zip" "${ID}-v${VER}-universal.zip.sha256" "index.v2.json"; do
             echo "$ASSETS" | grep -qx "$f" || MISSING+=("$f")
           done
+          # 平台包也是交付面（供按机器取件）；缺一个就当作发布不完整。
+          for t in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
+            for f in "${ID}-v${VER}-${t}.zip" "${ID}-v${VER}-${t}.zip.sha256"; do
+              echo "$ASSETS" | grep -qx "$f" || MISSING+=("$f")
+            done
+          done
 
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "::error::缺少必需资产：${MISSING[*]}（release 保持 draft 供人工检查）"
             exit 1
           fi
-          echo "✓ 必需资产齐备（universal 包 + sha256 + 市场清单）"
+          echo "✓ 必需资产齐备（universal + 六个平台包 + sha256 + 市场清单）"
 
       - name: Un-draft (keep prerelease)
         env:

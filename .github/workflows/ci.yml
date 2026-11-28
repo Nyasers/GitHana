@@ -2,8 +2,13 @@
 #
 # 设计原则：CI 只是执行者，链在本仓库里（scripts/*.mjs），本地同一条命令：
 #   pnpm install --ignore-scripts && pnpm run check
-# vendor/ 不入 git；当前 sources.json 组件表为空（签名与 GitHub 请求都走随包纯 JS，无内嵌二进制），
-# 所以三个平台完全同构，CI 不需要按平台拉取运行时。
+# vendor/ 不入 git；当前 sources.json 组件表为空（签名与 GitHub 请求都走随包纯 JS，无内嵌二进制）。
+# 唯一的原生模块是 @napi-rs/keyring，平台二进制靠 package.json 的 pnpm.supportedArchitectures
+# 在任意 runner 上装齐，所以这台机器验的就是要发的那份代码。
+#
+# 只跑 Linux：这条链是静态与构建检查（组装交付树、语法、服务边界、派生物一致），不含任何
+# 依赖操作系统语义的东西；平台差异只剩原生二进制，而那由 supportedArchitectures 弄平。
+# 交付物的真机行为靠本机（Windows 开发机）与 release 的 universal 包验证，不靠这个矩阵。
 #
 # 诚实边界：官方 creator（validate_app / pack_app）不在本仓库。没配仓库变量
 # HANA_APP_TOOLS_ROOT 时，release.yml 会明确说明"没有官方校验"，而不是静默成功。
@@ -17,18 +22,8 @@ on:
 
 jobs:
   check:
-    name: ${{ matrix.platform }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32-x64
-          - os: macos-14
-            platform: darwin-arm64
-          - os: ubuntu-latest
-            platform: linux-x64
+    name: linux-x64
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -46,8 +41,8 @@ jobs:
 
       - name: Rebuild vendored runtimes
         run: |
-          node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }}
-          node scripts/fetch-vendor.mjs --platform ${{ matrix.platform }} --check
+          node scripts/fetch-vendor.mjs --platform linux-x64
+          node scripts/fetch-vendor.mjs --platform linux-x64 --check
 
       # 与本地同一条链：白名单组装交付树 dist/ + 结构自检
       # （manifest / 全部服务端 JS 语法 / vendor 就绪性）。dist/ 与 ui/dist/ 不入库，现场生成。

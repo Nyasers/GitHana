@@ -179,11 +179,19 @@ async function issueToken(owner, repo) {
   const tok = await github("/app/installations/" + installationId + "/access_tokens", {
     method: "POST",
     token: jwt,
-    // 只申请这个服务真正用到的权限：不限的话 GitHub 会把 App 被授予的全部权限
-    // 都放进这张 token，评论用的 token 就顺带能改 workflows 之类的文件。
+    // 只申请这个服务真正用到的权限：不限的话 GitHub 会把 App 被授予的全部权限都放进这张 token。
+    // workflows / actions 是给「改 CI 配置」与「手动触发流水线」用的——GitHana 会代改
+    // `.github/workflows/`（user token 改不了那里，它没有 workflow scope）并向要 actions: write。
+    // 代价说清楚：这两格让 token 能改变仓库的构建与发布流程，虽然仍只限于这一个仓库。
     json: {
       repositories: [repo],
-      permissions: { contents: "write", issues: "write", pull_requests: "write" },
+      permissions: {
+        contents: "write",
+        issues: "write",
+        pull_requests: "write",
+        workflows: "write",
+        actions: "write",
+      },
     },
   });
   if (!tok.ok || !tok.body || !tok.body.token) {
