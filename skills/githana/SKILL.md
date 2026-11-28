@@ -180,9 +180,9 @@ the former, to change code use the latter.
 ### githana_pr (Pull Requests)
 
 PR **authors cannot be chosen**: a PR is always created by the signed-in user's token. The bot
-identity is available only where GitHub accepts an App token for that object: `comment` takes
-`as="githana-bot"` (uses the public token issuer), which makes the comment
-author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`.
+identity is available only where GitHub accepts an App token for that object: `comment` posts as
+the identity configured in the GitHana settings page (App bot by default), which makes the
+comment author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`.
 
 | action | When to use | Key parameters |
 |---|---|---|
@@ -196,7 +196,7 @@ author `githana-app[bot]`. The same applies to `githana_issue(action="comment")`
 | `ready` | The **state-bit toggle** between draft PR ↔ ready for review (`undo=true` flips it back to a draft). Changing the title/body is not it | `prNumber`; `undo` |
 | `merge` | Merge (**irreversible**). To abandon the changes use `close` | `prNumber` required; `method` (`merge` / `squash` / `rebase`); `deleteBranch` |
 | `review` | Submit a **review verdict** (approve / request changes / leave comments), optionally with inline comments | `event` required; `body` (required for `request-changes`); `comments[]` |
-| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required; `as` (`user` default / `githana-bot`) |
+| `comment` | Only **leave one comment** on the timeline (not a review verdict, does not affect reviewDecision) | `body` required; the author identity comes from the settings page |
 | `close` | Close a PR (restorable with `reopen`). **Deletes neither the branch nor history** | `prNumber` may be omitted |
 | `reopen` | Reopen a closed PR | `prNumber` may be omitted |
 | `edit` | Change a PR's **metadata**: title / body / base branch / state bit | `title` / `body` / `base` / `state` — give at least one |
@@ -220,7 +220,7 @@ whole check-run set on the PR head (GitHub App checks such as CodeRabbit include
 | `status` | Issue status at a glance (reports state only, does not fetch the body or comments) | `issueNumber` required |
 | `create` | Create a new issue | `title` required; `body` / `labels` / `assignees` |
 | `edit` | Change title / body / labels / assignees / milestone | `issueNumber` required; `labels` (whole replacement) is mutually exclusive with `addLabels` / `removeLabels` |
-| `comment` | Add a comment to an issue | `body` required; `as` (`user` default / `githana-bot`) |
+| `comment` | Add a comment to an issue | `body` required; the author identity comes from the settings page |
 | `close` / `reopen` | Close / reopen (optionally with one explanatory comment attached; comments first, then changes the state) | `issueNumber`; `comment` |
 | `delete` | Delete an issue (**irreversible**, requires `confirm=true`) | `issueNumber` required; `confirm` |
 | `develop` | **Create a linked development branch** from the issue (branch name defaults to `<number>-<title-in-hyphenated-form>`) | `issueNumber` required; `name` / `base` |

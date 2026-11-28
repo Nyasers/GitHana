@@ -16,6 +16,7 @@ import * as params from "../../lib/params.js";
 import { resolveContext, resolvePrNumber, describeFailure } from "../../lib/pr.js";
 import { getToolDataDir } from "../../lib/context.js";
 import { getInstallationToken } from "../../../lib/app-auth.js";
+import { readCommitPrefs } from "../../../lib/prefs.js";
 
 export const command = "comment";
 export const summary = "Add a comment to a PR";
@@ -25,10 +26,6 @@ export const schema = {
   cwd: params.cwdOptional,
   prNumber: params.prNumberOptional,
   body: z.string().describe("Comment body (supports Markdown and Chinese)"),
-  as: z
-    .enum(["user", "githana-bot"])
-    .optional()
-    .describe('Optional: who posts the comment. "user" (default) uses the signed-in account; "githana-bot" uses the GitHana App bot (requires the token issuer configured in Settings).'),
   timeoutSec: params.timeoutSec,
 };
 
@@ -40,7 +37,8 @@ export const sideEffect = {
 };
 
 export async function run(input, ctx, { label }) {
-  const as = input?.as === "githana-bot" ? "githana-bot" : "user";
+  // 评论身份由设置页决定（默认 App）：工具发的评论是对外可见的陈述，不挂用户的名义。
+  const as = readCommitPrefs(getToolDataDir()).commentAuthor === "app" ? "githana-bot" : "user";
   const c = await resolveContext(input, label, { skipAuth: as === "githana-bot" });
   if (c.error) return c.error;
   const { repo, repoLabel, timeoutSec } = c;
