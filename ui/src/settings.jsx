@@ -44,8 +44,8 @@ import { hana } from "@hana/app-sdk/ui";
 import "./settings.css";
 
 /** 共同作者的固定顺序与展示名（与 tools/actions/git/commit.js 的 CREDIT_KEYS 一致）。 */
-const CO_AUTHOR_KEYS = ["user", "hanaagent", "githana-bot"];
-const CO_AUTHOR_LABELS = { user: "用户", hanaagent: "HanaAgent", "githana-bot": "App bot" };
+const CO_AUTHOR_KEYS = ["user", "app", "agent"];
+const CO_AUTHOR_LABELS = { user: "用户", app: "App", agent: "Agent" };
 
 /** 后端基址：本 App 的路由根（/api/apps/<appId>/routes/）。 */
 function apiBase() {
@@ -360,7 +360,7 @@ function GitHanaSettings() {
   // 提交署名偏好（非机密）：设置页里先改草稿，再点保存；工具执行时读的是已保存的值。
   const [prefs, setPrefs] = useState({ loading: true, data: null, error: null });
   const [prefsMsg, setPrefsMsg] = useState(null);
-  const [draftVia, setDraftVia] = useState(null);
+  const [draftAuthor, setDraftAuthor] = useState(null);
   const [draftCredits, setDraftCredits] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
 
@@ -380,15 +380,15 @@ function GitHanaSettings() {
   // 读到偏好后填草稿；之后用户的改动只进草稿，点保存才落库。
   useEffect(() => {
     if (!prefs.data) return;
-    setDraftVia(prefs.data.defaultVia);
+    setDraftAuthor(prefs.data.author);
     setDraftCredits(prefs.data.coAuthors);
   }, [prefs.data]);
 
   const commitPref = prefs.data || {
-    defaultVia: "local",
-    coAuthors: ["user", "hanaagent"],
+    author: "user",
+    coAuthors: ["user", "agent"],
   };
-  const shownVia = draftVia || commitPref.defaultVia;
+  const shownAuthor = draftAuthor || commitPref.author;
   const shownCredits = draftCredits || commitPref.coAuthors || [];
 
   const toggleCoAuthor = useCallback(
@@ -405,7 +405,7 @@ function GitHanaSettings() {
     setPrefsMsg(null);
     try {
       const patch = {};
-      if (draftVia) patch.defaultVia = draftVia;
+      if (draftAuthor) patch.author = draftAuthor;
       if (draftCredits) patch.coAuthors = draftCredits;
       const r = await postJson("settings/prefs", { commit: patch });
       setPrefs({ loading: false, data: (r && r.commit) || commitPref, error: null });
@@ -414,7 +414,7 @@ function GitHanaSettings() {
       setPrefsMsg(String((e && e.message) || e));
       setSaveStatus("idle");
     }
-  }, [draftVia, draftCredits, commitPref]);
+  }, [draftAuthor, draftCredits, commitPref]);
 
   // 首次拿到状态后不再需要预填：身份一律由账号推导，页面没有可编辑的身份字段。
 
@@ -1027,19 +1027,19 @@ function GitHanaSettings() {
           control={
             <Select
               ariaLabel="提交身份"
-              value={shownVia}
+              value={shownAuthor}
               options={[
-                { value: "local", label: "用户" },
-                { value: "api", label: "App" },
+                { value: "user", label: "用户" },
+                { value: "app", label: "App" },
               ]}
               onChange={(value) => {
-                setDraftVia(value);
+                setDraftAuthor(value);
                 setSaveStatus("idle");
               }}
             />
           }
           hint={
-            shownVia === "api"
+            shownAuthor === "app"
               ? botReady
                 ? "GitHub 代签，提交页显示 Verified。需把 App 装到目标仓库。"
                 : "签发服务不可用：" + ((issuer.data && issuer.data.url) || "未配置") + "，bot 提交会失败。"
@@ -1078,7 +1078,7 @@ function GitHanaSettings() {
       </SettingsSection>
 
       {/* 签名密钥只在本地提交时用到：App bot 由 GitHub 代签，本机密钥不参与。 */}
-      {shownVia === "local" ? (
+      {shownAuthor === "user" ? (
       <SettingsSection
         title="签名密钥"
         description="密钥只存在 GitHana 目录，不动系统上的 GPG。"
